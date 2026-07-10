@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_PUBLIC_APP_URL: https://salarypadi.test
+  REMOTIVE_SOURCE_ENABLED: "false"
+  ALLOW_DEMO_DATA: "false"
+  ANALYTICS_PROVIDER: none
+
+jobs:
+  quality:
+    name: Format, lint, typecheck, unit, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build production application
+        run: npm run build
+
+  database:
+    name: Database migrations and pgTAP
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Run database tests
+        run: supabase test db
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
+
+  e2e:
+    name: Public browser journeys
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      REMOTIVE_SOURCE_ENABLED: "true"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Detect browser tests
+        id: browser-tests
+        shell: bash
+        run: |
+          if find tests/e2e -type f \( -name '*.spec.*' -o -name '*.test.*' \) -print -quit 2>/dev/null | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No tests/e2e specs are present; browser job is intentionally skipped."
+          fi
+
+      - name: Install Chromium
+        if: steps.browser-tests.outputs.present == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Build the production application
+        if: steps.browser-tests.outputs.present == 'true'
+        run: npm run build
+
+      - name: Run Playwright tests
+        if: steps.browser-tests.outputs.present == 'true'
+        run: npm run test:e2e
+
+      - name: Probe the live job source
+        if: steps.browser-tests.outputs.present == 'true'
+        continue-on-error: true
+        env:
+          REQUIRE_LIVE_SOURCE: "true"
+        run: >-
+          npx playwright test tests/e2e/public-flows.spec.ts
+          --project=desktop-chromium
+          --grep "opens a real job"
+
+      - name: Upload Playwright artifacts
+        if: failure() && steps.browser-tests.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: output/playwright/
+          if-no-files-found: ignore
+          retention-days: 7
