@@ -9,7 +9,11 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "netlify/functions/_shared/**/*.test.ts"],
+    include: [
+      "src/**/*.test.ts",
+      "netlify/functions/_shared/**/*.test.ts",
+      "netlify/edge-functions/**/*.test.ts",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],

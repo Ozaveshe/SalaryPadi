@@ -1,13 +1,6 @@
-import type { Config } from "@netlify/functions";
+import type { Config, Context } from "@netlify/edge-functions";
 
-type EdgeContext = {
-  next(): Promise<Response>;
-};
-
-export default function toolApiRateLimit(
-  _request: Request,
-  context: EdgeContext,
-) {
+export default function toolApiRateLimit(_request: Request, context: Context) {
   return context.next();
 }
 
@@ -16,11 +9,10 @@ export default function toolApiRateLimit(
  * edge limit protects the server-held AfroTools key from direct scripted use.
  */
 export const config = {
-  path: [
-    "/api/tools/take-home-pay",
-    "/api/tools/offer-compare",
-    "/api/tools/job-scam-check",
-  ],
+  // One wildcard is deliberately one Netlify rate-limit rule. A separate path
+  // per tool would exceed the two-rule allowance on Personal/Starter plans and
+  // Netlify would publish the deploy without enforcing the rejected ruleset.
+  path: "/api/tools/*",
   method: "POST",
   rateLimit: {
     action: "rate_limit",
