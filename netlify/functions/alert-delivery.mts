@@ -42,15 +42,17 @@ const handler = async (
     let jobs;
     try {
       jobs = await fetchAlertJobCatalog();
-    } catch {
+    } catch (reason) {
+      const code =
+        reason instanceof OperationalError
+          ? reason.code
+          : "job_catalog_unavailable";
       await Promise.all(
         claims.map((claim) =>
-          complete(claim, "failed", 0, null, "job_catalog_unavailable").catch(
-            () => undefined,
-          ),
+          complete(claim, "failed", 0, null, code).catch(() => undefined),
         ),
       );
-      throw new OperationalError("job_catalog_unavailable", {
+      throw new OperationalError(code, {
         claimed: claims.length,
         sent: 0,
         skipped: 0,

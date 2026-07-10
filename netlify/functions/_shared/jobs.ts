@@ -105,15 +105,17 @@ export async function storeAlertJobCatalog(jobs: Job[]): Promise<number> {
 
 async function fetchDatabaseJobs(): Promise<Job[]> {
   const url = getRuntimeEnvironment("NEXT_PUBLIC_SUPABASE_URL");
-  const serviceRoleKey = getRuntimeEnvironment("SUPABASE_SERVICE_ROLE_KEY");
+  const publishableKey = getRuntimeEnvironment(
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  );
   const response = await fetch(
     `${url}/rest/v1/jobs?select=*&order=posted_at.desc&limit=500`,
     {
       headers: {
         Accept: "application/json",
         "Accept-Profile": "api",
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: publishableKey,
+        Authorization: `Bearer ${publishableKey}`,
       },
       signal: AbortSignal.timeout(10_000),
     },
