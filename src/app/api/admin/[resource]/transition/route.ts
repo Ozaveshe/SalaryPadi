@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { getAdminApiContext } from "@/lib/auth/api";
 import type { AdminResource } from "@/lib/admin/repository";
 import { getAppOrigin } from "@/lib/env";
+import {
+  REMOTIVE_ADAPTER_KEY,
+  REMOTIVE_CACHE_TAG,
+} from "@/lib/jobs/source-policy";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -17,6 +22,33 @@ const resources = new Set<AdminResource>([
   "users",
   "calculation_rules",
 ]);
+const allowedActions: Record<AdminResource, ReadonlySet<string>> = {
+  jobs: new Set(["approve", "expire", "remove", "restore"]),
+  imports: new Set(),
+  sources: new Set(["enable", "disable", "request_review"]),
+  companies: new Set(["verify", "request_evidence", "remove"]),
+  moderation: new Set([
+    "claim",
+    "approve",
+    "redact",
+    "reject",
+    "request_revision",
+    "escalate",
+    "merge_duplicate",
+    "remove",
+    "restore",
+  ]),
+  reports: new Set(["resolve", "dismiss", "escalate", "remove"]),
+  users: new Set([
+    "grant_moderator",
+    "grant_data_quality",
+    "grant_admin",
+    "revoke_role",
+    "suspend",
+    "restore",
+  ]),
+  calculation_rules: new Set(["activate", "retire", "request_review"]),
+};
 const schema = z.object({
   id: z.string().uuid(),
   action: z
@@ -52,6 +84,12 @@ export async function POST(
       { error: "A valid action and reason are required." },
       { status: 400 },
     );
+  if (!allowedActions[rawResource as AdminResource].has(parsed.data.action)) {
+    return Response.json(
+      { error: "That admin action is not available." },
+      { status: 400 },
+    );
+  }
   const admin = await getAdminApiContext();
   if (!admin.ok) return admin.response;
   let transitionError: { message: string } | null = null;
@@ -113,6 +151,35 @@ export async function POST(
         expected_version: parsed.data.expected_version,
       });
     transitionError = error;
+  }
+  if (
+    !transitionError &&
+    rawResource === "sources" &&
+    ["enable", "disable", "request_review"].includes(parsed.data.action)
+  ) {
+    const sourceList = await admin.supabase
+      .schema("api")
+      .rpc("admin_list_sources");
+    const sourceRows = z
+      .array(
+        z.object({
+          id: z.string().uuid(),
+          secondary: z.string().max(500).nullable(),
+        }),
+      )
+      .max(200)
+      .safeParse(sourceList.data);
+    const adapterPrefix = `${REMOTIVE_ADAPTER_KEY} | `;
+    const transitionedRemotive = sourceRows.success
+      ? sourceRows.data.some(
+          (source) =>
+            source.id === parsed.data.id &&
+            source.secondary?.startsWith(adapterPrefix),
+        )
+      : false;
+    if (!sourceList.error && transitionedRemotive) {
+      revalidateTag(REMOTIVE_CACHE_TAG, { expire: 0 });
+    }
   }
   const url = new URL(
     `/admin/${rawResource === "calculation_rules" ? "calculation-rules" : rawResource}`,

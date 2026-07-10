@@ -108,7 +108,17 @@ export interface Job {
 
 export interface JobFeedResult {
   jobs: Job[];
-  state: "live" | "disabled" | "unavailable";
+  state: "live" | "degraded" | "disabled" | "unavailable";
   checkedAt: string;
+  message?: string;
+  sources: JobFeedSourceStatus[];
+}
+
+export interface JobFeedSourceStatus {
+  key: "remotive" | "database";
+  state: "live" | "degraded" | "disabled" | "unavailable";
+  checkedAt: string;
+  count: number;
+  code?: string;
   message?: string;
 }

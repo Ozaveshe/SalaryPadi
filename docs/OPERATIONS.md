@@ -100,7 +100,9 @@ Employer submissions are pending by default. A matching corporate email domain i
 - Database-backed sources can be paused/disabled independently. Do not use a source failure as permission to invent or reuse stale jobs.
 - Monitor last successful import, error count, schema failures, stale/expired ratios, duplicate rate, and outbound destination changes.
 
-The production `job-source-sync` worker validates the Remotive feed twice daily, replaces a description-free alert catalog, and records an import run without persisting source descriptions. Public pages use a separate twelve-hour cache; together these two consumers stay within four normal provider reads per day, and ordinary CI never calls the live feed. A worker success proves source validation and operational freshness, not a durable description copy. Set `REMOTIVE_SOURCE_ENABLED=false` when the policy or provider is in doubt; the worker must honor that switch before any provider call.
+The production `job-source-sync` worker first reads the service-role-only database policy. If it is active and matches the reviewed no-storage/noindex contract, the worker calls the protected internal snapshot route. That route invalidates and warms the same twelve-hour tagged cache used by public pages, applies the bounded shared adapter, and returns a description-free projection. The worker replaces the current alert Blob and records import evidence. Normal operation performs two provider reads per day, not one read from the website plus another from the worker. A worker success proves policy validation, source validation, shared-cache refresh, Blob publication, and operational freshness; it does not create a durable description copy.
+
+Admin source pause/disable is an acquisition boundary. The worker and public repository both fail closed before the provider call. The environment flag remains an independent emergency stop. Import runs are immutable evidence: the console exposes no retry action and the database rejects direct retry requests until a real rate-aware queue consumer exists.
 
 ## Aggregate refresh
 
@@ -144,6 +146,7 @@ Assign every correction, export, account-deletion, and contribution-deletion req
 ## Daily checks
 
 - `/api/health` responds, reports the expected provider configuration, and shows all four tracked workers inside their stale thresholds. Source-provider availability still needs its own run evidence.
+- The scheduled GitHub production canary runs at 01:20 and 13:20 UTC and proves a populated Remotive-backed listing, stable detail route, attribution, noindex/structured-data policy, and HTTPS source destination without calling Remotive itself.
 - Public pages, sign-in, save/apply/alert flows, and admin gates behave as expected.
 - Source freshness and outbound application links are within policy.
 - Moderation, report, employer-submission, aggregate-refresh, and privacy queues have named owners and no unbounded age.

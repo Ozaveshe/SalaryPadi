@@ -12,7 +12,7 @@ import type { Job } from "@/lib/jobs/types";
 
 export function JobCard({ job }: { job: Job }) {
   return (
-    <article className="job-card">
+    <article className="job-card" data-job-id={job.id}>
       <div className="stack">
         <div className="split">
           <div>

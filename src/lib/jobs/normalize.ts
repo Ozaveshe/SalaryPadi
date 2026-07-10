@@ -325,20 +325,23 @@ export function buildJobFingerprint(input: {
   company: string;
   location: string;
   arrangement: EmploymentArrangement;
+  destination: string;
 }) {
-  const canonical = [
-    input.title,
-    input.company,
-    input.location,
+  const canonicalText = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  const destination = new URL(input.destination);
+  destination.hash = "";
+  destination.hostname = destination.hostname.toLowerCase();
+  const canonical = JSON.stringify([
+    canonicalText(input.title),
+    canonicalText(input.company),
+    canonicalText(input.location),
     input.arrangement,
-  ]
-    .map((value) =>
-      value
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, " ")
-        .trim(),
-    )
-    .join("|");
+    destination.toString(),
+  ]);
   return createHash("sha256").update(canonical).digest("hex");
 }
 
@@ -370,6 +373,7 @@ export function normalizeRemotiveJob(
     company: source.company_name,
     location: evidence,
     arrangement,
+    destination: sourceUrl.toString(),
   });
 
   return {

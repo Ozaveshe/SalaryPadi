@@ -64,6 +64,18 @@ export function getRuntimeEnvironment(name: string): string {
   return value;
 }
 
+export function getRuntimeSecret(name: string): string {
+  const value = getRuntimeEnvironment(name);
+  if (
+    value.length < 32 ||
+    value.length > 512 ||
+    !/^[A-Za-z0-9_-]+$/.test(value)
+  ) {
+    throw new OperationalError(`invalid_${name.toLowerCase()}`);
+  }
+  return value;
+}
+
 export function getOptionalRuntimeEnvironment(
   name: string,
 ): string | undefined {
@@ -144,6 +156,34 @@ export function getRuntimeSupabaseOrigin(): string {
   }
 }
 
+export function getRuntimeAppOrigin(): string {
+  const rawUrl = getRuntimeEnvironment("NEXT_PUBLIC_APP_URL");
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new OperationalError("invalid_salarypadi_app_url");
+  }
+
+  const localAllowed = getOptionalRuntimeEnvironment("NETLIFY_DEV") === "true";
+  const localHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+  const isLocal =
+    localAllowed &&
+    localHosts.has(url.hostname) &&
+    (url.protocol === "http:" || url.protocol === "https:");
+  if (
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    (url.pathname !== "/" && url.pathname !== "") ||
+    (url.origin !== "https://salarypadi.com" && !isLocal)
+  ) {
+    throw new OperationalError("invalid_salarypadi_app_url");
+  }
+  return url.origin;
+}
+
 function errorCode(reason: unknown): string {
   if (reason instanceof OperationalError) return reason.code;
   if (
@@ -176,6 +216,9 @@ export async function rpc<T>(
       Authorization: `Bearer ${serviceRoleKey}`,
     },
     body: JSON.stringify(parameters),
+    cache: "no-store",
+    credentials: "omit",
+    redirect: "error",
     signal: boundedSignal(options.signal, options.timeoutMs ?? RPC_TIMEOUT_MS),
   });
   if (!response.ok) {

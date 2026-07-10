@@ -36,6 +36,7 @@ export async function GET() {
   const workerBackendConfigured = Boolean(
     environment.SUPABASE_SERVICE_ROLE_KEY,
   );
+  const sourceRefreshConfigured = Boolean(environment.JOB_SOURCE_SYNC_TOKEN);
   const afroToolsConfigured = Boolean(getAfroToolsConfig().apiKey);
   const providersReady = {
     analytics: environment.ANALYTICS_PROVIDER === "supabase_first_party",
@@ -50,7 +51,9 @@ export async function GET() {
     remotive: environment.REMOTIVE_SOURCE_ENABLED,
   };
   const operationsConfigured =
-    workerBackendConfigured && Object.values(providersReady).every(Boolean);
+    workerBackendConfigured &&
+    sourceRefreshConfigured &&
+    Object.values(providersReady).every(Boolean);
   const supabase = await createServerSupabaseClient();
   const workerResult = supabase
     ? await supabase.schema("api").rpc("get_worker_health")
@@ -82,6 +85,7 @@ export async function GET() {
       checks: {
         backend_configured: backendConfigured,
         worker_backend_configured: workerBackendConfigured,
+        source_refresh_configured: sourceRefreshConfigured,
         afrotools_configured: afroToolsConfigured,
         operations_configured: operationsConfigured,
         worker_health_complete: workerHealthComplete,

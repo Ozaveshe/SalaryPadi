@@ -48,77 +48,84 @@ export async function AdminResourcePage({
                   </td>
                   <td>{formatDate(row.updated_at)}</td>
                   <td>
-                    <form
-                      className="admin-action"
-                      action={`/api/admin/${resource}/transition`}
-                      method="post"
-                    >
-                      <input type="hidden" name="id" value={row.id} />
-                      <input
-                        type="hidden"
-                        name="expected_version"
-                        value={row.version}
-                      />
-                      <label
-                        className="visually-hidden"
-                        htmlFor={`action-${row.id}`}
+                    {actions.length > 0 ? (
+                      <form
+                        className="admin-action"
+                        action={`/api/admin/${resource}/transition`}
+                        method="post"
                       >
-                        Action for {row.title}
-                      </label>
-                      <select
-                        className="select"
-                        id={`action-${row.id}`}
-                        name="action"
-                        required
-                      >
-                        <option value="">Choose</option>
-                        {actions.map((action) => (
-                          <option value={action} key={action}>
-                            {formatEnum(action)}
-                          </option>
-                        ))}
-                      </select>
-                      <label
-                        className="visually-hidden"
-                        htmlFor={`reason-${row.id}`}
-                      >
-                        Reason
-                      </label>
-                      <input
-                        className="input"
-                        id={`reason-${row.id}`}
-                        name="reason"
-                        maxLength={500}
-                        placeholder="Required reason"
-                        required
-                      />
-                      {resource === "moderation" ? (
-                        <>
-                          <label htmlFor={`payload-${row.id}`}>
-                            Redacted public fields (JSON; for redact only)
-                          </label>
-                          <textarea
-                            className="textarea admin-payload"
-                            id={`payload-${row.id}`}
-                            name="public_payload"
-                            maxLength={60000}
-                            placeholder='{"pros":"Redacted public text"}'
-                          />
-                          <label htmlFor={`linked-case-${row.id}`}>
-                            Destination case ID (for merge duplicate only)
-                          </label>
-                          <input
-                            className="input"
-                            id={`linked-case-${row.id}`}
-                            name="linked_case_id"
-                            placeholder="UUID"
-                          />
-                        </>
-                      ) : null}
-                      <button className="button button-secondary" type="submit">
-                        Apply
-                      </button>
-                    </form>
+                        <input type="hidden" name="id" value={row.id} />
+                        <input
+                          type="hidden"
+                          name="expected_version"
+                          value={row.version}
+                        />
+                        <label
+                          className="visually-hidden"
+                          htmlFor={`action-${row.id}`}
+                        >
+                          Action for {row.title}
+                        </label>
+                        <select
+                          className="select"
+                          id={`action-${row.id}`}
+                          name="action"
+                          required
+                        >
+                          <option value="">Choose</option>
+                          {actions.map((action) => (
+                            <option value={action} key={action}>
+                              {formatEnum(action)}
+                            </option>
+                          ))}
+                        </select>
+                        <label
+                          className="visually-hidden"
+                          htmlFor={`reason-${row.id}`}
+                        >
+                          Reason
+                        </label>
+                        <input
+                          className="input"
+                          id={`reason-${row.id}`}
+                          name="reason"
+                          maxLength={500}
+                          placeholder="Required reason"
+                          required
+                        />
+                        {resource === "moderation" ? (
+                          <>
+                            <label htmlFor={`payload-${row.id}`}>
+                              Redacted public fields (JSON; for redact only)
+                            </label>
+                            <textarea
+                              className="textarea admin-payload"
+                              id={`payload-${row.id}`}
+                              name="public_payload"
+                              maxLength={60000}
+                              placeholder='{"pros":"Redacted public text"}'
+                            />
+                            <label htmlFor={`linked-case-${row.id}`}>
+                              Destination case ID (for merge duplicate only)
+                            </label>
+                            <input
+                              className="input"
+                              id={`linked-case-${row.id}`}
+                              name="linked_case_id"
+                              placeholder="UUID"
+                            />
+                          </>
+                        ) : null}
+                        <button
+                          className="button button-secondary"
+                          type="submit"
+                        >
+                          Apply
+                        </button>
+                      </form>
+                    ) : (
+                      <span className="text-muted text-sm">View only</span>
+                    )}
                   </td>
                 </tr>
               ))}

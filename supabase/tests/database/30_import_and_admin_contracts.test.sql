@@ -46,8 +46,22 @@ select ok(
   has_function_privilege('authenticated', 'api.admin_list_sources()', 'EXECUTE')
   and has_function_privilege(
     'authenticated', 'api.admin_transition(text,text,uuid,text,integer)', 'EXECUTE'
+  )
+  and not has_function_privilege(
+    'authenticated', 'security.admin_transition(text,text,uuid,text,integer)', 'EXECUTE'
+  )
+  and not has_function_privilege(
+    'anon', 'security.admin_transition(text,text,uuid,text,integer)', 'EXECUTE'
+  )
+  and (
+    select p.prosecdef
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'api'
+      and p.proname = 'admin_transition'
+      and p.proargtypes = '25 25 2950 25 23'::oidvector
   ),
-  'authenticated role can reach admin RPCs, which enforce DB-backed role and AAL checks'
+  'authenticated callers use only the definer API wrapper, which retains DB-backed role and AAL checks'
 );
 
 insert into auth.users (
@@ -240,58 +254,57 @@ select is(
   1,
   'failed import appears in the admin import list'
 );
-select is(
-  api.admin_transition(
+select throws_ok(
+  $$ select api.admin_transition(
     'imports', 'retry', 'ac000000-0000-0000-0000-000000000001',
     'Retry after source adapter correction', 1
-  ),
-  true,
-  'admin retry creates a new queued import attempt'
+  ) $$,
+  '0A000',
+  'import retry is unavailable; scheduled source adapters own refresh execution',
+  'database rejects import retry even for an AAL2 administrator'
 );
 select is(
   (select count(*)::integer from api.admin_list_imports()
-   where id <> 'ac000000-0000-0000-0000-000000000001'
-     and status = 'queued'),
+   where title = 'Import Contract import'),
   1,
-  'retry preserves the original run and links one queued child'
+  'rejected retry leaves only the original source import run'
 );
 select is(
   (select version from api.admin_list_imports()
    where id = 'ac000000-0000-0000-0000-000000000001'),
-  2,
-  'retry advances the original import optimistic version'
+  1,
+  'rejected retry does not advance the original import version'
 );
+reset role;
+select is(
+  (select count(*)::integer from ingest.import_runs
+   where retry_of = 'ac000000-0000-0000-0000-000000000001'),
+  0,
+  'authoritative ingest storage contains no retry child'
+);
+set local role authenticated;
 select throws_ok(
   $$ select api.admin_transition(
-    'imports', 'retry', 'ac000000-0000-0000-0000-000000000001',
-    'stale retry should fail', 1
-  ) $$,
-  '40001', null,
-  'stale import retry is rejected without creating another child'
-);
-select is(
-  api.admin_transition(
     'imports', 'cancel',
-    (select id from api.admin_list_imports()
-     where id <> 'ac000000-0000-0000-0000-000000000001'
-       and status = 'queued'),
-    'Cancel queued retry after review', 1
-  ),
-  true,
-  'admin can cancel the queued retry'
+    'ac000000-0000-0000-0000-000000000001',
+    'Do not cancel immutable failed evidence', 1
+  ) $$,
+  '23514',
+  'import cannot be cancelled from its current state',
+  'failed import evidence cannot be repurposed through cancel'
 );
 select is(
   (select status from api.admin_list_imports()
-   where id <> 'ac000000-0000-0000-0000-000000000001'),
-  'cancelled',
-  'cancel transition updates the retry state atomically'
+   where id = 'ac000000-0000-0000-0000-000000000001'),
+  'failed',
+  'failed import evidence remains immutable after rejected actions'
 );
 select is(
   (select count(*)::integer from api.admin_audit_events(100)
    where actor_user_id = 'aa000000-0000-0000-0000-000000000002'
      and action like 'admin.%'),
-  4,
-  'each successful admin transition writes one audit event'
+  2,
+  'only successful source transitions write admin audit events'
 );
 select lives_ok(
   $$

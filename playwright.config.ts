@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
+const localBaseURL = "http://127.0.0.1:3000";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   outputDir: "./output/playwright/results",
@@ -9,7 +12,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : 3,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: externalBaseURL ?? localBaseURL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
@@ -30,17 +33,19 @@ export default defineConfig({
     },
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
   ],
-  webServer: {
-    command: process.env.CI
-      ? "npm run start -- --hostname 127.0.0.1"
-      : "npm run dev -- --hostname 127.0.0.1",
-    url: "http://127.0.0.1:3000",
-    reuseExistingServer: !process.env.CI,
-    env: {
-      ...process.env,
-      NEXT_PUBLIC_APP_URL: process.env.CI
-        ? (process.env.NEXT_PUBLIC_APP_URL ?? "https://salarypadi.test")
-        : "http://127.0.0.1:3000",
-    },
-  },
+  webServer: externalBaseURL
+    ? undefined
+    : {
+        command: process.env.CI
+          ? "npm run start -- --hostname 127.0.0.1"
+          : "npm run dev -- --hostname 127.0.0.1",
+        url: localBaseURL,
+        reuseExistingServer: !process.env.CI,
+        env: {
+          ...process.env,
+          NEXT_PUBLIC_APP_URL: process.env.CI
+            ? (process.env.NEXT_PUBLIC_APP_URL ?? "https://salarypadi.test")
+            : localBaseURL,
+        },
+      },
 });

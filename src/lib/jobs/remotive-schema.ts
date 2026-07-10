@@ -27,3 +27,4 @@ export const remotiveResponseSchema = z.object({
 });
 
 export type RemotiveJob = z.infer<typeof remotiveJobSchema>;
+export type RemotiveResponse = z.infer<typeof remotiveResponseSchema>;

@@ -89,10 +89,10 @@ const databaseJobSchema = z.object({
   eligibility_verified_at: z.string().nullable(),
   role_family: z.string().nullable(),
   dedup_fingerprint: z.string().nullable(),
-  locations: z.array(locationSchema).catch([]),
-  eligibility_countries: z.array(eligibilityCountrySchema).catch([]),
-  skills: z.array(z.string()).catch([]),
-  risk_indicators: z.array(riskSchema).catch([]),
+  locations: z.array(locationSchema).max(50),
+  eligibility_countries: z.array(eligibilityCountrySchema).max(100),
+  skills: z.array(z.string()).max(100),
+  risk_indicators: z.array(riskSchema).max(100),
 });
 
 const africanCountryCodes = new Set([
@@ -416,13 +416,14 @@ export function mapDatabaseJobRow(input: unknown): Job | null {
     validThrough: row.valid_through,
     status: "open",
     riskIndicators: mapRisks(row.risk_indicators),
-    fingerprint:
-      row.dedup_fingerprint ??
-      buildJobFingerprint({
-        title: row.title,
-        company: row.company_name,
-        location: locationDisplay,
-        arrangement,
-      }),
+    // SQL fingerprints remain useful as source-record evidence, but every
+    // adapter must use one canonical read-time key for cross-source merging.
+    fingerprint: buildJobFingerprint({
+      title: row.title,
+      company: row.company_name,
+      location: locationDisplay,
+      arrangement,
+      destination: row.application_url,
+    }),
   };
 }

@@ -22,6 +22,7 @@ Required web configuration:
 | `TRANSACTIONAL_EMAIL_REPLY_TO`         | `support@salarypadi.com`                          |
 | `RESEND_API_KEY`                       | Protected production secret, Functions scope only |
 | `SUPABASE_SERVICE_ROLE_KEY`            | Protected production secret, Functions scope only |
+| `JOB_SOURCE_SYNC_TOKEN`                | Independent protected internal-refresh bearer     |
 
 Never expose a service-role key through a `NEXT_PUBLIC_*` variable. Production configuration rejects demo data.
 
@@ -86,12 +87,12 @@ Do not deploy as a static export; authentication, CSP, server-side source reads,
 
 Published production deploys register these Netlify schedules:
 
-| Function                 | Schedule (UTC) | Stale after | Purpose                                                                                                          |
-| ------------------------ | -------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| `job-source-sync`        | `5 1,13 * * *` | 14 hours    | Validate the reviewed Remotive feed, replace the description-free alert catalog, and record source/import health |
-| `alert-delivery`         | `*/10 * * * *` | 35 minutes  | Claim due daily/weekly alerts idempotently and send matching jobs                                                |
-| `currency-rates`         | `25 2 * * *`   | 36 hours    | Store the current European Commission InforEuro monthly reference set and provenance                             |
-| `operations-maintenance` | `45 2 * * *`   | 36 hours    | Expire jobs, process aggregate queues, retry/dead-letter deliveries, and enforce retention                       |
+| Function                 | Schedule (UTC) | Stale after | Purpose                                                                                                                                                  |
+| ------------------------ | -------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `job-source-sync`        | `5 1,13 * * *` | 14 hours    | Enforce source policy, read or revalidate the shared public Remotive cache, replace the description-free alert snapshot, and record source/import health |
+| `alert-delivery`         | `*/10 * * * *` | 35 minutes  | Claim due daily/weekly alerts idempotently and send matching jobs                                                                                        |
+| `currency-rates`         | `25 2 * * *`   | 36 hours    | Store the current European Commission InforEuro monthly reference set and provenance                                                                     |
+| `operations-maintenance` | `45 2 * * *`   | 36 hours    | Expire jobs, process aggregate queues, retry/dead-letter deliveries, and enforce retention                                                               |
 
 After every production deploy, use Netlify's scheduled-function **Run now** control once for each function. Verify one new `private.worker_runs` success per task and check `/api/health`; a configured schedule is not proof that a worker executed.
 
@@ -106,7 +107,7 @@ Use a dedicated staging backend and non-sensitive test accounts.
 - Verify one ordinary user cannot access another user’s rows using the pgTAP ownership tests and a browser smoke.
 - Verify admin denial for ordinary users, AAL1 denial for staff, AAL2 staff access, stale-version rejection, and audit creation.
 - Approve redacted review/interview test data and a threshold-crossing salary batch; verify no identity fields or sparse values reach public responses.
-- Verify source attribution and that Remotive-backed pages remain `noindex` without `JobPosting` schema.
+- Verify source attribution and that Remotive-backed pages remain `noindex` without `JobPosting` schema. Run the same `live-jobs.spec.ts` canary used by the scheduled production workflow.
 - Verify cross-origin state changes, unsafe redirects, non-HTTPS destinations, oversized inputs, and raw HTML are rejected.
 
 ## Production release order

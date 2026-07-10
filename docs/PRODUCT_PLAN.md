@@ -49,7 +49,7 @@ Routes are implemented only when their current phase provides useful behaviour. 
 | `/jobs`, `/jobs/remote`, `/jobs/nigeria`                                            | 2     | Public    | URL-persisted search, filters, sorting and pagination      |
 | `/jobs/[slug]`                                                                      | 2     | Public    | Job detail, truth card, source evidence and external apply |
 | `/saved`, `/applications`, `/alerts`                                                | 2     | Signed in | Private saved jobs, application tracker and alerts         |
-| `/admin/jobs`, `/admin/imports`, `/admin/sources`                                   | 2     | Admin     | Job/source/import moderation and retry controls            |
+| `/admin/jobs`, `/admin/imports`, `/admin/sources`                                   | 2     | Admin     | Job/source moderation and immutable import-run evidence    |
 | `/companies`, `/companies/[slug]`                                                   | 3     | Public    | Company facts, jobs and confidence-labelled intelligence   |
 | `/companies/[slug]/salaries`                                                        | 3     | Public    | Thresholded salary aggregates                              |
 | `/companies/[slug]/reviews`                                                         | 3     | Public    | Approved reviews and confidence labels                     |

@@ -128,7 +128,7 @@ export default async function HomePage() {
             Browse all jobs
           </Link>
         </div>
-        {feed.state === "live" && recentJobs.length > 0 ? (
+        {recentJobs.length > 0 ? (
           <div className="job-list">
             {recentJobs.map((job) => (
               <JobCard job={job} key={job.id} />

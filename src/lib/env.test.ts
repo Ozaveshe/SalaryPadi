@@ -58,4 +58,13 @@ describe("server environment", () => {
       }),
     ).toThrow(/afrotools\.com/);
   });
+
+  it("rejects a weak internal source-refresh token", () => {
+    expect(() =>
+      parseServerEnvironment({
+        NODE_ENV: "development",
+        JOB_SOURCE_SYNC_TOKEN: "too-short",
+      }),
+    ).toThrow(/>=32/);
+  });
 });

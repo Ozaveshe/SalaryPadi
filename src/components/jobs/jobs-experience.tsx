@@ -50,6 +50,12 @@ export async function JobsExperience({
           .
         </div>
       ) : null}
+      {feed.state === "degraded" ? (
+        <div className="notice notice-warning" role="status">
+          <strong>Some job sources are temporarily degraded.</strong>{" "}
+          {feed.message}
+        </div>
+      ) : null}
       {feed.state === "disabled" ? (
         <div className="notice" role="status">
           {feed.message}
@@ -96,8 +102,9 @@ export async function JobsExperience({
       <aside className="source-policy-note">
         <strong>Source policy:</strong> Every result keeps its own source,
         eligibility evidence, destination, freshness and indexing permissions.
-        Reviewed employer records take precedence when the same vacancy also
-        appears in the constrained Remotive pilot.
+        Records merge only when normalized facts and the exact application or
+        source destination match. Otherwise each source keeps separate
+        provenance for review.
       </aside>
     </div>
   );

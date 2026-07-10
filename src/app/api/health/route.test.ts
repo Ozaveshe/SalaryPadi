@@ -22,6 +22,7 @@ const environment = {
   NEXT_PUBLIC_SUPABASE_URL: "https://bxelrhklsznmpksgrqep.supabase.co",
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
   SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
+  JOB_SOURCE_SYNC_TOKEN: "test-source-sync-token",
   AFROTOOLS_API_BASE: "https://afrotools.com/api/v1",
   AFROTOOLS_API_KEY: "test-afrotools-key",
   RESEND_API_KEY: "test-resend-key",

@@ -182,14 +182,18 @@ export type Database = {
       };
       job_sources: {
         Row: {
+          adapter_key: string | null;
+          allow_public_listing: boolean | null;
           attribution_required: boolean | null;
           attribution_text: string | null;
           homepage_url: string | null;
           id: string | null;
           may_emit_jobposting_schema: boolean | null;
           may_index_jobs: boolean | null;
+          may_store_full_description: boolean | null;
           name: string | null;
           required_destination_kind: string | null;
+          refresh_interval_seconds: number | null;
           source_type:
             | "direct_employer"
             | "partner_feed"
@@ -198,17 +202,22 @@ export type Database = {
             | "manual"
             | null;
           terms_reviewed_at: string | null;
+          terms_version: string | null;
           terms_url: string | null;
         };
         Insert: {
+          adapter_key?: string | null;
+          allow_public_listing?: boolean | null;
           attribution_required?: boolean | null;
           attribution_text?: string | null;
           homepage_url?: string | null;
           id?: string | null;
           may_emit_jobposting_schema?: boolean | null;
           may_index_jobs?: boolean | null;
+          may_store_full_description?: boolean | null;
           name?: string | null;
           required_destination_kind?: string | null;
+          refresh_interval_seconds?: number | null;
           source_type?:
             | "direct_employer"
             | "partner_feed"
@@ -217,17 +226,22 @@ export type Database = {
             | "manual"
             | null;
           terms_reviewed_at?: string | null;
+          terms_version?: string | null;
           terms_url?: string | null;
         };
         Update: {
+          adapter_key?: string | null;
+          allow_public_listing?: boolean | null;
           attribution_required?: boolean | null;
           attribution_text?: string | null;
           homepage_url?: string | null;
           id?: string | null;
           may_emit_jobposting_schema?: boolean | null;
           may_index_jobs?: boolean | null;
+          may_store_full_description?: boolean | null;
           name?: string | null;
           required_destination_kind?: string | null;
+          refresh_interval_seconds?: number | null;
           source_type?:
             | "direct_employer"
             | "partner_feed"
@@ -236,6 +250,7 @@ export type Database = {
             | "manual"
             | null;
           terms_reviewed_at?: string | null;
+          terms_version?: string | null;
           terms_url?: string | null;
         };
         Relationships: [];
@@ -1489,6 +1504,10 @@ export type Database = {
           search_spec: Json;
         }[];
       };
+      worker_claim_remotive_fetch: {
+        Args: { p_purpose: string; p_request_key: string };
+        Returns: boolean;
+      };
       worker_complete_alert_delivery: {
         Args: {
           p_claim_token: string;
@@ -1508,6 +1527,30 @@ export type Database = {
           p_summary?: Json;
         };
         Returns: boolean;
+      };
+      worker_get_job_source_policy: {
+        Args: { p_adapter_key: string };
+        Returns: {
+          adapter_key: string;
+          allow_public_listing: boolean;
+          attribution_required: boolean;
+          attribution_text: string;
+          homepage_url: string;
+          may_emit_jobposting_schema: boolean;
+          may_index_jobs: boolean;
+          may_store_full_description: boolean;
+          refresh_interval_seconds: number;
+          required_destination_kind: string;
+          review_requested_at: string;
+          source_id: string;
+          source_name: string;
+          source_type: string;
+          status: string;
+          terms_reviewed_at: string;
+          terms_reviewed_by: string;
+          terms_url: string;
+          terms_version: string;
+        }[];
       };
       worker_record_source_import: {
         Args: {

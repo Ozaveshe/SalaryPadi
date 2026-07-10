@@ -1,6 +1,7 @@
 import type { Config } from "@netlify/functions";
 
 import {
+  assertAlertJobsPublishable,
   type AlertClaim,
   fetchAlertJobCatalog,
   matchAlertJobs,
@@ -89,6 +90,7 @@ export async function runAlertDelivery({ signal }: WorkerExecution) {
       continue;
     }
     try {
+      await assertAlertJobsPublishable(matches, signal);
       const providerId = await sendAlertEmail(
         claim.delivery_id,
         claim.recipient_email,

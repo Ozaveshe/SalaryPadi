@@ -2,6 +2,8 @@ import type { Context } from "@netlify/functions";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  getRuntimeAppOrigin,
+  getRuntimeSecret,
   PLATFORM_SHUTDOWN_RESERVE_MS,
   RPC_TIMEOUT_MS,
   rpc,
@@ -54,6 +56,51 @@ describe("scheduled worker runtime", () => {
       code: "invalid_supabase_project_url",
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not follow redirects when sending the service-role credential", async () => {
+    netlifyEnvironment({
+      NEXT_PUBLIC_SUPABASE_URL: "https://bxelrhklsznmpksgrqep.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
+    });
+    const fetchSpy = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ accepted: true }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(rpc("worker_start", { p_task_key: "test" })).resolves.toEqual({
+      accepted: true,
+    });
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    expect(String(url)).toBe(
+      "https://bxelrhklsznmpksgrqep.supabase.co/rest/v1/rpc/worker_start",
+    );
+    expect(init).toMatchObject({
+      method: "POST",
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+    });
+    expect(new Headers(init?.headers).get("apikey")).toBe(
+      "test-service-role-key",
+    );
+  });
+
+  it("rejects a wrong application origin before an internal credential can leave", () => {
+    netlifyEnvironment({
+      NEXT_PUBLIC_APP_URL: "https://attacker.example",
+      SUPABASE_SERVICE_ROLE_KEY: "must-not-be-sent",
+    });
+
+    expect(() => getRuntimeAppOrigin()).toThrow("invalid_salarypadi_app_url");
+  });
+
+  it("rejects a weak internal bearer", () => {
+    netlifyEnvironment({ JOB_SOURCE_SYNC_TOKEN: "too-short" });
+    expect(() => getRuntimeSecret("JOB_SOURCE_SYNC_TOKEN")).toThrow(
+      "invalid_job_source_sync_token",
+    );
   });
 
   it("rejects a false terminal write instead of logging success", async () => {

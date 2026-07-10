@@ -13,7 +13,7 @@ The repository is deployable without fabricated data: public tools and trust pag
 - Admin surfaces protected by both a staff role and an AAL2 session.
 - Nigeria take-home pay, side-by-side offer comparison, and an explainable job-scam checker.
 - Scheduled source-health, alert-delivery, currency-rate, retention, expiry, and aggregate-maintenance workers with idempotent run evidence.
-- A site-scoped, description-free Netlify Blob catalog lets ten-minute alert delivery reuse the bounded twice-daily source ingestion instead of fetching the provider again.
+- A protected scheduled refresh reads or revalidates the same bounded source cache used by public pages, then publishes one site-scoped, description-free Netlify Blob snapshot for ten-minute alert delivery.
 - Consent-gated first-party analytics that stores daily event totals only, plus reviewed European Commission InforEuro reference rates.
 - Canonical metadata, sitemaps, robots controls, structured data, accessibility foundations, CSP nonces, and baseline security headers.
 
@@ -56,7 +56,11 @@ The local Supabase configuration exposes only the `api` schema through PostgREST
 7. `20260710000700_harden_public_operational_wrappers.sql` — moves privileged analytics/health implementations behind invoker-only API wrappers.
 8. `20260710000800_allow_operational_wrapper_resolution.sql` — grants only the schema resolution required by those explicit wrappers.
 9. `20260710000900_force_operations_rls.sql` — forces RLS for table owners on every new private operations table.
-10. `20260710001000_bound_source_sync_cadence.sql` — bounds source validation to four reads per day and defines its missed-run threshold.
+10. `20260710001000_bound_source_sync_cadence.sql` — defines the twice-daily source cadence and its missed-run threshold.
+11. `20260710001100_community_feed_forums.sql` and `20260710001200_community_reporting.sql` — moderated feed/forum records, reactions, reports, and public projections.
+12. `20260710114841_backend_integrity_hardening.sql` — worker, audit, ownership, provider, and integrity hardening.
+13. `20260710145329_job_source_policy_boundary.sql` — makes source pause/disable an acquisition boundary and fixes reviewed public-noindex source re-enablement.
+14. `20260710145347_source_fetch_budget.sql` — enforces a durable one-per-minute and four-per-rolling-day provider-request budget before every Remotive cache fill.
 
 With Docker running and the Supabase CLI installed:
 
@@ -85,7 +89,7 @@ $env:NEXT_PUBLIC_APP_URL = "https://salarypadi.test"
 npm run build
 ```
 
-`npm run quality` runs lint, type checking, unit tests, and a production build, so set that origin first. Playwright starts the application automatically. CI keeps deterministic build gates independent of Remotive, runs public browser journeys against the live pilot when available, and records a separate non-blocking live-source probe for upstream outages.
+`npm run quality` runs lint, type checking, unit tests, and a production build, so set that origin first. Playwright starts the application automatically for local/CI journeys. Pull-request CI never calls Remotive; the `jobs-live-smoke.yml` workflow is scheduled for 01:20 and 13:20 UTC and fails if the corresponding recent sync, publication, attribution, indexing policy, or HTTPS destination journey breaks.
 
 ## Repository map
 
@@ -104,6 +108,7 @@ netlify/functions/       Scheduled production workers and their shared adapters
 
 - [Product plan](docs/PRODUCT_PLAN.md)
 - [Data sources and provenance](docs/DATA_SOURCES.md)
+- [Job ingestion architecture](docs/JOB_INGESTION_ARCHITECTURE.md)
 - [Security and privacy](docs/SECURITY.md)
 - [Deployment and rollback](docs/DEPLOYMENT.md)
 - [Moderation and operations](docs/OPERATIONS.md)

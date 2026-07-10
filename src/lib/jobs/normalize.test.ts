@@ -129,13 +129,34 @@ describe("salary and duplicate normalization", () => {
       company: "Acme!",
       location: "Worldwide",
       arrangement: "employee",
+      destination: "https://jobs.example.test/openings/123",
     });
     const second = buildJobFingerprint({
       title: " senior  engineer ",
       company: "ACME",
       location: "worldwide",
       arrangement: "employee",
+      destination: "https://jobs.example.test/openings/123",
     });
     expect(first).toBe(second);
+  });
+
+  it("keeps distinct openings with the same visible facts separate", () => {
+    const first = buildJobFingerprint({
+      title: "Engineer",
+      company: "Acme",
+      location: "Lagos",
+      arrangement: "employee",
+      destination: "https://jobs.example.test/openings/123",
+    });
+    const second = buildJobFingerprint({
+      title: "Engineer",
+      company: "Acme",
+      location: "Lagos",
+      arrangement: "employee",
+      destination: "https://jobs.example.test/openings/456",
+    });
+
+    expect(first).not.toBe(second);
   });
 });

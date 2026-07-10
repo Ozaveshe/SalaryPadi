@@ -16,12 +16,23 @@ const optionalString = z.preprocess(
   z.string().min(1).optional(),
 );
 
+const optionalInternalToken = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z
+    .string()
+    .min(32)
+    .max(512)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
+);
+
 const serverEnvironmentSchema = z
   .object({
     NEXT_PUBLIC_APP_URL: optionalUrl,
     NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: optionalString,
     SUPABASE_SERVICE_ROLE_KEY: optionalString,
+    JOB_SOURCE_SYNC_TOKEN: optionalInternalToken,
     AFROTOOLS_API_BASE: optionalUrl,
     AFROTOOLS_API_KEY: optionalString,
     RESEND_API_KEY: optionalString,
@@ -29,7 +40,7 @@ const serverEnvironmentSchema = z
     TRANSACTIONAL_EMAIL_REPLY_TO: optionalString,
     REMOTIVE_SOURCE_ENABLED: z
       .enum(["true", "false"])
-      .default("true")
+      .default("false")
       .transform((value) => value === "true"),
     ALLOW_DEMO_DATA: z
       .enum(["true", "false"])
@@ -147,6 +158,7 @@ export function parseServerEnvironment(
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     SUPABASE_SERVICE_ROLE_KEY: environment.SUPABASE_SERVICE_ROLE_KEY,
+    JOB_SOURCE_SYNC_TOKEN: environment.JOB_SOURCE_SYNC_TOKEN,
     AFROTOOLS_API_BASE: environment.AFROTOOLS_API_BASE,
     AFROTOOLS_API_KEY: environment.AFROTOOLS_API_KEY,
     RESEND_API_KEY: environment.RESEND_API_KEY,

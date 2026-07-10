@@ -4,8 +4,8 @@ export default function Page() {
     <AdminResourcePage
       resource="imports"
       title="Import runs"
-      description="Inspect failures and retry a fixed, approved source adapter. User-controlled URLs are never fetched."
-      actions={["retry", "cancel"]}
+      description="Inspect immutable source-run evidence. Refreshes run only through the reviewed scheduled adapter; the console does not create an unconsumed retry queue."
+      actions={[]}
     />
   );
 }

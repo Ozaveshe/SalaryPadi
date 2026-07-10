@@ -1,0 +1,51 @@
+name: Jobs production canary
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 1,13 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jobs-production-canary
+  cancel-in-progress: true
+
+jobs:
+  jobs-live-smoke:
+    name: Production jobs journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PLAYWRIGHT_BASE_URL: https://salarypadi.com
+      REQUIRE_LIVE_SOURCE: "true"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify production jobs flow
+        run: >-
+          npx playwright test tests/e2e/live-jobs.spec.ts
+          --project=desktop-chromium
+
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobs-production-canary
+          path: output/playwright/
+          if-no-files-found: ignore
+          retention-days: 7
