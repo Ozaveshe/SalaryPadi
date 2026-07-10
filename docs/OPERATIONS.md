@@ -98,7 +98,7 @@ Employer submissions are pending by default. A matching corporate email domain i
 - Database-backed sources can be paused/disabled independently. Do not use a source failure as permission to invent or reuse stale jobs.
 - Monitor last successful import, error count, schema failures, stale/expired ratios, duplicate rate, and outbound destination changes.
 
-The production `job-source-sync` worker validates the Remotive feed every three hours and records an import run without persisting source descriptions. The public repository still performs its bounded server-side read, so a worker success proves source validation and operational freshness, not a durable copy of the feed. Disable the Netlify schedule and set `REMOTIVE_SOURCE_ENABLED=false` when the policy or provider is in doubt.
+The production `job-source-sync` worker validates the Remotive feed every six hours, replaces a description-free alert catalog, and records an import run without persisting source descriptions. The public repository still performs its bounded server-side read, so a worker success proves source validation and operational freshness, not a durable description copy. Disable the Netlify schedule and set `REMOTIVE_SOURCE_ENABLED=false` when the policy or provider is in doubt.
 
 ## Aggregate refresh
 
@@ -122,12 +122,12 @@ The automated path runs only from a Netlify Function with a Functions-only produ
 
 ## Worker and email operations
 
-| Task key                 | Netlify function         | UTC schedule              | Success evidence                                                        | Failure action                                                                |
-| ------------------------ | ------------------------ | ------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `job_source_sync`        | `job-source-sync`        | Every 3 hours at minute 5 | Source import row and successful tracked run                            | Disable source on terms/schema failure; never substitute fabricated jobs      |
-| `alert_delivery`         | `alert-delivery`         | Hourly at minute 15       | Claimed/sent/skipped/failed counts; provider message ID only            | Retry with idempotency; terminal failures move to `dead` for operator review  |
-| `currency_rates`         | `currency-rates`         | Daily at 02:25            | Reviewed InforEuro rate set, data month, source URL, and 42 cross-rates | Keep the last disclosed set; UI must label it stale and allow manual override |
-| `operations_maintenance` | `operations-maintenance` | Daily at 02:45            | Expiry, retention, delivery recovery, and aggregate counts              | Run the focused RPC only after diagnosing the failed step                     |
+| Task key                 | Netlify function         | UTC schedule              | Success evidence                                                              | Failure action                                                                |
+| ------------------------ | ------------------------ | ------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `job_source_sync`        | `job-source-sync`        | Every 6 hours at minute 5 | Source import row, description-free catalog count, and successful tracked run | Disable source on terms/schema failure; never substitute fabricated jobs      |
+| `alert_delivery`         | `alert-delivery`         | Hourly at minute 15       | Claimed/sent/skipped/failed counts; provider message ID only                  | Retry with idempotency; terminal failures move to `dead` for operator review  |
+| `currency_rates`         | `currency-rates`         | Daily at 02:25            | Reviewed InforEuro rate set, data month, source URL, and 42 cross-rates       | Keep the last disclosed set; UI must label it stale and allow manual override |
+| `operations_maintenance` | `operations-maintenance` | Daily at 02:45            | Expiry, retention, delivery recovery, and aggregate counts                    | Run the focused RPC only after diagnosing the failed step                     |
 
 Every function first creates an idempotent `private.worker_runs` row. Scheduled invocation keys prevent a duplicate Netlify delivery from running the same interval twice. Normal logs contain task keys, counts, provider-safe IDs, and error codes only—never recipient addresses, alert queries, contribution text, salary amounts, or secrets.
 

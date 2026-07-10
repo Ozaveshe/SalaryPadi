@@ -49,7 +49,7 @@ supabase test db
 
 8. Bootstrap the first administrator using the two-person procedure in [Operations](OPERATIONS.md), then verify AAL2 access and audit output.
 
-The hosted migration set through `20260710000900` is applied and recorded. Live API types are generated in `src/lib/supabase/database.types.ts`; the Phase Two operations suite adds 35 pgTAP assertions for worker authorization, idempotency, alert claims, analytics aggregation, rate provenance, maintenance, invoker-only public wrappers, and narrow internal-routine resolution. The repository-wide schema suite also requires forced RLS on every new private operations table. Supabase Auth uses `https://salarypadi.com` as its Site URL while retaining the Netlify production and preview callbacks needed for rollback and deploy previews.
+The hosted migration set through `20260710001000` is applied and recorded. Live API types are generated in `src/lib/supabase/database.types.ts`; the Phase Two operations suite adds 37 pgTAP assertions for worker authorization, idempotency, alert claims, analytics aggregation, rate provenance, maintenance, invoker-only public wrappers, narrow internal-routine resolution, and bounded source cadence. The repository-wide schema suite also requires forced RLS on every new private operations table. Supabase Auth uses `https://salarypadi.com` as its Site URL while retaining the Netlify production and preview callbacks needed for rollback and deploy previews.
 
 ## Web build and deployment
 
@@ -86,12 +86,12 @@ Do not deploy as a static export; authentication, CSP, server-side source reads,
 
 Published production deploys register these Netlify schedules:
 
-| Function                 | Schedule (UTC) | Stale after | Purpose                                                                                          |
-| ------------------------ | -------------- | ----------- | ------------------------------------------------------------------------------------------------ |
-| `job-source-sync`        | `5 */3 * * *`  | 8 hours     | Validate the reviewed Remotive feed and record source/import health without storing descriptions |
-| `alert-delivery`         | `15 * * * *`   | 3 hours     | Claim due daily/weekly alerts idempotently and send matching jobs                                |
-| `currency-rates`         | `25 2 * * *`   | 36 hours    | Store the current European Commission InforEuro monthly reference set and provenance             |
-| `operations-maintenance` | `45 2 * * *`   | 36 hours    | Expire jobs, process aggregate queues, retry/dead-letter deliveries, and enforce retention       |
+| Function                 | Schedule (UTC) | Stale after | Purpose                                                                                                          |
+| ------------------------ | -------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| `job-source-sync`        | `5 */6 * * *`  | 14 hours    | Validate the reviewed Remotive feed, replace the description-free alert catalog, and record source/import health |
+| `alert-delivery`         | `15 * * * *`   | 3 hours     | Claim due daily/weekly alerts idempotently and send matching jobs                                                |
+| `currency-rates`         | `25 2 * * *`   | 36 hours    | Store the current European Commission InforEuro monthly reference set and provenance                             |
+| `operations-maintenance` | `45 2 * * *`   | 36 hours    | Expire jobs, process aggregate queues, retry/dead-letter deliveries, and enforce retention                       |
 
 After every production deploy, use Netlify's scheduled-function **Run now** control once for each function. Verify one new `private.worker_runs` success per task and check `/api/health`; a configured schedule is not proof that a worker executed.
 

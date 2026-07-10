@@ -1,6 +1,6 @@
 import type { Config } from "@netlify/functions";
 
-import { fetchRemotiveJobs } from "./_shared/jobs";
+import { fetchRemotiveJobs, storeAlertJobCatalog } from "./_shared/jobs";
 import { OperationalError, rpc, runTrackedWorker } from "./_shared/runtime";
 
 const handler = async (
@@ -10,6 +10,7 @@ const handler = async (
   runTrackedWorker("job_source_sync", request, context, async () => {
     try {
       const jobs = await fetchRemotiveJobs();
+      const catalogCount = await storeAlertJobCatalog(jobs);
       const importId = await rpc<string>("worker_record_source_import", {
         p_adapter_key: "remotive",
         p_fetched_count: jobs.length,
@@ -19,6 +20,7 @@ const handler = async (
       return {
         source: "remotive",
         fetched_count: jobs.length,
+        alert_catalog_count: catalogCount,
         persisted_descriptions: 0,
         import_recorded: Boolean(importId),
       };
@@ -41,5 +43,5 @@ const handler = async (
 export default handler;
 
 export const config: Config = {
-  schedule: "5 */3 * * *",
+  schedule: "5 */6 * * *",
 };

@@ -13,6 +13,7 @@ The repository is deployable without fabricated data: public tools and trust pag
 - Admin surfaces protected by both a staff role and an AAL2 session.
 - Nigeria take-home pay, side-by-side offer comparison, and an explainable job-scam checker.
 - Scheduled source-health, alert-delivery, currency-rate, retention, expiry, and aggregate-maintenance workers with idempotent run evidence.
+- A site-scoped, description-free Netlify Blob catalog lets hourly alerts reuse the bounded six-hour source ingestion instead of fetching the provider again.
 - Consent-gated first-party analytics that stores daily event totals only, plus reviewed European Commission InforEuro reference rates.
 - Canonical metadata, sitemaps, robots controls, structured data, accessibility foundations, CSP nonces, and baseline security headers.
 
@@ -55,6 +56,7 @@ The local Supabase configuration exposes only the `api` schema through PostgREST
 7. `20260710000700_harden_public_operational_wrappers.sql` — moves privileged analytics/health implementations behind invoker-only API wrappers.
 8. `20260710000800_allow_operational_wrapper_resolution.sql` — grants only the schema resolution required by those explicit wrappers.
 9. `20260710000900_force_operations_rls.sql` — forces RLS for table owners on every new private operations table.
+10. `20260710001000_bound_source_sync_cadence.sql` — bounds source validation to four reads per day and defines its missed-run threshold.
 
 With Docker running and the Supabase CLI installed:
 

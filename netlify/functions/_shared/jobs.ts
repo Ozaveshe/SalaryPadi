@@ -1,3 +1,5 @@
+import { getStore } from "@netlify/blobs";
+
 import { mapDatabaseJobRow } from "../../../src/lib/jobs/database";
 import { normalizeRemotiveJob } from "../../../src/lib/jobs/normalize";
 import { remotiveResponseSchema } from "../../../src/lib/jobs/remotive-schema";
@@ -10,6 +12,15 @@ import type { Job } from "../../../src/lib/jobs/types";
 import { getRuntimeEnvironment, OperationalError } from "./runtime";
 
 const REMOTIVE_ENDPOINT = "https://remotive.com/api/remote-jobs";
+const ALERT_CATALOG_STORE = "salarypadi-job-catalog";
+const ALERT_CATALOG_KEY = "current";
+const ALERT_CATALOG_MAX_AGE_MS = 14 * 60 * 60 * 1000;
+
+type AlertCatalog = {
+  schemaVersion: 1;
+  checkedAt: string;
+  jobs: Job[];
+};
 
 export type AlertClaim = {
   delivery_id: string;
@@ -33,6 +44,63 @@ export async function fetchRemotiveJobs(): Promise<Job[]> {
     throw new OperationalError("remotive_source_empty");
   const checkedAt = new Date().toISOString();
   return parsed.jobs.map((job) => normalizeRemotiveJob(job, checkedAt));
+}
+
+function alertCatalogStore() {
+  const netlify = (
+    globalThis as typeof globalThis & {
+      Netlify?: { context?: { deploy?: { context?: string } } };
+    }
+  ).Netlify;
+  if (netlify?.context?.deploy?.context !== "production") {
+    throw new OperationalError("alert_catalog_production_only");
+  }
+  return getStore({ name: ALERT_CATALOG_STORE, consistency: "strong" });
+}
+
+export function createAlertCatalog(
+  jobs: Job[],
+  checkedAt = new Date().toISOString(),
+): AlertCatalog {
+  return {
+    schemaVersion: 1,
+    checkedAt,
+    jobs: jobs.map((job) => ({
+      ...job,
+      description: "",
+      requirements: null,
+      benefits: null,
+      riskIndicators: [],
+    })),
+  };
+}
+
+export function parseAlertCatalog(value: unknown, now = new Date()): Job[] {
+  if (!value || typeof value !== "object") {
+    throw new OperationalError("alert_catalog_missing");
+  }
+  const candidate = value as Partial<AlertCatalog>;
+  const checkedAt =
+    typeof candidate.checkedAt === "string"
+      ? Date.parse(candidate.checkedAt)
+      : Number.NaN;
+  if (
+    candidate.schemaVersion !== 1 ||
+    !Array.isArray(candidate.jobs) ||
+    Number.isNaN(checkedAt)
+  ) {
+    throw new OperationalError("alert_catalog_shape");
+  }
+  if (now.valueOf() - checkedAt > ALERT_CATALOG_MAX_AGE_MS) {
+    throw new OperationalError("alert_catalog_stale");
+  }
+  return candidate.jobs;
+}
+
+export async function storeAlertJobCatalog(jobs: Job[]): Promise<number> {
+  const catalog = createAlertCatalog(jobs);
+  await alertCatalogStore().setJSON(ALERT_CATALOG_KEY, catalog);
+  return catalog.jobs.length;
 }
 
 async function fetchDatabaseJobs(): Promise<Job[]> {
@@ -61,10 +129,11 @@ async function fetchDatabaseJobs(): Promise<Job[]> {
 }
 
 export async function fetchAlertJobCatalog(): Promise<Job[]> {
-  const [remotive, database] = await Promise.all([
-    fetchRemotiveJobs(),
+  const [stored, database] = await Promise.all([
+    alertCatalogStore().get(ALERT_CATALOG_KEY, { type: "json" }),
     fetchDatabaseJobs(),
   ]);
+  const remotive = parseAlertCatalog(stored);
   const byFingerprint = new Map<string, Job>();
   for (const job of [...database, ...remotive]) {
     if (!byFingerprint.has(job.fingerprint))

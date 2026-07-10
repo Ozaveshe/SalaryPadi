@@ -60,7 +60,7 @@ The daily maintenance worker removes aggregate analytics counts after 90 days, w
 
 - Account, private career, moderation, operational, and first-party aggregate analytics data is stored in the dedicated Supabase project `bxelrhklsznmpksgrqep` in AWS `eu-north-1`.
 - Authentication and alert email is sent through Resend's `eu-west-1` sending region from the isolated `mail.salarypadi.com` domain. Delivery necessarily discloses the recipient address and message contents to the mail provider; tracking metrics are not enabled.
-- Netlify serves the web application and scheduled Functions through its managed platform and global delivery network. Hostinger is authoritative for DNS and the operational mailbox. Their current subprocessors and transfer terms must be reviewed through the provider contracts; this repository does not freeze a provider's live subprocessor list.
+- Netlify serves the web application and scheduled Functions through its managed platform and global delivery network. One site-scoped Blob stores only the current description-free Remotive alert catalog and is overwritten on each successful sync; no catalog history is retained. Hostinger is authoritative for DNS and the operational mailbox. Their current subprocessors and transfer terms must be reviewed through the provider contracts; this repository does not freeze a provider's live subprocessor list.
 - European Commission InforEuro is fetched as public monthly reference data. No user or account data is sent with that request.
 
 ## Known launch blockers and residual risks

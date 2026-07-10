@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(35);
+select plan(37);
 
 select ok(
   to_regclass('private.worker_runs') is not null
@@ -15,6 +15,16 @@ select ok(
 select ok(
   to_regclass('api.current_currency_rates') is not null,
   'current currency-rate projection exists'
+);
+select is(
+  (select expected_interval from private.worker_schedules where task_key = 'job_source_sync'),
+  interval '6 hours',
+  'source validation is bounded to four scheduled reads per day'
+);
+select is(
+  (select stale_after from private.worker_schedules where task_key = 'job_source_sync'),
+  interval '14 hours',
+  'source health allows one missed six-hour interval before becoming stale'
 );
 
 select is(
