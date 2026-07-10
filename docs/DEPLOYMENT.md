@@ -147,3 +147,5 @@ Close every release with separate proof for:
 - worker/schedule health for all four production tasks, including a manual post-deploy run.
 
 End the release record with one outcome: `released`, `rolled back`, or `blocked`. A prepared artifact or green local build is not a live release.
+
+The current production closeout is recorded as **released** in [Phase Two production release record](PHASE_TWO_RELEASE_RECORD.md).

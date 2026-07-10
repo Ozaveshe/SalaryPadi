@@ -47,6 +47,8 @@ commit;
 4. Immediately enrol an approved TOTP factor, verify an AAL2 session, and open `/admin`. The human operator must control the authenticator secret; an automation agent must not retain it.
 5. Record the recovery path: a Supabase organization owner can remove a lost factor after identity verification, then the admin must enrol a replacement before resuming privileged work. Factor removal is an incident and must be checked in Auth audit logs.
 
+The initial production bootstrap completed on 2026-07-10: the active `support@salarypadi.com` administrator enrolled the `SalaryPadi admin` TOTP factor and reached the protected control room at AAL2. The factor secret and one-time codes were controlled only by the human operator. See the [Phase Two release record](PHASE_TWO_RELEASE_RECORD.md) for the separated production evidence.
+
 Abort if no row is returned or the UUID is wrong. Subsequent grants and revocations must use the audited staff-role API from an existing AAL2 administrator. Keep at least two active administrators, and never remove the last active admin.
 
 ## Contribution moderation

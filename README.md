@@ -107,6 +107,7 @@ netlify/functions/       Scheduled production workers and their shared adapters
 - [Security and privacy](docs/SECURITY.md)
 - [Deployment and rollback](docs/DEPLOYMENT.md)
 - [Moderation and operations](docs/OPERATIONS.md)
+- [Phase Two production release record](docs/PHASE_TWO_RELEASE_RECORD.md)
 
 ## Production operations
 

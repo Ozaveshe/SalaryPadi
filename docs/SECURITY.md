@@ -63,10 +63,10 @@ The daily maintenance worker removes aggregate analytics counts after 90 days, w
 - Netlify serves the web application and scheduled Functions through its managed platform and global delivery network. One site-scoped Blob stores only the current description-free Remotive alert catalog and is overwritten on each successful sync; no catalog history is retained. Hostinger is authoritative for DNS and the operational mailbox. Their current subprocessors and transfer terms must be reviewed through the provider contracts; this repository does not freeze a provider's live subprocessor list.
 - European Commission InforEuro is fetched as public monthly reference data. No user or account data is sent with that request.
 
-## Known launch blockers and residual risks
+## Residual risks and operating requirements
 
 - Dedicated Supabase project `bxelrhklsznmpksgrqep` is configured and the operations migration is applied; every new production deploy still requires separate hosted build, scheduler, database-advisor, and route proof.
-- Staff pages require AAL2. The first admin grant exists, but the human owner must control and verify the TOTP factor; add a second named recovery administrator before relying on continuous staff coverage.
+- Staff pages require AAL2. The first production administrator's human-controlled TOTP factor and protected `/admin` session were verified on 2026-07-10; add a second named recovery administrator before relying on continuous staff coverage.
 - Database rate limits are account-based. Add edge/network abuse controls and alerting before a public contribution launch; a corporate email match is only a signal, not proof of company ownership.
 - Four tracked workers cover source validation, alert delivery, currency references, expiry, retention, and aggregate maintenance. A production log sink and external incident paging integration are still not configured, so Oza must inspect Netlify/Supabase health inside the documented stale thresholds.
 - Human moderation remains necessary for personal information, threats, harassment, confidential material, defamation risk, manipulation, and employer brigading.
