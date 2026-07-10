@@ -4,4 +4,3 @@
 -- any other routine.
 
 grant usage on schema security to anon, authenticated;
-

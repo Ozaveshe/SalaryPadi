@@ -117,4 +117,3 @@ grant execute on function security.capture_analytics_event_internal(text,text) t
 grant execute on function security.get_worker_health_internal() to anon, authenticated;
 grant execute on function api.capture_analytics_event(text,text) to anon, authenticated;
 grant execute on function api.get_worker_health() to anon, authenticated;
-
