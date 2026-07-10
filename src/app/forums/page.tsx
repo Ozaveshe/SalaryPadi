@@ -66,7 +66,13 @@ export default async function ForumsPage({
         <div className="forum-topic-grid">
           {data.topics.map((item) => (
             <Link
-              className={`forum-topic-card${item.slug === topic ? "forum-topic-card-active" : ""}`}
+              aria-current={item.slug === topic ? "page" : undefined}
+              className={[
+                "forum-topic-card",
+                item.slug === topic ? "forum-topic-card-active" : null,
+              ]
+                .filter(Boolean)
+                .join(" ")}
               href={`/forums?topic=${encodeURIComponent(item.slug)}`}
               key={item.id}
             >
