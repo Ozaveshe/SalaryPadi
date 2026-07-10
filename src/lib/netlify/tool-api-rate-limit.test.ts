@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { config } from "./tool-api-rate-limit";
+import { config } from "../../../netlify/edge-functions/tool-api-rate-limit";
 
 describe("tool API edge protection", () => {
   it("uses one deployable rule for every tool endpoint", () => {
