@@ -201,30 +201,29 @@ Quality gates:
 
 ## Security and privacy risks
 
-| Risk                            | Initial control                                                                 | Residual / operational requirement                              |
-| ------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Contributor identity disclosure | RLS, safe public views, no identity fields in browser payloads                  | Review logs/exports and moderator access regularly              |
-| Stored XSS/defamation/doxxing   | Plain-text rendering, server validation, moderation, redaction, CSP             | Human moderation and takedown SLA remain necessary              |
-| Admin/auth bypass               | SSR auth, server role checks, RLS, no client-only authority                     | Test every protected endpoint against anonymous/member accounts |
-| CSRF                            | SameSite auth cookies, Origin checks and framework protections on state changes | Verify deployment proxy preserves correct host/origin           |
-| Job/apply phishing              | URL validation, source evidence, report workflow, risk indicators               | Verification is not a safety guarantee; recheck sources         |
-| SSRF                            | Initial scam checker does not fetch URLs; adapters use fixed source hosts       | Threat-model any future fetch/preview feature before launch     |
-| Salary re-identification        | Minimum sample threshold, grouping/broadening, no raw public rows               | Monitor sparse dimensions and insider access                    |
-| Analytics leakage               | Typed allowlisted events; prohibited-field runtime guard                        | Audit downstream vendor configuration before enabling           |
-| Stale tax/currency output       | Versioned effective dates, source links, freshness notices                      | Named owner and review cadence required                         |
-| Supply-chain compromise         | Lockfile, minimal dependencies, CI audit                                        | Current transitive advisories require upstream monitoring       |
+| Risk                            | Initial control                                                                                   | Residual / operational requirement                              |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Contributor identity disclosure | RLS, safe public views, no identity fields in browser payloads                                    | Review logs/exports and moderator access regularly              |
+| Stored XSS/defamation/doxxing   | Plain-text rendering, server validation, moderation, redaction, CSP                               | Human moderation and takedown SLA remain necessary              |
+| Admin/auth bypass               | SSR auth, server role checks, RLS, no client-only authority                                       | Test every protected endpoint against anonymous/member accounts |
+| CSRF                            | SameSite auth cookies, Origin checks and framework protections on state changes                   | Verify deployment proxy preserves correct host/origin           |
+| Job/apply phishing              | URL validation, source evidence, report workflow, risk indicators                                 | Verification is not a safety guarantee; recheck sources         |
+| SSRF                            | Initial scam checker does not fetch URLs; adapters use fixed source hosts                         | Threat-model any future fetch/preview feature before launch     |
+| Salary re-identification        | Minimum sample threshold, grouping/broadening, no raw public rows                                 | Monitor sparse dimensions and insider access                    |
+| Analytics leakage               | Explicit consent, same-origin intake, aggregate-only daily counts, prohibited-field runtime guard | Re-audit event allowlist and 90-day retention regularly         |
+| Stale tax/currency output       | Versioned tax dates; InforEuro source month/licence/freshness; manual FX override                 | Review worker freshness and provider terms                      |
+| Supply-chain compromise         | Lockfile, minimal dependencies, current GitHub Actions, CI audit, PostCSS security override       | Re-test/remove override after framework upgrades                |
 
 The product is designed with the Nigeria Data Protection Act in mind, but documentation and controls do not by themselves constitute legal compliance.
 
-## External credentials and decisions needed
+## External credentials and decisions
 
-- A project-specific SalaryPadi Supabase MCP target would improve future operations; project-scoped CLI and dashboard access are active now.
-- The canonical custom domain is `https://salarypadi.com`. Hostinger is authoritative for DNS and Netlify serves the production application; the `netlify.app` origin remains available for deploy previews and rollback diagnostics.
-- Transactional email configuration for authentication and alerts.
-- A recurring terms-review owner for the active Remotive pilot and each future source.
-- Currency-rate provider and licensing decision before any automated live rates; the MVP uses explicit user-entered rates.
-- Privacy-safe analytics provider decision; analytics remains a no-op until explicitly configured.
-- Human moderation owner, appeal/takedown channel and operational response targets.
+- Project-scoped CLI/dashboard access and a named `supabase_salarypadi` MCP target are configured for project `bxelrhklsznmpksgrqep`; generic Supabase connectors remain prohibited for this repository.
+- The canonical custom domain is `https://salarypadi.com`. Hostinger is authoritative for DNS and Netlify serves production; the `netlify.app` origin remains available for deploy previews and rollback diagnostics.
+- Resend is selected for authentication and alert email through verified domain `mail.salarypadi.com`; credentials are split between the Supabase SMTP integration and a sending-only Netlify Functions key.
+- Oza is the interim moderation, privacy, security, incident, source-terms, data-quality and release owner through monitored role aliases. A second named AAL2 administrator and human coverage remain operating-growth requirements.
+- European Commission InforEuro is the reviewed monthly FX reference under the Commission legal notice/CC BY 4.0. User-entered rates override it.
+- Privacy-safe analytics uses SalaryPadi's own Supabase project, explicit consent and aggregate-only 90-day daily counts; no behavioral analytics vendor receives events.
 
 ## Decisions and assumptions
 
@@ -235,7 +234,7 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 - No payslip uploads, arbitrary URL fetching, billing, CV builder, social graph, direct messaging or hosted one-click applications.
 - Public salary data is suppressed below the configurable threshold of three; review ratings use a separate configurable threshold.
 - Currency conversions identify their rate, source and timestamp and are estimates.
-- Until a dedicated backend exists, credential-dependent flows fail closed with a useful setup state; they do not silently store private data in the browser.
+- If the dedicated backend or a protected provider variable is unavailable, credential-dependent flows and workers fail closed; they do not silently store private data in the browser or substitute fabricated results.
 
 ## Phase log
 
@@ -300,3 +299,13 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 - Added database-backed jobs and company intelligence, privacy request handling, a working staff TOTP enrol/challenge flow, and source-permitted `JobPosting` structured data.
 - Formatting, lint, live-schema typecheck, 163 unit tests, and the 54-route production build pass. The immutable Netlify cloud deployment serves the homepage, live jobs, health endpoint, calculators, CSP and security headers successfully; the local Windows CLI edge packager remains unsuitable for middleware packaging.
 - Connected `salarypadi.com` through Hostinger DNS using Netlify's external-DNS targets, registered `www.salarypadi.com` as an alias, and set the apex as the canonical application and Supabase Auth origin.
+
+### 2026-07-10 — Phase Two operational readiness
+
+- Applied migration `20260710000600_operations_phase_two.sql` for tracked schedules/runs, idempotent alert deliveries, aggregate-only analytics, reviewed rate provenance, maintenance retention and locked service-role worker RPCs. Its 29 pgTAP assertions passed against the hosted SalaryPadi database in a rollback-only validation transaction.
+- Added Netlify scheduled functions for three-hour source validation, hourly alert delivery, daily InforEuro refresh, and daily expiry/retention/aggregate maintenance. Provider secrets are production Functions-only variables.
+- Verified `mail.salarypadi.com` SPF, DKIM and return path, connected Resend to Supabase Auth, branded sign-in/confirmation mail, enabled Auth security notifications and delivered a real message to `support@salarypadi.com`.
+- Created the initial production admin role with an auditable project-owner reason. Human-controlled TOTP enrolment/AAL2 proof remains the only interactive bootstrap step; automation must not retain the factor secret.
+- Created `privacy@`, `security@`, `sources@` and `ops@` aliases and assigned Oza as interim accountable owner with internal response targets.
+- Integrated explicit-consent first-party analytics and European Commission InforEuro monthly reference rates with provenance, freshness, fallback and user-facing limitations.
+- Updated GitHub Actions to current supported majors, renamed the Supabase local SMTP block, and pinned a compatible fixed PostCSS override; `npm audit` reports zero known vulnerabilities.

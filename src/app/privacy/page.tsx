@@ -16,7 +16,7 @@ export default function PrivacyPage() {
     <PolicyPage
       eyebrow="Privacy notice"
       title="Your career data is not advertising inventory"
-      description="This product is designed for data minimisation and account-linked moderation without public identity disclosure. This notice is an operational draft for legal review before launch."
+      description="SalaryPadi uses data minimisation, private ownership controls and moderated publication. This notice describes the current production service; it is not a claim of legal compliance or a substitute for jurisdiction-specific advice."
     >
       <p>
         <strong>Last updated:</strong> 10 July 2026.
@@ -39,16 +39,21 @@ export default function PrivacyPage() {
       <p>
         Salary amounts, review or interview text, private notes, email
         addresses, CV content, identity documents and other personal data are
-        prohibited from analytics events. Analytics is disabled until a reviewed
-        provider is configured.
+        prohibited from analytics events. Analytics is off until you make an
+        explicit choice. If allowed, SalaryPadi stores only an allowlisted event
+        name, a coarse route group, the day and an aggregate count in its
+        dedicated database. It does not store an account, email, IP address,
+        user agent, session identifier or event-level record, and daily counts
+        are deleted after 90 days.
       </p>
       <h2>Your choices</h2>
       <p>
         Authenticated users can request data export, correction, contribution
         deletion and account deletion. Some narrowly scoped audit or abuse
         records may be retained when a documented legal or safety reason
-        applies. Retention periods and the production contact must be approved
-        before launch.
+        applies. Contact{" "}
+        <a href="mailto:privacy@salarypadi.com">privacy@salarypadi.com</a>
+        for a privacy request or use the authenticated request centre below.
       </p>
       <p>
         <Link className="button w-fit" href="/privacy/requests">
@@ -57,10 +62,20 @@ export default function PrivacyPage() {
       </p>
       <h2>Hosting and processors</h2>
       <p>
-        The planned backend is a dedicated Supabase project. Deployment, email,
-        currency and analytics providers are not yet selected. Their locations,
-        contracts and subprocessor terms require privacy review before
-        production.
+        Account, career, moderation and aggregate analytics data is stored in a
+        dedicated Supabase project in AWS eu-north-1. Netlify hosts the web
+        application and scheduled operations through its managed platform.
+        Hostinger provides DNS and the operational mailbox. Resend sends
+        authentication and job-alert email through its eu-west-1 sending region;
+        email delivery necessarily shares the recipient address and message with
+        that provider, but tracking metrics are not enabled. The European
+        Commission InforEuro endpoint supplies public monthly reference rates
+        and receives no account or career data.
+      </p>
+      <p>
+        Provider subprocessor and international-transfer terms can change. The
+        privacy owner reviews the live provider contracts rather than treating
+        this repository as a frozen subprocessor list.
       </p>
       <p>
         These controls are designed around the Nigeria Data Protection Act and

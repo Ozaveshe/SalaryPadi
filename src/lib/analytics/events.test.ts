@@ -9,6 +9,10 @@ describe("privacy-safe analytics", () => {
     ).not.toThrow();
   });
 
+  it("accepts the consent-gated page view event without properties", () => {
+    expect(() => trackEvent("page_view")).not.toThrow();
+  });
+
   it.each(["salary_amount", "review_text", "email", "private_note"])(
     "rejects prohibited property %s",
     (key) => {

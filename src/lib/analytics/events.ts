@@ -1,4 +1,5 @@
 const eventNames = [
+  "page_view",
   "job_search",
   "job_filter_applied",
   "job_view",
@@ -20,6 +21,12 @@ export type AnalyticsEventName = (typeof eventNames)[number];
 
 type SafeAnalyticsValue = string | number | boolean;
 export type AnalyticsProperties = Record<string, SafeAnalyticsValue>;
+
+export function isAnalyticsEventName(
+  value: string,
+): value is AnalyticsEventName {
+  return (eventNames as readonly string[]).includes(value);
+}
 
 const prohibitedKeyPattern =
   /(salary|amount|review|interview|note|email|phone|name|address|cv|resume|identity|document|text|description)/i;
@@ -46,6 +53,11 @@ export function trackEvent(
     throw new Error("Unknown analytics event.");
   }
   assertPrivacySafeAnalytics(properties);
-  // Provider-neutral no-op. A future adapter may receive only the allowlisted
-  // event name and properties that passed the privacy guard above.
+  if (typeof window === "undefined") return;
+  void fetch("/api/analytics/events", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event_name: name, path: window.location.pathname }),
+    keepalive: true,
+  });
 }

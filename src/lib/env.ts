@@ -24,7 +24,13 @@ const serverEnvironmentSchema = z
       .enum(["true", "false"])
       .default("false")
       .transform((value) => value === "true"),
-    ANALYTICS_PROVIDER: z.enum(["none"]).default("none"),
+    ANALYTICS_PROVIDER: z
+      .enum(["none", "supabase_first_party"])
+      .default("none"),
+    EMAIL_PROVIDER: z.enum(["none", "resend"]).default("none"),
+    CURRENCY_RATE_PROVIDER: z
+      .enum(["none", "european_commission_inforeuro"])
+      .default("none"),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -94,6 +100,8 @@ export function parseServerEnvironment(
     REMOTIVE_SOURCE_ENABLED: environment.REMOTIVE_SOURCE_ENABLED,
     ALLOW_DEMO_DATA: environment.ALLOW_DEMO_DATA,
     ANALYTICS_PROVIDER: environment.ANALYTICS_PROVIDER,
+    EMAIL_PROVIDER: environment.EMAIL_PROVIDER,
+    CURRENCY_RATE_PROVIDER: environment.CURRENCY_RATE_PROVIDER,
     NODE_ENV: environment.NODE_ENV,
   });
 

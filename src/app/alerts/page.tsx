@@ -18,7 +18,7 @@ export default async function AlertsPage() {
       <PageHeading
         eyebrow="Private workspace"
         title="Job alerts"
-        description="Save a focused query and return when matching source evidence changes. Email delivery requires the production mail provider."
+        description="Save a focused query and receive a private daily or weekly email when newly posted jobs match the selected source evidence."
       />
       <form
         className="surface surface-pad form-grid"

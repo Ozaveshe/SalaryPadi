@@ -12,6 +12,8 @@ The repository is deployable without fabricated data: public tools and trust pag
 - Employer job submissions that remain pending until reviewed.
 - Admin surfaces protected by both a staff role and an AAL2 session.
 - Nigeria take-home pay, side-by-side offer comparison, and an explainable job-scam checker.
+- Scheduled source-health, alert-delivery, currency-rate, retention, expiry, and aggregate-maintenance workers with idempotent run evidence.
+- Consent-gated first-party analytics that stores daily event totals only, plus reviewed European Commission InforEuro reference rates.
 - Canonical metadata, sitemaps, robots controls, structured data, accessibility foundations, CSP nonces, and baseline security headers.
 
 ## Prerequisites
@@ -49,6 +51,7 @@ The local Supabase configuration exposes only the `api` schema through PostgREST
 3. `20260710000300_intelligence.sql` — contributions, moderation, public projections, privacy thresholds, and aggregates.
 4. `20260710000400_public_product_integration.sql` — public job/company projections used by the production application.
 5. `20260710000500_lock_internal_routines.sql` — removes implicit PUBLIC execution from internal and API routines.
+6. `20260710000600_operations_phase_two.sql` — worker schedules and run evidence, alert delivery, aggregate-only analytics, reviewed currency-rate provenance, and retention maintenance.
 
 With Docker running and the Supabase CLI installed:
 
@@ -89,6 +92,7 @@ supabase/migrations/     Versioned database schema and database API
 supabase/tests/database/ pgTAP ownership, moderation, and privacy tests
 tests/e2e/               Public browser and accessibility journeys
 docs/                    Product, source, security, deployment, and operations guidance
+netlify/functions/       Scheduled production workers and their shared adapters
 ```
 
 ## Operational documentation
@@ -99,6 +103,8 @@ docs/                    Product, source, security, deployment, and operations g
 - [Deployment and rollback](docs/DEPLOYMENT.md)
 - [Moderation and operations](docs/OPERATIONS.md)
 
-## Current external dependencies
+## Production operations
 
-The dedicated Supabase project and Netlify target are configured. Launch still requires a chosen Hostinger custom domain, a production transactional-email decision for alert delivery, named moderation/privacy owners, and production monitoring. Do not describe a prepared build as live until the Netlify deploy and route smoke checks pass.
+Production uses the dedicated Supabase project `bxelrhklsznmpksgrqep`, Netlify project `salarypadi`, and Hostinger-managed `salarypadi.com` DNS and mailbox. Resend sends authentication and alert email from the verified `mail.salarypadi.com` subdomain. Operational contacts route to the `support@salarypadi.com` mailbox through the aliases documented in [Operations](docs/OPERATIONS.md).
+
+The scheduled workers run only from a published Netlify production deploy. Their service-role and Resend keys are Functions-only protected variables; they must never be copied into `.env.local`, GitHub Actions, preview logs, or browser code. A release is not operationally complete until the workers have each produced a successful live run and `/api/health` reports them within their stale thresholds.

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 
 import { formatEnum, formatSalaryAmount } from "@/lib/format";
+import type { ReferenceCurrencyRate } from "@/lib/currency/types";
 import {
   compareOffers,
   type OfferComparisonResult,
@@ -417,7 +418,11 @@ function resultMoney(value: number | null, currency: string) {
   return value === null ? "Unknown" : formatSalaryAmount(value, currency);
 }
 
-export function OfferCompare() {
+export function OfferCompare({
+  referenceRates = [],
+}: {
+  referenceRates?: ReferenceCurrencyRate[];
+}) {
   const [result, setResult] = useState<OfferComparisonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -433,15 +438,27 @@ export function OfferCompare() {
       const rates = (["a", "b"] as const).flatMap((prefix) => {
         const offer = prefix === "a" ? offerA : offerB;
         if (offer.basePay.currency === comparisonCurrency) return [];
-        const rate = readNumber(form, `${prefix}_fx_rate`, true);
+        const enteredRate = readNumber(form, `${prefix}_fx_rate`, true);
+        const referenceRate = referenceRates.find(
+          (item) =>
+            item.base_currency === offer.basePay.currency &&
+            item.quote_currency === comparisonCurrency,
+        );
+        const rate = enteredRate ?? referenceRate?.rate;
         return rate
           ? [
               {
                 from: offer.basePay.currency,
                 to: comparisonCurrency,
                 rate,
-                sourceLabel: "User-entered rate",
-                asOf: String(form.get("rate_date") || ""),
+                sourceLabel:
+                  enteredRate !== undefined
+                    ? "User-entered rate"
+                    : (referenceRate?.provider_name ?? "Reference rate"),
+                asOf:
+                  enteredRate !== undefined
+                    ? String(form.get("rate_date") || "")
+                    : (referenceRate?.observed_at ?? ""),
               },
             ]
           : [];
@@ -516,9 +533,17 @@ export function OfferCompare() {
             </div>
           </div>
           <p className="field-help">
-            SalaryPadi does not fetch or invent an exchange rate. Enter a rate
-            you trust and include transfer/exchange costs below.
+            {referenceRates.length > 0
+              ? "Blank rate fields use the latest European Commission InforEuro monthly accounting reference. Enter your own executable rate to override it, and include transfer/exchange costs below."
+              : "No reviewed reference rate is currently available. Enter a rate you trust and include transfer/exchange costs below."}
           </p>
+          {referenceRates.length > 0 ? (
+            <p className="field-help">
+              Reference period {referenceRates[0]?.data_period}. Monthly
+              accounting rates are estimates, not live bank or transfer quotes.{" "}
+              <a href={referenceRates[0]?.source_url}>Source and provenance</a>
+            </p>
+          ) : null}
         </fieldset>
         <div className="offer-grid">
           <OfferFields prefix="a" title="Offer A" defaultCurrency="NGN" />

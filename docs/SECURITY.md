@@ -31,7 +31,7 @@ The application follows these boundaries:
 - Raw community content is private. Reviews and interview experiences publish from a separate redacted projection.
 - Salary publication uses distinct-contributor thresholds, a 24-hour lag, a 36-month window, rounded values, and sparse-cell suppression. Individual salary submissions are never exposed through the public API.
 - Demo data is opt-in and rejected when `NODE_ENV=production`.
-- Analytics currently defaults to a privacy-safe no-op and blocks sensitive free-text/salary fields from its typed event surface.
+- Analytics requires an explicit same-origin consent cookie, accepts only allowlisted events and coarse route groups, blocks sensitive free-text/salary fields, and stores daily aggregate counts without account, email, IP, user-agent, session, or event-level identifiers.
 
 ## Privacy operations
 
@@ -45,26 +45,34 @@ Operational rules:
 - Ensure backups, derived aggregates, audit requirements, and legal holds are addressed in the organization’s retention policy.
 - Record only the minimum resolution evidence needed; do not paste the sensitive payload into the audit reason.
 
-No automated retention/purge scheduler is included in this repository. `retention_expires_at` exists for raw source records, but a production operator must implement and verify deletion before any source policy allows raw-payload retention. Remotive data must not be durably archived in the interim.
+The daily maintenance worker removes aggregate analytics counts after 90 days, worker and delivery evidence after 180 days, and currency reference sets after 24 months. It also deletes expired raw source records, but the Remotive policy remains stricter: descriptions are not durably stored at all. Account data, community submissions, immutable audit needs, backups, legal holds, and verified privacy requests follow the case-specific process in [Operations](OPERATIONS.md), not a blanket timer.
 
 ## Secrets and environment
 
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are browser-safe project identifiers and must be configured together.
 - `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS. Do not place it in `.env` committed files, client bundles, preview logs, CI output, or browser code. Prefer a short server-side scheduled job with its own narrowly scoped secret store.
+- `RESEND_API_KEY` is a separate sending-only key restricted to `mail.salarypadi.com`. It and the service-role key are Netlify production secrets scoped only to Functions.
 - Rotate a secret immediately after suspected exposure and review the audit trail for use during the exposure window.
 - Use separate Supabase projects and credentials for development, test, staging, and production.
 - Do not use the configured AfroTools or LATMtools projects for SalaryPadi.
 
+## Provider and data-region record
+
+- Account, private career, moderation, operational, and first-party aggregate analytics data is stored in the dedicated Supabase project `bxelrhklsznmpksgrqep` in AWS `eu-north-1`.
+- Authentication and alert email is sent through Resend's `eu-west-1` sending region from the isolated `mail.salarypadi.com` domain. Delivery necessarily discloses the recipient address and message contents to the mail provider; tracking metrics are not enabled.
+- Netlify serves the web application and scheduled Functions through its managed platform and global delivery network. Hostinger is authoritative for DNS and the operational mailbox. Their current subprocessors and transfer terms must be reviewed through the provider contracts; this repository does not freeze a provider's live subprocessor list.
+- European Commission InforEuro is fetched as public monthly reference data. No user or account data is sent with that request.
+
 ## Known launch blockers and residual risks
 
-- Dedicated Supabase project `bxelrhklsznmpksgrqep` is configured and its hosted pgTAP/security-advisor checks pass; the Netlify production deployment is still awaiting hosted build verification.
-- Staff pages require AAL2, but factor enrolment and challenge must be tested end to end against the chosen Supabase project before staff access is enabled.
+- Dedicated Supabase project `bxelrhklsznmpksgrqep` is configured and the operations migration is applied; every new production deploy still requires separate hosted build, scheduler, database-advisor, and route proof.
+- Staff pages require AAL2. The first admin grant exists, but the human owner must control and verify the TOTP factor; add a second named recovery administrator before relying on continuous staff coverage.
 - Database rate limits are account-based. Add edge/network abuse controls and alerting before a public contribution launch; a corporate email match is only a signal, not proof of company ownership.
-- No retention worker, alert delivery worker, import scheduler, aggregate scheduler, production log sink, or incident alert integration is configured here.
+- Four tracked workers cover source validation, alert delivery, currency references, expiry, retention, and aggregate maintenance. A production log sink and external incident paging integration are still not configured, so Oza must inspect Netlify/Supabase health inside the documented stale thresholds.
 - Human moderation remains necessary for personal information, threats, harassment, confidential material, defamation risk, manipulation, and employer brigading.
 - The scam checker is an educational, explainable heuristic. It does not fetch or certify a URL and cannot guarantee legitimacy.
 - Source availability and terms can change independently of a successful application build.
-- The current `npm audit --omit=dev` reports two moderate PostCSS advisories inside Next.js 16.2.10. That is the current latest stable Next.js release and still pins PostCSS 8.4.31; npm proposes an unsafe forced downgrade to Next.js 9.3.3, so the finding remains an explicitly accepted launch risk pending an upstream release.
+- Next.js 16.2.10 is the current stable release and still pins an affected PostCSS version. The lockfile uses a tested `postcss@8.5.10` override; `npm audit` reports zero known vulnerabilities. Re-test the override on every Next.js upgrade and remove it once the framework pins a fixed compatible version.
 - Dependency findings can change after this review. Run `npm audit --omit=dev` during every release; assess exploitability and supported upgrades rather than applying forced/downgrade fixes blindly.
 
 ## Incident response
@@ -84,7 +92,7 @@ No automated retention/purge scheduler is included in this repository. `retentio
 - All migrations and pgTAP tests pass on a clean database and a staging clone.
 - Owner isolation and public-projection privacy thresholds have been retested after the final migration.
 - CSP/security headers, authentication gates, open-redirect defenses, external links, and no-store behavior are verified in a production build.
-- A moderator, privacy owner, security contact, source owner, and incident commander are named.
+- A moderator, privacy owner, security contact, source owner, and incident commander are named with monitored aliases and response targets.
 - Backups and a restore drill are verified; retention and deletion jobs are active.
 - Monitoring covers web errors, auth anomalies, moderation backlog, source failure/staleness, aggregate failures, and job validity.
 - Secrets are stored only in provider secret stores and dependency/security findings have an explicit disposition.

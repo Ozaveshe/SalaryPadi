@@ -8,15 +8,20 @@ Use separate Supabase and web-hosting projects for local development, staging, a
 
 Required web configuration:
 
-| Variable                               | Production value                                                                  |
-| -------------------------------------- | --------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_APP_URL`                  | `https://salarypadi.com`                                                          |
-| `NEXT_PUBLIC_SUPABASE_URL`             | Dedicated environment’s Supabase URL                                              |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Matching publishable key                                                          |
-| `REMOTIVE_SOURCE_ENABLED`              | `true` only while the reviewed pilot is approved                                  |
-| `ALLOW_DEMO_DATA`                      | Always `false`                                                                    |
-| `ANALYTICS_PROVIDER`                   | `none` until a privacy-reviewed adapter exists                                    |
-| `SUPABASE_SERVICE_ROLE_KEY`            | Omit from the web application unless a reviewed server-only operation requires it |
+| Variable                               | Production value                                  |
+| -------------------------------------- | ------------------------------------------------- |
+| `NEXT_PUBLIC_APP_URL`                  | `https://salarypadi.com`                          |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Dedicated environment’s Supabase URL              |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Matching publishable key                          |
+| `REMOTIVE_SOURCE_ENABLED`              | `true` only while the reviewed pilot is approved  |
+| `ALLOW_DEMO_DATA`                      | Always `false`                                    |
+| `ANALYTICS_PROVIDER`                   | `supabase_first_party`                            |
+| `EMAIL_PROVIDER`                       | `resend`                                          |
+| `CURRENCY_RATE_PROVIDER`               | `european_commission_inforeuro`                   |
+| `TRANSACTIONAL_EMAIL_FROM`             | `SalaryPadi <updates@mail.salarypadi.com>`        |
+| `TRANSACTIONAL_EMAIL_REPLY_TO`         | `support@salarypadi.com`                          |
+| `RESEND_API_KEY`                       | Protected production secret, Functions scope only |
+| `SUPABASE_SERVICE_ROLE_KEY`            | Protected production secret, Functions scope only |
 
 Never expose a service-role key through a `NEXT_PUBLIC_*` variable. Production configuration rejects demo data.
 
@@ -44,7 +49,7 @@ supabase test db
 
 8. Bootstrap the first administrator using the two-person procedure in [Operations](OPERATIONS.md), then verify AAL2 access and audit output.
 
-The hosted migration set through `20260710000500` is applied and recorded. Live API types are generated in `src/lib/supabase/database.types.ts`; the four pgTAP suites pass against the hosted database. Supabase Auth uses `https://salarypadi.com` as its Site URL while retaining the Netlify production and preview callbacks needed for rollback and deploy previews.
+The hosted migration set through `20260710000600` is applied and recorded. Live API types are generated in `src/lib/supabase/database.types.ts`; the Phase Two operations suite adds 29 pgTAP assertions for worker authorization, idempotency, alert claims, analytics aggregation, rate provenance, and maintenance. Supabase Auth uses `https://salarypadi.com` as its Site URL while retaining the Netlify production and preview callbacks needed for rollback and deploy previews.
 
 ## Web build and deployment
 
@@ -72,6 +77,24 @@ Start:   npm run start
 
 Do not deploy as a static export; authentication, CSP, server-side source reads, and route handlers require the Node runtime.
 
+## Transactional email and scheduled workers
+
+- Hostinger is authoritative for the root mailbox records. `support@salarypadi.com` is the primary inbox; `privacy@`, `security@`, `sources@`, and `ops@` are aliases into it.
+- Resend domain `mail.salarypadi.com` is verified in `eu-west-1`. SPF, DKIM, and return-path records are isolated on the subdomain so the Hostinger root mailbox SPF is not replaced.
+- Supabase Auth uses the Resend SMTP integration and sender `SalaryPadi <updates@mail.salarypadi.com>`. Alert delivery uses a separate sending-only API key restricted to the SalaryPadi domain.
+- Open/click tracking is not enabled. Alert mail contains only the recipient address, the matching public job facts, and SalaryPadi links; private notes, salary inputs, contribution text, and analytics identifiers are never included.
+
+Published production deploys register these Netlify schedules:
+
+| Function                 | Schedule (UTC) | Stale after | Purpose                                                                                          |
+| ------------------------ | -------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| `job-source-sync`        | `5 */3 * * *`  | 8 hours     | Validate the reviewed Remotive feed and record source/import health without storing descriptions |
+| `alert-delivery`         | `15 * * * *`   | 3 hours     | Claim due daily/weekly alerts idempotently and send matching jobs                                |
+| `currency-rates`         | `25 2 * * *`   | 36 hours    | Store the current European Commission InforEuro monthly reference set and provenance             |
+| `operations-maintenance` | `45 2 * * *`   | 36 hours    | Expire jobs, process aggregate queues, retry/dead-letter deliveries, and enforce retention       |
+
+After every production deploy, use Netlify's scheduled-function **Run now** control once for each function. Verify one new `private.worker_runs` success per task and check `/api/health`; a configured schedule is not proof that a worker executed.
+
 ## Staging verification
 
 Use a dedicated staging backend and non-sensitive test accounts.
@@ -93,7 +116,7 @@ Use a dedicated staging backend and non-sensitive test accounts.
 3. Back up the production database and verify restore status.
 4. Apply backward-compatible database migrations first.
 5. Deploy the web artifact.
-6. Start any new worker only after both schema and web compatibility are verified. This repository currently ships no import, alert, purge, or aggregate scheduler.
+6. Start each scheduled worker only after both schema and web compatibility are verified; run it manually once and record the run ID, deploy ID, summary, and stale threshold.
 7. Perform production smoke checks without creating real-looking public data.
 8. Monitor errors, auth, queues, source health, and aggregate jobs through the agreed observation window.
 
@@ -121,6 +144,6 @@ Close every release with separate proof for:
 - web deployment artifact;
 - production route/header smoke;
 - live dependency/source health;
-- worker/schedule health, when such workers exist.
+- worker/schedule health for all four production tasks, including a manual post-deploy run.
 
 End the release record with one outcome: `released`, `rolled back`, or `blocked`. A prepared artifact or green local build is not a live release.

@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -131,6 +131,22 @@ export type Database = {
           role_family_id: string | null;
           role_slug: string | null;
           work_life_rating: number | null;
+        };
+        Relationships: [];
+      };
+      current_currency_rates: {
+        Row: {
+          attribution_text: string | null;
+          base_currency: string | null;
+          data_period: string | null;
+          fetched_at: string | null;
+          license_url: string | null;
+          observed_at: string | null;
+          provider_key: string | null;
+          provider_name: string | null;
+          quote_currency: string | null;
+          rate: number | null;
+          source_url: string | null;
         };
         Relationships: [];
       };
@@ -1122,6 +1138,10 @@ export type Database = {
         };
         Returns: boolean;
       };
+      capture_analytics_event: {
+        Args: { p_event_name: string; p_route_group: string };
+        Returns: undefined;
+      };
       create_job_alert:
         | {
             Args: { alert_cadence: string; alert_query: Json };
@@ -1164,6 +1184,17 @@ export type Database = {
           saved_at: string;
           source_name: string;
           title: string;
+        }[];
+      };
+      get_worker_health: {
+        Args: never;
+        Returns: {
+          freshness: string;
+          last_started_at: string;
+          last_status: string;
+          last_success_at: string;
+          owner_label: string;
+          task_key: string;
         }[];
       };
       has_staff_role: { Args: { required_role: string }; Returns: boolean };
@@ -1303,6 +1334,64 @@ export type Database = {
       withdraw_contribution: {
         Args: { p_contribution_id: string };
         Returns: boolean;
+      };
+      worker_claim_alert_deliveries: {
+        Args: { p_limit?: number };
+        Returns: {
+          alert_id: string;
+          cadence: string;
+          claim_token: string;
+          delivery_id: string;
+          last_sent_at: string;
+          recipient_email: string;
+          search_spec: Json;
+        }[];
+      };
+      worker_complete_alert_delivery: {
+        Args: {
+          p_claim_token: string;
+          p_delivery_id: string;
+          p_error_code?: string;
+          p_matched_job_count?: number;
+          p_outcome: string;
+          p_provider_message_id?: string;
+        };
+        Returns: boolean;
+      };
+      worker_finish: {
+        Args: {
+          p_error_code?: string;
+          p_run_id: string;
+          p_status: string;
+          p_summary?: Json;
+        };
+        Returns: boolean;
+      };
+      worker_record_source_import: {
+        Args: {
+          p_adapter_key: string;
+          p_error_code?: string;
+          p_fetched_count: number;
+          p_status: string;
+        };
+        Returns: string;
+      };
+      worker_run_maintenance: { Args: never; Returns: Json };
+      worker_start: {
+        Args: {
+          p_deploy_id?: string;
+          p_run_key: string;
+          p_scheduled_for?: string;
+          p_task_key: string;
+        };
+        Returns: {
+          run_id: string;
+          should_run: boolean;
+        }[];
+      };
+      worker_store_inforeuro_rates: {
+        Args: { p_observed_at: string; p_rates: Json; p_source_url: string };
+        Returns: string;
       };
     };
     Enums: {

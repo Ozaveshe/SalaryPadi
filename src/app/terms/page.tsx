@@ -13,7 +13,7 @@ export default function TermsPage() {
     <PolicyPage
       eyebrow="Terms of use"
       title="Use the evidence; verify the decision"
-      description="These launch-draft terms explain the product boundaries. They require legal review and a named operating entity before production."
+      description="These terms explain the current SalaryPadi service boundaries and the responsibilities that come with using its job, salary and workplace evidence."
     >
       <p>
         <strong>Last updated:</strong> 10 July 2026.
@@ -25,6 +25,12 @@ export default function TermsPage() {
         conduct, vacancy safety, tax outcomes, currency value or the
         completeness of third-party information. Verify material decisions with
         the original employer and an appropriate professional.
+      </p>
+      <p>
+        Currency values, take-home calculations and benefit comparisons are
+        estimates. InforEuro rates are monthly accounting references, not live
+        bank, transfer, card or payroll quotes. A user-entered rate overrides
+        the reference and remains the user&apos;s responsibility to verify.
       </p>
       <h2>Applications and external sites</h2>
       <p>
@@ -52,6 +58,18 @@ export default function TermsPage() {
         or remove information to reflect those changes, respond to reports or
         protect users. Material production-term changes will receive an
         effective date and appropriate notice.
+      </p>
+      <h2>Operator and contact</h2>
+      <p>
+        The service is operated under the SalaryPadi product name. These terms
+        do not represent that a separate company has been registered where none
+        has been identified. Contact{" "}
+        <a href="mailto:support@salarypadi.com">support@salarypadi.com</a>
+        for account or service questions,{" "}
+        <a href="mailto:privacy@salarypadi.com">privacy@salarypadi.com</a>
+        for data requests, and{" "}
+        <a href="mailto:security@salarypadi.com">security@salarypadi.com</a>
+        for security reports.
       </p>
     </PolicyPage>
   );

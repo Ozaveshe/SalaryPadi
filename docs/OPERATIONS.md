@@ -2,6 +2,20 @@
 
 This runbook covers day-to-day handling of community contributions, reports, employer submissions, data sources, aggregates, privacy requests, and incidents. A dedicated SalaryPadi Supabase project is required; never run these procedures against AfroTools or LATMtools.
 
+## Current operational ownership
+
+Oza is the founder and interim accountable operator for Phase Two. These are role addresses, not separate staff identities; all four aliases currently deliver into the access-controlled `support@salarypadi.com` mailbox.
+
+| Responsibility                                     | Interim owner | Contact                   | Internal response target                                                              |
+| -------------------------------------------------- | ------------- | ------------------------- | ------------------------------------------------------------------------------------- |
+| Moderation, user support, and emergency takedown   | Oza           | `support@salarypadi.com`  | Imminent harm or exposed PII: same-day containment; ordinary queue: two business days |
+| Privacy, export, correction, and deletion requests | Oza           | `privacy@salarypadi.com`  | Acknowledge within two business days; verify identity before action                   |
+| Security and incident coordination                 | Oza           | `security@salarypadi.com` | High-severity alert: same-day triage and containment                                  |
+| Job-source terms, provenance, and data quality     | Oza           | `sources@salarypadi.com`  | Stale/failed source: triage within four hours during operating days                   |
+| Releases, workers, database, and rollback          | Oza           | `ops@salarypadi.com`      | Failed scheduled run: triage before its stale threshold                               |
+
+The named owner may delegate work, but not accountability. Add a second named AAL2 administrator before removing the bootstrap account or beginning a 24/7 on-call claim. Do not describe these internal targets as statutory deadlines.
+
 ## Roles and access
 
 - `moderator`: review contributions and reports, redact public copy, reject unsafe submissions, and escalate difficult cases.
@@ -15,9 +29,8 @@ Every staff operation requires an authenticated active account. Moderation and a
 The normal role function cannot create the first admin because there is no existing admin to authorize it. Bootstrap once, through a reviewed migration or a restricted SQL session:
 
 1. Have the intended administrator sign in so `private.profiles` contains their auth user ID.
-2. Enrol an approved MFA factor and verify the project can issue an AAL2 session.
-3. Obtain two-person review of the exact user UUID and reason.
-4. In a transaction, insert the role and inspect the returned row:
+2. Obtain two-person review of the exact user UUID and reason. For the first single-founder bootstrap only, record the project-owner authorization as an explicit exception and do no privileged work before MFA is verified.
+3. In a restricted transaction, insert the role and inspect the returned row:
 
 ```sql
 begin;
@@ -30,6 +43,9 @@ returning user_id, role, granted_at;
 
 commit;
 ```
+
+4. Immediately enrol an approved TOTP factor, verify an AAL2 session, and open `/admin`. The human operator must control the authenticator secret; an automation agent must not retain it.
+5. Record the recovery path: a Supabase organization owner can remove a lost factor after identity verification, then the admin must enrol a replacement before resuming privileged work. Factor removal is an incident and must be checked in Auth audit logs.
 
 Abort if no row is returned or the UUID is wrong. Subsequent grants and revocations must use the audited staff-role API from an existing AAL2 administrator. Keep at least two active administrators, and never remove the last active admin.
 
@@ -62,7 +78,7 @@ Reports are private, account-linked, rate-limited, and placed into a moderation 
 - Record the decision, reason code, changed fields, and linked case. Do not paste sensitive raw content into the reason.
 - After removing or restoring salary/review data, refresh affected aggregates and verify that sparse cells remain suppressed.
 
-The organization must name an escalation owner and publish response targets before launch. The repository does not itself create an on-call rotation or legal/takedown mailbox.
+The current escalation owner and response targets are recorded above. Escalate legal interpretation or statutory notification decisions to qualified counsel; do not improvise them in a moderation note.
 
 ## Employer submissions
 
@@ -82,11 +98,11 @@ Employer submissions are pending by default. A matching corporate email domain i
 - Database-backed sources can be paused/disabled independently. Do not use a source failure as permission to invent or reuse stale jobs.
 - Monitor last successful import, error count, schema failures, stale/expired ratios, duplicate rate, and outbound destination changes.
 
-No scheduled import worker is shipped in this repository. The current Remotive adapter reads and caches the live source directly. Database import tables support a future reviewed pipeline; they are not evidence that a scheduler is running.
+The production `job-source-sync` worker validates the Remotive feed every three hours and records an import run without persisting source descriptions. The public repository still performs its bounded server-side read, so a worker success proves source validation and operational freshness, not a durable copy of the feed. Disable the Netlify schedule and set `REMOTIVE_SOURCE_ENABLED=false` when the policy or provider is in doubt.
 
 ## Aggregate refresh
 
-Approval/removal queues affected salary or company-rating metrics, but no scheduler consumes that queue in this repository. Until a reviewed server-side worker exists, a restricted database operator can run:
+The daily `operations-maintenance` worker processes salary and company-rating queues through the restricted maintenance RPC. For an incident-only manual recovery, a restricted database operator can run:
 
 ```sql
 select security.refresh_salary_aggregates();
@@ -102,15 +118,28 @@ Run this after a moderation batch and after withdrawals/removals. Then verify:
 - removed/withdrawn contributions no longer affect current snapshots;
 - public views expose no account or source-contribution identifiers.
 
-Automate this only from a server-side job whose secret is stored outside the repository. Do not place the service-role key in browser code.
+The automated path runs only from a Netlify Function with a Functions-only production secret. Do not place the service-role key in browser code, build logs, preview contexts, or the repository.
+
+## Worker and email operations
+
+| Task key                 | Netlify function         | UTC schedule              | Success evidence                                                        | Failure action                                                                |
+| ------------------------ | ------------------------ | ------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `job_source_sync`        | `job-source-sync`        | Every 3 hours at minute 5 | Source import row and successful tracked run                            | Disable source on terms/schema failure; never substitute fabricated jobs      |
+| `alert_delivery`         | `alert-delivery`         | Hourly at minute 15       | Claimed/sent/skipped/failed counts; provider message ID only            | Retry with idempotency; terminal failures move to `dead` for operator review  |
+| `currency_rates`         | `currency-rates`         | Daily at 02:25            | Reviewed InforEuro rate set, data month, source URL, and 42 cross-rates | Keep the last disclosed set; UI must label it stale and allow manual override |
+| `operations_maintenance` | `operations-maintenance` | Daily at 02:45            | Expiry, retention, delivery recovery, and aggregate counts              | Run the focused RPC only after diagnosing the failed step                     |
+
+Every function first creates an idempotent `private.worker_runs` row. Scheduled invocation keys prevent a duplicate Netlify delivery from running the same interval twice. Normal logs contain task keys, counts, provider-safe IDs, and error codes only—never recipient addresses, alert queries, contribution text, salary amounts, or secrets.
+
+Authentication and alert email uses the verified `mail.salarypadi.com` Resend domain. Supabase Auth and the alert worker use separate restricted credentials. Open/click tracking is disabled. When testing delivery, send to an operational mailbox, confirm the visible sender and reply-to, and remove any synthetic alert after proof.
 
 ## Privacy requests
 
-Assign every correction, export, account-deletion, and contribution-deletion request to the privacy owner. Verify account ownership, identify derived/public copies, record the narrow resolution, and refresh affected projections/aggregates. The organization must define applicable deadlines, backup treatment, legal holds, and deletion proof before launch.
+Assign every correction, export, account-deletion, and contribution-deletion request to `privacy@salarypadi.com`. Verify account ownership, identify derived/public copies, record the narrow resolution, and refresh affected projections/aggregates. Aggregate-only analytics counts are retained for 90 days; worker/delivery evidence for 180 days; reference-rate sets for 24 months. Account, contribution, audit, backup, legal-hold, and statutory timelines require case-specific review and must not be shortened by the maintenance worker.
 
 ## Daily checks
 
-- `/api/health` responds and reports the expected backend/source configuration. This endpoint does not prove database or Remotive connectivity.
+- `/api/health` responds, reports the expected provider configuration, and shows all four tracked workers inside their stale thresholds. Source-provider availability still needs its own run evidence.
 - Public pages, sign-in, save/apply/alert flows, and admin gates behave as expected.
 - Source freshness and outbound application links are within policy.
 - Moderation, report, employer-submission, aggregate-refresh, and privacy queues have named owners and no unbounded age.

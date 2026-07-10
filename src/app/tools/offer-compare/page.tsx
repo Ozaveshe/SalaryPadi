@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageHeading } from "@/components/page-heading";
 import { OfferCompare } from "@/components/tools/offer-compare";
+import { getReferenceCurrencyRates } from "@/lib/currency/repository";
 
 export const metadata: Metadata = {
   title: "Offer compare",
@@ -11,7 +12,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/tools/offer-compare" },
 };
 
-export default function OfferComparePage() {
+export default async function OfferComparePage() {
+  const referenceRates = await getReferenceCurrencyRates();
   return (
     <div className="site-shell stack-lg">
       <Breadcrumbs
@@ -26,7 +28,7 @@ export default function OfferComparePage() {
         title="Compare the value you will actually feel"
         description="Normalize two offers without hiding FX assumptions, benefit values, personal work costs or contract differences."
       />
-      <OfferCompare />
+      <OfferCompare referenceRates={referenceRates} />
     </div>
   );
 }

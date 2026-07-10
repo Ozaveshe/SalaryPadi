@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 
+import { AnalyticsConsent } from "@/components/analytics-consent";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { JsonLd } from "@/components/json-ld";
@@ -48,6 +49,11 @@ export default async function RootLayout({
   const requestHeaders = await headers();
   const nonce = requestHeaders.get("x-nonce");
   const viewer = await getViewer();
+  const analyticsCookie = (await cookies()).get("salarypadi_analytics")?.value;
+  const analyticsConsent =
+    analyticsCookie === "granted" || analyticsCookie === "denied"
+      ? analyticsCookie
+      : null;
 
   return (
     <html lang="en-NG" data-scroll-behavior="smooth">
@@ -72,6 +78,7 @@ export default async function RootLayout({
           {children}
         </main>
         <SiteFooter />
+        <AnalyticsConsent initialConsent={analyticsConsent} />
       </body>
     </html>
   );

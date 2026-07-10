@@ -4,12 +4,12 @@ SalaryPadi does not treat a reachable feed as permission to republish it. Every 
 
 ## Current source matrix
 
-| Source                                                | Status                                       | Public listing                                     | Storage                                               | Indexing                              | Required destination                 |
-| ----------------------------------------------------- | -------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------- | ------------------------------------- | ------------------------------------ |
-| Remotive public API                                   | Constrained pilot; terms reviewed 2026-07-10 | Yes, while enabled                                 | Active server cache only; no durable full description | No                                    | The Remotive URL returned by the API |
-| Employer submissions                                  | Moderated intake                             | Only after approval                                | Structured submission and audit history               | Only after approval and policy review | Validated HTTPS application URL      |
-| Community salary, review, and interview contributions | Moderated intake                             | Thresholded aggregate or redacted publication only | Private raw record plus approved public projection    | Sparse/private states are not indexed | SalaryPadi detail page               |
-| Direct licensed feeds                                 | Not configured                               | No                                                 | No                                                    | No                                    | Provider-specific agreement required |
+| Source                                                | Status                                                  | Public listing                                     | Storage                                                                       | Indexing                              | Required destination                 |
+| ----------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------ |
+| Remotive public API                                   | Constrained production pilot; terms reviewed 2026-07-10 | Yes, while enabled                                 | Active server cache and import-run evidence only; no durable full description | No                                    | The Remotive URL returned by the API |
+| Employer submissions                                  | Moderated intake                                        | Only after approval                                | Structured submission and audit history                                       | Only after approval and policy review | Validated HTTPS application URL      |
+| Community salary, review, and interview contributions | Moderated intake                                        | Thresholded aggregate or redacted publication only | Private raw record plus approved public projection                            | Sparse/private states are not indexed | SalaryPadi detail page               |
+| Direct licensed feeds                                 | Not configured                                          | No                                                 | No                                                                            | No                                    | Provider-specific agreement required |
 
 No scraping adapter is enabled. Do not add one without written permission or a documented legal and policy review.
 
@@ -28,6 +28,18 @@ The adapter policy is defined in `src/lib/jobs/source-policy.ts` and enforced by
 - Disable the feed with `REMOTIVE_SOURCE_ENABLED=false` if terms, attribution requirements, or availability change.
 
 Terms basis: the official [Remotive public API repository](https://github.com/remotive-com/remote-jobs-api), reviewed on 2026-07-10. A source owner must repeat and record the review before changing the policy or after a material provider change.
+
+The interim source and terms owner is Oza at `sources@salarypadi.com`. The `job-source-sync` function validates the feed every three hours and records counts and a provider-safe error code. It does not turn the feed into a durable description archive, and it does not replace the visible six-hour server cache used by public pages.
+
+## Currency reference data
+
+Offer Compare can prefill a reviewed monthly accounting reference from the European Commission's InforEuro public API. It is not a live bank, card, remittance, payroll, or transfer quote.
+
+| Provider                      | Endpoint and provenance                                                           | Licence basis                                                                              | Refresh                                  | Stored fields                                                                                                                                              |
+| ----------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| European Commission InforEuro | Official monthly-rates API; exact source URL and data month stored with every set | Commission-owned content under the Commission legal notice/CC BY 4.0; attribution retained | Daily check at 02:25 UTC; monthly values | Provider key, observed month, retrieved timestamp, source URL, licence/attribution/terms-review record, and 42 cross-rates for EUR/NGN/GHS/KES/ZAR/USD/GBP |
+
+The adapter treats the provider value as local currency units per EUR and computes `quote-per-EUR / base-per-EUR`. Tests cover direction, required-currency failure, and source-month selection. A user-entered rate always overrides the reference. If the worker exceeds its 36-hour stale threshold, the last set may remain visible only with its month/source disclosure; it must not be described as current market pricing.
 
 ## Location eligibility
 
@@ -70,7 +82,7 @@ The database prevents public activation without a recorded terms-review timestam
 
 ## Freshness and failure states
 
-The public feed reports whether the source is live, disabled, or unavailable. A failed fetch returns an honest empty/unavailable state; it does not silently serve fabricated jobs. `/api/health` reports configuration flags, not live third-party connectivity, so source availability must be monitored separately.
+The public feed reports whether the source is live, disabled, or unavailable. A failed fetch returns an honest empty/unavailable state; it does not silently serve fabricated jobs. `/api/health` reports provider configuration and tracked worker freshness. The worker result is the live third-party evidence; a configuration flag by itself is not connectivity proof.
 
 When a provider fails repeatedly:
 

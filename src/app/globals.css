@@ -1356,6 +1356,32 @@ a:hover {
   white-space: nowrap;
 }
 
+.analytics-consent {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  display: grid;
+  width: min(34rem, calc(100% - 2rem));
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-medium);
+  background: var(--surface-default);
+  box-shadow: var(--shadow-medium);
+}
+
+.analytics-consent p {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+}
+
+.analytics-consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 @media (min-width: 48rem) {
   .site-shell,
   .reading-shell {
