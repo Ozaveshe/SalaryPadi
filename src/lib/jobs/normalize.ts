@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { decode } from "he";
+import he from "he";
 import sanitizeHtml from "sanitize-html";
 
 import { remotiveJobSchema, type RemotiveJob } from "./remotive-schema";
@@ -116,7 +116,7 @@ export function htmlToPlainText(html: string): string {
     },
   });
 
-  return normalizeWhitespace(decode(fragments.join("")));
+  return normalizeWhitespace(he.decode(fragments.join("")));
 }
 
 export function slugify(value: string): string {
