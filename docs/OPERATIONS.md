@@ -131,7 +131,7 @@ The automated path runs only from a Netlify Function with a Functions-only produ
 
 Every function first creates an idempotent `private.worker_runs` row. Scheduled invocation keys prevent a duplicate Netlify delivery from running the same interval twice. Normal logs contain task keys, counts, provider-safe IDs, and error codes only—never recipient addresses, alert queries, contribution text, salary amounts, or secrets.
 
-Authentication and alert email uses the verified `mail.salarypadi.com` Resend domain. Supabase Auth and the alert worker use separate restricted credentials. Open/click tracking is disabled. When testing delivery, send to an operational mailbox, confirm the visible sender and reply-to, and remove any synthetic alert after proof.
+Authentication and alert email uses the verified `mail.salarypadi.com` Resend domain. Supabase Auth and the alert worker use separate restricted credentials. Auth templates use one-time token hashes verified by `/auth/confirm`, allowing a link to be opened safely in a different browser from the request. Open/click tracking is disabled. When testing delivery, send to an operational mailbox, confirm the visible sender and reply-to, and remove any synthetic alert after proof.
 
 ## Privacy requests
 

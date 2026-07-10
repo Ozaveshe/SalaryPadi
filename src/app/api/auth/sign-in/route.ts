@@ -42,12 +42,12 @@ export async function POST(request: Request) {
   }
 
   const next = safeRelativePath(parsed.data.next, "/saved");
-  const callback = new URL("/auth/callback", getAppOrigin());
-  callback.searchParams.set("next", next);
+  const confirmation = new URL("/auth/confirm", getAppOrigin());
+  confirmation.searchParams.set("next", next);
 
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email,
-    options: { emailRedirectTo: callback.toString() },
+    options: { emailRedirectTo: confirmation.toString() },
   });
 
   const resultUrl = new URL("/auth/sign-in", getAppOrigin());

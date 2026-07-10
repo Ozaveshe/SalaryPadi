@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { BackendNotice } from "@/components/backend-notice";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageHeading } from "@/components/page-heading";
+import { SignInForm } from "@/components/auth/sign-in-form";
 import { getViewer } from "@/lib/auth/dal";
 import { safeRelativePath } from "@/lib/security/urls";
 
@@ -47,6 +48,12 @@ export default async function SignInPage({
           We could not send that link. Check the address and try again.
         </div>
       ) : null}
+      {status === "link-error" ? (
+        <div className="notice notice-danger" role="alert">
+          That sign-in link could not be verified. Request a fresh link and open
+          it once.
+        </div>
+      ) : null}
       {viewer.state === "authenticated" ? (
         <div className="surface surface-pad stack">
           <h2 className="section-title">You are already signed in</h2>
@@ -58,37 +65,7 @@ export default async function SignInPage({
           </a>
         </div>
       ) : (
-        <form
-          className="surface surface-pad stack"
-          action="/api/auth/sign-in"
-          method="post"
-        >
-          <input type="hidden" name="next" value={next} />
-          <div className="field">
-            <label htmlFor="email">Email address</label>
-            <input
-              className="input"
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              maxLength={254}
-              required
-            />
-            <p className="field-help">
-              Used for authentication and account notices—not public
-              contributions.
-            </p>
-          </div>
-          <button
-            className="button w-fit"
-            type="submit"
-            disabled={viewer.state === "unconfigured"}
-          >
-            Email me a sign-in link
-          </button>
-        </form>
+        <SignInForm disabled={viewer.state === "unconfigured"} next={next} />
       )}
     </div>
   );

@@ -44,7 +44,7 @@ Routes are implemented only when their current phase provides useful behaviour. 
 | ----------------------------------------------------------------------------------- | ----- | --------- | ---------------------------------------------------------- |
 | `/`                                                                                 | 1–2   | Public    | Search-first home, verified jobs, salary entry and tools   |
 | `/about`, `/methodology`, `/trust-and-safety`, `/privacy`, `/terms`                 | 1     | Public    | Trust, provenance, moderation and privacy commitments      |
-| `/auth/sign-in`, `/auth/callback`                                                   | 1     | Public    | Supabase magic-link/OTP authentication                     |
+| `/auth/sign-in`, `/auth/confirm`, `/auth/callback`                                  | 1     | Public    | Supabase token-hash email authentication; legacy callback  |
 | `/admin`                                                                            | 1     | Admin     | Protected operations overview                              |
 | `/jobs`, `/jobs/remote`, `/jobs/nigeria`                                            | 2     | Public    | URL-persisted search, filters, sorting and pagination      |
 | `/jobs/[slug]`                                                                      | 2     | Public    | Job detail, truth card, source evidence and external apply |
@@ -139,7 +139,7 @@ Each active `job_sources` row records terms URL, terms-review date, attribution,
 
 - Next.js App Router, strict TypeScript, linting and repeatable installs.
 - Token-based visual system, responsive shell, skip link, semantic landmarks and reduced motion.
-- Supabase SSR clients, sign-in/callback/sign-out, protected route boundary and server-side admin checks.
+- Supabase SSR clients, sign-in/token-hash confirmation/sign-out, protected route boundary and server-side admin checks.
 - Initial migration with tables, constraints, triggers, indexes and deny-by-default RLS.
 - Trust/legal pages and a functional admin overview.
 - Verification: lint, typecheck, unit tests, production build and unauthenticated route checks.

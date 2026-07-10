@@ -39,10 +39,14 @@ enabled = true
 site_url = "https://salarypadi.com"
 additional_redirect_urls = [
   "https://salarypadi.com/auth/callback",
+  "https://salarypadi.com/auth/confirm",
   "https://salarypadi.netlify.app/auth/callback",
+  "https://salarypadi.netlify.app/auth/confirm",
   "https://**--salarypadi.netlify.app/**",
   "http://localhost:3000/auth/callback",
+  "http://localhost:3000/auth/confirm",
   "http://127.0.0.1:3000/auth/callback",
+  "http://127.0.0.1:3000/auth/confirm",
 ]
 jwt_expiry = 3600
 enable_signup = true
