@@ -2,6 +2,7 @@
 
 import { createBrowserClient } from "@supabase/ssr";
 
+import { getSalaryPadiSupabaseOrigin } from "@/lib/supabase/project";
 import type { Database } from "@/lib/supabase/database.types";
 
 export function createBrowserSupabaseClient() {
@@ -9,5 +10,10 @@ export function createBrowserSupabaseClient() {
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !publishableKey) return null;
-  return createBrowserClient<Database>(url, publishableKey);
+  return createBrowserClient<Database>(
+    getSalaryPadiSupabaseOrigin(url, {
+      allowLocal: process.env.NODE_ENV !== "production",
+    }),
+    publishableKey,
+  );
 }

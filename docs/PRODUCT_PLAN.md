@@ -278,7 +278,7 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 
 - Added canonical metadata, robots controls, segmented sitemaps, internal linking and sanitised Organization/Breadcrumb JSON-LD.
 - Added a privacy-safe analytics event boundary that rejects salary values, free text, notes, email and other prohibited fields.
-- Completed moderated employer intake, visible outcome feedback, sharing controls and six-hour source caching.
+- Completed moderated employer intake, visible outcome feedback, sharing controls and twelve-hour source caching.
 - Structured-data browser tests confirm the constrained source never emits `JobPosting`.
 
 ### 2026-07-10 — Phase 6
@@ -303,7 +303,7 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 ### 2026-07-10 — Phase Two operational readiness
 
 - Applied migrations `20260710000600_operations_phase_two.sql` through `20260710001000_bound_source_sync_cadence.sql` for tracked schedules/runs, idempotent alert deliveries, aggregate-only analytics, reviewed rate provenance, maintenance retention, locked service-role worker RPCs, invoker-only public operational wrappers, least-privilege internal routine resolution, forced owner RLS, and bounded source cadence. The operations suite contains 37 assertions.
-- Added Netlify scheduled functions for bounded six-hour source validation, hourly alert delivery, daily InforEuro refresh, and daily expiry/retention/aggregate maintenance. A site-scoped description-free catalog lets alerts reuse ingestion without additional provider reads. Provider secrets are production Functions-only variables.
+- Added Netlify scheduled functions for bounded twice-daily source validation, ten-minute alert delivery, daily InforEuro refresh, and daily expiry/retention/aggregate maintenance. A site-scoped description-free catalog lets alerts reuse ingestion without additional provider reads. Provider secrets are production Functions-only variables.
 - Verified `mail.salarypadi.com` SPF, DKIM and return path, connected Resend to Supabase Auth, branded sign-in/confirmation mail, enabled Auth security notifications and delivered a real message to `support@salarypadi.com`.
 - Created the initial production admin role with an auditable project-owner reason. The human owner completed TOTP enrolment and reached the protected control room at AAL2; automation retained no factor secret, QR data, one-time code, recovery material or session token.
 - Created `privacy@`, `security@`, `sources@` and `ops@` aliases and assigned Oza as interim accountable owner with internal response targets.

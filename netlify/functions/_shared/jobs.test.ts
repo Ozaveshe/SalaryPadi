@@ -44,4 +44,16 @@ describe("alert job catalog", () => {
       parseAlertCatalog(catalog, new Date("2026-07-10T00:00:01Z")),
     ).toThrow("alert_catalog_stale");
   });
+
+  it("uses the same fourteen-hour freshness boundary as worker health", () => {
+    const job = normalizeRemotiveJob(sourceJob, "2026-07-09T00:00:00Z");
+    const catalog = createAlertCatalog([job], "2026-07-09T00:00:00Z");
+
+    expect(
+      parseAlertCatalog(catalog, new Date("2026-07-09T13:59:59Z")),
+    ).toHaveLength(1);
+    expect(() =>
+      parseAlertCatalog(catalog, new Date("2026-07-09T14:00:01Z")),
+    ).toThrow("alert_catalog_stale");
+  });
 });

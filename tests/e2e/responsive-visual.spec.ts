@@ -23,6 +23,9 @@ test("captures responsive home and completed calculator surfaces", async ({
 
   await page.goto("/tools/take-home-pay");
   await page.getByLabel("Gross cash pay").fill("500000");
+  await page
+    .getByRole("checkbox", { name: /Send these pay and deduction amounts/ })
+    .check();
   await page.getByRole("button", { name: "Calculate take-home pay" }).click();
   await expect(page.getByText("Estimated result")).toBeVisible();
   await expectNoHorizontalOverflow(page);

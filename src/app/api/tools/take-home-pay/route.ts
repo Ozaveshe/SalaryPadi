@@ -1,8 +1,18 @@
 import { z } from "zod";
 
-import { callAfroTools } from "@/lib/afrotools/client";
+import {
+  callAfroTools,
+  invalidAfroToolsResponse,
+  logAfroToolsFallback,
+} from "@/lib/afrotools/client";
 import { mergeAfroToolsTaxResult } from "@/lib/afrotools/payroll";
 import { payrollRequestSchema } from "@/lib/afrotools/schemas";
+import {
+  JsonBodyError,
+  noStoreJson,
+  noStoreResponse,
+  readBoundedJson,
+} from "@/lib/http/json";
 import { calculateNigeriaPayroll } from "@/lib/payroll";
 import type { NigeriaPayrollResult } from "@/lib/payroll";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
@@ -23,14 +33,31 @@ const afroTaxSchema = z.object({
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
-  if (crossOrigin) return crossOrigin;
-  if (Number(request.headers.get("content-length") ?? "0") > 40_000)
-    return Response.json({ error: "Request is too large." }, { status: 413 });
-  const parsed = payrollRequestSchema.safeParse(
-    await request.json().catch(() => null),
-  );
+  if (crossOrigin) return noStoreResponse(crossOrigin);
+
+  let payload: unknown;
+  try {
+    payload = await readBoundedJson(request, 40_000);
+  } catch (error) {
+    return noStoreJson(
+      {
+        error:
+          error instanceof JsonBodyError && error.code === "too_large"
+            ? "Request is too large."
+            : "Invalid payroll calculation.",
+      },
+      {
+        status:
+          error instanceof JsonBodyError && error.code === "too_large"
+            ? 413
+            : 400,
+      },
+    );
+  }
+
+  const parsed = payrollRequestSchema.safeParse(payload);
   if (!parsed.success)
-    return Response.json(
+    return noStoreJson(
       { error: "Invalid payroll calculation." },
       { status: 400 },
     );
@@ -39,7 +66,7 @@ export async function POST(request: Request) {
   try {
     fallback = calculateNigeriaPayroll(parsed.data.input);
   } catch (error) {
-    return Response.json(
+    return noStoreJson(
       {
         error:
           error instanceof Error
@@ -67,13 +94,14 @@ export async function POST(request: Request) {
       minimumWageExempt: fallback.decisions.minimumWageExemptionApplied,
     });
     const upstream = afroTaxSchema.safeParse(response);
-    if (!upstream.success) throw new Error("Unexpected AfroTools response.");
-    return Response.json({
+    if (!upstream.success) throw invalidAfroToolsResponse();
+    return noStoreJson({
       result: mergeAfroToolsTaxResult(fallback, upstream.data),
       provider: "afrotools",
     });
-  } catch {
-    return Response.json({
+  } catch (error) {
+    logAfroToolsFallback("paye", error);
+    return noStoreJson({
       result: fallback,
       provider: "salarypadi_fallback",
       notice:

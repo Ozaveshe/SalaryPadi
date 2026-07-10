@@ -13,7 +13,7 @@ The repository is deployable without fabricated data: public tools and trust pag
 - Admin surfaces protected by both a staff role and an AAL2 session.
 - Nigeria take-home pay, side-by-side offer comparison, and an explainable job-scam checker.
 - Scheduled source-health, alert-delivery, currency-rate, retention, expiry, and aggregate-maintenance workers with idempotent run evidence.
-- A site-scoped, description-free Netlify Blob catalog lets hourly alerts reuse the bounded six-hour source ingestion instead of fetching the provider again.
+- A site-scoped, description-free Netlify Blob catalog lets ten-minute alert delivery reuse the bounded twice-daily source ingestion instead of fetching the provider again.
 - Consent-gated first-party analytics that stores daily event totals only, plus reviewed European Commission InforEuro reference rates.
 - Canonical metadata, sitemaps, robots controls, structured data, accessibility foundations, CSP nonces, and baseline security headers.
 
@@ -31,7 +31,7 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Open `http://localhost:3000`. With the Supabase values left blank, public pages and local-only tools remain available; authenticated features show setup-aware states. `REMOTIVE_SOURCE_ENABLED=true` enables the reviewed remote-job pilot and performs a server-side source read cached for six hours.
+Open `http://localhost:3000`. With the Supabase values left blank, public pages and local-only tools remain available; authenticated features show setup-aware states. `REMOTIVE_SOURCE_ENABLED=true` enables the reviewed remote-job pilot and performs a server-side source read cached for twelve hours.
 
 Before using accounts, set these values in `.env.local` from a dedicated SalaryPadi project:
 

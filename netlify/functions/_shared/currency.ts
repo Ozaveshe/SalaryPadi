@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { OperationalError } from "./runtime";
+import {
+  boundedSignal,
+  EXTERNAL_REQUEST_TIMEOUT_MS,
+  OperationalError,
+} from "./runtime";
 
 const supportedCurrencies = [
   "EUR",
@@ -67,11 +71,14 @@ export function currentInforEuroSource(now = new Date()) {
   };
 }
 
-export async function fetchInforEuroRates(now = new Date()) {
+export async function fetchInforEuroRates(
+  now = new Date(),
+  signal?: AbortSignal,
+) {
   const source = currentInforEuroSource(now);
   const response = await fetch(source.sourceUrl, {
     headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(10_000),
+    signal: boundedSignal(signal, EXTERNAL_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new OperationalError(`currency_source_${response.status}`);

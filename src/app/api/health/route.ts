@@ -1,37 +1,102 @@
-import { getServerEnvironment, getSupabasePublicConfig } from "@/lib/env";
+import {
+  getAfroToolsConfig,
+  getServerEnvironment,
+  getSupabasePublicConfig,
+} from "@/lib/env";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
+const expectedWorkerKeys = [
+  "alert_delivery",
+  "currency_rates",
+  "job_source_sync",
+  "operations_maintenance",
+] as const;
+
+const workerHealthSchema = z
+  .array(
+    z.object({
+      task_key: z.string().min(1).max(80),
+      owner_label: z.string().min(1).max(160),
+      last_status: z
+        .enum(["running", "succeeded", "failed", "skipped"])
+        .nullable(),
+      last_started_at: z.string().nullable(),
+      last_success_at: z.string().nullable(),
+      freshness: z.enum(["disabled", "never", "stale", "degraded", "healthy"]),
+    }),
+  )
+  .max(20);
+
 export async function GET() {
   const environment = getServerEnvironment();
+  const backendConfigured = Boolean(getSupabasePublicConfig());
+  const workerBackendConfigured = Boolean(
+    environment.SUPABASE_SERVICE_ROLE_KEY,
+  );
+  const afroToolsConfigured = Boolean(getAfroToolsConfig().apiKey);
+  const providersReady = {
+    analytics: environment.ANALYTICS_PROVIDER === "supabase_first_party",
+    currency_rates:
+      environment.CURRENCY_RATE_PROVIDER === "european_commission_inforeuro",
+    email: Boolean(
+      environment.EMAIL_PROVIDER === "resend" &&
+      environment.RESEND_API_KEY &&
+      environment.TRANSACTIONAL_EMAIL_FROM &&
+      environment.TRANSACTIONAL_EMAIL_REPLY_TO,
+    ),
+    remotive: environment.REMOTIVE_SOURCE_ENABLED,
+  };
+  const operationsConfigured =
+    workerBackendConfigured && Object.values(providersReady).every(Boolean);
   const supabase = await createServerSupabaseClient();
   const workerResult = supabase
     ? await supabase.schema("api").rpc("get_worker_health")
     : { data: null, error: new Error("Backend unavailable") };
-  const workers = Array.isArray(workerResult.data) ? workerResult.data : [];
+  const parsedWorkers = workerHealthSchema.safeParse(workerResult.data);
+  const workers = parsedWorkers.success ? parsedWorkers.data : [];
+  const workerKeys = new Set(workers.map((worker) => worker.task_key));
+  const workerHealthComplete =
+    parsedWorkers.success &&
+    workerKeys.size === workers.length &&
+    expectedWorkerKeys.every((taskKey) => workerKeys.has(taskKey));
   const unhealthyWorkers = workers.filter(
     (worker) => worker.freshness !== "healthy",
   );
   const status =
-    workerResult.error || unhealthyWorkers.length > 0 ? "degraded" : "ok";
+    workerResult.error ||
+    !workerHealthComplete ||
+    unhealthyWorkers.length > 0 ||
+    !backendConfigured ||
+    !afroToolsConfigured ||
+    !operationsConfigured
+      ? "degraded"
+      : "ok";
 
   return Response.json(
     {
       status,
       service: "salarypadi-web",
       checks: {
-        backend_configured: Boolean(getSupabasePublicConfig()),
+        backend_configured: backendConfigured,
+        worker_backend_configured: workerBackendConfigured,
+        afrotools_configured: afroToolsConfigured,
+        operations_configured: operationsConfigured,
+        worker_health_complete: workerHealthComplete,
         remotive_source_enabled: environment.REMOTIVE_SOURCE_ENABLED,
         providers: {
           analytics: environment.ANALYTICS_PROVIDER,
           email: environment.EMAIL_PROVIDER,
           currency_rates: environment.CURRENCY_RATE_PROVIDER,
         },
+        providers_ready: providersReady,
         workers,
       },
     },
     {
+      status: status === "ok" ? 200 : 503,
       headers: {
         "Cache-Control": "no-store",
       },

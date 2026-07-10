@@ -88,6 +88,9 @@ test.describe("public MVP journeys", () => {
   test("completes the Nigeria take-home-pay calculator", async ({ page }) => {
     await page.goto("/tools/take-home-pay");
     await page.getByLabel("Gross cash pay").fill("500000");
+    await page
+      .getByRole("checkbox", { name: /Send these pay and deduction amounts/ })
+      .check();
     await page.getByRole("button", { name: "Calculate take-home pay" }).click();
 
     await expect(page.getByText("Estimated result")).toBeVisible();
@@ -105,6 +108,9 @@ test.describe("public MVP journeys", () => {
     await page.getByLabel("Base pay").nth(0).fill("500000");
     await page.getByLabel("Base pay").nth(1).fill("600000");
     await page.locator("#b_currency").fill("NGN");
+    await page
+      .getByRole("checkbox", { name: /Send these offer amounts and terms/ })
+      .check();
     await page.getByRole("button", { name: "Compare offers" }).click();
 
     await expect(page.getByText("Normalized comparison")).toBeVisible();
@@ -122,6 +128,9 @@ test.describe("public MVP journeys", () => {
         "Urgent: pay a training fee in cryptocurrency today and send your banking password to receive an instant offer.",
       );
     await page.getByLabel("A payment or fee was requested").check();
+    await page
+      .getByRole("checkbox", { name: /I understand the entered vacancy text/ })
+      .check();
     await page.getByRole("button", { name: "Check warning signs" }).click();
 
     await expect(page.getByText("Automated screening result")).toBeVisible();

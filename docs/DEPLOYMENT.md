@@ -88,8 +88,8 @@ Published production deploys register these Netlify schedules:
 
 | Function                 | Schedule (UTC) | Stale after | Purpose                                                                                                          |
 | ------------------------ | -------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| `job-source-sync`        | `5 */6 * * *`  | 14 hours    | Validate the reviewed Remotive feed, replace the description-free alert catalog, and record source/import health |
-| `alert-delivery`         | `15 * * * *`   | 3 hours     | Claim due daily/weekly alerts idempotently and send matching jobs                                                |
+| `job-source-sync`        | `5 1,13 * * *` | 14 hours    | Validate the reviewed Remotive feed, replace the description-free alert catalog, and record source/import health |
+| `alert-delivery`         | `*/10 * * * *` | 35 minutes  | Claim due daily/weekly alerts idempotently and send matching jobs                                                |
 | `currency-rates`         | `25 2 * * *`   | 36 hours    | Store the current European Commission InforEuro monthly reference set and provenance                             |
 | `operations-maintenance` | `45 2 * * *`   | 36 hours    | Expire jobs, process aggregate queues, retry/dead-letter deliveries, and enforce retention                       |
 

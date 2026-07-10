@@ -1,33 +1,48 @@
-import { callAfroTools } from "@/lib/afrotools/client";
-import { scamCheckRequestSchema } from "@/lib/afrotools/schemas";
+import {
+  callAfroTools,
+  invalidAfroToolsResponse,
+  logAfroToolsFallback,
+} from "@/lib/afrotools/client";
+import {
+  afroToolsScamCheckResponseSchema,
+  scamCheckRequestSchema,
+} from "@/lib/afrotools/schemas";
+import {
+  JsonBodyError,
+  noStoreJson,
+  noStoreResponse,
+  readBoundedJson,
+} from "@/lib/http/json";
 import { checkJobScam } from "@/lib/scam";
-import type { ScamCheckResult } from "@/lib/scam";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
-
-function isScamResult(value: unknown): value is ScamCheckResult {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const result = value as Record<string, unknown>;
-  return (
-    typeof result.riskTier === "string" &&
-    typeof result.riskLabel === "string" &&
-    typeof result.summary === "string" &&
-    Array.isArray(result.flags) &&
-    Array.isArray(result.verificationSteps) &&
-    Array.isArray(result.safeNextActions) &&
-    Array.isArray(result.limitations)
-  );
-}
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
-  if (crossOrigin) return crossOrigin;
-  if (Number(request.headers.get("content-length") ?? "0") > 30_000)
-    return Response.json({ error: "Request is too large." }, { status: 413 });
-  const parsed = scamCheckRequestSchema.safeParse(
-    await request.json().catch(() => null),
-  );
+  if (crossOrigin) return noStoreResponse(crossOrigin);
+
+  let payload: unknown;
+  try {
+    payload = await readBoundedJson(request, 30_000);
+  } catch (error) {
+    return noStoreJson(
+      {
+        error:
+          error instanceof JsonBodyError && error.code === "too_large"
+            ? "Request is too large."
+            : "Invalid vacancy check.",
+      },
+      {
+        status:
+          error instanceof JsonBodyError && error.code === "too_large"
+            ? 413
+            : 400,
+      },
+    );
+  }
+
+  const parsed = scamCheckRequestSchema.safeParse(payload);
   if (!parsed.success)
-    return Response.json({ error: "Invalid vacancy check." }, { status: 400 });
+    return noStoreJson({ error: "Invalid vacancy check." }, { status: 400 });
   const fallback = checkJobScam(parsed.data.input);
 
   try {
@@ -35,12 +50,12 @@ export async function POST(request: Request) {
       "/career/job-scam-check",
       parsed.data.input,
     );
-    if (response.status !== "success" || !isScamResult(response.result)) {
-      throw new Error("Unexpected AfroTools response.");
-    }
-    return Response.json({ result: response.result, provider: "afrotools" });
-  } catch {
-    return Response.json({
+    const upstream = afroToolsScamCheckResponseSchema.safeParse(response);
+    if (!upstream.success) throw invalidAfroToolsResponse();
+    return noStoreJson({ result: upstream.data.result, provider: "afrotools" });
+  } catch (error) {
+    logAfroToolsFallback("job_scam_check", error);
+    return noStoreJson({
       result: fallback,
       provider: "salarypadi_fallback",
       notice:

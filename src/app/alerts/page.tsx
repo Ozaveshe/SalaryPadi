@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { PageHeading } from "@/components/page-heading";
+import { PrivateDataStatus } from "@/components/private-data-status";
 import { requireViewer } from "@/lib/auth/dal";
 import { getAlerts } from "@/lib/career/repository";
 import { formatDate } from "@/lib/format";
@@ -10,9 +11,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
-export default async function AlertsPage() {
+export default async function AlertsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ removed?: string }>;
+}) {
   await requireViewer("/alerts");
-  const alerts = await getAlerts();
+  const { removed } = await searchParams;
+  const result = await getAlerts();
+  const alerts = result.data;
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -20,6 +27,15 @@ export default async function AlertsPage() {
         title="Job alerts"
         description="Save a focused query and receive a private daily or weekly email when newly posted jobs match the selected source evidence."
       />
+      {removed === "true" ? (
+        <div className="notice" role="status">
+          Alert removed.
+        </div>
+      ) : removed === "error" ? (
+        <div className="notice notice-danger" role="alert">
+          The alert could not be removed. Reload and try again.
+        </div>
+      ) : null}
       <form
         className="surface surface-pad form-grid"
         action="/api/alerts"
@@ -69,7 +85,9 @@ export default async function AlertsPage() {
           Create alert
         </button>
       </form>
-      {alerts.length > 0 ? (
+      {result.state !== "ready" ? (
+        <PrivateDataStatus state={result.state} />
+      ) : alerts.length > 0 ? (
         <section className="stack" aria-labelledby="active-alerts">
           <h2 className="section-title" id="active-alerts">
             Saved alerts

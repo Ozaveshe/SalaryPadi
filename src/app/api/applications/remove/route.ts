@@ -16,8 +16,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid application." }, { status: 400 });
   const context = await getAuthenticatedApiContext();
   if (!context.ok) return context.response;
-  await context.supabase
+  const { data, error } = await context.supabase
     .schema("api")
     .rpc("remove_application", { application_id: parsed.data });
-  return NextResponse.redirect(new URL("/applications", getAppOrigin()), 303);
+  const url = new URL("/applications", getAppOrigin());
+  url.searchParams.set("removed", !error && data ? "true" : "error");
+  return NextResponse.redirect(url, 303);
 }

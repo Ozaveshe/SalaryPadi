@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHeading } from "@/components/page-heading";
+import { PrivateDataStatus } from "@/components/private-data-status";
 import { requireViewer } from "@/lib/auth/dal";
 import { getApplications } from "@/lib/career/repository";
 import { formatDate, formatEnum } from "@/lib/format";
@@ -21,9 +22,15 @@ const statuses = [
   "withdrawn",
 ] as const;
 
-export default async function ApplicationsPage() {
+export default async function ApplicationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ removed?: string }>;
+}) {
   await requireViewer("/applications");
-  const applications = await getApplications();
+  const { removed } = await searchParams;
+  const result = await getApplications();
+  const applications = result.data;
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -31,7 +38,18 @@ export default async function ApplicationsPage() {
         title="Application tracker"
         description="Keep the next action visible without sharing private notes with employers or analytics."
       />
-      {applications.length > 0 ? (
+      {removed === "true" ? (
+        <div className="notice" role="status">
+          Application record removed.
+        </div>
+      ) : removed === "error" ? (
+        <div className="notice notice-danger" role="alert">
+          The application record could not be removed. Reload and try again.
+        </div>
+      ) : null}
+      {result.state !== "ready" ? (
+        <PrivateDataStatus state={result.state} />
+      ) : applications.length > 0 ? (
         <div className="stack">
           {applications.map((application) => (
             <article className="surface surface-pad stack" key={application.id}>

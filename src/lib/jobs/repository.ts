@@ -4,6 +4,7 @@ import { getServerEnvironment } from "@/lib/env";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { mapDatabaseJobRow } from "./database";
+import { sourceResponseCheckedAt } from "./freshness";
 import { normalizeRemotiveJob } from "./normalize";
 import { remotiveResponseSchema } from "./remotive-schema";
 import { REMOTIVE_SOURCE_POLICY } from "./source-policy";
@@ -12,12 +13,13 @@ import type { JobFeedResult } from "./types";
 const REMOTIVE_ENDPOINT = "https://remotive.com/api/remote-jobs";
 
 async function getRemotiveJobFeed(): Promise<JobFeedResult> {
-  const checkedAt = new Date().toISOString();
+  const requestedAt = new Date();
+  const attemptedAt = requestedAt.toISOString();
   if (!getServerEnvironment().REMOTIVE_SOURCE_ENABLED) {
     return {
       jobs: [],
       state: "disabled",
-      checkedAt,
+      checkedAt: attemptedAt,
       message: "The live Remotive source is disabled in this environment.",
     };
   }
@@ -33,6 +35,7 @@ async function getRemotiveJobFeed(): Promise<JobFeedResult> {
       throw new Error(`Source returned HTTP ${response.status}`);
     const payload: unknown = await response.json();
     const parsed = remotiveResponseSchema.parse(payload);
+    const checkedAt = sourceResponseCheckedAt(response.headers, requestedAt);
 
     return {
       jobs: parsed.jobs.map((job) => normalizeRemotiveJob(job, checkedAt)),
@@ -43,7 +46,7 @@ async function getRemotiveJobFeed(): Promise<JobFeedResult> {
     return {
       jobs: [],
       state: "unavailable",
-      checkedAt,
+      checkedAt: attemptedAt,
       message:
         "The live source could not be reached or did not match its documented format. Try again later.",
     };

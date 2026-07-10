@@ -67,6 +67,9 @@ jobs:
       - name: Start local Supabase
         run: supabase start
 
+      - name: Lint database functions
+        run: supabase db lint --local --level error --fail-on error
+
       - name: Run database tests
         run: supabase test db
 
@@ -79,8 +82,6 @@ jobs:
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      REMOTIVE_SOURCE_ENABLED: "true"
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -116,16 +117,6 @@ jobs:
       - name: Run Playwright tests
         if: steps.browser-tests.outputs.present == 'true'
         run: npm run test:e2e
-
-      - name: Probe the live job source
-        if: steps.browser-tests.outputs.present == 'true'
-        continue-on-error: true
-        env:
-          REQUIRE_LIVE_SOURCE: "true"
-        run: >-
-          npx playwright test tests/e2e/public-flows.spec.ts
-          --project=desktop-chromium
-          --grep "opens a real job"
 
       - name: Upload Playwright artifacts
         if: failure() && steps.browser-tests.outputs.present == 'true'

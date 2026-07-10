@@ -43,30 +43,49 @@ const alertSchema = z.object({
 type CareerRpcName =
   "get_my_saved_jobs" | "get_my_applications" | "get_my_job_alerts";
 
-async function safeRpc(name: CareerRpcName) {
+export type CareerDataResult<T> =
+  | { state: "ready"; data: T[] }
+  | { state: "unconfigured" | "unavailable" | "invalid"; data: [] };
+
+function recordReadFailure(name: CareerRpcName, code: string) {
+  console.error(
+    JSON.stringify({
+      event: "career.repository.read_failed",
+      operation: name,
+      code,
+    }),
+  );
+}
+
+async function readCareerRows<T>(
+  name: CareerRpcName,
+  schema: z.ZodType<T[]>,
+): Promise<CareerDataResult<T>> {
   const supabase = await createServerSupabaseClient();
-  if (!supabase) return [];
+  if (!supabase) return { state: "unconfigured", data: [] };
   const { data, error } = await supabase.schema("api").rpc(name);
-  return error || !Array.isArray(data) ? [] : data;
+  if (error || !Array.isArray(data)) {
+    recordReadFailure(name, error ? "rpc_error" : "invalid_container");
+    return { state: "unavailable", data: [] };
+  }
+
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) {
+    recordReadFailure(name, "invalid_rows");
+    return { state: "invalid", data: [] };
+  }
+
+  return { state: "ready", data: parsed.data };
 }
 
 export async function getSavedJobs() {
-  return z
-    .array(savedJobSchema)
-    .catch([])
-    .parse(await safeRpc("get_my_saved_jobs"));
+  return readCareerRows("get_my_saved_jobs", z.array(savedJobSchema));
 }
 
 export async function getApplications() {
-  return z
-    .array(applicationSchema)
-    .catch([])
-    .parse(await safeRpc("get_my_applications"));
+  return readCareerRows("get_my_applications", z.array(applicationSchema));
 }
 
 export async function getAlerts() {
-  return z
-    .array(alertSchema)
-    .catch([])
-    .parse(await safeRpc("get_my_job_alerts"));
+  return readCareerRows("get_my_job_alerts", z.array(alertSchema));
 }

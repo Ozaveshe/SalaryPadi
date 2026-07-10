@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import {
+  DEFAULT_AFROTOOLS_API_BASE,
+  getAfroToolsApiBase,
+} from "@/lib/integrations/urls";
+import { getSalaryPadiSupabaseOrigin } from "@/lib/supabase/project";
+
 const optionalUrl = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.string().url().optional(),
@@ -18,6 +24,9 @@ const serverEnvironmentSchema = z
     SUPABASE_SERVICE_ROLE_KEY: optionalString,
     AFROTOOLS_API_BASE: optionalUrl,
     AFROTOOLS_API_KEY: optionalString,
+    RESEND_API_KEY: optionalString,
+    TRANSACTIONAL_EMAIL_FROM: optionalString,
+    TRANSACTIONAL_EMAIL_REPLY_TO: optionalString,
     REMOTIVE_SOURCE_ENABLED: z
       .enum(["true", "false"])
       .default("true")
@@ -49,6 +58,40 @@ const serverEnvironmentSchema = z
       });
     }
 
+    if (value.NEXT_PUBLIC_SUPABASE_URL) {
+      try {
+        getSalaryPadiSupabaseOrigin(value.NEXT_PUBLIC_SUPABASE_URL, {
+          allowLocal: value.NODE_ENV !== "production",
+        });
+      } catch (error) {
+        context.addIssue({
+          code: "custom",
+          path: ["NEXT_PUBLIC_SUPABASE_URL"],
+          message:
+            error instanceof Error
+              ? error.message
+              : "SalaryPadi Supabase URL is invalid.",
+        });
+      }
+    }
+
+    if (value.AFROTOOLS_API_BASE) {
+      try {
+        getAfroToolsApiBase(value.AFROTOOLS_API_BASE, {
+          allowLocal: value.NODE_ENV !== "production",
+        });
+      } catch (error) {
+        context.addIssue({
+          code: "custom",
+          path: ["AFROTOOLS_API_BASE"],
+          message:
+            error instanceof Error
+              ? error.message
+              : "AfroTools API base URL is invalid.",
+        });
+      }
+    }
+
     if (value.NODE_ENV === "production" && value.ALLOW_DEMO_DATA) {
       context.addIssue({
         code: "custom",
@@ -66,7 +109,12 @@ const serverEnvironmentSchema = z
         });
       } else {
         const appUrl = new URL(value.NEXT_PUBLIC_APP_URL);
-        const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+        const loopbackHosts = new Set([
+          "localhost",
+          "127.0.0.1",
+          "::1",
+          "[::1]",
+        ]);
         if (
           appUrl.protocol !== "https:" ||
           loopbackHosts.has(appUrl.hostname)
@@ -101,6 +149,9 @@ export function parseServerEnvironment(
     SUPABASE_SERVICE_ROLE_KEY: environment.SUPABASE_SERVICE_ROLE_KEY,
     AFROTOOLS_API_BASE: environment.AFROTOOLS_API_BASE,
     AFROTOOLS_API_KEY: environment.AFROTOOLS_API_KEY,
+    RESEND_API_KEY: environment.RESEND_API_KEY,
+    TRANSACTIONAL_EMAIL_FROM: environment.TRANSACTIONAL_EMAIL_FROM,
+    TRANSACTIONAL_EMAIL_REPLY_TO: environment.TRANSACTIONAL_EMAIL_REPLY_TO,
     REMOTIVE_SOURCE_ENABLED: environment.REMOTIVE_SOURCE_ENABLED,
     ALLOW_DEMO_DATA: environment.ALLOW_DEMO_DATA,
     ANALYTICS_PROVIDER: environment.ANALYTICS_PROVIDER,
@@ -130,7 +181,12 @@ export function getSupabasePublicConfig() {
   const publishableKey = environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !publishableKey) return null;
-  return { url, publishableKey };
+  return {
+    url: getSalaryPadiSupabaseOrigin(url, {
+      allowLocal: environment.NODE_ENV !== "production",
+    }),
+    publishableKey,
+  };
 }
 
 export function getAppOrigin() {
@@ -139,11 +195,11 @@ export function getAppOrigin() {
 
 export function getAfroToolsConfig() {
   const environment = getServerEnvironment();
-  const baseUrl = new URL(
-    environment.AFROTOOLS_API_BASE ?? "https://afrotools.com/api/v1",
-  );
   return {
-    baseUrl: baseUrl.toString().replace(/\/$/, ""),
+    baseUrl: getAfroToolsApiBase(
+      environment.AFROTOOLS_API_BASE ?? DEFAULT_AFROTOOLS_API_BASE,
+      { allowLocal: environment.NODE_ENV !== "production" },
+    ),
     apiKey: environment.AFROTOOLS_API_KEY,
   };
 }

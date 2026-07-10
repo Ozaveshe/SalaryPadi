@@ -4,12 +4,12 @@ SalaryPadi does not treat a reachable feed as permission to republish it. Every 
 
 ## Current source matrix
 
-| Source                                                | Status                                                  | Public listing                                     | Storage                                                                                                                                | Indexing                              | Required destination                 |
-| ----------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------ |
-| Remotive public API                                   | Constrained production pilot; terms reviewed 2026-07-10 | Yes, while enabled                                 | Six-hour public cache, current description-free alert catalog, and import-run evidence; no durable full description or catalog history | No                                    | The Remotive URL returned by the API |
-| Employer submissions                                  | Moderated intake                                        | Only after approval                                | Structured submission and audit history                                                                                                | Only after approval and policy review | Validated HTTPS application URL      |
-| Community salary, review, and interview contributions | Moderated intake                                        | Thresholded aggregate or redacted publication only | Private raw record plus approved public projection                                                                                     | Sparse/private states are not indexed | SalaryPadi detail page               |
-| Direct licensed feeds                                 | Not configured                                          | No                                                 | No                                                                                                                                     | No                                    | Provider-specific agreement required |
+| Source                                                | Status                                                  | Public listing                                     | Storage                                                                                                                                   | Indexing                              | Required destination                 |
+| ----------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------ |
+| Remotive public API                                   | Constrained production pilot; terms reviewed 2026-07-10 | Yes, while enabled                                 | Twelve-hour public cache, current description-free alert catalog, and import-run evidence; no durable full description or catalog history | No                                    | The Remotive URL returned by the API |
+| Employer submissions                                  | Moderated intake                                        | Only after approval                                | Structured submission and audit history                                                                                                   | Only after approval and policy review | Validated HTTPS application URL      |
+| Community salary, review, and interview contributions | Moderated intake                                        | Thresholded aggregate or redacted publication only | Private raw record plus approved public projection                                                                                        | Sparse/private states are not indexed | SalaryPadi detail page               |
+| Direct licensed feeds                                 | Not configured                                          | No                                                 | No                                                                                                                                        | No                                    | Provider-specific agreement required |
 
 No scraping adapter is enabled. Do not add one without written permission or a documented legal and policy review.
 
@@ -18,7 +18,7 @@ No scraping adapter is enabled. Do not add one without written permission or a d
 The adapter policy is defined in `src/lib/jobs/source-policy.ts` and enforced by the server repository.
 
 - Fetch only `https://remotive.com/api/remote-jobs` from a fixed server-side endpoint.
-- Cache responses for 21,600 seconds (six hours), keeping normal operation at no more than four reads per day.
+- Cache public responses for 43,200 seconds (twelve hours). The separate alert-catalog worker also runs twice daily, keeping their combined normal operation at no more than four reads per day.
 - Validate the response shape and normalize it before rendering.
 - Remove source HTML and render plain text. Never inject the source description as raw HTML.
 - Display visible “Source: Remotive” attribution and link to the returned Remotive job URL.
@@ -29,7 +29,7 @@ The adapter policy is defined in `src/lib/jobs/source-policy.ts` and enforced by
 
 Terms basis: the official [Remotive public API repository](https://github.com/remotive-com/remote-jobs-api), reviewed on 2026-07-10. A source owner must repeat and record the review before changing the policy or after a material provider change.
 
-The interim source and terms owner is Oza at `sources@salarypadi.com`. The `job-source-sync` function validates the feed every six hours, records counts and a provider-safe error code, and replaces one site-scoped Netlify Blob used by alert delivery. That catalog contains normalized matching facts but explicitly removes descriptions, requirements, benefits, and risk text; it has no historical keys. Alert delivery reads the catalog and does not call Remotive independently. The catalog does not replace the visible six-hour server cache used by public pages.
+The interim source and terms owner is Oza at `sources@salarypadi.com`. The `job-source-sync` function validates the feed twice daily, records counts and a provider-safe error code, and replaces one site-scoped Netlify Blob used by alert delivery. That catalog contains normalized matching facts but explicitly removes descriptions, requirements, benefits, and risk text; it has no historical keys. Ten-minute alert delivery reads the catalog and does not call Remotive independently. The catalog does not replace the visible twelve-hour server cache used by public pages. Ordinary CI never calls the live provider.
 
 ## Currency reference data
 

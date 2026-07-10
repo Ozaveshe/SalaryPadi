@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHeading } from "@/components/page-heading";
+import { PrivateDataStatus } from "@/components/private-data-status";
 import { requireViewer } from "@/lib/auth/dal";
 import { getSavedJobs } from "@/lib/career/repository";
 import { formatDate } from "@/lib/format";
@@ -11,9 +12,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
-export default async function SavedJobsPage() {
+export default async function SavedJobsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ removed?: string }>;
+}) {
   await requireViewer("/saved");
-  const jobs = await getSavedJobs();
+  const { removed } = await searchParams;
+  const result = await getSavedJobs();
+  const jobs = result.data;
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -21,7 +28,18 @@ export default async function SavedJobsPage() {
         title="Saved jobs"
         description="A short list for roles worth a closer look. Saved records and notes are visible only to your account."
       />
-      {jobs.length > 0 ? (
+      {removed === "true" ? (
+        <div className="notice" role="status">
+          Saved job removed.
+        </div>
+      ) : removed === "error" ? (
+        <div className="notice notice-danger" role="alert">
+          The saved job could not be removed. Reload and try again.
+        </div>
+      ) : null}
+      {result.state !== "ready" ? (
+        <PrivateDataStatus state={result.state} />
+      ) : jobs.length > 0 ? (
         <div className="private-list">
           {jobs.map((job) => (
             <article className="private-row" key={job.id}>

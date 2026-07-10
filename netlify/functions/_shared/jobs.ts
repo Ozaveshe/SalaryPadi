@@ -9,7 +9,14 @@ import {
 } from "../../../src/lib/jobs/search";
 import type { Job } from "../../../src/lib/jobs/types";
 
-import { getRuntimeEnvironment, OperationalError } from "./runtime";
+import {
+  boundedSignal,
+  EXTERNAL_REQUEST_TIMEOUT_MS,
+  getRuntimeEnvironment,
+  getRuntimeSupabaseOrigin,
+  OperationalError,
+  raceWithSignal,
+} from "./runtime";
 
 const REMOTIVE_ENDPOINT = "https://remotive.com/api/remote-jobs";
 const ALERT_CATALOG_STORE = "salarypadi-job-catalog";
@@ -32,10 +39,10 @@ export type AlertClaim = {
   last_sent_at: string | null;
 };
 
-export async function fetchRemotiveJobs(): Promise<Job[]> {
+export async function fetchRemotiveJobs(signal?: AbortSignal): Promise<Job[]> {
   const response = await fetch(REMOTIVE_ENDPOINT, {
     headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(10_000),
+    signal: boundedSignal(signal, EXTERNAL_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok)
     throw new OperationalError(`remotive_source_${response.status}`);
@@ -97,14 +104,20 @@ export function parseAlertCatalog(value: unknown, now = new Date()): Job[] {
   return candidate.jobs;
 }
 
-export async function storeAlertJobCatalog(jobs: Job[]): Promise<number> {
+export async function storeAlertJobCatalog(
+  jobs: Job[],
+  signal: AbortSignal,
+): Promise<number> {
   const catalog = createAlertCatalog(jobs);
-  await alertCatalogStore().setJSON(ALERT_CATALOG_KEY, catalog);
+  await raceWithSignal(
+    alertCatalogStore().setJSON(ALERT_CATALOG_KEY, catalog),
+    signal,
+  );
   return catalog.jobs.length;
 }
 
-async function fetchDatabaseJobs(): Promise<Job[]> {
-  const url = getRuntimeEnvironment("NEXT_PUBLIC_SUPABASE_URL");
+async function fetchDatabaseJobs(signal: AbortSignal): Promise<Job[]> {
+  const url = getRuntimeSupabaseOrigin();
   const publishableKey = getRuntimeEnvironment(
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   );
@@ -117,7 +130,7 @@ async function fetchDatabaseJobs(): Promise<Job[]> {
         apikey: publishableKey,
         Authorization: `Bearer ${publishableKey}`,
       },
-      signal: AbortSignal.timeout(10_000),
+      signal: boundedSignal(signal, EXTERNAL_REQUEST_TIMEOUT_MS),
     },
   );
   if (!response.ok)
@@ -130,10 +143,15 @@ async function fetchDatabaseJobs(): Promise<Job[]> {
     .filter((job): job is Job => job !== null);
 }
 
-export async function fetchAlertJobCatalog(): Promise<Job[]> {
+export async function fetchAlertJobCatalog(
+  signal: AbortSignal,
+): Promise<Job[]> {
   const [stored, database] = await Promise.all([
-    alertCatalogStore().get(ALERT_CATALOG_KEY, { type: "json" }),
-    fetchDatabaseJobs(),
+    raceWithSignal(
+      alertCatalogStore().get(ALERT_CATALOG_KEY, { type: "json" }),
+      signal,
+    ),
+    fetchDatabaseJobs(signal),
   ]);
   const remotive = parseAlertCatalog(stored);
   const byFingerprint = new Map<string, Job>();
@@ -190,6 +208,7 @@ export async function sendAlertEmail(
   deliveryId: string,
   recipient: string,
   email: ReturnType<typeof renderAlertEmail>,
+  signal?: AbortSignal,
 ): Promise<string> {
   const apiKey = getRuntimeEnvironment("RESEND_API_KEY");
   const from = getRuntimeEnvironment("TRANSACTIONAL_EMAIL_FROM");
@@ -213,7 +232,7 @@ export async function sendAlertEmail(
         "List-Unsubscribe": `<${new URL("/alerts", getRuntimeEnvironment("NEXT_PUBLIC_APP_URL"))}>`,
       },
     }),
-    signal: AbortSignal.timeout(10_000),
+    signal: boundedSignal(signal, EXTERNAL_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok)
     throw new OperationalError(`email_provider_${response.status}`);

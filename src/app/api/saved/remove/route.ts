@@ -16,8 +16,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid saved job." }, { status: 400 });
   const context = await getAuthenticatedApiContext();
   if (!context.ok) return context.response;
-  await context.supabase
+  const { data, error } = await context.supabase
     .schema("api")
     .rpc("remove_saved_job", { saved_job_id: parsed.data });
-  return NextResponse.redirect(new URL("/saved", getAppOrigin()), 303);
+  const url = new URL("/saved", getAppOrigin());
+  url.searchParams.set("removed", !error && data ? "true" : "error");
+  return NextResponse.redirect(url, 303);
 }

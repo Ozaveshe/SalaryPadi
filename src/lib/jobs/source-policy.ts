@@ -20,5 +20,7 @@ export const REMOTIVE_SOURCE_POLICY: JobSourcePolicy = {
   canIndex: false,
   canUseJobPostingStructuredData: false,
   destinationRequirement: "Use the Remotive URL returned by the API.",
-  refreshIntervalSeconds: 21_600,
+  // The public cache and the alert-catalog worker are separate consumers.
+  // Twelve hours each keeps their combined normal operation at four reads/day.
+  refreshIntervalSeconds: 43_200,
 };
