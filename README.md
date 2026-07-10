@@ -52,6 +52,9 @@ The local Supabase configuration exposes only the `api` schema through PostgREST
 4. `20260710000400_public_product_integration.sql` — public job/company projections used by the production application.
 5. `20260710000500_lock_internal_routines.sql` — removes implicit PUBLIC execution from internal and API routines.
 6. `20260710000600_operations_phase_two.sql` — worker schedules and run evidence, alert delivery, aggregate-only analytics, reviewed currency-rate provenance, and retention maintenance.
+7. `20260710000700_harden_public_operational_wrappers.sql` — moves privileged analytics/health implementations behind invoker-only API wrappers.
+8. `20260710000800_allow_operational_wrapper_resolution.sql` — grants only the schema resolution required by those explicit wrappers.
+9. `20260710000900_force_operations_rls.sql` — forces RLS for table owners on every new private operations table.
 
 With Docker running and the Supabase CLI installed:
 

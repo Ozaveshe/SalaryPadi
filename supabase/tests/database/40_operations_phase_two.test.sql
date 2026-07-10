@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(29);
+select plan(35);
 
 select ok(
   to_regclass('private.worker_runs') is not null
@@ -59,6 +59,39 @@ select ok(
   has_function_privilege('anon', 'api.get_worker_health()', 'EXECUTE')
   and has_table_privilege('anon', 'api.current_currency_rates', 'SELECT'),
   'safe operational health and currency provenance are publicly readable'
+);
+select is(
+  (select p.prosecdef
+   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'api' and p.proname = 'capture_analytics_event'),
+  false,
+  'the exposed analytics wrapper is security invoker'
+);
+select is(
+  (select p.prosecdef
+   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'api' and p.proname = 'get_worker_health'),
+  false,
+  'the exposed worker-health wrapper is security invoker'
+);
+select ok(
+  has_function_privilege('anon', 'security.capture_analytics_event_internal(text,text)', 'EXECUTE')
+  and not has_function_privilege('service_role', 'security.capture_analytics_event_internal(text,text)', 'EXECUTE'),
+  'the internal analytics implementation has explicit application-role grants only'
+);
+select ok(
+  has_function_privilege('anon', 'security.get_worker_health_internal()', 'EXECUTE')
+  and not has_function_privilege('service_role', 'security.get_worker_health_internal()', 'EXECUTE'),
+  'the internal health implementation has explicit application-role grants only'
+);
+select ok(
+  has_schema_privilege('anon', 'security', 'USAGE')
+  and has_schema_privilege('authenticated', 'security', 'USAGE'),
+  'application roles can resolve the two explicitly granted internal implementations'
+);
+select ok(
+  not has_function_privilege('anon', 'security.has_staff_role(private.staff_role)', 'EXECUTE'),
+  'schema usage does not grant anonymous execution on unrelated security routines'
 );
 
 set local role anon;
@@ -147,6 +180,9 @@ select ok(
 );
 
 reset role;
+-- Keep this rollback-only assertion deterministic on a hosted project that may
+-- already contain legitimate due alerts.
+update private.job_alerts set is_enabled = false where is_enabled;
 insert into auth.users (
   id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values (

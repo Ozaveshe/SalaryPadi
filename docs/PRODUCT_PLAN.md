@@ -302,7 +302,7 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 
 ### 2026-07-10 — Phase Two operational readiness
 
-- Applied migration `20260710000600_operations_phase_two.sql` for tracked schedules/runs, idempotent alert deliveries, aggregate-only analytics, reviewed rate provenance, maintenance retention and locked service-role worker RPCs. Its 29 pgTAP assertions passed against the hosted SalaryPadi database in a rollback-only validation transaction.
+- Applied migrations `20260710000600_operations_phase_two.sql` through `20260710000900_force_operations_rls.sql` for tracked schedules/runs, idempotent alert deliveries, aggregate-only analytics, reviewed rate provenance, maintenance retention, locked service-role worker RPCs, invoker-only public operational wrappers, least-privilege internal routine resolution, and forced owner RLS. All 35 operations assertions pass in a rollback-only hosted run.
 - Added Netlify scheduled functions for three-hour source validation, hourly alert delivery, daily InforEuro refresh, and daily expiry/retention/aggregate maintenance. Provider secrets are production Functions-only variables.
 - Verified `mail.salarypadi.com` SPF, DKIM and return path, connected Resend to Supabase Auth, branded sign-in/confirmation mail, enabled Auth security notifications and delivered a real message to `support@salarypadi.com`.
 - Created the initial production admin role with an auditable project-owner reason. Human-controlled TOTP enrolment/AAL2 proof remains the only interactive bootstrap step; automation must not retain the factor secret.

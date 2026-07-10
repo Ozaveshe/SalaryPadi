@@ -49,7 +49,7 @@ supabase test db
 
 8. Bootstrap the first administrator using the two-person procedure in [Operations](OPERATIONS.md), then verify AAL2 access and audit output.
 
-The hosted migration set through `20260710000600` is applied and recorded. Live API types are generated in `src/lib/supabase/database.types.ts`; the Phase Two operations suite adds 29 pgTAP assertions for worker authorization, idempotency, alert claims, analytics aggregation, rate provenance, and maintenance. Supabase Auth uses `https://salarypadi.com` as its Site URL while retaining the Netlify production and preview callbacks needed for rollback and deploy previews.
+The hosted migration set through `20260710000900` is applied and recorded. Live API types are generated in `src/lib/supabase/database.types.ts`; the Phase Two operations suite adds 35 pgTAP assertions for worker authorization, idempotency, alert claims, analytics aggregation, rate provenance, maintenance, invoker-only public wrappers, and narrow internal-routine resolution. The repository-wide schema suite also requires forced RLS on every new private operations table. Supabase Auth uses `https://salarypadi.com` as its Site URL while retaining the Netlify production and preview callbacks needed for rollback and deploy previews.
 
 ## Web build and deployment
 
