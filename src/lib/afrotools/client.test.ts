@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+const providerConfig = vi.hoisted(() => ({
+  apiKey: "test-provider-secret" as string | undefined,
+}));
 vi.mock("@/lib/env", () => ({
   getAfroToolsConfig: () => ({
     baseUrl: "https://afrotools.com/api/v1",
-    apiKey: "test-provider-secret",
+    apiKey: providerConfig.apiKey,
   }),
 }));
 
@@ -16,8 +19,22 @@ import {
 
 describe("AfroTools client failure boundary", () => {
   afterEach(() => {
+    providerConfig.apiKey = "test-provider-secret";
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("fails fast without making an unauthenticated provider request", async () => {
+    providerConfig.apiKey = undefined;
+    const provider = vi.fn();
+    vi.stubGlobal("fetch", provider);
+
+    await expect(callAfroTools("/test", {})).rejects.toMatchObject({
+      code: "unconfigured",
+      retryable: false,
+      status: 503,
+    });
+    expect(provider).not.toHaveBeenCalled();
   });
 
   it.each([

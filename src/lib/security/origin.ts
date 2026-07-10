@@ -26,7 +26,7 @@ export function isSameOriginRequest(request: Request): boolean {
       requestOrigin.protocol === "http:" &&
       loopbackHosts.has(requestUrlOrigin.hostname) &&
       requestUrlOrigin.protocol === "http:" &&
-      requestOrigin.origin === requestUrlOrigin.origin
+      requestOrigin.port === requestUrlOrigin.port
     );
   } catch {
     return false;

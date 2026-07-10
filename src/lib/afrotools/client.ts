@@ -11,6 +11,7 @@ export type AfroToolsFailureCode =
   | "network"
   | "rate_limited"
   | "timeout"
+  | "unconfigured"
   | "unauthorized"
   | "upstream_4xx"
   | "upstream_5xx";
@@ -79,6 +80,9 @@ export async function callAfroTools(
   payload: unknown,
 ): Promise<Record<string, unknown>> {
   const configuration = getAfroToolsConfig();
+  if (!configuration.apiKey) {
+    throw new AfroToolsApiError("unconfigured", 503, false);
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), AFROTOOLS_TIMEOUT_MS);
   try {
@@ -86,7 +90,7 @@ export async function callAfroTools(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(configuration.apiKey ? { "x-api-key": configuration.apiKey } : {}),
+        "x-api-key": configuration.apiKey,
       },
       body: JSON.stringify(payload),
       cache: "no-store",
