@@ -32,6 +32,13 @@ export default function TrustAndSafetyPage() {
         until a moderator approves and, where necessary, redacts them.
       </p>
       <p>
+        Feed posts, forum threads and replies are different: they are public
+        immediately under a public name and random SalaryPadi handle. Signed-in
+        members can report a problem or remove their own content. Posting is
+        rate-limited, contact details are blocked, and moderator removals enter
+        the same audited case workflow.
+      </p>
+      <p>
         Do not name ordinary managers, coworkers or private individuals. Do not
         share confidential test answers, identity documents, banking credentials
         or information that could identify another contributor.

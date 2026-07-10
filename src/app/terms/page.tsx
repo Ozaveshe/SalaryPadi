@@ -31,6 +31,9 @@ export default function TermsPage() {
         estimates. InforEuro rates are monthly accounting references, not live
         bank, transfer, card or payroll quotes. A user-entered rate overrides
         the reference and remains the user&apos;s responsibility to verify.
+        SalaryPadi uses the AfroTools API for its current calculation and
+        warning-check tools, with a disclosed local fallback if that service is
+        temporarily unavailable.
       </p>
       <h2>Applications and external sites</h2>
       <p>
@@ -44,6 +47,13 @@ export default function TermsPage() {
         private individuals, disclose confidential material, impersonate another
         person, manipulate aggregates, harass others or submit unlawful content.
         Contributions may be moderated, redacted, merged, rejected or removed.
+      </p>
+      <p>
+        Feed posts, forum threads and replies are public when submitted. Do not
+        publish phone numbers, email addresses, private-person allegations,
+        confidential material, harassment, spam or misleading information.
+        Content may be reported, removed by its author, or removed and audited
+        by moderators.
       </p>
       <h2>Source rights</h2>
       <p>

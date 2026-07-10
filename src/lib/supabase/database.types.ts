@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -909,7 +909,15 @@ export type Database = {
           resolved_at: string | null;
           status: "pending" | "in_review" | "resolved" | "dismissed" | null;
           target_id: string | null;
-          target_kind: "job" | "company" | "review" | "interview" | null;
+          target_kind:
+            | "job"
+            | "company"
+            | "review"
+            | "interview"
+            | "feed_post"
+            | "forum_thread"
+            | "forum_reply"
+            | null;
         };
         Insert: {
           category?: string | null;
@@ -918,7 +926,15 @@ export type Database = {
           resolved_at?: string | null;
           status?: "pending" | "in_review" | "resolved" | "dismissed" | null;
           target_id?: string | null;
-          target_kind?: "job" | "company" | "review" | "interview" | null;
+          target_kind?:
+            | "job"
+            | "company"
+            | "review"
+            | "interview"
+            | "feed_post"
+            | "forum_thread"
+            | "forum_reply"
+            | null;
         };
         Update: {
           category?: string | null;
@@ -927,7 +943,15 @@ export type Database = {
           resolved_at?: string | null;
           status?: "pending" | "in_review" | "resolved" | "dismissed" | null;
           target_id?: string | null;
-          target_kind?: "job" | "company" | "review" | "interview" | null;
+          target_kind?:
+            | "job"
+            | "company"
+            | "review"
+            | "interview"
+            | "feed_post"
+            | "forum_thread"
+            | "forum_reply"
+            | null;
         };
         Relationships: [];
       };
@@ -1152,6 +1176,21 @@ export type Database = {
             Returns: string;
           };
       delete_job_alert: { Args: { p_alert_id: string }; Returns: boolean };
+      get_forum_thread: {
+        Args: { thread_id: string };
+        Returns: {
+          author_handle: string;
+          author_name: string;
+          body: string;
+          created_at: string;
+          id: string;
+          is_mine: boolean;
+          locked: boolean;
+          title: string;
+          topic_name: string;
+          topic_slug: string;
+        }[];
+      };
       get_my_applications: {
         Args: never;
         Returns: {
@@ -1163,6 +1202,14 @@ export type Database = {
           status: string;
           title: string;
           updated_at: string;
+        }[];
+      };
+      get_my_community_profile: {
+        Args: never;
+        Returns: {
+          display_name: string;
+          handle: string;
+          state_code: string;
         }[];
       };
       get_my_job_alerts: {
@@ -1198,6 +1245,69 @@ export type Database = {
         }[];
       };
       has_staff_role: { Args: { required_role: string }; Returns: boolean };
+      list_feed_posts: {
+        Args: {
+          category_filter?: string;
+          page_limit?: number;
+          state_filter?: string;
+        };
+        Returns: {
+          author_handle: string;
+          author_name: string;
+          body: string;
+          category: string;
+          created_at: string;
+          id: string;
+          is_mine: boolean;
+          state_code: string;
+          state_name: string;
+        }[];
+      };
+      list_forum_replies: {
+        Args: { page_limit?: number; thread_id: string };
+        Returns: {
+          author_handle: string;
+          author_name: string;
+          body: string;
+          created_at: string;
+          id: string;
+          is_mine: boolean;
+        }[];
+      };
+      list_forum_threads: {
+        Args: { page_limit?: number; topic_filter?: string };
+        Returns: {
+          author_handle: string;
+          author_name: string;
+          created_at: string;
+          excerpt: string;
+          id: string;
+          is_mine: boolean;
+          latest_activity_at: string;
+          reply_count: number;
+          title: string;
+          topic_name: string;
+          topic_slug: string;
+        }[];
+      };
+      list_forum_topics: {
+        Args: never;
+        Returns: {
+          description: string;
+          id: string;
+          latest_activity_at: string;
+          name: string;
+          slug: string;
+          thread_count: number;
+        }[];
+      };
+      list_nigeria_states: {
+        Args: never;
+        Returns: {
+          code: string;
+          name: string;
+        }[];
+      };
       normalize_contribution: {
         Args: {
           company_id: string;
@@ -1206,6 +1316,34 @@ export type Database = {
           role_family_id: string;
         };
         Returns: boolean;
+      };
+      publish_feed_post: {
+        Args: {
+          display_name: string;
+          post_body: string;
+          post_category: string;
+          state_code: string;
+        };
+        Returns: string;
+      };
+      publish_forum_reply: {
+        Args: {
+          display_name: string;
+          reply_body: string;
+          state_code: string;
+          thread_id: string;
+        };
+        Returns: string;
+      };
+      publish_forum_thread: {
+        Args: {
+          display_name: string;
+          state_code: string;
+          thread_body: string;
+          thread_title: string;
+          topic_slug: string;
+        };
+        Returns: string;
       };
       record_external_application: {
         Args: {
@@ -1224,6 +1362,10 @@ export type Database = {
         Returns: boolean;
       };
       remove_job_alert: { Args: { alert_id: string }; Returns: boolean };
+      remove_my_community_content: {
+        Args: { content_id: string; content_kind: string };
+        Returns: boolean;
+      };
       remove_saved_job: { Args: { saved_job_id: string }; Returns: boolean };
       report_content: {
         Args: {

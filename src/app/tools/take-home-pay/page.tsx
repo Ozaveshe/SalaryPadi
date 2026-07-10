@@ -24,7 +24,7 @@ export default function TakeHomePayPage() {
       <PageHeading
         eyebrow="Nigeria payroll tool"
         title="See where gross pay goes"
-        description="Use explicit pension, NHF and health inputs. The calculator does not carry the repealed consolidated relief allowance into 2026 rules."
+        description="Use explicit pension, NHF and health inputs. Statutory PAYE runs through the AfroTools API with a verified SalaryPadi fallback; the calculator does not carry the repealed consolidated relief allowance into 2026 rules."
       />
       <TakeHomeCalculator defaultDate={new Date().toISOString().slice(0, 10)} />
     </div>

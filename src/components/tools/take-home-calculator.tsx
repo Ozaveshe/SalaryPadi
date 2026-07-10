@@ -4,7 +4,6 @@ import { useState, type FormEvent } from "react";
 
 import { formatSalaryAmount } from "@/lib/format";
 import {
-  calculateNigeriaPayroll,
   type NigeriaPayrollInput,
   type NigeriaPayrollResult,
   type PayrollPeriod,
@@ -33,6 +32,8 @@ function money(value: number) {
 export function TakeHomeCalculator({ defaultDate }: { defaultDate: string }) {
   const [result, setResult] = useState<NigeriaPayrollResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [providerNotice, setProviderNotice] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [pensionMode, setPensionMode] =
     useState<NigeriaPayrollInput["pension"]["mode"]>("not_applicable");
   const [nhfParticipates, setNhfParticipates] = useState(false);
@@ -58,9 +59,11 @@ export function TakeHomeCalculator({ defaultDate }: { defaultDate: string }) {
     );
   }
 
-  function calculate(event: FormEvent<HTMLFormElement>) {
+  async function calculate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setProviderNotice(null);
+    setLoading(true);
     try {
       const form = new FormData(event.currentTarget);
       const period = String(form.get("period")) as PayrollPeriod;
@@ -144,7 +147,21 @@ export function TakeHomeCalculator({ defaultDate }: { defaultDate: string }) {
               ]
             : [],
       };
-      setResult(calculateNigeriaPayroll(input));
+      const response = await fetch("/api/tools/take-home-pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ consent: true, input }),
+      });
+      const body = (await response.json()) as {
+        result?: NigeriaPayrollResult;
+        error?: string;
+        notice?: string;
+      };
+      if (!response.ok || !body.result) {
+        throw new Error(body.error || "The payroll calculation could not run.");
+      }
+      setResult(body.result);
+      setProviderNotice(body.notice ?? null);
     } catch (reason) {
       setResult(null);
       setError(
@@ -152,6 +169,8 @@ export function TakeHomeCalculator({ defaultDate }: { defaultDate: string }) {
           ? reason.message
           : "Check the entered amounts and try again.",
       );
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -424,13 +443,24 @@ export function TakeHomeCalculator({ defaultDate }: { defaultDate: string }) {
             </div>
           </div>
         </fieldset>
-        <button className="button w-fit" type="submit">
-          Calculate take-home pay
+        <label className="checkbox provider-consent">
+          <input type="checkbox" name="afrotools_consent" required />
+          Send these pay and deduction amounts securely to the AfroTools PAYE
+          API for this calculation. AfroTools processes them for this request
+          and does not intentionally retain them.
+        </label>
+        <button className="button w-fit" type="submit" disabled={loading}>
+          {loading ? "Calculating…" : "Calculate take-home pay"}
         </button>
       </form>
       {error ? (
         <div className="notice notice-danger" role="alert">
           {error}
+        </div>
+      ) : null}
+      {providerNotice ? (
+        <div className="notice notice-warning" role="status">
+          {providerNotice}
         </div>
       ) : null}
       {result ? (

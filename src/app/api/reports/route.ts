@@ -7,7 +7,15 @@ import { rejectCrossOriginRequest } from "@/lib/security/origin";
 import { safeRelativePath } from "@/lib/security/urls";
 
 const schema = z.object({
-  target_type: z.enum(["job", "company", "review", "interview"]),
+  target_type: z.enum([
+    "job",
+    "company",
+    "review",
+    "interview",
+    "feed_post",
+    "forum_thread",
+    "forum_reply",
+  ]),
   target_id: z.string().min(1).max(220),
   category: z.enum([
     "expired",
@@ -16,6 +24,9 @@ const schema = z.object({
     "eligibility",
     "incorrect",
     "privacy",
+    "spam",
+    "harassment",
+    "misinformation",
     "other",
   ]),
   return_to: z.string().optional(),

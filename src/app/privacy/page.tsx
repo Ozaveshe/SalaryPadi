@@ -31,9 +31,12 @@ export default function PrivacyPage() {
       </p>
       <h2>Public anonymity</h2>
       <p>
-        Community contributions may be publicly anonymous, but they remain
-        privately linked to an account for moderation, deletion and manipulation
+        Feed posts, forum discussions and other community contributions use a
+        public name and random SalaryPadi handle, but remain privately linked to
+        an account for ownership, moderation, deletion and manipulation
         controls. Employers and other users do not receive that identity link.
+        Feed and forum text is public immediately after submission; do not put
+        contact details, private people or confidential information in it.
       </p>
       <h2>Analytics boundaries</h2>
       <p>
@@ -71,6 +74,16 @@ export default function PrivacyPage() {
         that provider, but tracking metrics are not enabled. The European
         Commission InforEuro endpoint supplies public monthly reference rates
         and receives no account or career data.
+      </p>
+      <p>
+        AfroTools processes take-home-pay inputs, offer values and job-vacancy
+        warning-check inputs only after the user accepts the disclosure beside
+        the relevant tool. SalaryPadi sends those values from its server through
+        a protected API connection. AfroTools uses them for the requested
+        calculation, does not intentionally retain the submitted input and does
+        not open or fetch links entered in the job-scam checker. Remove
+        unnecessary personal or confidential information before submitting a
+        vacancy message.
       </p>
       <p>
         Provider subprocessor and international-transfer terms can change. The

@@ -3,11 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { CircleAlert, CircleCheck, ShieldAlert } from "lucide-react";
 
-import {
-  checkJobScam,
-  type ScamCheckResult,
-  type ScamStructuredAnswers,
-} from "@/lib/scam";
+import { type ScamCheckResult, type ScamStructuredAnswers } from "@/lib/scam";
 
 function optional(form: FormData, name: string) {
   const value = String(form.get(name) ?? "").trim();
@@ -16,8 +12,14 @@ function optional(form: FormData, name: string) {
 
 export function ScamChecker() {
   const [result, setResult] = useState<ScamCheckResult | null>(null);
-  function submit(event: FormEvent<HTMLFormElement>) {
+  const [error, setError] = useState<string | null>(null);
+  const [providerNotice, setProviderNotice] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError(null);
+    setProviderNotice(null);
+    setLoading(true);
     const form = new FormData(event.currentTarget);
     const answers: ScamStructuredAnswers = {
       employerName: optional(form, "employer_name"),
@@ -48,9 +50,35 @@ export function ScamChecker() {
       applicationLinkRelatedToEmployer:
         form.get("link_unrelated") === "on" ? false : undefined,
     };
-    setResult(
-      checkJobScam({ vacancyText: optional(form, "vacancy_text"), answers }),
-    );
+    try {
+      const response = await fetch("/api/tools/job-scam-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          consent: true,
+          input: { vacancyText: optional(form, "vacancy_text"), answers },
+        }),
+      });
+      const body = (await response.json()) as {
+        result?: ScamCheckResult;
+        error?: string;
+        notice?: string;
+      };
+      if (!response.ok || !body.result) {
+        throw new Error(body.error || "The warning-sign check could not run.");
+      }
+      setResult(body.result);
+      setProviderNotice(body.notice ?? null);
+    } catch (reason) {
+      setResult(null);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "The warning-sign check could not run.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }
   return (
     <div className="tool-workspace">
@@ -65,12 +93,13 @@ export function ScamChecker() {
               className="textarea scam-text"
               id="vacancy_text"
               name="vacancy_text"
-              maxLength={30000}
-              placeholder="Paste text here. It stays in your browser."
+              maxLength={20000}
+              placeholder="Paste text here. Remove names or details that are not needed for the check."
             />
             <p className="field-help">
-              The initial checker is local-only and never opens or fetches a
-              link.
+              Submitted text is sent securely through SalaryPadi to the
+              AfroTools API for request-scoped analysis. Supplied links are
+              parsed but never opened or fetched.
             </p>
           </div>
         </fieldset>
@@ -173,10 +202,26 @@ export function ScamChecker() {
             ))}
           </div>
         </fieldset>
-        <button className="button w-fit" type="submit">
-          Check warning signs
+        <label className="checkbox provider-consent">
+          <input type="checkbox" name="afrotools_consent" required />I
+          understand the entered vacancy text and answers will be processed by
+          AfroTools for this check and should not contain unnecessary personal
+          or confidential information.
+        </label>
+        <button className="button w-fit" type="submit" disabled={loading}>
+          {loading ? "Checking…" : "Check warning signs"}
         </button>
       </form>
+      {error ? (
+        <div className="notice notice-danger" role="alert">
+          {error}
+        </div>
+      ) : null}
+      {providerNotice ? (
+        <div className="notice notice-warning" role="status">
+          {providerNotice}
+        </div>
+      ) : null}
       {result ? (
         <section className="tool-result stack-lg">
           <div

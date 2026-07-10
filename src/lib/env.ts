@@ -16,6 +16,8 @@ const serverEnvironmentSchema = z
     NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: optionalString,
     SUPABASE_SERVICE_ROLE_KEY: optionalString,
+    AFROTOOLS_API_BASE: optionalUrl,
+    AFROTOOLS_API_KEY: optionalString,
     REMOTIVE_SOURCE_ENABLED: z
       .enum(["true", "false"])
       .default("true")
@@ -97,6 +99,8 @@ export function parseServerEnvironment(
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     SUPABASE_SERVICE_ROLE_KEY: environment.SUPABASE_SERVICE_ROLE_KEY,
+    AFROTOOLS_API_BASE: environment.AFROTOOLS_API_BASE,
+    AFROTOOLS_API_KEY: environment.AFROTOOLS_API_KEY,
     REMOTIVE_SOURCE_ENABLED: environment.REMOTIVE_SOURCE_ENABLED,
     ALLOW_DEMO_DATA: environment.ALLOW_DEMO_DATA,
     ANALYTICS_PROVIDER: environment.ANALYTICS_PROVIDER,
@@ -131,4 +135,15 @@ export function getSupabasePublicConfig() {
 
 export function getAppOrigin() {
   return new URL(getServerEnvironment().NEXT_PUBLIC_APP_URL).origin;
+}
+
+export function getAfroToolsConfig() {
+  const environment = getServerEnvironment();
+  const baseUrl = new URL(
+    environment.AFROTOOLS_API_BASE ?? "https://afrotools.com/api/v1",
+  );
+  return {
+    baseUrl: baseUrl.toString().replace(/\/$/, ""),
+    apiKey: environment.AFROTOOLS_API_KEY,
+  };
 }

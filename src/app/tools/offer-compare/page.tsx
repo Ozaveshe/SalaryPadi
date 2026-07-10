@@ -26,7 +26,7 @@ export default async function OfferComparePage() {
       <PageHeading
         eyebrow="Compensation decision tool"
         title="Compare the value you will actually feel"
-        description="Normalize two offers without hiding FX assumptions, benefit values, personal work costs or contract differences."
+        description="Normalize two offers through the AfroTools API without hiding FX assumptions, benefit values, personal work costs or contract differences."
       />
       <OfferCompare referenceRates={referenceRates} />
     </div>

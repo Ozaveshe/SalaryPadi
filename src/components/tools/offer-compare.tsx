@@ -5,7 +5,6 @@ import { useState, type FormEvent } from "react";
 import { formatEnum, formatSalaryAmount } from "@/lib/format";
 import type { ReferenceCurrencyRate } from "@/lib/currency/types";
 import {
-  compareOffers,
   type OfferComparisonResult,
   type OfferInput,
   type OfferPayPeriod,
@@ -425,9 +424,13 @@ export function OfferCompare({
 }) {
   const [result, setResult] = useState<OfferComparisonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  function submit(event: FormEvent<HTMLFormElement>) {
+  const [providerNotice, setProviderNotice] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setProviderNotice(null);
+    setLoading(true);
     try {
       const form = new FormData(event.currentTarget);
       const comparisonCurrency = String(
@@ -463,9 +466,24 @@ export function OfferCompare({
             ]
           : [];
       });
-      setResult(
-        compareOffers({ offerA, offerB, comparisonCurrency, fxRates: rates }),
-      );
+      const response = await fetch("/api/tools/offer-compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          consent: true,
+          input: { offerA, offerB, comparisonCurrency, fxRates: rates },
+        }),
+      });
+      const body = (await response.json()) as {
+        result?: OfferComparisonResult;
+        error?: string;
+        notice?: string;
+      };
+      if (!response.ok || !body.result) {
+        throw new Error(body.error || "The comparison could not be completed.");
+      }
+      setResult(body.result);
+      setProviderNotice(body.notice ?? null);
     } catch (reason) {
       setResult(null);
       setError(
@@ -473,6 +491,8 @@ export function OfferCompare({
           ? reason.message
           : "Check both offers and FX rates.",
       );
+    } finally {
+      setLoading(false);
     }
   }
   return (
@@ -549,13 +569,24 @@ export function OfferCompare({
           <OfferFields prefix="a" title="Offer A" defaultCurrency="NGN" />
           <OfferFields prefix="b" title="Offer B" defaultCurrency="USD" />
         </div>
-        <button className="button w-fit" type="submit">
-          Compare offers
+        <label className="checkbox provider-consent">
+          <input type="checkbox" name="afrotools_consent" required />
+          Send these offer amounts and terms securely to the AfroTools API for
+          this comparison. AfroTools processes them for this request and does
+          not intentionally retain them.
+        </label>
+        <button className="button w-fit" type="submit" disabled={loading}>
+          {loading ? "Comparing…" : "Compare offers"}
         </button>
       </form>
       {error ? (
         <div className="notice notice-danger" role="alert">
           {error}
+        </div>
+      ) : null}
+      {providerNotice ? (
+        <div className="notice notice-warning" role="status">
+          {providerNotice}
         </div>
       ) : null}
       {result ? (
