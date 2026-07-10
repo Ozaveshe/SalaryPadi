@@ -36,8 +36,9 @@ file_size_limit = "10MiB"
 
 [auth]
 enabled = true
-site_url = "https://salarypadi.netlify.app"
+site_url = "https://salarypadi.com"
 additional_redirect_urls = [
+  "https://salarypadi.com/auth/callback",
   "https://salarypadi.netlify.app/auth/callback",
   "https://**--salarypadi.netlify.app/**",
   "http://localhost:3000/auth/callback",

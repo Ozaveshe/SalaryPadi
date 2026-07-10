@@ -10,7 +10,7 @@ Required web configuration:
 
 | Variable                               | Production value                                                                  |
 | -------------------------------------- | --------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_APP_URL`                  | Exact canonical HTTPS origin, with no path                                        |
+| `NEXT_PUBLIC_APP_URL`                  | `https://salarypadi.com`                                                          |
 | `NEXT_PUBLIC_SUPABASE_URL`             | Dedicated environment’s Supabase URL                                              |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Matching publishable key                                                          |
 | `REMOTIVE_SOURCE_ENABLED`              | `true` only while the reviewed pilot is approved                                  |
@@ -44,11 +44,13 @@ supabase test db
 
 8. Bootstrap the first administrator using the two-person procedure in [Operations](OPERATIONS.md), then verify AAL2 access and audit output.
 
-The hosted migration set through `20260710000500` is applied and recorded. Live API types are generated in `src/lib/supabase/database.types.ts`; the four pgTAP suites pass against the hosted database.
+The hosted migration set through `20260710000500` is applied and recorded. Live API types are generated in `src/lib/supabase/database.types.ts`; the four pgTAP suites pass against the hosted database. Supabase Auth uses `https://salarypadi.com` as its Site URL while retaining the Netlify production and preview callbacks needed for rollback and deploy previews.
 
 ## Web build and deployment
 
 Use Node.js 22 LTS. The provider must support a Next.js Node server, dynamic request headers/cookies, proxy execution, and per-request CSP nonces.
+
+Production is hosted by Netlify project `salarypadi`. Hostinger remains authoritative for DNS: the apex `A` record points to `75.2.60.5`, while `www` is a CNAME to `salarypadi.netlify.app`; Netlify owns certificate issuance and redirects `www` to the canonical apex.
 
 ```powershell
 npm ci

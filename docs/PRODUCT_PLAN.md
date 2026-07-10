@@ -219,7 +219,7 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 ## External credentials and decisions needed
 
 - A project-specific SalaryPadi Supabase MCP target would improve future operations; project-scoped CLI and dashboard access are active now.
-- The canonical custom domain still needs to be chosen from the domains held at Hostinger. The interim canonical origin is `https://salarypadi.netlify.app`.
+- The canonical custom domain is `https://salarypadi.com`. Hostinger is authoritative for DNS and Netlify serves the production application; the `netlify.app` origin remains available for deploy previews and rollback diagnostics.
 - Transactional email configuration for authentication and alerts.
 - A recurring terms-review owner for the active Remotive pilot and each future source.
 - Currency-rate provider and licensing decision before any automated live rates; the MVP uses explicit user-entered rates.
@@ -298,4 +298,5 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 - Ran 133 pgTAP assertions against the hosted database. The first pass found implicit PUBLIC execution on internal security-definer functions; migration `20260710000500_lock_internal_routines.sql` removed existing and future implicit grants. All four suites then reported zero failures.
 - Supabase Security Advisor reports zero errors and zero warnings. Six informational RLS items are deliberately policy-less internal worker tables and therefore fail closed.
 - Added database-backed jobs and company intelligence, privacy request handling, a working staff TOTP enrol/challenge flow, and source-permitted `JobPosting` structured data.
-- Formatting, lint, live-schema typecheck, 163 unit tests, and the 54-route production build pass. Netlify cloud deployment remains the active release step; the local Windows CLI edge packager cannot safely package Next.js middleware paths.
+- Formatting, lint, live-schema typecheck, 163 unit tests, and the 54-route production build pass. The immutable Netlify cloud deployment serves the homepage, live jobs, health endpoint, calculators, CSP and security headers successfully; the local Windows CLI edge packager remains unsuitable for middleware packaging.
+- Connected `salarypadi.com` through Hostinger DNS using Netlify's external-DNS targets, registered `www.salarypadi.com` as an alias, and set the apex as the canonical application and Supabase Auth origin.
