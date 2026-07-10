@@ -5,6 +5,7 @@ import { getAdminApiContext } from "@/lib/auth/api";
 import type { AdminResource } from "@/lib/admin/repository";
 import { getAppOrigin } from "@/lib/env";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
+import type { Json } from "@/lib/supabase/database.types";
 
 const resources = new Set<AdminResource>([
   "jobs",
@@ -97,7 +98,7 @@ export async function POST(
         p_reason_code: parsed.data.action,
         p_reason_note: parsed.data.reason,
         p_changed_fields: Object.keys(publicPayload),
-        p_public_payload: publicPayload,
+        p_public_payload: publicPayload as Json,
         p_linked_case_id: parsed.data.linked_case_id,
       });
     transitionError = error;

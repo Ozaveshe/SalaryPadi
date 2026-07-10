@@ -59,6 +59,7 @@ export interface JobEligibility {
   requiredTimezone: string | null;
   workAuthorization: string | null;
   visaSponsorship: "yes" | "no" | "unclear";
+  relocationSupport: "yes" | "no" | "unclear";
   evidenceText: string;
   provenance: EligibilityProvenance;
   lastVerifiedAt: string;
@@ -73,6 +74,7 @@ export interface RiskIndicator {
 
 export interface Job {
   id: string;
+  databaseId: string | null;
   slug: string;
   externalId: string;
   source: JobSourcePolicy;

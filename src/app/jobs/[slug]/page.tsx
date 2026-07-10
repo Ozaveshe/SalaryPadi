@@ -9,9 +9,16 @@ import { JobCard } from "@/components/jobs/job-card";
 import { JobTruthCard } from "@/components/jobs/job-truth-card";
 import { JsonLd } from "@/components/json-ld";
 import { getViewer } from "@/lib/auth/dal";
+import {
+  getCompanyBenefits,
+  getCompanyRating,
+  getCompanyReviews,
+  getInterviewExperiences,
+} from "@/lib/companies/repository";
 import { formatDate, formatEnum } from "@/lib/format";
 import { getAppOrigin } from "@/lib/env";
 import { getJobBySlug } from "@/lib/jobs/repository";
+import { buildJobPostingStructuredData } from "@/lib/seo/job-posting";
 
 export async function generateMetadata({
   params,
@@ -44,8 +51,16 @@ export default async function JobDetailPage({
   const { feed, job } = await getJobBySlug(slug);
   if (!job) notFound();
   const viewer = await getViewer();
+  const [companyRating, companyReviews, companyInterviews, companyBenefits] =
+    await Promise.all([
+      getCompanyRating(job.company.slug),
+      getCompanyReviews(job.company.slug),
+      getInterviewExperiences(job.company.slug),
+      getCompanyBenefits(job.company.slug),
+    ]);
   const nonce = (await headers()).get("x-nonce");
   const canonicalUrl = new URL(`/jobs/${job.slug}`, getAppOrigin()).toString();
+  const jobPosting = buildJobPostingStructuredData(job, canonicalUrl);
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${job.title} at ${job.company.name} — check eligibility and source on SalaryPadi: ${canonicalUrl}`)}`;
   const similar = feed.jobs
     .filter(
@@ -83,6 +98,7 @@ export default async function JobDetailPage({
           ],
         }}
       />
+      {jobPosting ? <JsonLd nonce={nonce} data={jobPosting} /> : null}
       <Breadcrumbs
         items={[
           { label: "Home", href: "/" },
@@ -209,7 +225,11 @@ export default async function JobDetailPage({
               </div>
               <div>
                 <dt>Structured data</dt>
-                <dd>Not permitted for this source</dd>
+                <dd>
+                  {jobPosting
+                    ? "JobPosting permitted and published"
+                    : "Not permitted for this source"}
+                </dd>
               </div>
             </dl>
             <a
@@ -228,11 +248,43 @@ export default async function JobDetailPage({
             <h2 className="text-lg font-bold" id="company-heading">
               Company intelligence
             </h2>
-            <p className="text-muted m-0 text-sm">
-              No approved community aggregate is available yet. The source names{" "}
-              {job.company.name}, but SalaryPadi has not verified the employer
-              identity.
-            </p>
+            <dl className="data-list">
+              <div>
+                <dt>Employer evidence</dt>
+                <dd>{formatEnum(job.company.verification)}</dd>
+              </div>
+              <div>
+                <dt>Approved reviews</dt>
+                <dd>{companyReviews.length}</dd>
+              </div>
+              <div>
+                <dt>Interview experiences</dt>
+                <dd>{companyInterviews.length}</dd>
+              </div>
+              <div>
+                <dt>Published benefits</dt>
+                <dd>{companyBenefits.length}</dd>
+              </div>
+              {companyRating ? (
+                <div>
+                  <dt>Community rating</dt>
+                  <dd>
+                    {companyRating.overall_rating.toFixed(1)} / 5 ·{" "}
+                    {companyRating.sample_size} approved reviews ·{" "}
+                    {companyRating.confidence_label} confidence
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+            {!companyRating &&
+            companyReviews.length === 0 &&
+            companyInterviews.length === 0 &&
+            companyBenefits.length === 0 ? (
+              <p className="text-muted m-0 text-sm">
+                No approved community aggregate is available yet. SalaryPadi
+                does not infer a rating from the vacancy or employer name.
+              </p>
+            ) : null}
             <Link className="text-link" href={`/companies/${job.company.slug}`}>
               Inspect company evidence
             </Link>
@@ -264,7 +316,11 @@ export default async function JobDetailPage({
               method="post"
             >
               <input type="hidden" name="target_type" value="job" />
-              <input type="hidden" name="target_id" value={job.id} />
+              <input
+                type="hidden"
+                name="target_id"
+                value={job.databaseId ?? job.id}
+              />
               <input
                 type="hidden"
                 name="return_to"

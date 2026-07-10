@@ -5,7 +5,13 @@ import { notFound } from "next/navigation";
 import { CompanyHeading } from "@/components/companies/company-heading";
 import { JobCard } from "@/components/jobs/job-card";
 import { formatEnum } from "@/lib/format";
-import { getCompany } from "@/lib/companies/repository";
+import {
+  getCompany,
+  getCompanyBenefits,
+  getCompanyRating,
+  getCompanyReviews,
+  getInterviewExperiences,
+} from "@/lib/companies/repository";
 
 export async function generateMetadata({
   params,
@@ -27,7 +33,14 @@ export default async function CompanyPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const company = await getCompany((await params).slug);
+  const { slug } = await params;
+  const [company, rating, reviews, interviews, benefits] = await Promise.all([
+    getCompany(slug),
+    getCompanyRating(slug),
+    getCompanyReviews(slug),
+    getInterviewExperiences(slug),
+    getCompanyBenefits(slug),
+  ]);
   if (!company) notFound();
   return (
     <div className="site-shell stack-lg">
@@ -39,19 +52,40 @@ export default async function CompanyPage({
         <dl className="data-list mt-4">
           <div>
             <dt>Information type</dt>
-            <dd>Permitted job-source facts</dd>
+            <dd>
+              {company.databaseId
+                ? "Reviewed company record plus labelled source evidence"
+                : "Permitted job-source facts"}
+            </dd>
           </div>
           <div>
             <dt>Industry signals</dt>
-            <dd>{company.categories.join(", ") || "Not stated"}</dd>
+            <dd>
+              {company.industry ||
+                company.categories.join(", ") ||
+                "Not stated"}
+            </dd>
           </div>
           <div>
             <dt>Company size</dt>
-            <dd>Not provided by the source</dd>
+            <dd>{company.sizeBand ?? "Not provided by the source"}</dd>
           </div>
           <div>
             <dt>Website</dt>
-            <dd>Not provided by the source</dd>
+            <dd>
+              {company.websiteUrl ? (
+                <a
+                  className="text-link"
+                  href={company.websiteUrl}
+                  rel="noopener noreferrer nofollow"
+                  target="_blank"
+                >
+                  Visit the published website
+                </a>
+              ) : (
+                "Not provided by the source"
+              )}
+            </dd>
           </div>
           <div>
             <dt>Verification</dt>
@@ -65,6 +99,9 @@ export default async function CompanyPage({
             <dd>{company.remoteLocations.join("; ")}</dd>
           </div>
         </dl>
+        {company.description ? (
+          <p className="text-muted mt-4 mb-0">{company.description}</p>
+        ) : null}
       </section>
       <section
         className="rule-section stack"
@@ -91,11 +128,46 @@ export default async function CompanyPage({
         <h2 className="section-title" id="community-evidence-heading">
           Community evidence
         </h2>
-        <div className="notice">
-          No approved salary, review or interview aggregate is available for
-          this company yet. A missing aggregate is not a positive or negative
-          signal.
-        </div>
+        {rating || reviews.length > 0 || interviews.length > 0 ? (
+          <dl className="data-list">
+            <div>
+              <dt>Approved reviews</dt>
+              <dd>{reviews.length}</dd>
+            </div>
+            <div>
+              <dt>Published interviews</dt>
+              <dd>{interviews.length}</dd>
+            </div>
+            <div>
+              <dt>Overall rating</dt>
+              <dd>
+                {rating
+                  ? `${rating.overall_rating.toFixed(1)} / 5 from ${rating.sample_size} contributors (${rating.confidence_label} confidence)`
+                  : "Suppressed until the minimum sample is reached"}
+              </dd>
+            </div>
+          </dl>
+        ) : (
+          <div className="notice">
+            No approved salary, review or interview aggregate is available for
+            this company yet. A missing aggregate is not a positive or negative
+            signal.
+          </div>
+        )}
+        {benefits.length > 0 ? (
+          <div className="stack">
+            <h3 className="text-lg font-bold">Published benefits evidence</h3>
+            <ul>
+              {benefits.map((benefit) => (
+                <li key={benefit.id}>
+                  <strong>{benefit.label}</strong>
+                  {benefit.description ? ` — ${benefit.description}` : ""}
+                  {` (${formatEnum(benefit.source_kind)})`}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="cluster">
           <Link className="button button-secondary" href="/contribute/salary">
             Contribute salary

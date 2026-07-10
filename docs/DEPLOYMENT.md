@@ -1,6 +1,6 @@
 # Deployment and rollback
 
-SalaryPadi has no configured remote repository, hosting project, or hosted Supabase target in this checkout. These instructions define the release contract; they do not assert that production is live.
+SalaryPadi uses private repository `Ozaveshe/SalaryPadi`, Netlify project `salarypadi`, and dedicated Supabase project `bxelrhklsznmpksgrqep`. This document separates configured infrastructure from a successfully published and smoke-tested release.
 
 ## Environments
 
@@ -44,7 +44,7 @@ supabase test db
 
 8. Bootstrap the first administrator using the two-person procedure in [Operations](OPERATIONS.md), then verify AAL2 access and audit output.
 
-The repository does not include a hosted SalaryPadi project reference, so remote migration, logs, generated types, and production schema verification remain external release steps.
+The hosted migration set through `20260710000500` is applied and recorded. Live API types are generated in `src/lib/supabase/database.types.ts`; the four pgTAP suites pass against the hosted database.
 
 ## Web build and deployment
 

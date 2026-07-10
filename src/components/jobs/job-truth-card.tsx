@@ -40,6 +40,14 @@ export function JobTruthCard({ job }: { job: Job }) {
               <dd>{job.eligibility.requiredTimezone ?? "Not stated"}</dd>
             </div>
             <div>
+              <dt>Visa sponsorship</dt>
+              <dd>{formatEnum(job.eligibility.visaSponsorship)}</dd>
+            </div>
+            <div>
+              <dt>Relocation support</dt>
+              <dd>{formatEnum(job.eligibility.relocationSupport)}</dd>
+            </div>
+            <div>
               <dt>Arrangement</dt>
               <dd>{formatEnum(job.arrangement)}</dd>
             </div>

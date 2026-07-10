@@ -139,7 +139,7 @@ export function filterAndSortJobs(jobs: Job[], search: JobSearch): Job[] {
     }
     if (search.visaSponsorship && job.eligibility.visaSponsorship !== "yes")
       return false;
-    if (search.relocationSupport && !/relocation/i.test(job.description))
+    if (search.relocationSupport && job.eligibility.relocationSupport !== "yes")
       return false;
     if (
       search.graduateTrainee &&

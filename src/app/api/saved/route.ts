@@ -28,18 +28,20 @@ export async function POST(request: Request) {
       { error: "Job is no longer available." },
       { status: 404 },
     );
-  const { error } = await context.supabase
-    .schema("api")
-    .rpc("save_external_job", {
-      source_key: job.source.id,
-      external_id: job.externalId,
-      job_slug: job.slug,
-      job_title: job.title,
-      company_name: job.company.name,
-      source_url: job.sourceUrl,
-      posted_at: job.postedAt,
-      eligibility_evidence: job.eligibility.evidenceText,
-    });
+  const { error } = job.databaseId
+    ? await context.supabase
+        .schema("api")
+        .rpc("set_job_saved", { p_job_id: job.databaseId, p_saved: true })
+    : await context.supabase.schema("api").rpc("save_external_job", {
+        source_key: job.source.id,
+        external_id: job.externalId,
+        job_slug: job.slug,
+        job_title: job.title,
+        company_name: job.company.name,
+        source_url: job.sourceUrl,
+        posted_at: job.postedAt,
+        eligibility_evidence: job.eligibility.evidenceText,
+      });
   const destination = safeRelativePath(parsed.data.return_to, "/saved");
   const url = new URL(destination, getAppOrigin());
   url.searchParams.set("saved", error ? "error" : "true");

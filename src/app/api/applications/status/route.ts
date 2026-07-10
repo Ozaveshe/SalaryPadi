@@ -38,8 +38,12 @@ export async function POST(request: Request) {
     .rpc("update_application_status", {
       application_id: parsed.data.id,
       application_status: parsed.data.status,
-      notes: parsed.data.private_notes ?? null,
-      next_action_date: parsed.data.next_action_at ?? null,
+      ...(parsed.data.private_notes
+        ? { notes: parsed.data.private_notes }
+        : {}),
+      ...(parsed.data.next_action_at
+        ? { next_action_date: parsed.data.next_action_at }
+        : {}),
     });
   const url = new URL("/applications", getAppOrigin());
   url.searchParams.set("updated", error ? "error" : "true");

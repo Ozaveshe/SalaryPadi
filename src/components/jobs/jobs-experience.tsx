@@ -94,11 +94,10 @@ export async function JobsExperience({
         />
       </section>
       <aside className="source-policy-note">
-        <strong>Source policy:</strong> Current pilot results come from
-        Remotive, are delayed by that source, link back to Remotive and are
-        refreshed no more than four times per day. They are excluded from Google
-        Jobs markup and search indexing under SalaryPadi’s conservative terms
-        interpretation.
+        <strong>Source policy:</strong> Every result keeps its own source,
+        eligibility evidence, destination, freshness and indexing permissions.
+        Reviewed employer records take precedence when the same vacancy also
+        appears in the constrained Remotive pilot.
       </aside>
     </div>
   );

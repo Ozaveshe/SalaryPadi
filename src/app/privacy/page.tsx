@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { PolicyPage } from "@/components/policy-page";
 
@@ -48,6 +49,11 @@ export default function PrivacyPage() {
         records may be retained when a documented legal or safety reason
         applies. Retention periods and the production contact must be approved
         before launch.
+      </p>
+      <p>
+        <Link className="button w-fit" href="/privacy/requests">
+          Open my private request centre
+        </Link>
       </p>
       <h2>Hosting and processors</h2>
       <p>

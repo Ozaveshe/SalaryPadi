@@ -1,14 +1,20 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { redirect } from "next/navigation";
 
+import { MfaPanel } from "@/components/auth/mfa-panel";
 import { PageHeading } from "@/components/page-heading";
+import { requireViewer } from "@/lib/auth/dal";
 
 export const metadata: Metadata = {
   title: "Second factor required",
   robots: { index: false, follow: false },
 };
 
-export default function MfaRequiredPage() {
+export default async function MfaRequiredPage() {
+  const viewer = await requireViewer("/auth/mfa-required");
+  if (!viewer.isAdmin) redirect("/?notice=admin-access-required");
+  if (viewer.aal === "aal2") redirect("/admin");
+
   return (
     <div className="reading-shell stack-lg">
       <PageHeading
@@ -16,14 +22,7 @@ export default function MfaRequiredPage() {
         title="A second factor is required"
         description="SalaryPadi requires an AAL2 session before moderation, role, source or privacy operations. Your current session is signed in but not strongly authenticated."
       />
-      <div className="notice notice-warning">
-        MFA enrolment and challenge depend on the dedicated SalaryPadi Supabase
-        project. Configure an approved factor there, then start a new AAL2
-        session. The database also enforces this requirement.
-      </div>
-      <Link className="button button-secondary w-fit" href="/">
-        Return home
-      </Link>
+      <MfaPanel />
     </div>
   );
 }

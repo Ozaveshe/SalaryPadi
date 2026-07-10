@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getSupabasePublicConfig } from "@/lib/env";
 import { safeRelativePath } from "@/lib/security/urls";
+import type { Database } from "@/lib/supabase/database.types";
 
 const protectedPrefixes = [
   "/saved",
@@ -13,6 +14,7 @@ const protectedPrefixes = [
   "/contribute/salary",
   "/contribute/review",
   "/contribute/interview",
+  "/privacy/requests",
 ];
 
 function buildContentSecurityPolicy(nonce: string) {
@@ -61,7 +63,7 @@ export async function proxy(request: NextRequest) {
   let isAuthenticated = false;
 
   if (configuration) {
-    const supabase = createServerClient(
+    const supabase = createServerClient<Database>(
       configuration.url,
       configuration.publishableKey,
       {

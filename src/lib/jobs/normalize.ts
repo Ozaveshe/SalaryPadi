@@ -148,6 +148,7 @@ export function classifyEligibility(
     requiredTimezone: null,
     workAuthorization: null,
     visaSponsorship: "unclear" as const,
+    relocationSupport: "unclear" as const,
     evidenceText,
     provenance: "source_provided" as const,
     lastVerifiedAt: verifiedAt,
@@ -373,6 +374,7 @@ export function normalizeRemotiveJob(
 
   return {
     id: `remotive-${source.id}`,
+    databaseId: null,
     slug: `${titleSlug}-at-${companySlug}-${source.id}`,
     externalId: String(source.id),
     source: REMOTIVE_SOURCE_POLICY,

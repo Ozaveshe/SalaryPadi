@@ -22,8 +22,8 @@ Status: complete.
 - The repository was an unborn Git repository containing only `.git/`; there was no user code or history to preserve.
 - There was no package manifest, application, design system, database, authentication, test suite, CI, deployment configuration, environment file or repository-local guidance.
 - The official current Next.js scaffolder was used on 2026-07-10. The foundation is Next.js 16.2.10, React 19.2.4, TypeScript 5.9, Tailwind CSS 4.3 and the App Router on Node.js 24.
-- A SalaryPadi Supabase project does not yet exist. The configured generic Supabase MCP points to the unrelated AfroTools project and must not be used.
-- The repository does not have a remote or deployment target.
+- The dedicated hosted project is Supabase `bxelrhklsznmpksgrqep`. Its Data API exposes only `api`; the unrelated AfroTools and LATMtools projects remain out of scope.
+- The private GitHub repository is `Ozaveshe/SalaryPadi`. Netlify project `salarypadi` is configured for the production build and public Supabase variables.
 - Current official framework documentation was checked before choosing the stack. Statutory and source-policy research is recorded below and in the rule/source metadata committed with the implementation.
 
 ## Product and design principles
@@ -218,9 +218,8 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 
 ## External credentials and decisions needed
 
-- A dedicated SalaryPadi Supabase project URL and publishable key; server-only service role for controlled operational jobs.
-- A configured SalaryPadi Supabase MCP target or project-specific CLI login before remote migrations, logs, schema inspection or generated types.
-- Canonical production origin and deployment provider.
+- A project-specific SalaryPadi Supabase MCP target would improve future operations; project-scoped CLI and dashboard access are active now.
+- The canonical custom domain still needs to be chosen from the domains held at Hostinger. The interim canonical origin is `https://salarypadi.netlify.app`.
 - Transactional email configuration for authentication and alerts.
 - A recurring terms-review owner for the active Remotive pilot and each future source.
 - Currency-rate provider and licensing decision before any automated live rates; the MVP uses explicit user-entered rates.
@@ -290,3 +289,13 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 - Public browser journeys, axe WCAG A/AA checks, structured data and no-horizontal-overflow checks pass at 360px, 768px and desktop; authenticated and AAL2 admin specs are present but intentionally skip without isolated storage-state credentials.
 - PostgreSQL migrations and pgTAP tests received static review, but cannot be executed locally because Supabase CLI and Docker are unavailable.
 - Residual dependency risk: `npm audit --omit=dev` reports two moderate transitive PostCSS advisories inside the current Next.js release; npm's proposed downgrade is unsafe, so this remains documented for upstream monitoring.
+
+### 2026-07-10 — Hosted production continuation
+
+- Created the private GitHub repository and Netlify project, then configured the site with the dedicated SalaryPadi Supabase URL and publishable key. No service-role key is used by the web app.
+- Applied five forward migrations to Supabase `bxelrhklsznmpksgrqep`, exposed only the `api` schema, configured production/local/preview auth callbacks, retained confirmed email, and enabled TOTP MFA.
+- Generated TypeScript definitions from the live `api` schema and wired the Supabase clients to them.
+- Ran 133 pgTAP assertions against the hosted database. The first pass found implicit PUBLIC execution on internal security-definer functions; migration `20260710000500_lock_internal_routines.sql` removed existing and future implicit grants. All four suites then reported zero failures.
+- Supabase Security Advisor reports zero errors and zero warnings. Six informational RLS items are deliberately policy-less internal worker tables and therefore fail closed.
+- Added database-backed jobs and company intelligence, privacy request handling, a working staff TOTP enrol/challenge flow, and source-permitted `JobPosting` structured data.
+- Formatting, lint, live-schema typecheck, 163 unit tests, and the 54-route production build pass. Netlify cloud deployment remains the active release step; the local Windows CLI edge packager cannot safely package Next.js middleware paths.

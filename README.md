@@ -47,6 +47,8 @@ The local Supabase configuration exposes only the `api` schema through PostgREST
 1. `20260710000100_foundation.sql` — accounts, staff roles, privacy requests, rate limits, and audit records.
 2. `20260710000200_jobs.sql` — sources, jobs, eligibility, saved jobs, applications, alerts, and employer submissions.
 3. `20260710000300_intelligence.sql` — contributions, moderation, public projections, privacy thresholds, and aggregates.
+4. `20260710000400_public_product_integration.sql` — public job/company projections used by the production application.
+5. `20260710000500_lock_internal_routines.sql` — removes implicit PUBLIC execution from internal and API routines.
 
 With Docker running and the Supabase CLI installed:
 
@@ -99,4 +101,4 @@ docs/                    Product, source, security, deployment, and operations g
 
 ## Current external dependencies
 
-A real production launch still requires a dedicated hosted Supabase project, a configured deployment target and canonical origin, a tested staff MFA journey, named moderation/privacy owners, and production monitoring. Do not describe a local build or an unapplied migration as a live deployment.
+The dedicated Supabase project and Netlify target are configured. Launch still requires a chosen Hostinger custom domain, a production transactional-email decision for alert delivery, named moderation/privacy owners, and production monitoring. Do not describe a prepared build as live until the Netlify deploy and route smoke checks pass.

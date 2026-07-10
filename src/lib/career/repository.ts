@@ -40,7 +40,10 @@ const alertSchema = z.object({
   created_at: z.string(),
 });
 
-async function safeRpc(name: string) {
+type CareerRpcName =
+  "get_my_saved_jobs" | "get_my_applications" | "get_my_job_alerts";
+
+async function safeRpc(name: CareerRpcName) {
   const supabase = await createServerSupabaseClient();
   if (!supabase) return [];
   const { data, error } = await supabase.schema("api").rpc(name);

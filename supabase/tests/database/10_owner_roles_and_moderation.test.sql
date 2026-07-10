@@ -496,9 +496,9 @@ select is(
 );
 select ok(
   exists (
-    select 1 from app.review_publications
-    where source_contribution_id = '50000000-0000-0000-0000-000000000001'
-      and id <> source_contribution_id and publication_status = 'published'
+    select 1 from api.company_reviews
+    where id <> '50000000-0000-0000-0000-000000000001'
+      and pros = 'Good team' and cons = 'Long meetings'
   ),
   'approval creates a separate redacted public review record'
 );

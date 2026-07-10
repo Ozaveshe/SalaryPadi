@@ -32,7 +32,11 @@ export default async function CompaniesPage() {
                     {company.name}
                   </Link>
                 </h2>
-                <p>{company.categories.join(", ") || "Industry not stated"}</p>
+                <p>
+                  {company.industry ||
+                    company.categories.join(", ") ||
+                    "Industry not stated"}
+                </p>
               </div>
               <div className="company-row-meta">
                 <strong>{company.activeJobs.length}</strong>

@@ -57,7 +57,7 @@ No automated retention/purge scheduler is included in this repository. `retentio
 
 ## Known launch blockers and residual risks
 
-- No dedicated hosted SalaryPadi Supabase project or production deployment has been verified.
+- Dedicated Supabase project `bxelrhklsznmpksgrqep` is configured and its hosted pgTAP/security-advisor checks pass; the Netlify production deployment is still awaiting hosted build verification.
 - Staff pages require AAL2, but factor enrolment and challenge must be tested end to end against the chosen Supabase project before staff access is enabled.
 - Database rate limits are account-based. Add edge/network abuse controls and alerting before a public contribution launch; a corporate email match is only a signal, not proof of company ownership.
 - No retention worker, alert delivery worker, import scheduler, aggregate scheduler, production log sink, or incident alert integration is configured here.

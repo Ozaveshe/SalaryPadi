@@ -37,17 +37,20 @@ export async function POST(request: Request) {
       { error: "Job is no longer available." },
       { status: 404 },
     );
-  const { error } = await context.supabase
-    .schema("api")
-    .rpc("record_external_application", {
-      source_key: job.source.id,
-      external_id: job.externalId,
-      job_slug: job.slug,
-      job_title: job.title,
-      company_name: job.company.name,
-      source_url: job.sourceUrl,
-      application_status: parsed.data.status,
-    });
+  const { error } = job.databaseId
+    ? await context.supabase.schema("api").rpc("upsert_application", {
+        p_job_id: job.databaseId,
+        p_status: parsed.data.status,
+      })
+    : await context.supabase.schema("api").rpc("record_external_application", {
+        source_key: job.source.id,
+        external_id: job.externalId,
+        job_slug: job.slug,
+        job_title: job.title,
+        company_name: job.company.name,
+        source_url: job.sourceUrl,
+        application_status: parsed.data.status,
+      });
   const url = new URL("/applications", getAppOrigin());
   url.searchParams.set("created", error ? "error" : "true");
   return NextResponse.redirect(url, 303);
