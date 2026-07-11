@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
 const localBaseURL = "http://127.0.0.1:3000";
+const requireLiveAfroTools = process.env.REQUIRE_LIVE_AFROTOOLS === "true";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -43,6 +44,7 @@ export default defineConfig({
         reuseExistingServer: !process.env.CI,
         env: {
           ...process.env,
+          ...(requireLiveAfroTools ? {} : { AFROTOOLS_API_KEY: "" }),
           NEXT_PUBLIC_APP_URL: process.env.CI
             ? (process.env.NEXT_PUBLIC_APP_URL ?? "https://salarypadi.test")
             : localBaseURL,

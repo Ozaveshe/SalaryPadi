@@ -25,7 +25,14 @@ const calculation = {
   status: "success",
   input: { country: "NG", grossAnnual: 6_000_000 },
   deductions: { pension: 480_000, totalDeductions: 480_000 },
-  tax: { taxableIncome: 5_520_000, netTax: 847_800, bands: [] },
+  tax: {
+    taxableIncome: 5_520_000,
+    netTax: 847_800,
+    bands: [
+      { label: "First NGN 800,000", rate: 0, amount: 0 },
+      { label: "Next NGN 2,200,000", rate: 0.15, amount: 330_000 },
+    ],
+  },
   result: {
     netAnnual: 4_672_200,
     netMonthly: 389_350,
@@ -76,6 +83,34 @@ describe("AfroTools verified services", () => {
     expect(
       JSON.parse(String((provider.mock.calls[0]?.[1] as RequestInit).body)),
     ).toEqual({ country: "NG", grossMonthly: 500_000 });
+  });
+
+  it("rejects malformed canonical PAYE bands", async () => {
+    const provider = vi
+      .fn()
+      .mockResolvedValueOnce(
+        json({
+          ...calculation,
+          tax: {
+            ...calculation.tax,
+            bands: [{ label: "Invalid rate", rate: 1.5, amount: 0 }],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(json(rules));
+    vi.stubGlobal("fetch", provider);
+
+    await expect(
+      calculateAfroToolsPaye(
+        {
+          country: "NG",
+          mode: "gross_to_net",
+          period: "monthly",
+          amount: 500_000,
+        },
+        new Date("2026-07-11T12:00:00.000Z"),
+      ),
+    ).rejects.toMatchObject({ code: "invalid_response" });
   });
 
   it("rejects a reverse PAYE response that does not match the requested net", async () => {

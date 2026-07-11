@@ -52,4 +52,24 @@ Check:
 4. A PAYE result shows API/rules versions and verification time.
 5. An FX result shows source, update time and freshness warning where applicable.
 
+The credential-free pull-request CI sets `REQUIRE_LIVE_AFROTOOLS=false`. Its
+PAYE browser journey must receive the exact fail-closed `503` notice and must
+not render a result or provenance when the server key is absent. The separate
+`AfroTools live smoke` workflow points the browser at `https://salarypadi.com`
+with `REQUIRE_LIVE_AFROTOOLS=true`; it requires the verified PAYE result and API
+provenance, plus a successful deterministic offer/FX journey. The service key
+remains inside SalaryPadi's Netlify runtime and never enters GitHub Actions or
+the browser. Privacy-sensitive browser tests disable Playwright traces, videos
+and automatic failure screenshots. Their explicit visual capture masks the
+synthetic salary input and all calculated amounts.
+
+Run the production gate after a SalaryPadi or AfroTools integration deploy:
+
+```bash
+gh workflow run afrotools-live-smoke.yml --ref main
+```
+
+Do not replace the credential-free CI assertion with an ambiguous
+success-or-failure check, and do not add the production service key to GitHub.
+
 To stop provider traffic immediately, remove or rotate `AFROTOOLS_API_KEY` and redeploy. Calculation routes then fail closed with no result. To stop catalog refresh while retaining the bounded last-known-good directory, disable the Netlify scheduled function; do not delete the Blob snapshot unless the directory must be made unavailable immediately.

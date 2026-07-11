@@ -16,6 +16,7 @@ env:
   REMOTIVE_SOURCE_ENABLED: "false"
   ALLOW_DEMO_DATA: "false"
   ANALYTICS_PROVIDER: none
+  REQUIRE_LIVE_AFROTOOLS: "false"
 
 jobs:
   quality:

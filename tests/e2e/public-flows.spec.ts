@@ -1,6 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
+const requireLiveAfroTools = process.env.REQUIRE_LIVE_AFROTOOLS === "true";
+
+test.use({ screenshot: "off", trace: "off", video: "off" });
+
 async function firstLiveJob(page: Page) {
   const firstJob = page.locator(".job-card .job-title a").first();
   if ((await firstJob.count()) === 0) {
@@ -87,57 +91,89 @@ test.describe("public MVP journeys", () => {
     await expect(page.getByLabel("Email address")).toBeVisible();
   });
 
-  test("completes the Nigeria take-home-pay calculator", async ({ page }) => {
-    await page.goto("/tools/take-home-pay");
-    await page.getByLabel("Gross cash pay").fill("500000");
-    await page
-      .getByRole("checkbox", { name: /Send these pay and deduction amounts/ })
-      .check();
-    await page.getByRole("button", { name: "Calculate take-home pay" }).click();
+  test.describe("privacy-sensitive tool journeys", () => {
+    test("verifies PAYE live or fails closed without credentials", async ({
+      page,
+    }) => {
+      await page.goto("/tools/take-home-pay");
+      await page.getByLabel("Salary amount").fill("500000");
+      await page
+        .getByRole("checkbox", {
+          name: /Send this amount to the AfroTools PAYE API/,
+        })
+        .check();
+      await page.getByRole("button", { name: "Calculate" }).click();
 
-    await expect(page.getByText("Estimated result")).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: /per month/ }),
-    ).toBeVisible();
-    await expect(page.getByText("Rule version")).toBeVisible();
-    await expect(page.getByText("Authoritative sources")).toBeVisible();
-  });
+      const verifiedEstimate = page.getByRole("heading", {
+        name: "Verified estimate",
+      });
+      const provenance = page.getByRole("link", { name: "API provenance" });
+      if (requireLiveAfroTools) {
+        await expect(verifiedEstimate).toBeVisible();
+        await expect(page.getByText("Net monthly")).toBeVisible();
+        await expect(page.getByText(/Rules year/)).toBeVisible();
+        await expect(provenance).toBeVisible();
+      } else {
+        await expect(
+          page.getByRole("alert").filter({
+            hasText:
+              "AfroTools PAYE is temporarily unavailable. No result was produced.",
+          }),
+        ).toHaveText(
+          "AfroTools PAYE is temporarily unavailable. No result was produced.",
+        );
+        await expect(verifiedEstimate).toHaveCount(0);
+        await expect(provenance).toHaveCount(0);
+      }
+    });
 
-  test("completes offer comparison without inventing an FX rate", async ({
-    page,
-  }) => {
-    await page.goto("/tools/offer-compare");
-    await page.getByLabel("Base pay").nth(0).fill("500000");
-    await page.getByLabel("Base pay").nth(1).fill("600000");
-    await page.locator("#b_currency").fill("NGN");
-    await page
-      .getByRole("checkbox", { name: /Send these offer amounts and terms/ })
-      .check();
-    await page.getByRole("button", { name: "Compare offers" }).click();
+    test("completes offer comparison without inventing an FX rate", async ({
+      page,
+    }) => {
+      await page.goto("/tools/offer-compare");
+      await page.getByLabel("Base pay").nth(0).fill("500000");
+      await page.getByLabel("Base pay").nth(1).fill("600000");
+      if (!requireLiveAfroTools) {
+        await page.locator("#b_currency").fill("NGN");
+      }
+      await page
+        .getByRole("checkbox", {
+          name: /Allow SalaryPadi to request the required currency pairs/,
+        })
+        .check();
+      await page.getByRole("button", { name: "Compare offers" }).click();
 
-    await expect(page.getByText("Normalized comparison")).toBeVisible();
-    await expect(page.getByText("Practical negotiation points")).toBeVisible();
-    await expect(
-      page.getByText(/No market salary claim is generated/),
-    ).toBeVisible();
-  });
+      await expect(page.getByText("Normalized comparison")).toBeVisible();
+      await expect(
+        page.getByText("Practical negotiation points"),
+      ).toBeVisible();
+      await expect(
+        page.getByText(/No market salary claim is generated/),
+      ).toBeVisible();
+      if (requireLiveAfroTools) {
+        await expect(page.getByText("AfroTools FX evidence")).toBeVisible();
+      }
+    });
 
-  test("completes the local-only scam warning check", async ({ page }) => {
-    await page.goto("/tools/job-scam-checker");
-    await page
-      .getByLabel("Paste the vacancy or recruiter message")
-      .fill(
-        "Urgent: pay a training fee in cryptocurrency today and send your banking password to receive an instant offer.",
-      );
-    await page.getByLabel("A payment or fee was requested").check();
-    await page
-      .getByRole("checkbox", { name: /I understand the entered vacancy text/ })
-      .check();
-    await page.getByRole("button", { name: "Check warning signs" }).click();
+    test("completes the local-only scam warning check", async ({ page }) => {
+      await page.goto("/tools/job-scam-checker");
+      await page
+        .getByLabel("Paste the vacancy or recruiter message")
+        .fill(
+          "Urgent: pay a training fee in cryptocurrency today and send your banking password to receive an instant offer.",
+        );
+      await page.getByLabel("A payment or fee was requested").check();
+      await page
+        .getByRole("checkbox", {
+          name: /I understand the entered vacancy text/,
+        })
+        .check();
+      await page.getByRole("button", { name: "Check warning signs" }).click();
 
-    await expect(page.getByText("Automated screening result")).toBeVisible();
-    await expect(page.getByText("Individual warning flags")).toBeVisible();
-    await expect(page.getByText("URL fetch performed:")).toContainText("No");
+      await expect(page.getByText("Automated screening result")).toBeVisible();
+      await expect(page.getByText("Individual warning flags")).toBeVisible();
+      await expect(page.getByText("URL fetch performed:")).toContainText("No");
+    });
   });
 });
 
