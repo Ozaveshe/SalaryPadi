@@ -9,6 +9,7 @@ vi.mock("@/lib/env", () => ({
 }));
 
 import {
+  AFROTOOLS_FX_DATA_POLICY,
   calculateAfroToolsPaye,
   getAfroToolsFxRate,
 } from "@/lib/afrotools/services";
@@ -155,5 +156,31 @@ describe("AfroTools verified services", () => {
     await expect(
       getAfroToolsFxRate("USD", "NGN", new Date("2026-07-11T00:00:00.000Z")),
     ).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("accepts the documented production FX shape without optional sandbox metadata", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        json({
+          base: "USD",
+          target: "NGN",
+          pair: "USD/NGN",
+          rate: 1500,
+          source: "AfroFX",
+          updated_at: "2026-07-11T00:00:00.000Z",
+        }),
+      ),
+    );
+
+    await expect(
+      getAfroToolsFxRate("USD", "NGN", new Date("2026-07-11T01:00:00.000Z")),
+    ).resolves.toMatchObject({
+      rate: 1500,
+      source: "AfroFX",
+      sandbox: false,
+      dataPolicy: AFROTOOLS_FX_DATA_POLICY,
+      freshness: "fresh",
+    });
   });
 });

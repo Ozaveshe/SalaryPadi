@@ -50,6 +50,7 @@ describe("AfroTools catalog contract", () => {
         headers: {
           "Content-Type": "application/json",
           ETag: TEST_AFROTOOLS_ETAG,
+          "X-AfroTools-Catalog-ETag": TEST_AFROTOOLS_ETAG,
         },
       }),
     );
@@ -61,6 +62,7 @@ describe("AfroTools catalog contract", () => {
     expect(result.snapshot.tools).toHaveLength(15);
     expect(result.snapshot.sourceUrl).toBe(AFROTOOLS_CATALOG_SOURCE_URL);
     expect(result.snapshot.etag).toBe(TEST_AFROTOOLS_ETAG);
+    expect(result.snapshot.etagSource).toBe("afrotools");
     expect(result.httpStatus).toBe(200);
     expect(fetcher.mock.calls[0]?.[0].toString()).toBe(
       AFROTOOLS_CATALOG_SOURCE_URL,
@@ -78,13 +80,17 @@ describe("AfroTools catalog contract", () => {
           headers: {
             "Content-Type": "application/json",
             ETag: TEST_AFROTOOLS_ETAG,
+            "X-AfroTools-Catalog-ETag": TEST_AFROTOOLS_ETAG,
           },
         }),
       )
       .mockResolvedValueOnce(
         new Response(null, {
           status: 304,
-          headers: { ETag: TEST_AFROTOOLS_ETAG },
+          headers: {
+            ETag: TEST_AFROTOOLS_ETAG,
+            "X-AfroTools-Catalog-ETag": TEST_AFROTOOLS_ETAG,
+          },
         }),
       );
     const first = await fetchAfroToolsCatalog(
@@ -109,11 +115,11 @@ describe("AfroTools catalog contract", () => {
   });
 
   it.each([
-    '"sha256-deadbeef"',
-    `W/${TEST_AFROTOOLS_ETAG}`,
-    `"sha256-${"A".repeat(42)}"`,
-    `"sha256-${"A".repeat(44)}"`,
-    `"sha256-${"A".repeat(42)}="`,
+    "sha256-deadbeef",
+    'W/""',
+    '"has space"',
+    '"unterminated',
+    `"${"A".repeat(151)}"`,
   ])("rejects a malformed catalog ETag: %s", async (etag) => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify(createProtectedCatalogFixture()), {
@@ -128,6 +134,43 @@ describe("AfroTools catalog contract", () => {
         fetcher,
       ),
     ).rejects.toThrow("omitted its versioned ETag");
+  });
+
+  it("accepts a bounded weak standard ETag as an opaque CDN validator", async () => {
+    const weakEtag = 'W/"netlify-catalog-v1"';
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(createProtectedCatalogFixture()), {
+        headers: { "Content-Type": "application/json", ETag: weakEtag },
+      }),
+    );
+
+    const result = await fetchAfroToolsCatalog(
+      "https://afrotools.com/api/v1",
+      "test-salarypadi-service-key",
+      fetcher,
+    );
+    expect(result.snapshot.etag).toBe(weakEtag);
+    expect(result.snapshot.etagSource).toBe("http");
+  });
+
+  it("rejects an invalid provider mirror instead of falling back", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(createProtectedCatalogFixture()), {
+        headers: {
+          "Content-Type": "application/json",
+          ETag: '"cdn-validator"',
+          "X-AfroTools-Catalog-ETag": '"not-a-sha256-validator"',
+        },
+      }),
+    );
+
+    await expect(
+      fetchAfroToolsCatalog(
+        "https://afrotools.com/api/v1",
+        "test-salarypadi-service-key",
+        fetcher,
+      ),
+    ).rejects.toThrow("invalid signed ETag");
   });
 
   it("rejects a link that falsely claims an API integration", async () => {
@@ -145,6 +188,7 @@ describe("AfroTools catalog contract", () => {
         headers: {
           "Content-Type": "application/json",
           ETag: TEST_AFROTOOLS_ETAG,
+          "X-AfroTools-Catalog-ETag": TEST_AFROTOOLS_ETAG,
         },
       }),
     );

@@ -201,8 +201,8 @@ export const afroToolsFxResponseSchema = z.object({
   source: z.string().min(1).max(200),
   updated_at: z.string(),
   change_24h: z.number().finite().optional(),
-  sandbox: z.boolean(),
-  data_policy: z.string().min(1).max(160),
+  sandbox: z.boolean().optional(),
+  data_policy: z.string().min(1).max(160).optional(),
 });
 
 export const scamCheckRequestSchema = z.object({

@@ -23,6 +23,8 @@ export type AfroToolsFxEvidence = {
 
 const FX_FRESH_MS = 36 * 60 * 60 * 1_000;
 const FX_MAX_STALE_MS = 30 * 24 * 60 * 60 * 1_000;
+export const AFROTOOLS_FX_DATA_POLICY =
+  "AfroTools reference rate; source and update time are displayed.";
 
 export async function getAfroToolsFxRate(
   from: string,
@@ -70,8 +72,8 @@ export async function getAfroToolsFxRate(
     source: parsed.data.source,
     updatedAt: parsed.data.updated_at,
     freshness: ageMs <= FX_FRESH_MS ? "fresh" : "stale",
-    sandbox: parsed.data.sandbox,
-    dataPolicy: parsed.data.data_policy,
+    sandbox: parsed.data.sandbox ?? false,
+    dataPolicy: parsed.data.data_policy ?? AFROTOOLS_FX_DATA_POLICY,
   };
 }
 

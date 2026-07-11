@@ -44,6 +44,7 @@ describe("standalone AfroTools catalog worker", () => {
         headers: {
           "Content-Type": "application/json",
           ETag: TEST_AFROTOOLS_ETAG,
+          "X-AfroTools-Catalog-ETag": TEST_AFROTOOLS_ETAG,
         },
       }),
     );
@@ -68,17 +69,22 @@ describe("standalone AfroTools catalog worker", () => {
     expect(stored).toMatchObject({
       sourceUrl: AFROTOOLS_CATALOG_SOURCE_URL,
       etag: TEST_AFROTOOLS_ETAG,
+      etagSource: "afrotools",
     });
     blobStore.get.mockImplementation(async () => stored);
     blobStore.setJSON.mockClear();
     await expect(getStoredAfroToolsCatalog()).resolves.toMatchObject({
       sourceUrl: AFROTOOLS_CATALOG_SOURCE_URL,
       etag: TEST_AFROTOOLS_ETAG,
+      etagSource: "afrotools",
     });
     fetcher.mockResolvedValueOnce(
       new Response(null, {
         status: 304,
-        headers: { ETag: TEST_AFROTOOLS_ETAG },
+        headers: {
+          ETag: TEST_AFROTOOLS_ETAG,
+          "X-AfroTools-Catalog-ETag": TEST_AFROTOOLS_ETAG,
+        },
       }),
     );
     const revalidated = await runAfroToolsCatalogSync({
@@ -122,6 +128,7 @@ describe("standalone AfroTools catalog worker", () => {
           headers: {
             "Content-Type": "application/json",
             ETag: TEST_AFROTOOLS_ETAG,
+            "X-AfroTools-Catalog-ETag": TEST_AFROTOOLS_ETAG,
           },
         });
       }),

@@ -10,7 +10,14 @@ export const AFROTOOLS_CATALOG_FRESH_MS = 7 * 24 * 60 * 60 * 1_000;
 export const AFROTOOLS_CATALOG_MAX_STALE_MS = 30 * 24 * 60 * 60 * 1_000;
 
 const catalogDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const catalogEtagSchema = z.string().regex(/^"sha256-[A-Za-z0-9_-]{43}"$/);
+const afroToolsCatalogEtagSchema = z
+  .string()
+  .regex(/^"sha256-[A-Za-z0-9_-]{43}"$/);
+const opaqueHttpEtagSchema = z
+  .string()
+  .min(3)
+  .max(160)
+  .regex(/^(?:W\/)?"[\x21\x23-\x7e]{1,150}"$/);
 const afroToolsHttpsUrlSchema = z
   .string()
   .url()
@@ -182,7 +189,8 @@ export const catalogSnapshotSchema = z
     catalogPublishedAt: catalogDateSchema.optional(),
     schemaVersion: z.literal("1.0.0").optional(),
     documentationUrl: afroToolsHttpsUrlSchema.optional(),
-    etag: catalogEtagSchema.optional(),
+    etag: opaqueHttpEtagSchema.optional(),
+    etagSource: z.enum(["afrotools", "http"]).optional(),
     tools: z.array(catalogToolSchema).min(1).max(100),
   })
   .superRefine((snapshot, context) => {
@@ -192,6 +200,7 @@ export const catalogSnapshotSchema = z
       ["schemaVersion", snapshot.schemaVersion],
       ["documentationUrl", snapshot.documentationUrl],
       ["etag", snapshot.etag],
+      ["etagSource", snapshot.etagSource],
     ] as const) {
       if (value === undefined) {
         context.addIssue({
@@ -286,19 +295,43 @@ export async function fetchAfroToolsCatalog(
     redirect: "error",
     signal,
   });
+  const mirroredEtag = response.headers.get("x-afrotools-catalog-etag");
+  const standardEtag = response.headers.get("etag");
+  let responseEtag: string | null = null;
+  let responseEtagSource: "afrotools" | "http" | null = null;
+  if (mirroredEtag !== null) {
+    if (!afroToolsCatalogEtagSchema.safeParse(mirroredEtag).success) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error("AfroTools catalog returned an invalid signed ETag.");
+    }
+    responseEtag = mirroredEtag;
+    responseEtagSource = "afrotools";
+  } else if (
+    standardEtag !== null &&
+    opaqueHttpEtagSchema.safeParse(standardEtag).success
+  ) {
+    // Netlify may weaken or replace a function ETag at the HTTP boundary. It
+    // remains safe as an opaque conditional validator after full body checks.
+    responseEtag = standardEtag;
+    responseEtagSource = "http";
+  }
   if (response.status === 304) {
     await response.body?.cancel().catch(() => undefined);
-    const responseEtag = response.headers.get("etag");
     if (
       !previousSnapshot ||
       previousSnapshot.sourceUrl !== AFROTOOLS_CATALOG_SOURCE_URL ||
       !previousEtag ||
-      (responseEtag !== null && responseEtag !== previousEtag)
+      !responseEtag ||
+      responseEtag !== previousEtag
     ) {
       throw new Error("AfroTools returned an unusable catalog revalidation.");
     }
     return {
-      snapshot: { ...previousSnapshot, checkedAt: new Date().toISOString() },
+      snapshot: {
+        ...previousSnapshot,
+        checkedAt: new Date().toISOString(),
+        etagSource: responseEtagSource ?? previousSnapshot.etagSource,
+      },
       httpStatus: 304,
       notModified: true,
     };
@@ -311,8 +344,7 @@ export async function fetchAfroToolsCatalog(
     await response.body?.cancel().catch(() => undefined);
     throw new Error("AfroTools catalog returned an invalid content type.");
   }
-  const etag = response.headers.get("etag");
-  if (!etag || !catalogEtagSchema.safeParse(etag).success) {
+  if (!responseEtag || !responseEtagSource) {
     await response.body?.cancel().catch(() => undefined);
     throw new Error("AfroTools catalog omitted its versioned ETag.");
   }
@@ -352,7 +384,8 @@ export async function fetchAfroToolsCatalog(
     catalogPublishedAt: parsed.data.publishedAt,
     schemaVersion: parsed.data.schemaVersion,
     documentationUrl: parsed.data.contract.documentation,
-    etag,
+    etag: responseEtag,
+    etagSource: responseEtagSource,
     tools,
   };
   if (!catalogSnapshotSchema.safeParse(snapshot).success) {
