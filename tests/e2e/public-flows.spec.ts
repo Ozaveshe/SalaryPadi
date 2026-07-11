@@ -12,9 +12,11 @@ async function firstLiveJob(page: Page) {
     }
 
     await expect(
-      page.getByText(
-        /Live jobs are temporarily unavailable|No matching jobs right now/,
-      ),
+      page
+        .getByText(
+          /Live jobs are temporarily unavailable|No matching jobs right now/,
+        )
+        .first(),
     ).toBeVisible();
     test.skip(
       true,
