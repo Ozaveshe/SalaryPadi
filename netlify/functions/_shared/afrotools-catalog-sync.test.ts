@@ -62,6 +62,7 @@ describe("standalone AfroTools catalog worker", () => {
     expect(result.summary.source).toBe(AFROTOOLS_CATALOG_SOURCE_URL);
     expect(result.summary.source_http_status).toBe(200);
     expect(result.summary.etag_revalidated).toBe(false);
+    expect(result.summary.etag_source).toBe("afrotools");
     expect(blobStore.setJSON).toHaveBeenCalledOnce();
 
     const stored = blobStore.setJSON.mock.calls[0]?.[1];

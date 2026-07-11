@@ -35,6 +35,7 @@ export async function runAfroToolsCatalogSync({ signal }: WorkerExecution) {
     tool_count: count,
     source_http_status: result.httpStatus,
     etag_revalidated: result.notModified,
+    etag_source: result.snapshot.etagSource,
   });
 }
 
