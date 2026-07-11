@@ -76,6 +76,7 @@ const databaseJobSchema = z.object({
   may_store_full_description: z.boolean(),
   may_index_jobs: z.boolean(),
   may_emit_jobposting_schema: z.boolean(),
+  may_email_jobs: z.boolean(),
   required_destination_kind: z.string(),
   refresh_interval_seconds: z.coerce.number().int().positive(),
   terms_reviewed_at: z.string(),
@@ -378,6 +379,7 @@ export function mapDatabaseJobRow(input: unknown): Job | null {
     canStoreFullDescription: row.may_store_full_description,
     canIndex: row.may_index_jobs,
     canUseJobPostingStructuredData: row.may_emit_jobposting_schema,
+    canEmail: row.may_email_jobs,
     destinationRequirement: row.required_destination_kind,
     refreshIntervalSeconds: row.refresh_interval_seconds,
   };

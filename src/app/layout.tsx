@@ -29,7 +29,7 @@ export const metadata: Metadata = {
       "Check eligibility, compensation and employer evidence before you apply.",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "SalaryPadi — Jobs and salary truth for Africans",
     description:
       "Check eligibility, compensation and employer evidence before you apply.",

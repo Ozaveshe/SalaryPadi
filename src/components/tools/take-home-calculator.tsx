@@ -36,7 +36,9 @@ export function TakeHomeCalculator({ defaultDate }: { defaultDate: string }) {
   const [loading, setLoading] = useState(false);
   const [pensionMode, setPensionMode] =
     useState<NigeriaPayrollInput["pension"]["mode"]>("not_applicable");
-  const [nhfParticipates, setNhfParticipates] = useState(false);
+  const [nhfTreatment, setNhfTreatment] = useState<
+    "default" | "include" | "exclude"
+  >("default");
 
   function shareCalculator() {
     const url = window.location.href.split("#")[0];
@@ -88,7 +90,8 @@ export function TakeHomeCalculator({ defaultDate }: { defaultDate: string }) {
         pension = { mode: "employer_covers_all" };
       else pension = { mode: "not_applicable" };
 
-      const nhfParticipates = form.get("nhf_participates") === "on";
+      const nhfTreatment = String(form.get("nhf_treatment"));
+      const nhfParticipates = nhfTreatment === "include";
       const nhfBase = numberValue(form, "nhf_base");
       const actualNhfRaw = String(form.get("actual_nhf") ?? "").trim();
       const input: NigeriaPayrollInput = {
@@ -98,7 +101,11 @@ export function TakeHomeCalculator({ defaultDate }: { defaultDate: string }) {
         nhf: {
           sector:
             String(form.get("sector")) === "public" ? "public" : "private",
-          participationOverride: nhfParticipates,
+          // "default" omits the override so the engine applies the statutory
+          // sector rule (public at/above minimum wage participates).
+          ...(nhfTreatment === "default"
+            ? {}
+            : { participationOverride: nhfParticipates }),
           ...(nhfParticipates && nhfBase > 0
             ? { contributionBase: periodic(nhfBase, period) }
             : {}),
@@ -325,16 +332,29 @@ export function TakeHomeCalculator({ defaultDate }: { defaultDate: string }) {
                 <option value="public">Public</option>
               </select>
             </div>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                name="nhf_participates"
-                checked={nhfParticipates}
-                onChange={(event) => setNhfParticipates(event.target.checked)}
-              />
-              Include NHF participation
-            </label>
-            {nhfParticipates ? (
+            <div className="field">
+              <label htmlFor="nhf_treatment">NHF treatment</label>
+              <select
+                className="select"
+                id="nhf_treatment"
+                name="nhf_treatment"
+                value={nhfTreatment}
+                onChange={(event) =>
+                  setNhfTreatment(
+                    event.target.value as "default" | "include" | "exclude",
+                  )
+                }
+              >
+                <option value="default">Statutory default for sector</option>
+                <option value="include">Include NHF</option>
+                <option value="exclude">Exclude NHF</option>
+              </select>
+              <p className="field-help">
+                Public-sector employees at or above minimum wage participate by
+                default; private-sector participation is voluntary.
+              </p>
+            </div>
+            {nhfTreatment === "include" ? (
               <>
                 <div className="field">
                   <label htmlFor="nhf_base">NHF contribution base</label>

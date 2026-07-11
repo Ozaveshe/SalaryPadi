@@ -31,6 +31,7 @@ const sourceSchema = z
     canStoreFullDescription: z.boolean(),
     canIndex: z.boolean(),
     canUseJobPostingStructuredData: z.boolean(),
+    canEmail: z.boolean().default(false),
     destinationRequirement: z.string().trim().min(1).max(2_000),
     refreshIntervalSeconds: z.number().int().positive(),
   })

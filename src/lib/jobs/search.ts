@@ -60,7 +60,16 @@ export type JobSearch = z.infer<typeof jobSearchSchema>;
 
 export function parseJobSearch(input: Record<string, unknown>): JobSearch {
   const parsed = jobSearchSchema.safeParse(input);
-  return parsed.success ? parsed.data : jobSearchSchema.parse({});
+  if (parsed.success) return parsed.data;
+  // Drop only the offending params so one stale or hand-edited value cannot
+  // silently clear every other filter the user set.
+  const sanitized = { ...input };
+  for (const issue of parsed.error.issues) {
+    const key = issue.path[0];
+    if (typeof key === "string") delete sanitized[key];
+  }
+  const retry = jobSearchSchema.safeParse(sanitized);
+  return retry.success ? retry.data : jobSearchSchema.parse({});
 }
 
 function includesValue(value: string, query: string) {

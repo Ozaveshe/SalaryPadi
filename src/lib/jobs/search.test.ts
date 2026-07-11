@@ -35,6 +35,21 @@ describe("job search", () => {
     });
   });
 
+  it("keeps valid filters when one query param is invalid", () => {
+    const result = parseJobSearch({
+      q: "engineer",
+      eligibility: "nigeria",
+      workMode: "banana",
+      minSalary: "abc",
+    });
+    expect(result).toMatchObject({
+      q: "engineer",
+      eligibility: "nigeria",
+      workMode: "all",
+    });
+    expect(result.minSalary).toBeUndefined();
+  });
+
   it("filters explicitly Nigeria-eligible jobs", () => {
     const search = parseJobSearch({ eligibility: "nigeria" });
     expect(filterAndSortJobs(jobs, search)).toHaveLength(1);

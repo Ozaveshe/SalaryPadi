@@ -37,6 +37,8 @@ export interface JobSourcePolicy {
   canStoreFullDescription: boolean;
   canIndex: boolean;
   canUseJobPostingStructuredData: boolean;
+  /** Whether this source explicitly permits private job-alert distribution. */
+  canEmail: boolean;
   destinationRequirement: string;
   refreshIntervalSeconds: number;
 }

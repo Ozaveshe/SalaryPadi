@@ -9,6 +9,8 @@ SalaryPadi does not currently scrape job boards. Production jobs come from two b
 
 Remotive is global remote-job data. It is not sufficient evidence for a nationwide Nigeria jobs catalogue, and SalaryPadi must not describe it as one. Nationwide coverage requires explicit employer/partner feed permissions and reviewed ATS adapters.
 
+Greenhouse, Lever, and Ashby adapter, worker, and lifecycle infrastructure is implemented in the repository but remains inactive. Moniepoint Greenhouse and M-KOPA Ashby are the first recommended permission conversations, not active sources. No production endpoint call, persistence, publication, indexing, structured data, or email distribution is authorized until written permission is recorded and the production database/worker path is separately verified.
+
 ## Production flow
 
 ```text
@@ -49,6 +51,58 @@ Both source gates must permit acquisition. `REMOTIVE_SOURCE_ENABLED=false` stops
 
 The alert Blob has one strong-consistency `current` key and no history. It rejects malformed nested jobs, leaked descriptions, insecure URLs, timestamps over five minutes in the future, and snapshots older than fourteen hours.
 
+## Prepared ATS flow
+
+The ATS lane is a separate, fail-closed scheduled path. Its database registration expects a run every six hours and marks it stale after fourteen hours. The Netlify worker must still pass `ATS_SOURCE_SYNC_ENABLED=true`, and the database must return at least one currently authorized employer source. The environment value remains `false` and no employer source/configuration is seeded, so a deployed schedule records a safe skip without making a provider request.
+
+```text
+Activation prerequisite
+  -> source owner obtains written employer permission
+  -> source remains draft and ATS_SOURCE_SYNC_ENABLED remains false
+  -> operator records the final source permissions
+  -> operator enables the final private tenant, destination and cadence config
+  -> recorded-fixture and database validation
+  -> terms + authorization review after the configuration is final
+  -> activate the source in review mode while the environment gate stays false
+  -> controlled claimed dry run, then return the environment gate to false
+  -> named approval may leave scheduled acquisition enabled
+
+Netlify ATS schedule (02:35, 08:35, 14:35 and 20:35 UTC)
+  -> independent ATS_SOURCE_SYNC_ENABLED environment gate
+  -> if false, record a safe skip with no source/provider call
+  -> service-role worker lists currently authorized sources
+  -> generic database fetch claim enforces cadence, spacing and daily budget
+  -> fixed Greenhouse, Lever or Ashby endpoint builder
+       -> credential-free GET, no redirects, no referrer, no cache
+       -> caller-owned deadline and streamed 4 MiB limit
+       -> provider payload validation and 2,000-record ceiling
+       -> exact destination host + path-prefix validation
+       -> invalid records quarantined; no arbitrary fetch URL
+  -> begin one durable snapshot for that source
+  -> normalize and store bounded batches through service-role RPC
+  -> finalize as complete, partial, failed or quarantined
+  -> append count-only evidence
+  -> review mode keeps new/changed jobs pending
+```
+
+One invocation claims at most two sources and stops when the function deadline is too close. A skipped, partial, or failed invocation must not be reported as source freshness.
+
+The authorization migration keeps ATS tenant/network settings in `private.ats_source_configs`. It seeds no employer ATS source or configuration. Public and authenticated roles cannot read the employer grantor, authorization evidence, or private configuration. A shared internal predicate powers worker list, get, and claim operations and admits employer ATS rows only with `written_permission` or `commercial_contract`; it excludes paused, disabled, expired, revoked, removed-company, suspended-company, and configuration-mismatched sources. Changing source policy or ATS configuration pauses the source and invalidates the previous authorization review.
+
+The lifecycle migration rechecks the same authorization predicate at begin, batch, and finalization, so a mid-run pause, revocation, expiry, or configuration change fails closed. It permits only one unfinalized snapshot per source, validates destinations again at the database boundary, and writes append-only outcome/count evidence without provider descriptions.
+
+### Missing-job lifecycle
+
+A source record is not closed merely because it is absent once.
+
+- `complete` means the provider response was fully read and every provider record was either accepted with no errors or the run was otherwise proven error-free. Only this outcome can advance omission counters.
+- `partial` means the worker fetched provider records but could not finalize a fully accounted error-free snapshot, including an invalid, duplicated, unexpectedly filtered, or quarantined record. Valid rows may be updated, but no unseen record's omission counter changes.
+- `quarantined` is the zero-fetched outcome with one or more quarantines. `failed` is the ordinary zero-fetched error outcome. Neither changes omission counters or closes jobs.
+- Seeing a record in a later complete snapshot resets its omission counter to zero.
+- Two consecutive successful complete snapshots that omit the same source record expire its published job. A reviewed authoritative employer closure may expire it sooner.
+
+This rule handles a legitimate complete empty feed: the first complete empty snapshot records one omission; a second consecutive complete empty snapshot closes the still-missing jobs. A timeout, schema drift, truncated response, destination rejection, or isolated bad record cannot masquerade as an empty complete feed.
+
 ## Adapter contract
 
 Every adapter must provide a fixed source identity and return normalized jobs plus one source-derived `checkedAt`. It must never accept a user-controlled fetch URL. Before activation it needs:
@@ -57,6 +111,7 @@ Every adapter must provide a fixed source identity and return normalized jobs pl
 - homepage, terms URL/version/hash, review timestamp and required attribution;
 - allowed HTTPS host/path and redirect policy;
 - storage, public-listing, indexing and `JobPosting` permissions, all false by default;
+- email-distribution permission, false by default and independent from public listing;
 - source-specific deadline, decompressed-byte/record limits and cadence;
 - recorded fixtures for success, empty, malformed, oversized, timeout, 429 and 5xx responses;
 - idempotent source/external ID reconciliation and the shared canonical duplicate key;
@@ -76,22 +131,24 @@ Use this order:
 
 Do not build a generic crawler. Do not scrape LinkedIn, Indeed, Glassdoor, authenticated pages, search-result pages, anti-bot challenges, or any source without explicit authorization. Public reachability is not republication permission.
 
-An HTML adapter, if later approved, additionally requires a named SalaryPadi crawler user agent, DNS/private-network SSRF protection, one concurrent request per domain, `Retry-After` support, jittered backoff, robots caching/drift detection, extractor versioning, hostile-HTML tests, and automatic quarantine when terms/robots change. A failed or partial run can never close jobs; closure requires two successful complete snapshots omitting the source record or authoritative closure evidence.
+An HTML adapter, if later approved, additionally requires a named SalaryPadi crawler user agent, DNS/private-network SSRF protection, one concurrent request per domain, `Retry-After` support, jittered backoff, robots caching/drift detection, extractor versioning, hostile-HTML tests, and automatic quarantine when terms/robots change. The same two-complete-omission rule applies; failed, partial, and quarantined runs never close jobs.
 
 ## Verification
 
 Pull-request gates are deterministic and never consume provider quota:
 
 - shared-adapter contract and hostile-response tests;
+- recorded Greenhouse, Lever, and Ashby contract-drift fixtures, including empty and newly observed optional fields;
 - public repository policy, degraded-state, quarantine and dedupe tests;
 - protected refresh-route authorization/redaction tests;
 - worker policy/order/failure-recording tests;
 - deep alert-snapshot validation tests;
 - pgTAP policy privilege and pause/disable/re-enable tests;
+- pgTAP authorization-expiry, configuration-drift, destination-path, generic-budget, snapshot idempotency, partial-run, and two-complete-omission tests;
 - build, lint, typecheck and ordinary browser journeys.
 
 The production canary is scheduled for 01:20 and 13:20 UTC, fifteen minutes after the expected source runs. It requires a source success within the preceding two hours, then reads only SalaryPadi endpoints and proves a populated Remotive-backed list, a stable detail route, visible source evidence, noindex/no-`JobPosting` policy, and an HTTPS outbound source URL. It normally reuses the shared cache; if the cache is cold, the same database-backed limit of one request per minute and four requests per rolling 24 hours still applies before any provider call.
 
 ## Known scale boundary
 
-The current website and alert paths read at most 500 published database jobs before in-memory matching. Before employer/partner inventory approaches that size, move search/filtering and cursor pagination into database RPCs and partition alert matching into a durable queue. Import runs are intentionally evidence-only: both the admin screen and authoritative database boundary reject retry until a real, rate-aware consumer exists.
+The current website and alert paths read at most 500 published database jobs before in-memory matching. Before employer/partner inventory approaches that size, move search/filtering and cursor pagination into database RPCs and partition alert matching into a durable queue. The existing admin console exposes import evidence but no direct retry. ATS retries must be claimed by a real rate-aware worker and must reuse an idempotent run key rather than bypassing the generic source budget.

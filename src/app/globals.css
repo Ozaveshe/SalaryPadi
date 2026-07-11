@@ -189,17 +189,20 @@ a:hover {
   text-decoration: none;
 }
 
-.brand-dot {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border-radius: 999px 999px 999px 0.35rem;
-  background: var(--interactive-primary);
-  color: white;
-  font-size: 0.8rem;
-  letter-spacing: 0;
-  transform: rotate(-4deg);
+.brand-logo {
+  flex: none;
+}
+
+.brand-accent {
+  color: var(--interactive-primary);
+}
+
+.site-footer .brand-accent {
+  color: #eec75f;
+}
+
+.site-footer .brand-logo {
+  --brand-mark-fill: var(--forest-700);
 }
 
 .desktop-nav {
@@ -251,6 +254,10 @@ a:hover {
   background: var(--surface-page);
   padding: 0.75rem 1rem 1rem;
   box-shadow: var(--shadow-medium);
+}
+
+.mobile-nav:not([open]) .mobile-nav-panel {
+  display: none;
 }
 
 .site-main {
@@ -366,6 +373,7 @@ a:hover {
   font-weight: 750;
   line-height: 1.2;
   text-decoration: none;
+  box-shadow: 0 1px 2px rgb(16 47 40 / 20%);
   transition:
     background-color 120ms ease,
     border-color 120ms ease,
@@ -403,6 +411,7 @@ a:hover {
   border-color: transparent;
   background: transparent;
   color: var(--interactive-primary);
+  box-shadow: none;
 }
 
 .button-quiet:hover {
@@ -1015,16 +1024,41 @@ a:hover {
 }
 
 .home-start {
+  position: relative;
   display: grid;
   gap: 1.5rem;
+}
+
+.home-start::before {
+  content: "";
+  position: absolute;
+  top: -1.5rem;
+  right: calc(50% - 50vw);
+  left: calc(50% - 50vw);
+  z-index: -1;
+  height: 26rem;
+  background:
+    radial-gradient(
+      42rem 20rem at 82% 0%,
+      rgb(20 107 85 / 9%),
+      transparent 70%
+    ),
+    radial-gradient(
+      30rem 16rem at 8% 100%,
+      rgb(238 199 95 / 12%),
+      transparent 70%
+    );
+  pointer-events: none;
 }
 
 .home-search {
   display: grid;
   gap: 0.9rem;
-  border-block: 1px solid var(--border-default);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-medium);
   background: var(--surface-default);
   padding: 1rem;
+  box-shadow: var(--shadow-medium);
 }
 
 .home-entry-grid,
@@ -1043,6 +1077,12 @@ a:hover {
   border-bottom: 1px solid var(--border-default);
   padding: 1rem 0.25rem;
   text-decoration: none;
+  transition: background-color 120ms ease;
+}
+
+.home-entry-grid > a:hover,
+.tool-link-grid > a:hover {
+  background: var(--surface-brand-soft);
 }
 
 .home-entry-grid strong,

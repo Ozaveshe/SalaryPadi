@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(39);
+select plan(40);
 
 select ok(
   to_regclass('private.worker_runs') is not null
@@ -136,6 +136,24 @@ select is(
    where occurred_on = current_date and event_name = 'page_view' and route_group = '/jobs'),
   1,
   'analytics stores only the aggregate daily counter'
+);
+
+update private.analytics_daily_counts
+set event_count = 999999
+where occurred_on = current_date
+  and event_name = 'page_view'
+  and route_group = '/jobs';
+set local role anon;
+select api.capture_analytics_event('page_view', '/jobs');
+select api.capture_analytics_event('page_view', '/jobs');
+reset role;
+select is(
+  (select event_count::integer from private.analytics_daily_counts
+   where occurred_on = current_date
+     and event_name = 'page_view'
+     and route_group = '/jobs'),
+  1000000,
+  'anonymous analytics counters saturate at the bounded daily maximum'
 );
 
 select set_config(

@@ -41,6 +41,7 @@ function databaseRow() {
     may_store_full_description: true,
     may_index_jobs: true,
     may_emit_jobposting_schema: true,
+    may_email_jobs: true,
     required_destination_kind: "employer_application_url",
     refresh_interval_seconds: 86_400,
     terms_reviewed_at: "2026-07-10T00:00:00+00:00",
@@ -66,6 +67,7 @@ describe("database job normalization", () => {
     const job = mapDatabaseJobRow(databaseRow());
 
     expect(job).not.toBeNull();
+    expect(job?.source.canEmail).toBe(true);
     expect(job?.fingerprint).toBe(
       buildJobFingerprint({
         title: "Platform Engineer",

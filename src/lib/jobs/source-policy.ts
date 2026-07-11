@@ -19,6 +19,7 @@ export const REMOTIVE_SOURCE_POLICY: JobSourcePolicy = {
   canStoreFullDescription: false,
   canIndex: false,
   canUseJobPostingStructuredData: false,
+  canEmail: false,
   destinationRequirement: "Use the Remotive URL returned by the API.",
   // The scheduled refresh warms this same cache before publishing the alert
   // snapshot, so normal production operation uses two provider reads per day.

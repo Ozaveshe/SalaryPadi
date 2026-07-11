@@ -40,11 +40,15 @@ on conflict (id) do nothing;
 
 insert into app.job_sources (
   id, adapter_key, name, source_type, status, terms_url,
-  attribution_required, allow_public_listing, terms_reviewed_at
+  attribution_required, allow_public_listing, terms_reviewed_at,
+  terms_version, authorization_basis, authorization_evidence_ref,
+  authorization_reviewed_at
 )
 values (
   '30000000-0000-0000-0000-000000000001', 'test_source', 'Test Source',
-  'manual', 'active', 'https://example.test/terms', true, true, now()
+  'manual', 'active', 'https://example.test/terms', true, true, now(),
+  'test-source-terms-v1', 'first_party',
+  'test-fixture:owner-roles-and-moderation', now()
 )
 on conflict (id) do nothing;
 

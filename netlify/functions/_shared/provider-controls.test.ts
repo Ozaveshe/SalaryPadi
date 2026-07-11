@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { runAlertDelivery } from "../alert-delivery.mjs";
+import { runAtsSourceSync } from "../ats-source-sync.mjs";
 import { runCurrencyRates } from "../currency-rates";
 import { runJobSourceSync } from "../job-source-sync.mjs";
 import type { WorkerExecution } from "./runtime";
@@ -27,6 +28,7 @@ describe("scheduled provider controls", () => {
   it("skips disabled providers before any claim, fetch, or write", async () => {
     setEnvironment({
       REMOTIVE_SOURCE_ENABLED: "false",
+      ATS_SOURCE_SYNC_ENABLED: "false",
       EMAIL_PROVIDER: "none",
       CURRENCY_RATE_PROVIDER: "none",
     });
@@ -36,6 +38,10 @@ describe("scheduled provider controls", () => {
     await expect(runJobSourceSync(execution())).resolves.toMatchObject({
       status: "skipped",
       summary: { reason: "remotive_source_disabled" },
+    });
+    await expect(runAtsSourceSync(execution())).resolves.toMatchObject({
+      status: "skipped",
+      summary: { reason: "ats_source_sync_disabled" },
     });
     await expect(runAlertDelivery(execution())).resolves.toMatchObject({
       status: "skipped",

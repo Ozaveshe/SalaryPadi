@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#173b32"/>
+      <stop offset="1" stop-color="#102f28"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.85" cy="0.1" r="0.9">
+      <stop offset="0" stop-color="#146b55" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#146b55" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sp-soc" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#146b55"/>
+      <stop offset="1" stop-color="#102f28"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" fill="url(#bg)"/>
+  <rect width="1200" height="300" fill="url(#glow)"/>
+  <rect x="900" y="218.9" width="28.9" height="39.1" rx="6.8" fill="#146b55" opacity="0.92"/>
+  <rect x="947.6" y="191.7" width="28.9" height="66.3" rx="6.8" fill="#146b55" opacity="0.92"/>
+  <rect x="995.2" y="159.4" width="28.9" height="98.6" rx="6.8" fill="#c65332" opacity="0.92"/>
+  <rect x="1042.8" y="123.70000000000002" width="28.9" height="134.29999999999998" rx="6.8" fill="#eec75f" opacity="0.92"/>
+  <g transform="translate(56 42) scale(1.6)">
+    <path d="M24 0 A24 24 0 0 1 48 24 A24 24 0 0 1 24 48 H5 A5 5 0 0 1 0 43 V24 A24 24 0 0 1 24 0 Z" fill="url(#sp-soc)" stroke="#dcece5" stroke-opacity="0.25" stroke-width="0.75"/>
+
+    <g stroke="#ffffff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M17.5 34.5 V13.5 L30.5 34.5 V13.5" />
+      <path d="M12.5 20.5 H35.5" />
+      <path d="M12.5 27.5 H35.5" />
+    </g>
+    <circle cx="38.4" cy="9.6" r="3.1" fill="#eec75f"/>
+  </g>
+  <text x="154.8" y="94.22400000000002" font-family="'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="33.79200000000001" font-weight="700" letter-spacing="-0.5" fill="#fffaf2">Salary<tspan fill="#eec75f">Padi</tspan></text>
+  <text x="56" y="126" font-family="'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="23.04" font-weight="700" letter-spacing="4" fill="#eec75f">JOBS AND SALARY TRUTH FOR AFRICANS</text>
+  <text x="56" y="197.68" font-family="'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="64" font-weight="800" letter-spacing="-1.5" fill="#fffaf2">SalaryPadi</text>
+  <text x="56" y="252.08" font-family="'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="26.88" font-weight="500" fill="#dcece5">Source-checked jobs • Salary evidence • Decision tools</text>
+  <text x="56" y="269.2" font-family="'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="1" fill="#f8e8aa">salarypadi.com</text>
+</svg>

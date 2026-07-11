@@ -261,7 +261,12 @@ function inferExperienceLevel(title: string, tags: string[]): ExperienceLevel {
 }
 
 function parseAmount(rawValue: string): number | null {
-  const match = rawValue.replace(/,/g, "").match(/(\d+(?:\.\d+)?)\s*([kKmM])?/);
+  // A multiplier may be attached or separated by whitespace, but it must not
+  // start a longer word. This accepts "$120 k" while ensuring "60000 Kč" and
+  // "6,000 monthly" never read as 60000×1000 or 6000×1000000.
+  const match = rawValue
+    .replace(/,/g, "")
+    .match(/(\d+(?:\.\d+)?)(?:\s*([kKmM])(?!\p{L}))?/u);
   if (!match?.[1]) return null;
   const amount = Number(match[1]);
   const multiplier =

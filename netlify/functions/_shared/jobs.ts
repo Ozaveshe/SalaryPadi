@@ -349,12 +349,10 @@ export function matchAlertJobs(
   const cadenceCutoff = now.valueOf() - cadenceWindow * 86_400_000;
   const lastSent = claim.last_sent_at ? Date.parse(claim.last_sent_at) : 0;
   const cutoff = Math.max(cadenceCutoff, Number.isNaN(lastSent) ? 0 : lastSent);
-  // Remotive's current written contract is ambiguous about redistribution in
-  // private email. Keep the public attributed pilot, but do not email those
-  // rows until the source owner records explicit written permission.
-  const emailPermittedJobs = jobs.filter(
-    (job) => job.source.type === "employer" || job.source.type === "manual",
-  );
+  // Every source must opt in independently to private email distribution.
+  // Public listing permission, provider reachability, or an employer source
+  // type never implies permission to place a job in alerts.
+  const emailPermittedJobs = jobs.filter((job) => job.source.canEmail === true);
   return filterAndSortJobs(emailPermittedJobs, search)
     .filter((job) => Date.parse(job.postedAt) > cutoff)
     .slice(0, 10);

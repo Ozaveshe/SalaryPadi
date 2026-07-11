@@ -183,6 +183,7 @@ describe("alert source permissions", () => {
               id: "00000000-0000-4000-8000-000000000004",
               type: "employer",
               name: "Reviewed employer submission",
+              canEmail: true,
             },
           },
         ],

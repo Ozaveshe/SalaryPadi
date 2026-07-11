@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 236 48" width="236" height="48" role="img" aria-label="SalaryPadi">
+  <defs>
+    <linearGradient id="sp-lockup" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#146b55"/>
+      <stop offset="1" stop-color="#102f28"/>
+    </linearGradient>
+  </defs>
+  <path d="M24 0 A24 24 0 0 1 48 24 A24 24 0 0 1 24 48 H5 A5 5 0 0 1 0 43 V24 A24 24 0 0 1 24 0 Z" fill="url(#sp-lockup)"/>
+
+    <g stroke="#ffffff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M17.5 34.5 V13.5 L30.5 34.5 V13.5" />
+      <path d="M12.5 20.5 H35.5" />
+      <path d="M12.5 27.5 H35.5" />
+    </g>
+  <circle cx="38.4" cy="9.6" r="3.1" fill="#eec75f"/>
+  <text x="58" y="33.5" font-family="'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="26" font-weight="700" letter-spacing="-0.5" fill="#102f28">Salary<tspan fill="#146b55">Padi</tspan></text>
+</svg>

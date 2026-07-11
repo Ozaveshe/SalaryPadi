@@ -1,5 +1,7 @@
 # SalaryPadi
 
+![SalaryPadi — jobs and salary truth for Africans](public/brand/readme-banner.svg)
+
 SalaryPadi is an Africa-first job and career-intelligence product. The current launch market is Nigeria. It combines source-attributed remote jobs, private job tracking, moderated salary and workplace contributions, and local decision tools for take-home pay, offer comparison, and job-scam screening.
 
 The repository is deployable without fabricated data: public tools and trust pages work without a backend, the constrained Remotive pilot can be disabled, and account-backed features clearly require a dedicated SalaryPadi Supabase project.
@@ -107,6 +109,7 @@ netlify/functions/       Scheduled production workers and their shared adapters
 ## Operational documentation
 
 - [Product plan](docs/PRODUCT_PLAN.md)
+- [Brand assets and usage](docs/BRAND.md)
 - [Data sources and provenance](docs/DATA_SOURCES.md)
 - [Job ingestion architecture](docs/JOB_INGESTION_ARCHITECTURE.md)
 - [Security and privacy](docs/SECURITY.md)

@@ -104,6 +104,39 @@ The production `job-source-sync` worker first reads the service-role-only databa
 
 Admin source pause/disable is an acquisition boundary. The worker and public repository both fail closed before the provider call. The environment flag remains an independent emergency stop. Import runs are immutable evidence: the console exposes no retry action and the database rejects direct retry requests until a real rate-aware queue consumer exists.
 
+### Employer ATS activation and runbook
+
+The Greenhouse, Lever, and Ashby adapter, worker, and lifecycle code is implemented infrastructure. The `ats_source_sync` operational registration expects a six-hour run and becomes stale after fourteen hours, but provider acquisition must remain disabled with `ATS_SOURCE_SYNC_ENABLED=false` until the source owner has written permission. No employer source or private ATS configuration is seeded. The first recommended outreach candidates are Moniepoint Greenhouse and M-KOPA Ashby; neither has granted permission. Use the checklist and templates in [Source permission outreach](SOURCE_PERMISSION_OUTREACH.md), sending from `sources@salarypadi.com`, not a personal mailbox.
+
+Activation is an explicit change with separate evidence:
+
+1. Verify the official employer contact, ATS tenant, employer careers page, terms, and application destinations without running a production import.
+2. Obtain written permission that answers every acquisition, storage, public display, indexing, structured-data, attribution, email, cadence, retention, and takedown question. Record the named employer grantor, archive the response outside the repository, and put only a non-secret evidence reference in the source policy.
+3. Create the employer/company record and an `employer_ats` source in `draft`. Start with `allow_public_listing=false`, every optional use permission false, and the private ATS configuration `enabled=false`.
+4. While `ATS_SOURCE_SYNC_ENABLED=false`, set the complete intended source policy and private configuration: exact provider/region/tenant, destination host and path pairs, cadence, spacing, daily budget, `publication_mode=review`, and only the uses expressly granted. Enable the final private configuration while the source is still draft. Any later policy/configuration change invalidates the review in step 6.
+5. Run recorded fixtures and database tests against that final contract. Do not make a provider request yet.
+6. Review terms and authorization separately after the configuration is final. Record the named grantor, evidence reference, reviewers, dates, and expiry; then set the source active. The environment gate remains false, so this exposes no provider call. If public display was not granted, do not activate this public-ingestion path.
+7. For a controlled review-only dry run, temporarily enable the environment gate, invoke the worker once, then return the gate to false while evidence is reviewed. Do not bypass `worker_claim_ats_source_fetch`; a manual trigger still consumes the generic per-source budget.
+8. Reconcile provider count, accepted/filtered count, quarantine codes, destination hosts, created/updated/unchanged counts, and append-only evidence. Any invalid, duplicate, or quarantined record makes the snapshot partial.
+9. Publish pending jobs only through normal moderation. Automatic publication requires an additional policy/configuration change, a fresh authorization review, and a published, domain- or organization-verified company.
+10. Prove the environment gate, pause, revocation, expiry, configuration drift, and company suspension all stop acquisition/public reads. Obtain a separate named change approval before leaving the environment gate true for scheduled acquisition.
+
+Normal ATS snapshot handling is begin, bounded batch storage, then finalization. Only a successful `complete` finalization can advance missing-record state. One complete omission increments the record's counter; a second consecutive successful complete omission expires the published job. A later complete sighting resets the counter. Partial, failed, and quarantined outcomes never increment omission counters and never close jobs. Therefore, an isolated malformed destination or provider schema change cannot remove valid inventory.
+
+The ATS kill switches are independent and fail closed:
+
+- set `ATS_SOURCE_SYNC_ENABLED=false` to stop all ATS provider acquisition without a code or database change;
+- set the source `status` to `paused` or `disabled`;
+- revoke or expire its authorization record;
+- set its private ATS configuration `enabled=false`;
+- suspend or remove the linked company;
+- change a reviewed policy/configuration field, which automatically pauses the source and clears prior authorization review;
+- stop or remove the Netlify schedule if the environment gate cannot be trusted or the deployed worker itself is defective.
+
+After any kill-switch action, verify the worker list/get RPC returns no configuration, the generic fetch claim returns false, public source/job policies exclude the source, and no new snapshot begins. Preserve import IDs, safe error codes, counts, and evidence references; never paste provider payloads, descriptions, or private correspondence into logs.
+
+For recovery, correct the policy or configuration while the source remains paused, refresh written permission or terms review when applicable, rerun recorded fixtures and a review-only claimed validation, obtain named approval, and only then re-enable. Do not reset omission counters manually and do not replay a partial run as complete.
+
 ## Aggregate refresh
 
 The daily `operations-maintenance` worker processes salary and company-rating queues through the restricted maintenance RPC. For an incident-only manual recovery, a restricted database operator can run:
@@ -126,14 +159,17 @@ The automated path runs only from a Netlify Function with a Functions-only produ
 
 ## Worker and email operations
 
-| Task key                 | Netlify function         | UTC schedule             | Success evidence                                                              | Failure action                                                                |
-| ------------------------ | ------------------------ | ------------------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `job_source_sync`        | `job-source-sync`        | Daily at 01:05 and 13:05 | Source import row, description-free catalog count, and successful tracked run | Disable source on terms/schema failure; never substitute fabricated jobs      |
-| `alert_delivery`         | `alert-delivery`         | Every ten minutes        | Claimed/sent/skipped/failed counts; provider message ID only                  | Retry with idempotency; terminal failures move to `dead` for operator review  |
-| `currency_rates`         | `currency-rates`         | Daily at 02:25           | Reviewed InforEuro rate set, data month, source URL, and 42 cross-rates       | Keep the last disclosed set; UI must label it stale and allow manual override |
-| `operations_maintenance` | `operations-maintenance` | Daily at 02:45           | Expiry, retention, delivery recovery, and aggregate counts                    | Run the focused RPC only after diagnosing the failed step                     |
+| Task key                 | Netlify function         | UTC schedule               | Success evidence                                                              | Failure action                                                                |
+| ------------------------ | ------------------------ | -------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `job_source_sync`        | `job-source-sync`        | Daily at 01:05 and 13:05   | Source import row, description-free catalog count, and successful tracked run | Disable source on terms/schema failure; never substitute fabricated jobs      |
+| `ats_source_sync`        | `ats-source-sync`        | 02:35, 08:35, 14:35, 20:35 | Safe disabled skip, or claimed source plus append-only snapshot counts        | Set the environment gate false; pause any affected source/configuration       |
+| `alert_delivery`         | `alert-delivery`         | Every ten minutes          | Claimed/sent/skipped/failed counts; provider message ID only                  | Retry with idempotency; terminal failures move to `dead` for operator review  |
+| `currency_rates`         | `currency-rates`         | Daily at 02:25             | Reviewed InforEuro rate set, data month, source URL, and 42 cross-rates       | Keep the last disclosed set; UI must label it stale and allow manual override |
+| `operations_maintenance` | `operations-maintenance` | Daily at 02:45             | Expiry, retention, delivery recovery, and aggregate counts                    | Run the focused RPC only after diagnosing the failed step                     |
 
 Every function first creates an idempotent `private.worker_runs` row. Scheduled invocation keys prevent a duplicate Netlify delivery from running the same interval twice. Normal logs contain task keys, counts, provider-safe IDs, and error codes only—never recipient addresses, alert queries, contribution text, salary amounts, or secrets.
+
+Each ATS invocation processes at most two due authorized sources. Do not increase that cap or the per-source deadline without load evidence and a reviewed Netlify runtime budget. A recent disabled skip proves the kill switch and schedule are alive; it does not prove employer authorization or provider availability.
 
 Alert delivery currently claims at most one recipient every ten minutes, for a hard ceiling of 144 claims per day before retries. Monitor pending count and oldest due delivery; move to a queue/background dispatcher before expected due volume reaches 100 per day or an item waits more than 20 minutes. Do not raise the per-invocation claim cap while the function remains under the 30-second scheduled-function deadline.
 
@@ -145,10 +181,11 @@ Assign every correction, export, account-deletion, and contribution-deletion req
 
 ## Daily checks
 
-- `/api/health` responds, reports the expected provider configuration, and shows all four tracked workers inside their stale thresholds. Source-provider availability still needs its own run evidence.
+- `/api/health` responds, reports the expected provider configuration, and shows every registered worker inside its stale threshold. While ATS acquisition is disabled, `ats_source_sync` should have recent safe-skip evidence and zero provider requests. Source-provider availability still needs its own run evidence.
 - The scheduled GitHub production canary runs at 01:20 and 13:20 UTC and proves a populated Remotive-backed listing, stable detail route, attribution, noindex/structured-data policy, and HTTPS source destination without calling Remotive itself.
 - Public pages, sign-in, save/apply/alert flows, and admin gates behave as expected.
 - Source freshness and outbound application links are within policy.
+- If any ATS source is ever enabled, its authorization/terms have not expired, its latest append-only snapshot evidence matches the worker result, quarantine is zero for a complete run, and its request count remains inside the configured budget.
 - Moderation, report, employer-submission, aggregate-refresh, and privacy queues have named owners and no unbounded age.
 - Error, auth, and source-failure alerts have no unexplained spikes.
 - No secret, raw contribution, salary amount, email, or application note appears in ordinary logs/analytics.
@@ -162,6 +199,8 @@ Follow [Deployment](DEPLOYMENT.md). Record the Git revision, migration set, envi
 | Incident                               | First safe action                                                      |
 | -------------------------------------- | ---------------------------------------------------------------------- |
 | Remotive terms or availability problem | Set `REMOTIVE_SOURCE_ENABLED=false`                                    |
+| Any ATS-wide acquisition incident      | Set `ATS_SOURCE_SYNC_ENABLED=false`                                    |
+| ATS permission, terms, or schema drift | Pause the source and disable its private ATS configuration             |
 | Malicious/incorrect job destination    | Disable/remove the listing and preserve identifiers                    |
 | Sensitive community content published  | Remove the public projection; restrict case access; escalate           |
 | Account or staff compromise            | Suspend access, revoke sessions/role, rotate affected credentials      |

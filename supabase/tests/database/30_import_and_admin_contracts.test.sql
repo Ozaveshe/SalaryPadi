@@ -79,18 +79,22 @@ on conflict (user_id, role) where revoked_at is null do nothing;
 insert into app.job_sources (
   id, adapter_key, name, source_type, status, terms_url,
   attribution_required, may_store_full_description, may_index_jobs,
-  allow_public_listing, terms_reviewed_at
+  allow_public_listing, terms_reviewed_at, terms_version,
+  authorization_basis, authorization_evidence_ref,
+  authorization_reviewed_at
 )
 values
   (
     'ab000000-0000-0000-0000-000000000001', 'import_contract', 'Import Contract',
     'permitted_api', 'active', 'https://source.example.test/terms', true,
-    true, true, true, now()
+    true, true, true, now(), 'import-contract-terms-v1',
+    'documented_public_api', 'test-fixture:import-contract', now()
   ),
   (
     'ab000000-0000-0000-0000-000000000002', 'metadata_only', 'Metadata Only',
     'permitted_api', 'active', 'https://metadata.example.test/terms', true,
-    false, true, true, now()
+    false, true, true, now(), 'metadata-only-terms-v1',
+    'documented_public_api', 'test-fixture:metadata-only', now()
   )
 on conflict (id) do nothing;
 

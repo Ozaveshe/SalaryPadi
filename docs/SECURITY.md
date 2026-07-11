@@ -27,6 +27,8 @@ The application follows these boundaries:
 - External destinations accept HTTPS URLs under explicit fixed-host policy; suffix-collision hosts are rejected and source HTML is converted to plain text.
 - A nonce-based Content Security Policy, frame denial, MIME sniffing protection, restrictive permissions policy, and no-store headers protect browser surfaces.
 - Contribution, alert, employer-submission, privacy-request, and reporting functions enforce per-account database rate limits.
+- Two Netlify edge rate-limit rules bound direct scripted use of the server-key-backed tool APIs (`/api/tools/*`, 20/60s per IP) and the OTP sign-in and auth routes (`/api/auth/*`, 10/60s per IP), which would otherwise allow one IP to flood third-party mailboxes with magic-link email.
+- The anonymous first-party analytics counter is capped at one million events per day per event/route cell, so direct PostgREST calls cannot overflow or run the counter to absurd values; the fixed allow-listed key space already prevents row growth.
 - Moderation transitions require a reason, use an expected version to prevent stale writes, and append actor/action state to audit records.
 - Raw community content is private. Reviews and interview experiences publish from a separate redacted projection.
 - Salary publication uses distinct-contributor thresholds, a 24-hour lag, a 36-month window, rounded values, and sparse-cell suppression. Individual salary submissions are never exposed through the public API.
@@ -72,6 +74,7 @@ The daily maintenance worker removes aggregate analytics counts after 90 days, w
 - Human moderation remains necessary for personal information, threats, harassment, confidential material, defamation risk, manipulation, and employer brigading.
 - The scam checker is an educational, explainable heuristic. It does not fetch or certify a URL and cannot guarantee legitimacy.
 - Source availability and terms can change independently of a successful application build.
+- `/api/health` (and the anon-executable `api.get_worker_health` behind it) intentionally reports configuration booleans and worker freshness without authentication because the deployment and operations runbooks and the scheduled smoke workflow consume it. This is an accepted reconnaissance trade-off: it exposes no secret values, only operational topology. Revisit if worker failure timing ever becomes a meaningful abuse signal.
 - Next.js 16.2.10 is the current stable release and still pins an affected PostCSS version. The lockfile uses a tested `postcss@8.5.10` override; `npm audit` reports zero known vulnerabilities. Re-test the override on every Next.js upgrade and remove it once the framework pins a fixed compatible version.
 - Dependency findings can change after this review. Run `npm audit --omit=dev` during every release; assess exploitability and supported upgrades rather than applying forced/downgrade fixes blindly.
 

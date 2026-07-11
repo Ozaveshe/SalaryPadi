@@ -54,6 +54,9 @@ export function trackEvent(
   }
   assertPrivacySafeAnalytics(properties);
   if (typeof window === "undefined") return;
+  // Properties are validated at the call site but deliberately never
+  // transmitted: the server stores only daily (event, route-group) totals.
+  // Do not add them to the body without revisiting the privacy policy.
   void fetch("/api/analytics/events", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

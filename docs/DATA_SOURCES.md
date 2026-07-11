@@ -8,6 +8,8 @@ SalaryPadi does not treat a reachable feed as permission to republish it. Every 
 | ----------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------------------ |
 | Remotive public API                                   | Constrained production pilot; terms reviewed 2026-07-10 | Yes, while both source gates are enabled           | Tagged twelve-hour public cache, one current description-free alert snapshot, and import-run evidence; no durable full description history | No                                    | The Remotive URL returned by the API |
 | Employer submissions                                  | Moderated intake                                        | Only after approval                                | Structured submission and audit history                                                                                                    | Only after approval and policy review | Validated HTTPS application URL      |
+| Moniepoint Greenhouse                                 | Candidate pilot only; permission not received; disabled | No                                                 | No production acquisition or storage                                                                                                       | No                                    | Not approved                         |
+| M-KOPA Ashby                                          | Candidate pilot only; permission not received; disabled | No                                                 | No production acquisition or storage                                                                                                       | No                                    | Not approved                         |
 | Community salary, review, and interview contributions | Moderated intake                                        | Thresholded aggregate or redacted publication only | Private raw record plus approved public projection                                                                                         | Sparse/private states are not indexed | SalaryPadi detail page               |
 | Direct licensed feeds                                 | Not configured                                          | No                                                 | No                                                                                                                                         | No                                    | Provider-specific agreement required |
 
@@ -33,9 +35,29 @@ Terms basis: the official [Remotive public API repository](https://github.com/re
 
 The interim source and terms owner is Oza at `sources@salarypadi.com`. The `job-source-sync` function validates the authoritative database policy, asks the protected web route to read or revalidate the shared public cache, records counts and a provider-safe error code, and replaces one site-scoped Netlify Blob used by alert delivery. That snapshot contains normalized matching facts but explicitly removes descriptions, requirements, benefits, and risk text; it has no historical keys. Ten-minute alert delivery never calls Remotive independently. Pull-request CI uses recorded fixtures; the scheduled post-sync production canary checks the user-visible flow through SalaryPadi, and any cold-cache provider request remains inside the durable database budget.
 
-Remotive-backed rows are excluded from private alert emails until written permission explicitly covers email redistribution. Until a false-by-default email-distribution permission is added to the source registry, alerts can send only reviewed direct-employer or manual jobs; API and partner rows remain excluded. Public Remotive pages continue to show visible attribution and the direct returned source URL without an account gate.
+Remotive-backed rows are excluded from private alert emails until written permission explicitly covers email redistribution. The prepared source-authorization migration adds a false-by-default `may_email_jobs` permission and records Remotive as `false`; the existing alert path also suppresses Remotive independently. Public Remotive pages continue to show visible attribution and the direct returned source URL without an account gate.
 
 Remotive is a global remote-job feed, not a nationwide Nigeria source. SalaryPadi must not claim nationwide completeness until employer-authorized ATS/feed coverage exists. The full current and target design is in [Job ingestion architecture](JOB_INGESTION_ARCHITECTURE.md).
+
+## Employer ATS authorization boundary
+
+The repository contains a disabled-by-default Greenhouse, Lever, and Ashby adapter contract under `src/lib/jobs/ats/`, normalization and quarantine logic in `src/lib/jobs/ats-import.ts`, the gated `netlify/functions/ats-source-sync.mts` worker, and prepared database migrations for source authorization and snapshot lifecycle. These files are infrastructure, not permission. They do not authorize SalaryPadi to fetch, store, publish, index, or email any employer's jobs, and they seed no employer ATS source or private ATS configuration. The only conservative authorization backfills are for existing first-party employer submissions and the constrained Remotive source.
+
+The prepared policy requires all of the following before a worker can obtain an ATS source configuration:
+
+- an `employer_ats` source row with current terms review and current authorization evidence;
+- an authorization basis of `written_permission` or `commercial_contract` for an employer pilot;
+- a named employer grantor, non-secret evidence reference, reviewer, review date, and optional expiry;
+- false-by-default permissions for description storage, indexing, `JobPosting`, and email distribution;
+- an enabled private provider/tenant configuration with exact HTTPS destination hosts and path prefixes;
+- matching cadence, per-source daily budget, and minimum spacing;
+- a company that is not removed or suspended; automatic publication additionally requires a published, verified company.
+
+Policy or ATS configuration changes automatically pause the source and clear the prior authorization review. Expiry or revocation also removes the source from the public and worker authorization predicates. Service-role list/get/claim RPCs all use the same predicate, so an application caller cannot manufacture authorization by constructing a TypeScript object.
+
+The lifecycle migration registers `ats_source_sync` on a six-hour expected interval with a fourteen-hour stale threshold, but `ATS_SOURCE_SYNC_ENABLED=false` is an independent environment stop and no ATS source/configuration is seeded. It keeps one running snapshot per source, records append-only count evidence without provider descriptions, and rechecks authorization on every begin, batch, and finalization operation. Invalid or duplicate records are quarantined. A run that fetched provider records but has any quarantine/error is partial; a zero-fetched run with quarantines is quarantined, and an ordinary zero-fetched error is failed. None of those outcomes increments omission counters or closes jobs. Only a successful, fully accounted complete snapshot may increment an unseen record's omission count; a published job expires only after two consecutive successful complete snapshots omit it. An authoritative employer closure can be handled separately by a reviewed operator action.
+
+These migrations and adapters must not be described as live until the production migration list, database tests, worker configuration, and a disabled-source production smoke have all been verified. See [Source permission outreach](SOURCE_PERMISSION_OUTREACH.md) before contacting a candidate employer.
 
 ## Currency reference data
 
@@ -72,19 +94,22 @@ Unknown data stays unknown. Do not invent salary ranges, locations, benefits, co
 
 ## Source onboarding checklist
 
-Before setting `allow_public_listing=true` for a database-backed source:
+Before leaving ATS scheduled acquisition enabled:
 
 1. Record the official homepage and terms URL.
-2. Record who reviewed the terms, when, and which terms version applied.
-3. Decide whether full descriptions may be stored, jobs may be indexed, and `JobPosting` schema may be emitted. Default every permission to false.
-4. Record required attribution text and destination behavior.
-5. Set a refresh interval of at least 15 minutes and a failure/backoff policy.
-6. Define raw-record retention and implement a purge before retaining raw payloads.
-7. Validate sample payloads, URL protocols, location evidence, salary units, and duplicate behavior.
-8. Test source pause/disable, stale content, removal, and takedown flows.
-9. Have a data-quality owner approve activation.
+2. Obtain written permission or a commercial contract that names the employer/tenant and SalaryPadi use case; public endpoint reachability is not permission.
+3. Decide separately whether SalaryPadi may acquire jobs, store full descriptions, show public listings, index pages, emit `JobPosting`, and include jobs in email alerts. Default every permission to false.
+4. Create a draft source and disabled private configuration while `ATS_SOURCE_SYNC_ENABLED=false`.
+5. Record the complete intended policy: required attribution, canonical destination, allowed HTTPS host/path pairs, retention/purge, cadence of at least 15 minutes, minimum spacing, daily budget, timeout, backoff, and `Retry-After` behavior.
+6. Enable the final private configuration while the source is still draft and the environment gate is false.
+7. Validate recorded provider payloads, URL protocols, location evidence, salary units, empty snapshots, duplicate behavior, and contract drift without making a production provider request.
+8. After the policy/configuration is final, record the named employer grantor, non-secret evidence reference, authorization reviewer/date/expiry/takedown contact, and separate terms version/hash/reviewer/date.
+9. Activate the source in review mode while the environment gate remains false. If public display was not expressly granted, do not activate this ingestion path.
+10. Temporarily enable the gate for one claimed review-only run, then restore it to false while reconciling provider/accepted/filtered counts, quarantines, destinations, database writes, and append-only evidence.
+11. Test configuration drift, authorization expiry/revocation, company suspension, environment/source/configuration kill switches, two-complete-omission expiry, and takedown flows.
+12. Have the named data-quality owner approve leaving scheduled acquisition enabled and record the decision. Automatic publication requires its own reviewed policy/configuration change and fresh authorization review.
 
-The database prevents public activation without a recorded terms-review timestamp, but that constraint is not a substitute for human approval.
+The database boundary requires both current terms review and current authorization evidence, but that constraint is not a substitute for human approval. Policy or configuration changes made after authorization review pause/revoke the source, intentionally requiring review of the new final contract.
 
 ## Freshness and failure states
 

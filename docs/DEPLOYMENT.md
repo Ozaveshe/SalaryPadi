@@ -8,21 +8,22 @@ Use separate Supabase and web-hosting projects for local development, staging, a
 
 Required web configuration:
 
-| Variable                               | Production value                                  |
-| -------------------------------------- | ------------------------------------------------- |
-| `NEXT_PUBLIC_APP_URL`                  | `https://salarypadi.com`                          |
-| `NEXT_PUBLIC_SUPABASE_URL`             | Dedicated environment’s Supabase URL              |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Matching publishable key                          |
-| `REMOTIVE_SOURCE_ENABLED`              | `true` only while the reviewed pilot is approved  |
-| `ALLOW_DEMO_DATA`                      | Always `false`                                    |
-| `ANALYTICS_PROVIDER`                   | `supabase_first_party`                            |
-| `EMAIL_PROVIDER`                       | `resend`                                          |
-| `CURRENCY_RATE_PROVIDER`               | `european_commission_inforeuro`                   |
-| `TRANSACTIONAL_EMAIL_FROM`             | `SalaryPadi <updates@mail.salarypadi.com>`        |
-| `TRANSACTIONAL_EMAIL_REPLY_TO`         | `support@salarypadi.com`                          |
-| `RESEND_API_KEY`                       | Protected production secret, Functions scope only |
-| `SUPABASE_SERVICE_ROLE_KEY`            | Protected production secret, Functions scope only |
-| `JOB_SOURCE_SYNC_TOKEN`                | Independent protected internal-refresh bearer     |
+| Variable                               | Production value                                   |
+| -------------------------------------- | -------------------------------------------------- |
+| `NEXT_PUBLIC_APP_URL`                  | `https://salarypadi.com`                           |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Dedicated environment’s Supabase URL               |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Matching publishable key                           |
+| `REMOTIVE_SOURCE_ENABLED`              | `true` only while the reviewed pilot is approved   |
+| `ATS_SOURCE_SYNC_ENABLED`              | `false` until a separately approved ATS activation |
+| `ALLOW_DEMO_DATA`                      | Always `false`                                     |
+| `ANALYTICS_PROVIDER`                   | `supabase_first_party`                             |
+| `EMAIL_PROVIDER`                       | `resend`                                           |
+| `CURRENCY_RATE_PROVIDER`               | `european_commission_inforeuro`                    |
+| `TRANSACTIONAL_EMAIL_FROM`             | `SalaryPadi <updates@mail.salarypadi.com>`         |
+| `TRANSACTIONAL_EMAIL_REPLY_TO`         | `support@salarypadi.com`                           |
+| `RESEND_API_KEY`                       | Protected production secret, Functions scope only  |
+| `SUPABASE_SERVICE_ROLE_KEY`            | Protected production secret, Functions scope only  |
+| `JOB_SOURCE_SYNC_TOKEN`                | Independent protected internal-refresh bearer      |
 
 Never expose a service-role key through a `NEXT_PUBLIC_*` variable. Production configuration rejects demo data.
 
@@ -51,6 +52,18 @@ supabase test db
 8. Bootstrap the first administrator using the two-person procedure in [Operations](OPERATIONS.md), then verify AAL2 access and audit output.
 
 The hosted migration set through `20260710001000` is applied and recorded. Live API types are generated in `src/lib/supabase/database.types.ts`; the Phase Two operations suite adds 37 pgTAP assertions for worker authorization, idempotency, alert claims, analytics aggregation, rate provenance, maintenance, invoker-only public wrappers, narrow internal-routine resolution, and bounded source cadence. The repository-wide schema suite also requires forced RLS on every new private operations table. Supabase Auth uses `https://salarypadi.com` as its Site URL while retaining the Netlify production and preview confirmation/callback routes needed for rollback and deploy previews. Authentication email templates must send `TokenHash` to `/auth/confirm`; do not restore fragment or same-browser PKCE-only links.
+
+The repository also prepares `20260711053000_ats_source_authorization.sql` and `20260711054000_ats_snapshot_lifecycle.sql`. Treat both as unapplied until the release evidence records the exact hosted migration versions and passing database tests. Applying them creates a fail-closed authorization/lifecycle boundary and registers the operational task; it does not configure, authorize, or enable an employer ATS source.
+
+Before applying the ATS migrations:
+
+1. Verify the connected project URL is exactly `https://bxelrhklsznmpksgrqep.supabase.co` and the project reference is `bxelrhklsznmpksgrqep`.
+2. Review the authorization backfill for the existing employer-submission and Remotive rows. Unknown active sources will be paused.
+3. Run the complete pgTAP suite on a clean local or disposable staging database, including authorization expiry/revocation, configuration drift, private-table privilege, generic budget, destination path, snapshot idempotency, partial/quarantine, and two-complete-omission cases.
+4. Confirm generated API types do not expose private ATS configuration or authorization evidence to browser clients.
+5. Prepare a forward-fix migration and source-pause procedure. Do not rely on a destructive down migration.
+
+After applying them, and before allowing any ATS provider acquisition, verify an empty authorized-source list, a false claim for an unconfigured candidate, no public access to private ATS tables/evidence, and unchanged Remotive public/noindex/email-suppression behavior. Moniepoint and M-KOPA must remain absent or disabled until written permission is recorded.
 
 ## Web build and deployment
 
@@ -87,12 +100,15 @@ Do not deploy as a static export; authentication, CSP, server-side source reads,
 
 Published production deploys register these Netlify schedules:
 
-| Function                 | Schedule (UTC) | Stale after | Purpose                                                                                                                                                  |
-| ------------------------ | -------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `job-source-sync`        | `5 1,13 * * *` | 14 hours    | Enforce source policy, read or revalidate the shared public Remotive cache, replace the description-free alert snapshot, and record source/import health |
-| `alert-delivery`         | `*/10 * * * *` | 35 minutes  | Claim due daily/weekly alerts idempotently and send matching jobs                                                                                        |
-| `currency-rates`         | `25 2 * * *`   | 36 hours    | Store the current European Commission InforEuro monthly reference set and provenance                                                                     |
-| `operations-maintenance` | `45 2 * * *`   | 36 hours    | Expire jobs, process aggregate queues, retry/dead-letter deliveries, and enforce retention                                                               |
+| Function                 | Schedule (UTC)       | Stale after | Purpose                                                                                                                                                  |
+| ------------------------ | -------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `job-source-sync`        | `5 1,13 * * *`       | 14 hours    | Enforce source policy, read or revalidate the shared public Remotive cache, replace the description-free alert snapshot, and record source/import health |
+| `ats-source-sync`        | `35 2,8,14,20 * * *` | 14 hours    | Record a safe skip while `ATS_SOURCE_SYNC_ENABLED=false`; otherwise claim at most two currently authorized employer ATS sources per invocation           |
+| `alert-delivery`         | `*/10 * * * *`       | 35 minutes  | Claim due daily/weekly alerts idempotently and send matching jobs                                                                                        |
+| `currency-rates`         | `25 2 * * *`         | 36 hours    | Store the current European Commission InforEuro monthly reference set and provenance                                                                     |
+| `operations-maintenance` | `45 2 * * *`         | 36 hours    | Expire jobs, process aggregate queues, retry/dead-letter deliveries, and enforce retention                                                               |
+
+The ATS schedule is operational scaffolding, not source authorization. Keep `ATS_SOURCE_SYNC_ENABLED=false`; with no seeded employer source/configuration, it must make no provider request. After written permission and final policy/config review, a controlled one-off gate activation may perform the claimed review-only production dry run. Return the gate to false while reviewing budget, snapshot, quarantine, moderation, and kill-switch evidence; leaving it true for schedules requires a separate named approval.
 
 After every production deploy, use Netlify's scheduled-function **Run now** control once for each function. Verify one new `private.worker_runs` success per task and check `/api/health`; a configured schedule is not proof that a worker executed.
 
@@ -108,6 +124,8 @@ Use a dedicated staging backend and non-sensitive test accounts.
 - Verify admin denial for ordinary users, AAL1 denial for staff, AAL2 staff access, stale-version rejection, and audit creation.
 - Approve redacted review/interview test data and a threshold-crossing salary batch; verify no identity fields or sparse values reach public responses.
 - Verify source attribution and that Remotive-backed pages remain `noindex` without `JobPosting` schema. Run the same `live-jobs.spec.ts` canary used by the scheduled production workflow.
+- Verify the service-role ATS list/get/claim boundary returns no employer source unless its current terms, authorization, company, cadence, private configuration, and publication policy all agree.
+- With a disabled staging fixture only, prove a policy/configuration change pauses the source, a partial/quarantined snapshot cannot close jobs, and only two consecutive complete omissions expire a published job.
 - Verify cross-origin state changes, unsafe redirects, non-HTTPS destinations, oversized inputs, and raw HTML are rejected.
 
 ## Production release order
@@ -117,7 +135,7 @@ Use a dedicated staging backend and non-sensitive test accounts.
 3. Back up the production database and verify restore status.
 4. Apply backward-compatible database migrations first.
 5. Deploy the web artifact.
-6. Start each scheduled worker only after both schema and web compatibility are verified; run it manually once and record the run ID, deploy ID, summary, and stale threshold.
+6. Start each scheduled worker only after both schema and web compatibility are verified; run it manually once and record the run ID, deploy ID, summary, and stale threshold. The ATS worker must produce a disabled safe skip with zero provider requests while `ATS_SOURCE_SYNC_ENABLED=false`.
 7. Perform production smoke checks without creating real-looking public data.
 8. Monitor errors, auth, queues, source health, and aggregate jobs through the agreed observation window.
 
@@ -130,6 +148,8 @@ Redeploy the previous known-good immutable artifact and restore its environment 
 ### Source rollback
 
 Set `REMOTIVE_SOURCE_ENABLED=false` to stop the live pilot immediately. For database-backed sources, pause/disable the source and expire or remove content that cannot be trusted.
+
+For an ATS-wide rollback, first set `ATS_SOURCE_SYNC_ENABLED=false`. For an individual future employer source, set the source to `paused` and its private configuration to `enabled=false`. If permission was withdrawn, record revocation and the non-sensitive reason. Company suspension/removal, authorization expiry/revocation, source pause, configuration disable, and the environment gate independently stop acquisition. Verify list/get returns no row, a new fetch claim returns false, no snapshot can begin/finalize, and public policy excludes its jobs. Use a reviewed forward migration if the database boundary itself is defective.
 
 ### Database rollback
 
@@ -145,7 +165,9 @@ Close every release with separate proof for:
 - web deployment artifact;
 - production route/header smoke;
 - live dependency/source health;
-- worker/schedule health for all four production tasks, including a manual post-deploy run.
+- worker/schedule health for every registered production task, including a manual post-deploy run.
+
+If the release includes ATS infrastructure, record separately that `ATS_SOURCE_SYNC_ENABLED=false`, candidate employers remain disabled, the authorized-source list is empty, the scheduled worker produced a safe skip, and no provider request occurred. If a later release enables a source, add the written-permission evidence reference, exact source/config policy, budget claim, complete snapshot outcome, quarantine count, public moderation result, and kill-switch smoke without including private correspondence or payloads.
 
 End the release record with one outcome: `released`, `rolled back`, or `blocked`. A prepared artifact or green local build is not a live release.
 

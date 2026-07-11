@@ -123,6 +123,40 @@ describe("salary and duplicate normalization", () => {
     });
   });
 
+  it("does not read a following word as a magnitude multiplier", () => {
+    expect(parseSalary("40000 - 60000 Kč")).toMatchObject({
+      minimum: 40_000,
+      maximum: 60_000,
+    });
+    expect(parseSalary("$4,000 - $6,000 monthly")).toMatchObject({
+      currency: "USD",
+      minimum: 4_000,
+      maximum: 6_000,
+      payPeriod: "monthly",
+    });
+    expect(parseSalary("₦250,000 monthly")).toMatchObject({
+      currency: "NGN",
+      minimum: 250_000,
+      maximum: 250_000,
+      payPeriod: "monthly",
+    });
+  });
+
+  it("honors attached and spaced magnitude suffixes", () => {
+    expect(parseSalary("$120k - $150k per year")).toMatchObject({
+      currency: "USD",
+      minimum: 120_000,
+      maximum: 150_000,
+      payPeriod: "annual",
+    });
+    expect(parseSalary("$120 k - $150 k per year")).toMatchObject({
+      currency: "USD",
+      minimum: 120_000,
+      maximum: 150_000,
+      payPeriod: "annual",
+    });
+  });
+
   it("creates stable duplicate fingerprints", () => {
     const first = buildJobFingerprint({
       title: "Senior Engineer",

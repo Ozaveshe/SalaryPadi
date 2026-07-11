@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -192,8 +192,8 @@ export type Database = {
           may_index_jobs: boolean | null;
           may_store_full_description: boolean | null;
           name: string | null;
-          required_destination_kind: string | null;
           refresh_interval_seconds: number | null;
+          required_destination_kind: string | null;
           source_type:
             | "direct_employer"
             | "partner_feed"
@@ -202,8 +202,8 @@ export type Database = {
             | "manual"
             | null;
           terms_reviewed_at: string | null;
-          terms_version: string | null;
           terms_url: string | null;
+          terms_version: string | null;
         };
         Insert: {
           adapter_key?: string | null;
@@ -216,8 +216,8 @@ export type Database = {
           may_index_jobs?: boolean | null;
           may_store_full_description?: boolean | null;
           name?: string | null;
+          refresh_interval_seconds?: never;
           required_destination_kind?: string | null;
-          refresh_interval_seconds?: number | null;
           source_type?:
             | "direct_employer"
             | "partner_feed"
@@ -226,8 +226,8 @@ export type Database = {
             | "manual"
             | null;
           terms_reviewed_at?: string | null;
-          terms_version?: string | null;
           terms_url?: string | null;
+          terms_version?: string | null;
         };
         Update: {
           adapter_key?: string | null;
@@ -240,8 +240,8 @@ export type Database = {
           may_index_jobs?: boolean | null;
           may_store_full_description?: boolean | null;
           name?: string | null;
+          refresh_interval_seconds?: never;
           required_destination_kind?: string | null;
-          refresh_interval_seconds?: number | null;
           source_type?:
             | "direct_employer"
             | "partner_feed"
@@ -250,8 +250,8 @@ export type Database = {
             | "manual"
             | null;
           terms_reviewed_at?: string | null;
-          terms_version?: string | null;
           terms_url?: string | null;
+          terms_version?: string | null;
         };
         Relationships: [];
       };
@@ -316,6 +316,7 @@ export type Database = {
           last_checked_at: string | null;
           last_verified_at: string | null;
           locations: Json | null;
+          may_email_jobs: boolean | null;
           may_emit_jobposting_schema: boolean | null;
           may_index_jobs: boolean | null;
           may_store_full_description: boolean | null;
@@ -1492,6 +1493,18 @@ export type Database = {
         Args: { p_contribution_id: string };
         Returns: boolean;
       };
+      worker_begin_ats_snapshot: {
+        Args: {
+          p_adapter_key: string;
+          p_checked_at: string;
+          p_expected_record_count: number;
+          p_provider_count: number;
+        };
+        Returns: {
+          import_run_id: string;
+          should_run: boolean;
+        }[];
+      };
       worker_claim_alert_deliveries: {
         Args: { p_limit?: number };
         Returns: {
@@ -1503,6 +1516,22 @@ export type Database = {
           recipient_email: string;
           search_spec: Json;
         }[];
+      };
+      worker_claim_ats_source_fetch: {
+        Args: {
+          p_adapter_key: string;
+          p_purpose: string;
+          p_request_key: string;
+        };
+        Returns: boolean;
+      };
+      worker_claim_authorized_ats_source: {
+        Args: {
+          p_adapter_key: string;
+          p_purpose: string;
+          p_request_key: string;
+        };
+        Returns: Json;
       };
       worker_claim_remotive_fetch: {
         Args: { p_purpose: string; p_request_key: string };
@@ -1519,6 +1548,15 @@ export type Database = {
         };
         Returns: boolean;
       };
+      worker_finalize_ats_snapshot: {
+        Args: {
+          p_complete: boolean;
+          p_error_codes?: Json;
+          p_import_run_id: string;
+          p_quarantined_count?: number;
+        };
+        Returns: Json;
+      };
       worker_finish: {
         Args: {
           p_error_code?: string;
@@ -1527,6 +1565,40 @@ export type Database = {
           p_summary?: Json;
         };
         Returns: boolean;
+      };
+      worker_get_authorized_ats_source: {
+        Args: { p_adapter_key: string };
+        Returns: {
+          adapter_key: string;
+          allowed_destination_hosts: string[];
+          allowed_destination_path_prefixes: string[];
+          attribution_required: boolean;
+          attribution_text: string;
+          authorization_basis: string;
+          authorization_evidence_ref: string;
+          authorization_expires_at: string;
+          authorization_grantor: string;
+          authorization_reviewed_at: string;
+          company_id: string;
+          daily_request_budget: number;
+          employer_name: string;
+          fetch_interval_seconds: number;
+          homepage_url: string;
+          may_email_jobs: boolean;
+          may_emit_jobposting_schema: boolean;
+          may_index_jobs: boolean;
+          may_store_full_description: boolean;
+          minimum_request_spacing_seconds: number;
+          provider: string;
+          provider_region: string;
+          publication_mode: string;
+          required_destination_kind: string;
+          source_id: string;
+          source_name: string;
+          tenant_identifier: string;
+          terms_url: string;
+          terms_version: string;
+        }[];
       };
       worker_get_job_source_policy: {
         Args: { p_adapter_key: string };
@@ -1552,6 +1624,40 @@ export type Database = {
           terms_version: string;
         }[];
       };
+      worker_list_authorized_ats_sources: {
+        Args: never;
+        Returns: {
+          adapter_key: string;
+          allowed_destination_hosts: string[];
+          allowed_destination_path_prefixes: string[];
+          attribution_required: boolean;
+          attribution_text: string;
+          authorization_basis: string;
+          authorization_evidence_ref: string;
+          authorization_expires_at: string;
+          authorization_grantor: string;
+          authorization_reviewed_at: string;
+          company_id: string;
+          daily_request_budget: number;
+          employer_name: string;
+          fetch_interval_seconds: number;
+          homepage_url: string;
+          may_email_jobs: boolean;
+          may_emit_jobposting_schema: boolean;
+          may_index_jobs: boolean;
+          may_store_full_description: boolean;
+          minimum_request_spacing_seconds: number;
+          provider: string;
+          provider_region: string;
+          publication_mode: string;
+          required_destination_kind: string;
+          source_id: string;
+          source_name: string;
+          tenant_identifier: string;
+          terms_url: string;
+          terms_version: string;
+        }[];
+      };
       worker_record_source_import: {
         Args: {
           p_adapter_key: string;
@@ -1573,6 +1679,10 @@ export type Database = {
           run_id: string;
           should_run: boolean;
         }[];
+      };
+      worker_store_ats_snapshot_batch: {
+        Args: { p_import_run_id: string; p_records: Json };
+        Returns: Json;
       };
       worker_store_inforeuro_rates: {
         Args: { p_observed_at: string; p_rates: Json; p_source_url: string };

@@ -75,6 +75,7 @@ Company and job ingestion:
 
 - `companies`, `company_aliases`, `company_locations`, `company_claims`, `company_benefits`
 - `job_sources`, `import_runs`, `raw_job_records`, `jobs`, `job_locations`, `job_eligibility`
+- private ATS provider/tenant/destination policy, source authorization evidence, durable snapshot/seen-record state, and append-only count evidence
 - `skills`, `job_skills`
 - source ID uniqueness and content/fingerprint uniqueness support idempotency and deduplication
 - raw payload storage is permitted only when the source policy allows it
@@ -117,21 +118,22 @@ Priority order:
 4. Selected employer ATS feeds after employer/source terms are reviewed.
 5. Moderated manual additions.
 
-All adapters implement the same boundary: fetch, validate raw response, map to a source record, normalize, hash, deduplicate, upsert, mark last-seen and expire missing jobs. Eligibility evidence is stored separately from the classification. A direct employer source wins when fingerprints collide.
+All adapters implement the same boundary: fetch, validate raw response, map to a source record, normalize, hash, deduplicate, upsert, mark last-seen and expire missing jobs. Eligibility evidence is stored separately from the classification. A direct employer source wins when fingerprints collide. Failed, partial, and quarantined snapshots never close jobs; expiry from absence requires two consecutive successful complete snapshots omitting the source record.
 
 No adapter for LinkedIn, Glassdoor or Indeed is permitted. SalaryPadi never copies third-party reviews, salary submissions or interview experiences.
 
 ### Source-policy matrix
 
-| Source                          | Status                   | Full description storage                                     | Indexing / `JobPosting`           | Attribution / destination                              | Decision                                                                             |
-| ------------------------------- | ------------------------ | ------------------------------------------------------------ | --------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| Verified employer submission    | Intake implemented       | Yes, after authorisation confirmation                        | Yes, only while approved and open | Employer application URL                               | Primary first-party path once the backend and moderation owner exist                 |
-| Remotive public API             | Active constrained pilot | Active response cache only; no durable raw/full-text archive | No indexing or `JobPosting`       | Visible Remotive attribution and returned Remotive URL | Enabled by default, at most four refreshes daily, with an explicit unavailable state |
-| Greenhouse Job Board API        | Architecture only        | Per-employer review required                                 | Per-employer review required      | Original employer/ATS URL                              | Do not enable globally; approve one employer at a time                               |
-| Lever / Ashby public job boards | Architecture only        | Per-employer review required                                 | Per-employer review required      | Original employer/ATS URL                              | Do not enable until terms and employer scope are recorded                            |
-| Development fixtures            | Development/test only    | Local synthetic records                                      | Never in production               | Clearly labelled                                       | Guarded by `ALLOW_DEMO_DATA`; production fails closed                                |
+| Source                       | Status                                               | Full description storage                                     | Indexing / `JobPosting`           | Attribution / destination                              | Decision                                                                  |
+| ---------------------------- | ---------------------------------------------------- | ------------------------------------------------------------ | --------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------- |
+| Verified employer submission | Intake implemented                                   | Yes, after authorisation confirmation                        | Yes, only while approved and open | Employer application URL                               | Primary first-party path once the backend and moderation owner exist      |
+| Remotive public API          | Active constrained pilot                             | Active response cache only; no durable raw/full-text archive | No indexing or `JobPosting`       | Visible Remotive attribution and returned Remotive URL | At most four refreshes daily; no alert email until separately permitted   |
+| Moniepoint Greenhouse        | Candidate only; written permission not received      | No                                                           | No                                | Not approved                                           | First recommended Greenhouse outreach; remain disabled                    |
+| M-KOPA Ashby                 | Candidate only; written permission not received      | No                                                           | No                                | Not approved                                           | First recommended Ashby outreach; remain disabled                         |
+| Other Greenhouse/Lever/Ashby | Disabled-by-default adapter/lifecycle infrastructure | Per-employer written permission required                     | Per-employer permission required  | Exact approved employer/ATS host and path              | Never enable globally; authorize and review one employer tenant at a time |
+| Development fixtures         | Development/test only                                | Local synthetic records                                      | Never in production               | Clearly labelled                                       | Guarded by `ALLOW_DEMO_DATA`; production fails closed                     |
 
-Each active `job_sources` row records terms URL, terms-review date, attribution, storage, indexing, structured-data permission, destination rule, refresh interval, last success and status.
+Each active `job_sources` row records terms URL/version/review, authorization basis/evidence/review/expiry/revocation, attribution, storage, indexing, structured-data and email permission, destination rule, refresh interval, last success and status. Employer ATS tenant, destination path, budget, spacing, and publication mode remain private. A policy or configuration change invalidates prior authorization review and pauses the source.
 
 ## Implementation phases
 
@@ -310,3 +312,12 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 - Integrated explicit-consent first-party analytics and European Commission InforEuro monthly reference rates with provenance, freshness, fallback and user-facing limitations.
 - Updated GitHub Actions to current supported majors, renamed the Supabase local SMTP block, and pinned a compatible fixed PostCSS override; `npm audit` reports zero known vulnerabilities.
 - Closed the separated [Phase Two production release record](PHASE_TWO_RELEASE_RECORD.md) as `released` after main CI, hosted database checks, live workers, branded email, cross-browser token-hash sign-in, verified admin TOTP and production route evidence passed.
+
+### 2026-07-11 — Employer-authorized source expansion prepared
+
+- Implemented fixed-endpoint Greenhouse, Lever, and Ashby adapters and a gated scheduled worker with bounded credential-free fetches, strict provider contracts, exact destination host/path checks, and per-record quarantine.
+- Prepared false-by-default source authorization, private tenant configuration, generic per-source request budgets, revocation/expiry/configuration-drift gates, durable snapshots, append-only count evidence, and two-complete-omission expiry.
+- Registered a six-hour ATS operational schedule with a fourteen-hour stale threshold and an independent `ATS_SOURCE_SYNC_ENABLED=false` environment gate. A deployed worker must record a safe skip and make no provider request while the gate is false.
+- Selected Moniepoint Greenhouse and M-KOPA Ashby as the first recommended permission conversations. No written permission has been received, no employer ATS source/configuration is seeded or enabled, and no ATS provider request is authorized by this plan.
+- Added the permission checklist and ready-to-send drafts in [Source permission outreach](SOURCE_PERMISSION_OUTREACH.md). Messages must be sent from `sources@salarypadi.com`; this repository work does not send them.
+- This entry records repository implementation only. Migration application, hosted database tests, web deployment, scheduled safe-skip proof, and live source validation require separate release evidence.
