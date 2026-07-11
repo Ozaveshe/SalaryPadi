@@ -41,6 +41,12 @@ const ALERT_CATALOG_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const JOB_SNAPSHOT_REQUEST_TIMEOUT_MS = 15_000;
 const SOURCE_POLICY_MAX_RESPONSE_BYTES = 32 * 1024;
 const DATABASE_JOBS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+const RECOVERABLE_ALERT_CATALOG_ERRORS = new Set([
+  "alert_catalog_missing",
+  "alert_catalog_shape",
+  "alert_catalog_future",
+  "alert_catalog_stale",
+]);
 
 const publicRemotivePolicySchema = z
   .array(
@@ -326,11 +332,25 @@ export async function fetchAlertJobCatalog(
     fetchRemotivePublicationEnabled(signal),
   ]);
   if (!remotiveEnabled) return database;
-  const stored = await raceWithSignal(
-    alertCatalogStore().get(ALERT_CATALOG_KEY, { type: "json" }),
-    signal,
-  );
-  const remotive = parseAlertCatalog(stored);
+  let remotive: Job[];
+  try {
+    const stored = await raceWithSignal(
+      alertCatalogStore().get(ALERT_CATALOG_KEY, { type: "json" }),
+      signal,
+    );
+    remotive = parseAlertCatalog(stored);
+  } catch (reason) {
+    if (
+      reason instanceof OperationalError &&
+      RECOVERABLE_ALERT_CATALOG_ERRORS.has(reason.code)
+    ) {
+      // The canonical database remains the publication source of truth. A
+      // missing or stale optional alert cache must not block editorial runs;
+      // the independent source worker still records and alerts on its failure.
+      return database;
+    }
+    throw reason;
+  }
   const byFingerprint = new Map<string, Job>();
   for (const job of [...database, ...remotive]) {
     if (!byFingerprint.has(job.fingerprint))

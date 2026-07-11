@@ -3,6 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { normalizeRemotiveJob } from "../../../src/lib/jobs/normalize";
 import type { RemotiveJob } from "../../../src/lib/jobs/remotive-schema";
 
+const { blobGet } = vi.hoisted(() => ({ blobGet: vi.fn() }));
+
+vi.mock("@netlify/blobs", () => ({
+  getStore: () => ({ get: blobGet }),
+}));
+
 import {
   assertAlertJobsPublishable,
   createAlertCatalog,
@@ -35,6 +41,7 @@ function normalizedJob(checkedAt = "2026-07-10T06:00:00Z") {
 }
 
 afterEach(() => {
+  blobGet.mockReset();
   vi.unstubAllGlobals();
 });
 
@@ -303,6 +310,69 @@ describe("alert source publication gate", () => {
       ),
     ).rejects.toMatchObject({ code: "remotive_source_revoked" });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("falls back to canonical database jobs when the optional alert cache is stale", async () => {
+    vi.stubGlobal("Netlify", {
+      context: { deploy: { context: "production" } },
+      env: {
+        get: (name: string) =>
+          ({
+            NEXT_PUBLIC_SUPABASE_URL:
+              "https://bxelrhklsznmpksgrqep.supabase.co",
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+            REMOTIVE_SOURCE_ENABLED: "true",
+          })[name],
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockImplementation(async (input) =>
+          Response.json(
+            String(input).includes("/rest/v1/jobs?") ? [] : [activePolicy],
+          ),
+        ),
+    );
+    blobGet.mockResolvedValue(
+      createAlertCatalog([normalizedJob()], "2000-01-01T00:00:00Z"),
+    );
+
+    await expect(
+      fetchAlertJobCatalog(new AbortController().signal),
+    ).resolves.toEqual([]);
+    expect(blobGet).toHaveBeenCalledOnce();
+  });
+
+  it("does not hide a non-production alert cache configuration error", async () => {
+    vi.stubGlobal("Netlify", {
+      context: { deploy: { context: "deploy-preview" } },
+      env: {
+        get: (name: string) =>
+          ({
+            NEXT_PUBLIC_SUPABASE_URL:
+              "https://bxelrhklsznmpksgrqep.supabase.co",
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+            REMOTIVE_SOURCE_ENABLED: "true",
+          })[name],
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockImplementation(async (input) =>
+          Response.json(
+            String(input).includes("/rest/v1/jobs?") ? [] : [activePolicy],
+          ),
+        ),
+    );
+
+    await expect(
+      fetchAlertJobCatalog(new AbortController().signal),
+    ).rejects.toMatchObject({ code: "alert_catalog_production_only" });
+    expect(blobGet).not.toHaveBeenCalled();
   });
 
   it("does not follow redirects on fixed Supabase catalog reads", async () => {
