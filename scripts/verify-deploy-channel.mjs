@@ -18,6 +18,14 @@ function git(...args) {
   }).trim();
 }
 
+function normalizeRepository(rawUrl) {
+  return rawUrl
+    ?.trim()
+    .replace(/^git@github\.com:/u, "https://github.com/")
+    .replace(/\.git$/u, "")
+    .replace(/\/$/u, "");
+}
+
 function localEnvValue(name) {
   for (const filename of [".env.production.local", ".env.local", ".env"]) {
     try {
@@ -57,7 +65,9 @@ const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ??
   localEnvValue("NEXT_PUBLIC_SUPABASE_URL");
 const branch = process.env.BRANCH ?? git("branch", "--show-current");
-const repository = git("remote", "get-url", "origin");
+const repository = normalizeRepository(
+  process.env.REPOSITORY_URL ?? git("remote", "get-url", "origin"),
+);
 
 const failures = [];
 function assertEqual(label, actual, expected) {
@@ -74,7 +84,11 @@ if (production || context !== "local") {
   assertEqual("production URL", productionUrl, channel.productionUrl);
 }
 assertEqual("Supabase project", supabaseUrl, channel.supabaseUrl);
-assertEqual("Git repository", repository, channel.gitRepository);
+assertEqual(
+  "Git repository",
+  repository,
+  normalizeRepository(channel.gitRepository),
+);
 if (production) assertEqual("production branch", branch, channel.releaseBranch);
 
 if (failures.length > 0) {
