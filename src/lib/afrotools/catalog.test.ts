@@ -112,6 +112,11 @@ describe("AfroTools catalog contract", () => {
     expect(
       new Headers(fetcher.mock.calls[1]?.[1]?.headers).get("if-none-match"),
     ).toBe(TEST_AFROTOOLS_ETAG);
+    expect(
+      new Headers(fetcher.mock.calls[1]?.[1]?.headers).get(
+        "x-afrotools-if-none-match",
+      ),
+    ).toBe(TEST_AFROTOOLS_ETAG);
   });
 
   it.each([
@@ -138,19 +143,40 @@ describe("AfroTools catalog contract", () => {
 
   it("accepts a bounded weak standard ETag as an opaque CDN validator", async () => {
     const weakEtag = 'W/"netlify-catalog-v1"';
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify(createProtectedCatalogFixture()), {
-        headers: { "Content-Type": "application/json", ETag: weakEtag },
-      }),
-    );
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(createProtectedCatalogFixture()), {
+          headers: { "Content-Type": "application/json", ETag: weakEtag },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, { status: 304, headers: { ETag: weakEtag } }),
+      );
 
     const result = await fetchAfroToolsCatalog(
       "https://afrotools.com/api/v1",
       "test-salarypadi-service-key",
       fetcher,
     );
+    const revalidated = await fetchAfroToolsCatalog(
+      "https://afrotools.com/api/v1",
+      "test-salarypadi-service-key",
+      fetcher,
+      undefined,
+      result.snapshot,
+    );
     expect(result.snapshot.etag).toBe(weakEtag);
     expect(result.snapshot.etagSource).toBe("http");
+    expect(revalidated.httpStatus).toBe(304);
+    expect(
+      new Headers(fetcher.mock.calls[1]?.[1]?.headers).get("if-none-match"),
+    ).toBe(weakEtag);
+    expect(
+      new Headers(fetcher.mock.calls[1]?.[1]?.headers).get(
+        "x-afrotools-if-none-match",
+      ),
+    ).toBeNull();
   });
 
   it("rejects an invalid provider mirror instead of falling back", async () => {

@@ -289,6 +289,9 @@ export async function fetchAfroToolsCatalog(
       Accept: "application/json",
       "x-api-key": apiKey,
       ...(previousEtag ? { "If-None-Match": previousEtag } : {}),
+      ...(previousEtag && previousSnapshot?.etagSource === "afrotools"
+        ? { "X-AfroTools-If-None-Match": previousEtag }
+        : {}),
     },
     cache: "no-store",
     credentials: "omit",

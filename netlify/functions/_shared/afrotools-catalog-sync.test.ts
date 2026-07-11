@@ -98,6 +98,11 @@ describe("standalone AfroTools catalog worker", () => {
     expect(
       new Headers(fetcher.mock.calls[1]?.[1]?.headers).get("if-none-match"),
     ).toBe(TEST_AFROTOOLS_ETAG);
+    expect(
+      new Headers(fetcher.mock.calls[1]?.[1]?.headers).get(
+        "x-afrotools-if-none-match",
+      ),
+    ).toBe(TEST_AFROTOOLS_ETAG);
     expect(blobStore.setJSON).toHaveBeenCalledOnce();
   });
 
