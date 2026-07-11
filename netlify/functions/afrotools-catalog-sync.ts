@@ -1,7 +1,7 @@
 import type { Config } from "@netlify/functions";
 
 import { fetchAfroToolsCatalog } from "../../src/lib/afrotools/catalog";
-import { storeAfroToolsCatalog } from "../../src/lib/afrotools/catalog-repository";
+import { storeAfroToolsCatalog } from "../../src/lib/afrotools/catalog-repository-runtime";
 import { getAfroToolsApiBase } from "../../src/lib/integrations/urls";
 import {
   getRuntimeEnvironment,
