@@ -15,6 +15,9 @@ export default function robots(): MetadataRoute.Robots {
         "/privacy",
         "/terms",
         "/tools/",
+        "/guides/",
+        "/insights/",
+        "/feed.xml",
       ],
       disallow: [
         "/api/",

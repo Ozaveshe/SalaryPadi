@@ -1,0 +1,10 @@
+{
+  "product": "SalaryPadi",
+  "packageName": "salarypadi",
+  "netlifySiteId": "f20afc4c-5326-4f00-97bf-570a679aadbc",
+  "productionUrl": "https://salarypadi.com",
+  "supabaseProjectRef": "bxelrhklsznmpksgrqep",
+  "supabaseUrl": "https://bxelrhklsznmpksgrqep.supabase.co",
+  "releaseBranch": "main",
+  "gitRepository": "https://github.com/Ozaveshe/SalaryPadi.git"
+}

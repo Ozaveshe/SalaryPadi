@@ -560,6 +560,13 @@ a:hover {
   color: var(--border-strong);
 }
 
+.breadcrumbs a {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding-inline: 0.15rem;
+}
+
 .rich-copy {
   color: var(--text-secondary);
 }

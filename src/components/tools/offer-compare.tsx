@@ -2,8 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 
+import { trackEvent } from "@/lib/analytics/events";
 import { formatEnum, formatSalaryAmount } from "@/lib/format";
-import type { ReferenceCurrencyRate } from "@/lib/currency/types";
 import {
   type OfferComparisonResult,
   type OfferInput,
@@ -417,12 +417,18 @@ function resultMoney(value: number | null, currency: string) {
   return value === null ? "Unknown" : formatSalaryAmount(value, currency);
 }
 
-export function OfferCompare({
-  referenceRates = [],
-}: {
-  referenceRates?: ReferenceCurrencyRate[];
-}) {
+type FxEvidence = {
+  from: string;
+  to: string;
+  rate: number;
+  source: string;
+  updatedAt: string;
+  freshness: "fresh" | "stale";
+};
+
+export function OfferCompare() {
   const [result, setResult] = useState<OfferComparisonResult | null>(null);
+  const [fxEvidence, setFxEvidence] = useState<FxEvidence[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [providerNotice, setProviderNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -430,7 +436,9 @@ export function OfferCompare({
     event.preventDefault();
     setError(null);
     setProviderNotice(null);
+    setFxEvidence([]);
     setLoading(true);
+    trackEvent("tool_started", { tool_id: "offer_compare" });
     try {
       const form = new FormData(event.currentTarget);
       const comparisonCurrency = String(
@@ -438,52 +446,27 @@ export function OfferCompare({
       ).toUpperCase();
       const offerA = buildOffer(form, "a");
       const offerB = buildOffer(form, "b");
-      const rates = (["a", "b"] as const).flatMap((prefix) => {
-        const offer = prefix === "a" ? offerA : offerB;
-        if (offer.basePay.currency === comparisonCurrency) return [];
-        const enteredRate = readNumber(form, `${prefix}_fx_rate`, true);
-        const referenceRate = referenceRates.find(
-          (item) =>
-            item.base_currency === offer.basePay.currency &&
-            item.quote_currency === comparisonCurrency,
-        );
-        const rate = enteredRate ?? referenceRate?.rate;
-        return rate
-          ? [
-              {
-                from: offer.basePay.currency,
-                to: comparisonCurrency,
-                rate,
-                sourceLabel:
-                  enteredRate !== undefined
-                    ? "User-entered rate"
-                    : (referenceRate?.provider_name ?? "Reference rate"),
-                asOf:
-                  enteredRate !== undefined
-                    ? String(form.get("rate_date") || "")
-                    : (referenceRate?.observed_at ?? ""),
-              },
-            ]
-          : [];
-      });
       const response = await fetch("/api/tools/offer-compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           consent: true,
-          input: { offerA, offerB, comparisonCurrency, fxRates: rates },
+          input: { offerA, offerB, comparisonCurrency },
         }),
       });
       const body = (await response.json()) as {
         result?: OfferComparisonResult;
         error?: string;
         notice?: string;
+        fxEvidence?: FxEvidence[];
       };
       if (!response.ok || !body.result) {
         throw new Error(body.error || "The comparison could not be completed.");
       }
       setResult(body.result);
+      setFxEvidence(body.fxEvidence ?? []);
       setProviderNotice(body.notice ?? null);
+      trackEvent("tool_completed", { tool_id: "offer_compare" });
     } catch (reason) {
       setResult(null);
       setError(
@@ -513,57 +496,12 @@ export function OfferCompare({
                 required
               />
             </div>
-            <div className="field">
-              <label htmlFor="a_fx_rate">
-                Offer A rate to comparison currency
-              </label>
-              <input
-                className="input"
-                id="a_fx_rate"
-                name="a_fx_rate"
-                type="number"
-                min="0"
-                step="0.000001"
-              />
-              <p className="field-help">
-                Units of comparison currency for one unit of Offer A currency.
-              </p>
-            </div>
-            <div className="field">
-              <label htmlFor="b_fx_rate">
-                Offer B rate to comparison currency
-              </label>
-              <input
-                className="input"
-                id="b_fx_rate"
-                name="b_fx_rate"
-                type="number"
-                min="0"
-                step="0.000001"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="rate_date">Rate date</label>
-              <input
-                className="input"
-                id="rate_date"
-                name="rate_date"
-                type="date"
-              />
-            </div>
           </div>
           <p className="field-help">
-            {referenceRates.length > 0
-              ? "Blank rate fields use the latest European Commission InforEuro monthly accounting reference. Enter your own executable rate to override it, and include transfer/exchange costs below."
-              : "No reviewed reference rate is currently available. Enter a rate you trust and include transfer/exchange costs below."}
+            Required unit FX rates are fetched from AfroTools. SalaryPadi then
+            performs the comparison deterministically and shows the rate source
+            and timestamp.
           </p>
-          {referenceRates.length > 0 ? (
-            <p className="field-help">
-              Reference period {referenceRates[0]?.data_period}. Monthly
-              accounting rates are estimates, not live bank or transfer quotes.{" "}
-              <a href={referenceRates[0]?.source_url}>Source and provenance</a>
-            </p>
-          ) : null}
         </fieldset>
         <div className="offer-grid">
           <OfferFields prefix="a" title="Offer A" defaultCurrency="NGN" />
@@ -571,9 +509,8 @@ export function OfferCompare({
         </div>
         <label className="checkbox provider-consent">
           <input type="checkbox" name="afrotools_consent" required />
-          Send these offer amounts and terms securely to the AfroTools API for
-          this comparison. AfroTools processes them for this request and does
-          not intentionally retain them.
+          Allow SalaryPadi to request the required currency pairs from
+          AfroTools. Offer amounts and terms are not sent to AfroTools.
         </label>
         <button className="button w-fit" type="submit" disabled={loading}>
           {loading ? "Comparing…" : "Compare offers"}
@@ -587,6 +524,25 @@ export function OfferCompare({
       {providerNotice ? (
         <div className="notice notice-warning" role="status">
           {providerNotice}
+        </div>
+      ) : null}
+      {fxEvidence.length > 0 ? (
+        <div
+          className={
+            fxEvidence.some((item) => item.freshness === "stale")
+              ? "notice notice-warning"
+              : "notice"
+          }
+          role="status"
+        >
+          <strong>AfroTools FX evidence</strong>
+          {fxEvidence.map((item) => (
+            <p key={`${item.from}-${item.to}`}>
+              1 {item.from} = {item.rate} {item.to} · {item.source} · updated{" "}
+              {new Date(item.updatedAt).toLocaleString()}{" "}
+              {item.freshness === "stale" ? "(stale)" : ""}
+            </p>
+          ))}
         </div>
       ) : null}
       {result ? (

@@ -21,6 +21,7 @@ const resources = new Set<AdminResource>([
   "reports",
   "users",
   "calculation_rules",
+  "editorial",
 ]);
 const allowedActions: Record<AdminResource, ReadonlySet<string>> = {
   jobs: new Set(["approve", "expire", "remove", "restore"]),
@@ -48,6 +49,13 @@ const allowedActions: Record<AdminResource, ReadonlySet<string>> = {
     "restore",
   ]),
   calculation_rules: new Set(["activate", "retire", "request_review"]),
+  editorial: new Set([
+    "approve",
+    "schedule",
+    "publish",
+    "request_update",
+    "archive",
+  ]),
 };
 const schema = z.object({
   id: z.string().uuid(),
@@ -93,7 +101,18 @@ export async function POST(
   const admin = await getAdminApiContext();
   if (!admin.ok) return admin.response;
   let transitionError: { message: string } | null = null;
-  if (
+  if (rawResource === "editorial") {
+    const { error } = await admin.supabase.schema("api").rpc(
+      "transition_editorial" as never,
+      {
+        p_article_id: parsed.data.id,
+        p_expected_version: parsed.data.expected_version,
+        p_action: parsed.data.action,
+        p_reason: parsed.data.reason,
+      } as never,
+    );
+    transitionError = error;
+  } else if (
     rawResource === "moderation" &&
     ["claim", "redact", "merge_duplicate"].includes(parsed.data.action)
   ) {

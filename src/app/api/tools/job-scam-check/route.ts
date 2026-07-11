@@ -1,12 +1,4 @@
-import {
-  callAfroTools,
-  invalidAfroToolsResponse,
-  logAfroToolsFallback,
-} from "@/lib/afrotools/client";
-import {
-  afroToolsScamCheckResponseSchema,
-  scamCheckRequestSchema,
-} from "@/lib/afrotools/schemas";
+import { scamCheckRequestSchema } from "@/lib/afrotools/schemas";
 import {
   JsonBodyError,
   noStoreJson,
@@ -19,7 +11,6 @@ import { rejectCrossOriginRequest } from "@/lib/security/origin";
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
   if (crossOrigin) return noStoreResponse(crossOrigin);
-
   let payload: unknown;
   try {
     payload = await readBoundedJson(request, 30_000);
@@ -39,27 +30,12 @@ export async function POST(request: Request) {
       },
     );
   }
-
   const parsed = scamCheckRequestSchema.safeParse(payload);
-  if (!parsed.success)
+  if (!parsed.success) {
     return noStoreJson({ error: "Invalid vacancy check." }, { status: 400 });
-  const fallback = checkJobScam(parsed.data.input);
-
-  try {
-    const response = await callAfroTools(
-      "/career/job-scam-check",
-      parsed.data.input,
-    );
-    const upstream = afroToolsScamCheckResponseSchema.safeParse(response);
-    if (!upstream.success) throw invalidAfroToolsResponse();
-    return noStoreJson({ result: upstream.data.result, provider: "afrotools" });
-  } catch (error) {
-    logAfroToolsFallback("job_scam_check", error);
-    return noStoreJson({
-      result: fallback,
-      provider: "salarypadi_fallback",
-      notice:
-        "AfroTools was unavailable, so the local warning-sign checker was used.",
-    });
   }
+  return noStoreJson({
+    result: checkJobScam(parsed.data.input),
+    provider: "salarypadi_deterministic",
+  });
 }

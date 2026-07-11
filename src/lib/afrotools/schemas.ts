@@ -108,19 +108,101 @@ export const offerCompareRequestSchema = z.object({
     offerA: offer,
     offerB: offer,
     comparisonCurrency: z.string().regex(/^[A-Z]{3}$/),
-    fxRates: z
-      .array(
-        z.object({
-          from: z.string().regex(/^[A-Z]{3}$/),
-          to: z.string().regex(/^[A-Z]{3}$/),
-          rate: z.number().finite().positive(),
-          asOf: z.string().max(40).optional(),
-          sourceLabel: z.string().max(120).optional(),
-        }),
-      )
-      .max(20)
-      .optional(),
   }),
+});
+
+export const payeCalculationRequestSchema = z.object({
+  consent: z.literal(true),
+  input: z.object({
+    country: z.literal("NG"),
+    mode: z.enum(["gross_to_net", "net_to_gross"]),
+    period: z.enum(["monthly", "annual"]),
+    amount: z.number().finite().positive().max(1_000_000_000_000),
+  }),
+});
+
+export const salaryConversionRequestSchema = z.object({
+  input: z.object({
+    amount: z.number().finite().positive().max(1_000_000_000_000),
+    from: z.string().regex(/^[A-Z]{3}$/),
+    to: z.string().regex(/^[A-Z]{3}$/),
+    period: z.enum(["monthly", "annual"]),
+  }),
+});
+
+const afroToolsMetaSchema = z.object({
+  api: z.string().min(1).max(80),
+  version: z.string().min(1).max(40),
+  timestamp: z.string(),
+  sandbox: z.boolean(),
+  dataPolicy: z.string().min(1).max(160),
+  docs: z.string().url(),
+});
+
+export const afroToolsPayeResponseSchema = z.object({
+  status: z.literal("success"),
+  sandbox: z.boolean().optional(),
+  input: z.object({
+    country: z.string().regex(/^[A-Z]{2}$/),
+    grossAnnual: z.number().finite().positive(),
+  }),
+  deductions: z
+    .object({
+      pension: z.number().finite().min(0).optional(),
+      totalDeductions: z.number().finite().min(0).optional(),
+    })
+    .passthrough(),
+  tax: z
+    .object({
+      taxableIncome: z.number().finite().min(0),
+      netTax: z.number().finite().min(0),
+      bands: z
+        .array(
+          z.object({
+            label: z.string().min(1).max(160),
+            rate: z.number().finite().min(0).max(1),
+            amount: z.number().finite().min(0),
+          }),
+        )
+        .max(30)
+        .optional(),
+    })
+    .passthrough(),
+  result: z.object({
+    netAnnual: z.number().finite().min(0),
+    netMonthly: z.number().finite().min(0),
+    effectiveRate: z.string().max(40).optional(),
+  }),
+  _meta: afroToolsMetaSchema,
+});
+
+export const afroToolsTaxRatesSchema = z.object({
+  country: z.literal("NG"),
+  country_name: z.string().min(1).max(120),
+  currency: z.literal("NGN"),
+  tax_authority: z.string().min(1).max(160),
+  sandbox: z.boolean(),
+  data_policy: z.string().min(1).max(160),
+  paye: z.object({
+    regimes: z.array(z.string().min(1).max(80)).min(1).max(20),
+    options: z.record(z.string(), z.unknown()).optional(),
+    year: z.string().regex(/^\d{4}(?:\/\d{2,4})?$/),
+    source: z.string().min(1).max(300),
+  }),
+});
+
+export const afroToolsFxResponseSchema = z.object({
+  base: z.string().regex(/^[A-Z]{3}$/),
+  target: z.string().regex(/^[A-Z]{3}$/),
+  pair: z.string().regex(/^[A-Z]{3}\/[A-Z]{3}$/),
+  rate: z.number().finite().positive(),
+  amount: z.number().finite().positive().optional(),
+  converted_amount: z.number().finite().positive().optional(),
+  source: z.string().min(1).max(200),
+  updated_at: z.string(),
+  change_24h: z.number().finite().optional(),
+  sandbox: z.boolean(),
+  data_policy: z.string().min(1).max(160),
 });
 
 export const scamCheckRequestSchema = z.object({

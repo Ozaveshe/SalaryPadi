@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageHeading } from "@/components/page-heading";
 import { OfferCompare } from "@/components/tools/offer-compare";
-import { getReferenceCurrencyRates } from "@/lib/currency/repository";
 
 export const metadata: Metadata = {
   title: "Offer compare",
@@ -12,8 +11,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/tools/offer-compare" },
 };
 
-export default async function OfferComparePage() {
-  const referenceRates = await getReferenceCurrencyRates();
+export default function OfferComparePage() {
   return (
     <div className="site-shell stack-lg">
       <Breadcrumbs
@@ -26,9 +24,9 @@ export default async function OfferComparePage() {
       <PageHeading
         eyebrow="Compensation decision tool"
         title="Compare the value you will actually feel"
-        description="Normalize two offers through the AfroTools API without hiding FX assumptions, benefit values, personal work costs or contract differences."
+        description="SalaryPadi compares the offers deterministically. Only the required currency pairs are requested from AfroTools; offer amounts and terms stay out of that provider request."
       />
-      <OfferCompare referenceRates={referenceRates} />
+      <OfferCompare />
     </div>
   );
 }

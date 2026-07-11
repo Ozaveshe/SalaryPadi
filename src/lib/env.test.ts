@@ -53,7 +53,7 @@ describe("server environment", () => {
       parseServerEnvironment({
         NODE_ENV: "production",
         NEXT_PUBLIC_APP_URL: "https://salarypadi.test",
-        AFROTOOLS_API_BASE: "https://example.com/api/v1",
+        AFROTOOLS_API_BASE_URL: "https://example.com/api/v1",
         AFROTOOLS_API_KEY: "secret-test-key",
       }),
     ).toThrow(/afrotools\.com/);

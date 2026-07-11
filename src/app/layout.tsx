@@ -20,6 +20,9 @@ export const metadata: Metadata = {
     "Find source-attributed jobs open to Nigerians, understand real compensation, and inspect employer evidence before you apply.",
   applicationName: "SalaryPadi",
   category: "careers",
+  alternates: {
+    types: { "application/rss+xml": "/feed.xml" },
+  },
   openGraph: {
     type: "website",
     locale: "en_NG",

@@ -15,6 +15,7 @@ import {
   AfroToolsApiError,
   callAfroTools,
   logAfroToolsFallback,
+  requestAfroTools,
 } from "@/lib/afrotools/client";
 
 describe("AfroTools client failure boundary", () => {
@@ -29,7 +30,7 @@ describe("AfroTools client failure boundary", () => {
     const provider = vi.fn();
     vi.stubGlobal("fetch", provider);
 
-    await expect(callAfroTools("/test", {})).rejects.toMatchObject({
+    await expect(callAfroTools("/tax/paye", {})).rejects.toMatchObject({
       code: "unconfigured",
       retryable: false,
       status: 503,
@@ -54,7 +55,7 @@ describe("AfroTools client failure boundary", () => {
       );
 
       await expect(
-        callAfroTools("/test", { private: "input" }),
+        callAfroTools("/tax/paye", { private: "input" }),
       ).rejects.toMatchObject({
         code,
         retryable,
@@ -68,7 +69,7 @@ describe("AfroTools client failure boundary", () => {
     timeout.name = "AbortError";
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeout));
 
-    await expect(callAfroTools("/test", {})).rejects.toMatchObject({
+    await expect(callAfroTools("/tax/paye", {})).rejects.toMatchObject({
       code: "timeout",
       retryable: true,
       status: 504,
@@ -86,11 +87,51 @@ describe("AfroTools client failure boundary", () => {
       ),
     );
 
-    await expect(callAfroTools("/test", {})).rejects.toMatchObject({
+    await expect(callAfroTools("/tax/paye", {})).rejects.toMatchObject({
       code: "invalid_response",
       retryable: false,
       status: 502,
     });
+  });
+
+  it("sends authenticated GET parameters without a request body", async () => {
+    const provider = vi.fn().mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", provider);
+    await requestAfroTools("/fx/rates", {
+      method: "GET",
+      query: { base: "USD", target: "NGN", amount: 1 },
+    });
+    const [url, init] = provider.mock.calls[0] as [URL, RequestInit];
+    expect(url.toString()).toBe(
+      "https://afrotools.com/api/v1/fx/rates?base=USD&target=NGN&amount=1",
+    );
+    expect(init.body).toBeUndefined();
+    expect(new Headers(init.headers).get("x-api-key")).toBe(
+      "test-provider-secret",
+    );
+  });
+
+  it("captures a bounded Retry-After value", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(null, {
+          status: 429,
+          headers: { "Retry-After": "120" },
+        }),
+      ),
+    );
+    await expect(
+      requestAfroTools("/fx/rates", {
+        method: "GET",
+        query: { base: "USD", target: "NGN" },
+      }),
+    ).rejects.toMatchObject({ retryAfterSeconds: 120 });
   });
 
   it("logs only stable provider metadata", () => {

@@ -23,12 +23,13 @@ const environment = {
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
   SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
   JOB_SOURCE_SYNC_TOKEN: "test-source-sync-token",
-  AFROTOOLS_API_BASE: "https://afrotools.com/api/v1",
+  AFROTOOLS_API_BASE_URL: "https://afrotools.com/api/v1",
   AFROTOOLS_API_KEY: "test-afrotools-key",
   RESEND_API_KEY: "test-resend-key",
   TRANSACTIONAL_EMAIL_FROM: "SalaryPadi <updates@mail.salarypadi.com>",
   TRANSACTIONAL_EMAIL_REPLY_TO: "support@salarypadi.com",
   REMOTIVE_SOURCE_ENABLED: true,
+  EDITORIAL_AUTOMATION_ENABLED: true,
   ALLOW_DEMO_DATA: false,
   ANALYTICS_PROVIDER: "supabase_first_party" as const,
   EMAIL_PROVIDER: "resend" as const,
@@ -50,6 +51,16 @@ const healthyWorkers: WorkerRow[] = [
   "currency_rates",
   "job_source_sync",
   "operations_maintenance",
+  "editorial_job_snapshot",
+  "editorial_topic_candidates",
+  "editorial_draft",
+  "editorial_preflight",
+  "editorial_queue",
+  "editorial_publish",
+  "editorial_live_blocks",
+  "editorial_nightly_audit",
+  "editorial_weekly_audit",
+  "afrotools_catalog_sync",
 ].map((taskKey) => ({
   task_key: taskKey,
   owner_label: "Test operations owner",
@@ -73,7 +84,7 @@ describe("operational health", () => {
       publishableKey: environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     });
     vi.mocked(getAfroToolsConfig).mockReturnValue({
-      baseUrl: environment.AFROTOOLS_API_BASE,
+      baseUrl: environment.AFROTOOLS_API_BASE_URL,
       apiKey: environment.AFROTOOLS_API_KEY,
     });
     mockWorkerResult(healthyWorkers);

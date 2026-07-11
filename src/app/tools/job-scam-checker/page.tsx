@@ -24,7 +24,7 @@ export default function ScamCheckerPage() {
       <PageHeading
         eyebrow="Cautious safety tool"
         title="Slow down a suspicious job message"
-        description="Use the AfroTools API to see individual warning signs, why they matter and what to verify next. Submitted links are never opened, and the result never declares an employer fraudulent with certainty."
+        description="Run SalaryPadi's deterministic warning-sign checks locally to see what triggered, why it matters and what to verify next. Submitted links are never opened, and the result never declares an employer fraudulent with certainty."
       />
       <ScamChecker />
     </div>

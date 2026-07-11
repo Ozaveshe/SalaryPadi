@@ -101,6 +101,8 @@ function remotiveJob(): Job {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-07-10T13:10:00.000Z"));
   mocks.environment.mockReturnValue({
     REMOTIVE_SOURCE_ENABLED: true,
     JOB_SOURCE_SYNC_TOKEN: "test-source-sync-token-0000000000000000",
@@ -135,6 +137,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 

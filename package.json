@@ -8,6 +8,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
+    "build:netlify": "npm run deploy:verify && npm run build",
+    "deploy:verify": "node scripts/verify-deploy-channel.mjs",
+    "deploy:preview": "netlify deploy --build",
+    "deploy:production": "netlify deploy --prod --build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "next typegen && tsc --noEmit",

@@ -12,7 +12,8 @@ export type AdminResource =
   | "moderation"
   | "reports"
   | "users"
-  | "calculation_rules";
+  | "calculation_rules"
+  | "editorial";
 
 const rowSchema = z.object({
   id: z.string().uuid(),
@@ -34,7 +35,7 @@ export async function getAdminRows(
   }
   const { data, error } = await supabase
     .schema("api")
-    .rpc(`admin_list_${resource}`);
+    .rpc(`admin_list_${resource}` as never);
   if (error) {
     throw new Error(`Could not load the ${resource} administration queue.`);
   }

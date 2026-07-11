@@ -11,7 +11,8 @@ vi.mock("@/lib/env", () => ({
 
 import { POST as checkScam } from "@/app/api/tools/job-scam-check/route";
 import { POST as compareOffer } from "@/app/api/tools/offer-compare/route";
-import { compareOffers } from "@/lib/offers";
+import { POST as convertSalary } from "@/app/api/tools/salary-convert/route";
+import { POST as calculatePaye } from "@/app/api/tools/take-home-pay/route";
 
 const offerInput = {
   offerA: {
@@ -41,7 +42,7 @@ const offerInput = {
   comparisonCurrency: "NGN",
 };
 
-function jsonRequest(path: string, body: unknown) {
+function request(path: string, body: unknown) {
   return new Request(`https://salarypadi.test${path}`, {
     method: "POST",
     headers: {
@@ -52,206 +53,148 @@ function jsonRequest(path: string, body: unknown) {
   });
 }
 
-function providerJson(body: unknown, status = 200) {
+function json(
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
   });
 }
 
-describe("tool API provider fallbacks", () => {
+describe("tool API boundaries", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
-  it.each([
-    {
-      label: "timeout",
-      code: "timeout",
-      status: 504,
-      fetchResult: () => {
-        const error = new Error("aborted");
-        error.name = "AbortError";
-        return Promise.reject(error);
-      },
-    },
-    {
-      label: "401",
-      code: "unauthorized",
-      status: 401,
-      fetchResult: () =>
-        Promise.resolve(providerJson({ error: "private" }, 401)),
-    },
-    {
-      label: "429",
-      code: "rate_limited",
-      status: 429,
-      fetchResult: () =>
-        Promise.resolve(providerJson({ error: "private" }, 429)),
-    },
-    {
-      label: "500",
-      code: "upstream_5xx",
-      status: 500,
-      fetchResult: () =>
-        Promise.resolve(providerJson({ error: "private" }, 500)),
-    },
-  ])("uses the local scam fallback for provider $label", async (scenario) => {
-    vi.stubGlobal("fetch", vi.fn().mockImplementation(scenario.fetchResult));
-    const warning = vi
-      .spyOn(console, "warn")
-      .mockImplementation(() => undefined);
-    const vacancyText = "Urgent private vacancy text";
+  it("compares same-currency offers locally without calling AfroTools", async () => {
+    const provider = vi.fn();
+    vi.stubGlobal("fetch", provider);
+    const response = await compareOffer(
+      request("/api/tools/offer-compare", { consent: true, input: offerInput }),
+    );
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.provider).toBe("salarypadi_deterministic");
+    expect(body.fxEvidence).toEqual([]);
+    expect(provider).not.toHaveBeenCalled();
+  });
 
+  it("does not return an offer result when AfroTools FX is rate-limited", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(json({}, 429, { "Retry-After": "60" })),
+    );
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const input = {
+      ...offerInput,
+      offerB: {
+        ...offerInput.offerB,
+        basePay: { ...offerInput.offerB.basePay, currency: "USD" },
+      },
+    };
+    const response = await compareOffer(
+      request("/api/tools/offer-compare", { consent: true, input }),
+    );
+    const body = await response.json();
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(body.result).toBeUndefined();
+    expect(body.code).toBe("rate_limited");
+  });
+
+  it("does not send the salary amount to AfroTools FX", async () => {
+    const provider = vi.fn().mockResolvedValue(
+      json({
+        base: "USD",
+        target: "NGN",
+        pair: "USD/NGN",
+        rate: 1500,
+        source: "AfroFX",
+        updated_at: new Date().toISOString(),
+        sandbox: false,
+        data_policy: "provider data",
+      }),
+    );
+    vi.stubGlobal("fetch", provider);
+    const response = await convertSalary(
+      request("/api/tools/salary-convert", {
+        input: { amount: 123456, from: "USD", to: "NGN", period: "monthly" },
+      }),
+    );
+    const body = await response.json();
+    expect(body.result.convertedAmount).toBe(185184000);
+    expect(
+      (provider.mock.calls[0]?.[0] as URL).searchParams.get("amount"),
+    ).toBe("1");
+    expect((provider.mock.calls[0]?.[0] as URL).toString()).not.toContain(
+      "123456",
+    );
+  });
+
+  it("returns no PAYE result for a malformed provider response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(json({ status: "success" })),
+    );
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const response = await calculatePaye(
+      request("/api/tools/take-home-pay", {
+        consent: true,
+        input: {
+          country: "NG",
+          mode: "gross_to_net",
+          period: "monthly",
+          amount: 500000,
+        },
+      }),
+    );
+    const body = await response.json();
+    expect(response.status).toBe(502);
+    expect(body.result).toBeUndefined();
+    expect(body.code).toBe("invalid_response");
+  });
+
+  it("keeps the explainable scam checker local and deterministic", async () => {
+    const provider = vi.fn();
+    vi.stubGlobal("fetch", provider);
+    const vacancyText = "Urgent private vacancy text";
     const response = await checkScam(
-      jsonRequest("/api/tools/job-scam-check", {
+      request("/api/tools/job-scam-check", {
         consent: true,
         input: { vacancyText },
       }),
     );
-    const body = (await response.json()) as {
-      provider: string;
-      result: { inputCoverage: { urlFetchPerformed: boolean } };
-    };
-
+    const body = await response.json();
     expect(response.status).toBe(200);
-    expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(body.provider).toBe("salarypadi_fallback");
-    expect(body.result.inputCoverage.urlFetchPerformed).toBe(false);
-
-    const log = String(warning.mock.calls[0]?.[0]);
-    expect(JSON.parse(log)).toMatchObject({
-      event: "provider_fallback",
-      operation: "job_scam_check",
-      code: scenario.code,
-      status: scenario.status,
-    });
-    expect(log).not.toContain(vacancyText);
-    expect(log).not.toContain("test-provider-secret");
+    expect(body.provider).toBe("salarypadi_deterministic");
+    expect(provider).not.toHaveBeenCalled();
   });
 
-  it("rejects a success-shaped scam result with missing nested coverage", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        providerJson({
-          status: "success",
-          result: {
-            riskTier: "caution",
-            riskLabel: "Caution",
-            summary: "Review it.",
-            flags: [],
-            verificationSteps: [],
-            safeNextActions: [],
-            limitations: [],
-          },
-        }),
-      ),
-    );
-    const warning = vi
-      .spyOn(console, "warn")
-      .mockImplementation(() => undefined);
-
-    const response = await checkScam(
-      jsonRequest("/api/tools/job-scam-check", {
-        consent: true,
-        input: { vacancyText: "A normal vacancy description" },
-      }),
-    );
-    const body = (await response.json()) as { provider: string };
-
-    expect(body.provider).toBe("salarypadi_fallback");
-    expect(JSON.parse(String(warning.mock.calls[0]?.[0]))).toMatchObject({
-      code: "invalid_response",
-      status: 502,
-    });
-  });
-
-  it("rejects a shallow offer result instead of sending it to the UI", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        providerJson({
-          status: "success",
-          result: {
-            comparisonCurrency: "NGN",
-            offerA: {},
-            offerB: {},
-            differences: {},
-            nonFinancialDifferences: [],
-            negotiationTalkingPoints: [],
-            normalizationNotes: [],
-          },
-        }),
-      ),
-    );
-    const warning = vi
-      .spyOn(console, "warn")
-      .mockImplementation(() => undefined);
-
-    const response = await compareOffer(
-      jsonRequest("/api/tools/offer-compare", {
-        consent: true,
-        input: offerInput,
-      }),
-    );
-    const body = (await response.json()) as { provider: string };
-
-    expect(body.provider).toBe("salarypadi_fallback");
-    expect(JSON.parse(String(warning.mock.calls[0]?.[0]))).toMatchObject({
-      code: "invalid_response",
-      status: 502,
-    });
-  });
-
-  it("accepts a complete nested offer result", async () => {
-    const result = compareOffers(offerInput);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(providerJson({ status: "success", result })),
-    );
-
-    const response = await compareOffer(
-      jsonRequest("/api/tools/offer-compare", {
-        consent: true,
-        input: offerInput,
-      }),
-    );
-    const body = (await response.json()) as { provider: string };
-
-    expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(body.provider).toBe("afrotools");
-  });
-
-  it("returns 413 for an oversized streamed body without Content-Length", async () => {
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoder.encode("x".repeat(30_001)));
-        controller.close();
-      },
-    });
-    const request = new Request(
-      "https://salarypadi.test/api/tools/job-scam-check",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Origin: "https://salarypadi.test",
-        },
-        body: stream,
-        duplex: "half",
-      } as RequestInit & { duplex: "half" },
-    );
+  it("rejects malformed and oversized inputs before provider access", async () => {
     const provider = vi.fn();
     vi.stubGlobal("fetch", provider);
-
-    const response = await checkScam(request);
-
-    expect(request.headers.get("content-length")).toBeNull();
-    expect(response.status).toBe(413);
-    expect(response.headers.get("cache-control")).toBe("no-store");
+    const malformed = await convertSalary(
+      request("/api/tools/salary-convert", {
+        input: { amount: -1, from: "US", to: "NGN", period: "monthly" },
+      }),
+    );
+    expect(malformed.status).toBe(400);
+    const oversized = await convertSalary(
+      request("/api/tools/salary-convert", {
+        input: {
+          amount: 1,
+          from: "USD",
+          to: "NGN",
+          period: "monthly",
+          padding: "x".repeat(11_000),
+        },
+      }),
+    );
+    expect(oversized.status).toBe(413);
     expect(provider).not.toHaveBeenCalled();
   });
 });

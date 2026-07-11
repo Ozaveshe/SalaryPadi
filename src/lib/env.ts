@@ -33,12 +33,16 @@ const serverEnvironmentSchema = z
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: optionalString,
     SUPABASE_SERVICE_ROLE_KEY: optionalString,
     JOB_SOURCE_SYNC_TOKEN: optionalInternalToken,
-    AFROTOOLS_API_BASE: optionalUrl,
+    AFROTOOLS_API_BASE_URL: optionalUrl,
     AFROTOOLS_API_KEY: optionalString,
     RESEND_API_KEY: optionalString,
     TRANSACTIONAL_EMAIL_FROM: optionalString,
     TRANSACTIONAL_EMAIL_REPLY_TO: optionalString,
     REMOTIVE_SOURCE_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    EDITORIAL_AUTOMATION_ENABLED: z
       .enum(["true", "false"])
       .default("false")
       .transform((value) => value === "true"),
@@ -86,15 +90,15 @@ const serverEnvironmentSchema = z
       }
     }
 
-    if (value.AFROTOOLS_API_BASE) {
+    if (value.AFROTOOLS_API_BASE_URL) {
       try {
-        getAfroToolsApiBase(value.AFROTOOLS_API_BASE, {
+        getAfroToolsApiBase(value.AFROTOOLS_API_BASE_URL, {
           allowLocal: value.NODE_ENV !== "production",
         });
       } catch (error) {
         context.addIssue({
           code: "custom",
-          path: ["AFROTOOLS_API_BASE"],
+          path: ["AFROTOOLS_API_BASE_URL"],
           message:
             error instanceof Error
               ? error.message
@@ -159,12 +163,13 @@ export function parseServerEnvironment(
       environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     SUPABASE_SERVICE_ROLE_KEY: environment.SUPABASE_SERVICE_ROLE_KEY,
     JOB_SOURCE_SYNC_TOKEN: environment.JOB_SOURCE_SYNC_TOKEN,
-    AFROTOOLS_API_BASE: environment.AFROTOOLS_API_BASE,
+    AFROTOOLS_API_BASE_URL: environment.AFROTOOLS_API_BASE_URL,
     AFROTOOLS_API_KEY: environment.AFROTOOLS_API_KEY,
     RESEND_API_KEY: environment.RESEND_API_KEY,
     TRANSACTIONAL_EMAIL_FROM: environment.TRANSACTIONAL_EMAIL_FROM,
     TRANSACTIONAL_EMAIL_REPLY_TO: environment.TRANSACTIONAL_EMAIL_REPLY_TO,
     REMOTIVE_SOURCE_ENABLED: environment.REMOTIVE_SOURCE_ENABLED,
+    EDITORIAL_AUTOMATION_ENABLED: environment.EDITORIAL_AUTOMATION_ENABLED,
     ALLOW_DEMO_DATA: environment.ALLOW_DEMO_DATA,
     ANALYTICS_PROVIDER: environment.ANALYTICS_PROVIDER,
     EMAIL_PROVIDER: environment.EMAIL_PROVIDER,
@@ -209,7 +214,7 @@ export function getAfroToolsConfig() {
   const environment = getServerEnvironment();
   return {
     baseUrl: getAfroToolsApiBase(
-      environment.AFROTOOLS_API_BASE ?? DEFAULT_AFROTOOLS_API_BASE,
+      environment.AFROTOOLS_API_BASE_URL ?? DEFAULT_AFROTOOLS_API_BASE,
       { allowLocal: environment.NODE_ENV !== "production" },
     ),
     apiKey: environment.AFROTOOLS_API_KEY,

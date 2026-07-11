@@ -7,7 +7,7 @@ import { TakeHomeCalculator } from "@/components/tools/take-home-calculator";
 export const metadata: Metadata = {
   title: "Nigeria take-home pay calculator",
   description:
-    "Estimate Nigeria PAYE, pension, NHF and take-home pay with versioned rules effective from 1 January 2026.",
+    "Convert Nigeria gross pay to net pay, or net pay to gross pay, using versioned AfroTools PAYE data.",
   alternates: { canonical: "/tools/take-home-pay" },
 };
 
@@ -24,9 +24,9 @@ export default function TakeHomePayPage() {
       <PageHeading
         eyebrow="Nigeria payroll tool"
         title="See where gross pay goes"
-        description="Use explicit pension, NHF and health inputs. Statutory PAYE runs through the AfroTools API with a verified SalaryPadi fallback; the calculator does not carry the repealed consolidated relief allowance into 2026 rules."
+        description="Run gross-to-net or net-to-gross calculations against versioned AfroTools PAYE data. If rules or responses cannot be verified, SalaryPadi shows no result."
       />
-      <TakeHomeCalculator defaultDate={new Date().toISOString().slice(0, 10)} />
+      <TakeHomeCalculator />
     </div>
   );
 }

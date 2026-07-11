@@ -106,7 +106,7 @@ export interface CompareOffersInput {
   offerA: OfferInput;
   offerB: OfferInput;
   comparisonCurrency: string;
-  /** Rates entered or approved by the user. SalaryPadi never fetches a rate. */
+  /** Verified unit rates supplied by the server-side comparison boundary. */
   fxRates?: readonly FxRateInput[];
 }
 

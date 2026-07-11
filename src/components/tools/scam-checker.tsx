@@ -97,9 +97,9 @@ export function ScamChecker() {
               placeholder="Paste text here. Remove names or details that are not needed for the check."
             />
             <p className="field-help">
-              Submitted text is sent securely through SalaryPadi to the
-              AfroTools API for request-scoped analysis. Supplied links are
-              parsed but never opened or fetched.
+              Submitted text is processed by SalaryPadi&apos;s deterministic
+              checker. Supplied links are parsed but never opened, fetched or
+              sent to a third party.
             </p>
           </div>
         </fieldset>
@@ -203,10 +203,10 @@ export function ScamChecker() {
           </div>
         </fieldset>
         <label className="checkbox provider-consent">
-          <input type="checkbox" name="afrotools_consent" required />I
-          understand the entered vacancy text and answers will be processed by
-          AfroTools for this check and should not contain unnecessary personal
-          or confidential information.
+          <input type="checkbox" name="processing_acknowledgement" required />I
+          understand the entered vacancy text and answers are processed for this
+          check and should not contain unnecessary personal or confidential
+          information.
         </label>
         <button className="button w-fit" type="submit" disabled={loading}>
           {loading ? "Checking…" : "Check warning signs"}

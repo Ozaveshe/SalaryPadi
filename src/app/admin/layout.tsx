@@ -16,6 +16,7 @@ const adminNavigation = [
   ["Reports", "/admin/reports"],
   ["Users", "/admin/users"],
   ["Calculation rules", "/admin/calculation-rules"],
+  ["Editorial", "/admin/editorial"],
 ] as const;
 
 export default function AdminLayout({

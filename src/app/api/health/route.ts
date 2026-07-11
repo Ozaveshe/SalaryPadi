@@ -13,6 +13,16 @@ const expectedWorkerKeys = [
   "currency_rates",
   "job_source_sync",
   "operations_maintenance",
+  "editorial_job_snapshot",
+  "editorial_topic_candidates",
+  "editorial_draft",
+  "editorial_preflight",
+  "editorial_queue",
+  "editorial_publish",
+  "editorial_live_blocks",
+  "editorial_nightly_audit",
+  "editorial_weekly_audit",
+  "afrotools_catalog_sync",
 ] as const;
 
 const workerHealthSchema = z
@@ -49,6 +59,7 @@ export async function GET() {
       environment.TRANSACTIONAL_EMAIL_REPLY_TO,
     ),
     remotive: environment.REMOTIVE_SOURCE_ENABLED,
+    editorial: environment.EDITORIAL_AUTOMATION_ENABLED,
   };
   const operationsConfigured =
     workerBackendConfigured &&
