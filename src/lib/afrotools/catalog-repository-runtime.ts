@@ -2,6 +2,7 @@ import { getStore } from "@netlify/blobs";
 
 import {
   BUNDLED_AFROTOOLS_CATALOG,
+  catalogSnapshotSchema,
   evaluateCatalogSnapshot,
   type AfroToolsCatalogSnapshot,
   type CatalogAvailability,
@@ -21,6 +22,20 @@ export async function storeAfroToolsCatalog(
   return snapshot.tools.length;
 }
 
+export async function getStoredAfroToolsCatalog() {
+  let stored: unknown;
+  try {
+    stored = await catalogStore().get(AFROTOOLS_CATALOG_KEY, {
+      type: "json",
+    });
+  } catch {
+    // A missing Blob is a cold start, not permission to trust an invalid cache.
+    return null;
+  }
+  const parsed = catalogSnapshotSchema.safeParse(stored);
+  return parsed.success ? parsed.data : null;
+}
+
 export type CareerCatalogResult = CatalogAvailability & {
   cache: "remote_lkg" | "bundled_lkg" | "none";
 };
@@ -28,14 +43,10 @@ export type CareerCatalogResult = CatalogAvailability & {
 export async function getCareerToolCatalog(
   now = new Date(),
 ): Promise<CareerCatalogResult> {
-  try {
-    const stored = await catalogStore().get(AFROTOOLS_CATALOG_KEY, {
-      type: "json",
-    });
+  const stored = await getStoredAfroToolsCatalog();
+  if (stored) {
     const evaluated = evaluateCatalogSnapshot(stored, now);
     if (evaluated.snapshot) return { ...evaluated, cache: "remote_lkg" };
-  } catch {
-    // Local development and deploy previews may not have a linked Blob store.
   }
   const bundled = evaluateCatalogSnapshot(BUNDLED_AFROTOOLS_CATALOG, now);
   return bundled.snapshot

@@ -1,10 +1,14 @@
 import type { Config } from "@netlify/functions";
 
 import { fetchAfroToolsCatalog } from "../../src/lib/afrotools/catalog";
-import { storeAfroToolsCatalog } from "../../src/lib/afrotools/catalog-repository-runtime";
+import {
+  getStoredAfroToolsCatalog,
+  storeAfroToolsCatalog,
+} from "../../src/lib/afrotools/catalog-repository-runtime";
 import { getAfroToolsApiBase } from "../../src/lib/integrations/urls";
 import {
   getRuntimeEnvironment,
+  getRuntimeSecret,
   runTrackedWorker,
   type WorkerExecution,
   workerSucceeded,
@@ -14,12 +18,23 @@ export async function runAfroToolsCatalogSync({ signal }: WorkerExecution) {
   const baseUrl = getAfroToolsApiBase(
     getRuntimeEnvironment("AFROTOOLS_API_BASE_URL"),
   );
-  const snapshot = await fetchAfroToolsCatalog(baseUrl, fetch, signal);
-  const count = await storeAfroToolsCatalog(snapshot);
+  const apiKey = getRuntimeSecret("AFROTOOLS_API_KEY");
+  const previous = await getStoredAfroToolsCatalog();
+  const result = await fetchAfroToolsCatalog(
+    baseUrl,
+    apiKey,
+    fetch,
+    signal,
+    previous,
+  );
+  const count = await storeAfroToolsCatalog(result.snapshot);
   return workerSucceeded({
-    source: snapshot.sourceUrl,
-    catalog_last_updated: snapshot.catalogLastUpdated,
+    source: result.snapshot.sourceUrl,
+    schema_version: result.snapshot.schemaVersion,
+    catalog_last_updated: result.snapshot.catalogLastUpdated,
     tool_count: count,
+    source_http_status: result.httpStatus,
+    etag_revalidated: result.notModified,
   });
 }
 

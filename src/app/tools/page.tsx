@@ -47,7 +47,9 @@ export default async function ToolsPage() {
               ? "Using the bundled last-known-good snapshot."
               : "Using the synchronized cache."}
           </p>
-          <a href={snapshot.sourceUrl}>View source catalog</a>
+          <a href={snapshot.documentationUrl ?? snapshot.sourceUrl}>
+            View catalog documentation
+          </a>
         </div>
       ) : (
         <div className="notice notice-danger" role="alert">
@@ -64,6 +66,7 @@ export default async function ToolsPage() {
             const localRoute = integratedRoutes[tool.id];
             const href =
               localRoute ??
+              tool.canonical_url ??
               new URL(tool.url, "https://afrotools.com").toString();
             return (
               <article className="surface surface-pad stack" key={tool.id}>
@@ -75,6 +78,9 @@ export default async function ToolsPage() {
                   {tool.countries.includes("ALL")
                     ? "Africa-wide"
                     : tool.countries.join(", ")}
+                  {tool.integration_mode
+                    ? ` · Integration: ${tool.integration_mode}`
+                    : null}
                 </p>
                 {localRoute ? (
                   <Link className="button button-secondary w-fit" href={href}>

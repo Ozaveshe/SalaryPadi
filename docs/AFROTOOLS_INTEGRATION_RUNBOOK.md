@@ -2,7 +2,7 @@
 
 ## Production contract
 
-SalaryPadi consumes only the deployed AfroTools catalog at `https://afrotools.com/data/tool-directory.json` and documented endpoints under `https://afrotools.com/api/v1`:
+SalaryPadi consumes only the authenticated, versioned AfroTools catalog at `GET https://afrotools.com/api/v1/catalog/tools?product=salarypadi&category=career` and documented endpoints under `https://afrotools.com/api/v1`:
 
 - `POST /tax/paye` for Nigeria gross-to-net and net-to-gross PAYE calculations.
 - `GET /tax/rates` for the rules version, year, source and authority attached to each PAYE result.
@@ -24,7 +24,9 @@ The outbound URL guard refuses any credentialed request whose origin is not `htt
 
 ## Catalog synchronization and last-known-good behavior
 
-`afrotools-catalog-sync` runs at minute 5 every six hours. It validates the HTTP status, JSON content type, 2 MiB response limit, item schema, live state, English language and minimum relevant-tool count before replacing the strongly consistent Netlify Blob snapshot.
+`afrotools-catalog-sync` runs at minute 5 every six hours. It sends the server-only service key, validates the exact product/category/schema version, published state, integration-mode evidence, canonical URLs, country availability, schema references, rules versions, verification dates, disclaimer, attribution, JSON content type, 2 MiB response limit and minimum tool count before replacing the strongly consistent Netlify Blob snapshot.
+
+The worker persists the quoted SHA-256 ETag and sends it as `If-None-Match` on the next run. A valid `304` refreshes the snapshot check time without replacing its verified metadata. A `304` without a matching validated snapshot is rejected. The key and provider response bodies are never logged.
 
 The tools page uses the synchronized snapshot when available. A bundled snapshot taken from the deployed catalog is the cold-start last-known-good copy. A snapshot is:
 
