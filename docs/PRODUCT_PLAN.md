@@ -315,7 +315,7 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 
 - Added opt-in-only GA4 loading for public routes, allowlisted product events and Core Web Vitals, with Google ad storage, ad personalisation and Google signals disabled.
 - Versioned the consent cookie so prior first-party-only consent cannot silently activate Google Analytics, added a persistent preferences control, and excluded private and sensitive route groups.
-- Created GA4 property `SalaryPadi` and its production web stream, published Google Search Console and Bing DNS verification records, verified Bing ownership, and submitted the canonical sitemap to Bing. Google Search Console verification remains subject to its DNS-cache refresh before sitemap submission.
+- Created GA4 property `SalaryPadi` and its production web stream, verified Google Search Console and Bing ownership through DNS, and confirmed successful processing of the canonical sitemap in both webmaster consoles.
 - Updated GitHub Actions to current supported majors, renamed the Supabase local SMTP block, and pinned a compatible fixed PostCSS override; `npm audit` reports zero known vulnerabilities.
 - Closed the separated [Phase Two production release record](PHASE_TWO_RELEASE_RECORD.md) as `released` after main CI, hosted database checks, live workers, branded email, cross-browser token-hash sign-in, verified admin TOTP and production route evidence passed.
 
