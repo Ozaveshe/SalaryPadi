@@ -7,6 +7,7 @@ const navigation = [
   { href: "/jobs", label: "Jobs" },
   { href: "/salaries", label: "Salaries" },
   { href: "/companies", label: "Companies" },
+  { href: "/insights", label: "Insights" },
   { href: "/feed", label: "Feed" },
   { href: "/forums", label: "Forums" },
   { href: "/tools", label: "Tools" },

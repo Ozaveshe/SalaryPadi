@@ -3,6 +3,9 @@ import {
   ArrowRight,
   BadgeDollarSign,
   BriefcaseBusiness,
+  Clock3,
+  DatabaseZap,
+  Globe2,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -36,23 +39,99 @@ const toolLinks = [
 
 export default async function HomePage() {
   const feed = await getLiveJobFeed();
+  const explicitlyOpenJobs = feed.jobs.filter(
+    (job) =>
+      job.eligibility.nigeria === "eligible" ||
+      job.eligibility.africa === "eligible",
+  );
   const recentJobs = feed.jobs
-    .toSorted((a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt))
+    .toSorted((a, b) => {
+      const aRelevant =
+        a.eligibility.nigeria === "eligible" ||
+        a.eligibility.africa === "eligible"
+          ? 1
+          : 0;
+      const bRelevant =
+        b.eligibility.nigeria === "eligible" ||
+        b.eligibility.africa === "eligible"
+          ? 1
+          : 0;
+      return (
+        bRelevant - aRelevant || Date.parse(b.postedAt) - Date.parse(a.postedAt)
+      );
+    })
     .slice(0, 4);
+  const checkedAt = new Date(feed.checkedAt);
+  const checkedLabel = Number.isNaN(checkedAt.valueOf())
+    ? "Freshness unavailable"
+    : `Checked ${checkedAt.toLocaleDateString("en-NG", {
+        day: "numeric",
+        month: "short",
+      })}, ${checkedAt.toLocaleTimeString("en-NG", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
 
   return (
     <div className="site-shell stack-lg">
       <section className="home-start" aria-labelledby="home-heading">
-        <div>
-          <p className="eyebrow">Jobs and salary truth for Africans</p>
+        <div className="home-hero-copy">
+          <p className="home-kicker">
+            <span className={`live-dot live-dot-${feed.state}`} />
+            {feed.state === "live"
+              ? "Live, source-checked data"
+              : "Data status visible"}
+          </p>
+          <p className="eyebrow">Career intelligence built for Africans</p>
           <h1 className="page-title" id="home-heading">
-            Start with a job you can actually apply for.
+            Know the job. Know the pay. Make the move.
           </h1>
           <p className="lede">
-            Check explicit Nigeria eligibility, real pay evidence and source
-            freshness before you spend time on an application.
+            Search roles, compare offers and verify salary evidence with clear
+            eligibility and freshness—not a wall of recycled listings.
           </p>
+          <div className="home-hero-actions">
+            <Link className="button" href="/jobs/remote?eligibility=nigeria">
+              Explore eligible jobs <ArrowRight aria-hidden="true" size={18} />
+            </Link>
+            <Link className="button button-secondary" href="/tools">
+              Open career tools
+            </Link>
+          </div>
         </div>
+        <aside className="home-proof" aria-label="Current SalaryPadi coverage">
+          <div className="home-proof-heading">
+            <div>
+              <p className="eyebrow">What is live now</p>
+              <h2>Useful signal, not listing volume</h2>
+            </div>
+            <DatabaseZap aria-hidden="true" size={25} />
+          </div>
+          <dl className="home-proof-grid">
+            <div>
+              <dt>Current roles</dt>
+              <dd>{feed.jobs.length}</dd>
+            </div>
+            <div>
+              <dt>Open to Nigeria/Africa</dt>
+              <dd>{explicitlyOpenJobs.length}</dd>
+            </div>
+          </dl>
+          <div className="home-proof-meta">
+            <span>
+              <Clock3 aria-hidden="true" size={16} />
+              {checkedLabel}
+            </span>
+            <span>
+              <Globe2 aria-hidden="true" size={16} />
+              API and employer sources
+            </span>
+          </div>
+          <Link className="text-link" href="/methodology">
+            See how evidence is verified{" "}
+            <ArrowRight aria-hidden="true" size={15} />
+          </Link>
+        </aside>
         <form className="home-search" action="/jobs" method="get" role="search">
           <div className="field">
             <label htmlFor="home-keyword">Role, skill or company</label>
@@ -90,6 +169,11 @@ export default async function HomePage() {
           <Link href="/salaries">
             <strong>Search salary evidence</strong>
             <span>Thresholded aggregates, never individual submissions.</span>
+            <ArrowRight aria-hidden="true" size={18} />
+          </Link>
+          <Link href="/insights">
+            <strong>Read fresh job insights</strong>
+            <span>Automated briefs backed by timestamped snapshots.</span>
             <ArrowRight aria-hidden="true" size={18} />
           </Link>
         </div>

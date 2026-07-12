@@ -12,6 +12,7 @@
     "deploy:verify": "node scripts/verify-deploy-channel.mjs",
     "deploy:preview": "netlify deploy --build",
     "deploy:production": "netlify deploy --prod --build",
+    "ops:verify-freshness": "node scripts/verify-production-freshness.mjs",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "next typegen && tsc --noEmit",
