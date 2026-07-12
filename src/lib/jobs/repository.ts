@@ -4,7 +4,7 @@ import { getServerEnvironment, getSupabasePublicConfig } from "@/lib/env";
 import { readBoundedJson } from "@/lib/http/json";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-import { mapDatabaseJobRow } from "./database";
+import { decodeDatabaseJobRow } from "./database";
 import {
   fetchRemotiveJobs,
   RemotiveAdapterError,
@@ -274,9 +274,23 @@ async function getDatabaseJobFeed(): Promise<SourceFeed> {
     );
   }
 
-  const mapped = data.map((row) => mapDatabaseJobRow(row));
-  const jobs = mapped.filter((job): job is Job => job !== null);
-  const rejected = mapped.length - jobs.length;
+  const decoded = data.map((row) => decodeDatabaseJobRow(row));
+  const jobs = decoded.flatMap((result) => (result.ok ? [result.job] : []));
+  const rejectedRows = decoded.filter((result) => !result.ok);
+  const rejected = rejectedRows.length;
+  if (rejected > 0) {
+    console.warn(
+      JSON.stringify({
+        event: "repository.rows_quarantined",
+        operation: "jobs.public_feed",
+        code: "database_jobs_invalid_rows",
+        rejected,
+        issue_paths: [
+          ...new Set(rejectedRows.flatMap((result) => result.issuePaths)),
+        ].slice(0, 12),
+      }),
+    );
+  }
   return {
     key: "database",
     jobs,

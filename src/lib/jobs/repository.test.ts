@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   publicConfig: vi.fn(),
   createClient: vi.fn(),
   fetchRemotiveJobs: vi.fn(),
-  mapDatabaseJobRow: vi.fn(),
+  decodeDatabaseJobRow: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -25,7 +25,7 @@ vi.mock("./remotive-adapter", async (importOriginal) => {
   return { ...actual, fetchRemotiveJobs: mocks.fetchRemotiveJobs };
 });
 vi.mock("./database", () => ({
-  mapDatabaseJobRow: mocks.mapDatabaseJobRow,
+  decodeDatabaseJobRow: mocks.decodeDatabaseJobRow,
 }));
 
 import { getJobBySlug, getLiveJobFeed, getRemotiveJobFeed } from "./repository";
@@ -127,8 +127,11 @@ beforeEach(() => {
     }),
   );
   mocks.fetchRemotiveJobs.mockReset();
-  mocks.mapDatabaseJobRow.mockReset();
-  mocks.mapDatabaseJobRow.mockImplementation((row) => row as Job | null);
+  mocks.decodeDatabaseJobRow.mockReset();
+  mocks.decodeDatabaseJobRow.mockImplementation((row) => ({
+    ok: true,
+    job: row as Job,
+  }));
   mocks.createClient.mockReset();
   mocks.fetchRemotiveJobs.mockResolvedValue({
     jobs: [remotiveJob()],
@@ -243,7 +246,11 @@ describe("job feed source orchestration", () => {
   it("quarantines invalid database rows and exposes the degraded count", async () => {
     databaseRows = [{ invalid: true }];
     mocks.createClient.mockResolvedValue(client() as never);
-    mocks.mapDatabaseJobRow.mockReturnValue(null);
+    mocks.decodeDatabaseJobRow.mockReturnValue({
+      ok: false,
+      code: "database_job_contract_invalid",
+      issuePaths: ["title"],
+    });
 
     const result = await getLiveJobFeed();
 

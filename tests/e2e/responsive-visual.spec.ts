@@ -4,6 +4,18 @@ const requireLiveAfroTools = process.env.REQUIRE_LIVE_AFROTOOLS === "true";
 
 test.use({ screenshot: "off", trace: "off", video: "off" });
 
+test.beforeEach(async ({ context, baseURL }) => {
+  if (!baseURL) throw new Error("Playwright baseURL is required.");
+  await context.addCookies([
+    {
+      name: "salarypadi_analytics_v2",
+      value: "denied",
+      url: baseURL,
+      sameSite: "Lax",
+    },
+  ]);
+});
+
 async function expectNoHorizontalOverflow(
   page: import("@playwright/test").Page,
 ) {

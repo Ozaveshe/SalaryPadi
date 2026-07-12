@@ -359,10 +359,9 @@ function mapRisks(rows: z.infer<typeof riskSchema>[]): RiskIndicator[] {
   }));
 }
 
-export function mapDatabaseJobRow(input: unknown): Job | null {
-  const parsed = databaseJobSchema.safeParse(input);
-  if (!parsed.success) return null;
-  const row = parsed.data;
+function mapValidatedDatabaseJobRow(
+  row: z.infer<typeof databaseJobSchema>,
+): Job {
   const arrangement = mapArrangement(row.engagement_type);
   const locationDisplay = mapLocation(row);
   const source: JobSourcePolicy = {
@@ -428,4 +427,39 @@ export function mapDatabaseJobRow(input: unknown): Job | null {
       destination: row.application_url,
     }),
   };
+}
+
+export type DatabaseJobDecodeResult =
+  | { ok: true; job: Job }
+  | {
+      ok: false;
+      code: "database_job_contract_invalid";
+      issuePaths: string[];
+    };
+
+/**
+ * Validates the public database boundary and returns bounded diagnostics. The
+ * diagnostics contain field paths only, never source values or descriptions.
+ */
+export function decodeDatabaseJobRow(input: unknown): DatabaseJobDecodeResult {
+  const parsed = databaseJobSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      code: "database_job_contract_invalid",
+      issuePaths: [
+        ...new Set(
+          parsed.error.issues.map((issue) =>
+            issue.path.length > 0 ? issue.path.join(".") : "row",
+          ),
+        ),
+      ].slice(0, 12),
+    };
+  }
+  return { ok: true, job: mapValidatedDatabaseJobRow(parsed.data) };
+}
+
+export function mapDatabaseJobRow(input: unknown): Job | null {
+  const decoded = decodeDatabaseJobRow(input);
+  return decoded.ok ? decoded.job : null;
 }

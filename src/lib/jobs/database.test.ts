@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mapDatabaseJobRow } from "./database";
+import { decodeDatabaseJobRow, mapDatabaseJobRow } from "./database";
 import { buildJobFingerprint } from "./normalize";
 
 function databaseRow() {
@@ -87,5 +87,20 @@ describe("database job normalization", () => {
         locations: [{ country_code: 123 }],
       }),
     ).toBeNull();
+  });
+
+  it("returns bounded field-only diagnostics for quarantined rows", () => {
+    const decoded = decodeDatabaseJobRow({
+      ...databaseRow(),
+      title: 42,
+      locations: [{ country_code: 123 }],
+    });
+
+    expect(decoded).toEqual({
+      ok: false,
+      code: "database_job_contract_invalid",
+      issuePaths: ["title", "locations.0.country_code"],
+    });
+    expect(JSON.stringify(decoded)).not.toContain("Platform Engineer");
   });
 });

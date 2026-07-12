@@ -5,6 +5,18 @@ const requireLiveAfroTools = process.env.REQUIRE_LIVE_AFROTOOLS === "true";
 
 test.use({ screenshot: "off", trace: "off", video: "off" });
 
+test.beforeEach(async ({ context, baseURL }) => {
+  if (!baseURL) throw new Error("Playwright baseURL is required.");
+  await context.addCookies([
+    {
+      name: "salarypadi_analytics_v2",
+      value: "denied",
+      url: baseURL,
+      sameSite: "Lax",
+    },
+  ]);
+});
+
 async function firstLiveJob(page: Page) {
   const firstJob = page.locator(".job-card .job-title a").first();
   if ((await firstJob.count()) === 0) {
@@ -178,6 +190,21 @@ test.describe("public MVP journeys", () => {
 });
 
 test.describe("launch-quality public surfaces", () => {
+  test("records an explicit analytics choice before continuing", async ({
+    context,
+    page,
+  }) => {
+    await context.clearCookies();
+    await page.goto("/tools");
+    const dialog = page.getByRole("dialog", { name: "Optional analytics" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "No thanks" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Analytics choices" }),
+    ).toBeVisible();
+  });
+
   for (const path of ["/", "/jobs", "/tools"] as const) {
     test(`${path} has no automatically detectable WCAG A/AA violations`, async ({
       page,
