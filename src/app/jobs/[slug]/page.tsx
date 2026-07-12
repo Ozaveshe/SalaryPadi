@@ -8,12 +8,13 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JobCard } from "@/components/jobs/job-card";
 import { JobTruthCard } from "@/components/jobs/job-truth-card";
 import { JsonLd } from "@/components/json-ld";
+import { CombinedRepositoryNotice } from "@/components/repository-notice";
 import { getViewer } from "@/lib/auth/dal";
 import {
-  getCompanyBenefits,
-  getCompanyRating,
-  getCompanyReviews,
-  getInterviewExperiences,
+  getCompanyBenefitsResult,
+  getCompanyRatingResult,
+  getCompanyReviewsResult,
+  getInterviewExperiencesResult,
 } from "@/lib/companies/repository";
 import { formatDate, formatEnum } from "@/lib/format";
 import { getAppOrigin } from "@/lib/env";
@@ -51,13 +52,17 @@ export default async function JobDetailPage({
   const { feed, job } = await getJobBySlug(slug);
   if (!job) notFound();
   const viewer = await getViewer();
-  const [companyRating, companyReviews, companyInterviews, companyBenefits] =
+  const [ratingResult, reviewsResult, interviewsResult, benefitsResult] =
     await Promise.all([
-      getCompanyRating(job.company.slug),
-      getCompanyReviews(job.company.slug),
-      getInterviewExperiences(job.company.slug),
-      getCompanyBenefits(job.company.slug),
+      getCompanyRatingResult(job.company.slug),
+      getCompanyReviewsResult(job.company.slug),
+      getInterviewExperiencesResult(job.company.slug),
+      getCompanyBenefitsResult(job.company.slug),
     ]);
+  const companyRating = ratingResult.data;
+  const companyReviews = reviewsResult.data;
+  const companyInterviews = interviewsResult.data;
+  const companyBenefits = benefitsResult.data;
   const nonce = (await headers()).get("x-nonce");
   const canonicalUrl = new URL(`/jobs/${job.slug}`, getAppOrigin()).toString();
   const jobPosting = buildJobPostingStructuredData(job, canonicalUrl);
@@ -248,6 +253,15 @@ export default async function JobDetailPage({
             <h2 className="text-lg font-bold" id="company-heading">
               Company intelligence
             </h2>
+            <CombinedRepositoryNotice
+              resource="Company intelligence"
+              results={[
+                ratingResult,
+                reviewsResult,
+                interviewsResult,
+                benefitsResult,
+              ]}
+            />
             <dl className="data-list">
               <div>
                 <dt>Employer evidence</dt>
@@ -276,7 +290,11 @@ export default async function JobDetailPage({
                 </div>
               ) : null}
             </dl>
-            {!companyRating &&
+            {ratingResult.state === "ready" &&
+            reviewsResult.state === "ready" &&
+            interviewsResult.state === "ready" &&
+            benefitsResult.state === "ready" &&
+            !companyRating &&
             companyReviews.length === 0 &&
             companyInterviews.length === 0 &&
             companyBenefits.length === 0 ? (

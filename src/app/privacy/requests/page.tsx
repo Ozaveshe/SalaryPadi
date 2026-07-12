@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 
 import { PageHeading } from "@/components/page-heading";
+import { RepositoryNotice } from "@/components/repository-notice";
 import { requireViewer } from "@/lib/auth/dal";
 import { formatDate, formatEnum } from "@/lib/format";
-import { getMyPrivacyRequests } from "@/lib/privacy/repository";
+import { getMyPrivacyRequestsResult } from "@/lib/privacy/repository";
 
 export const metadata: Metadata = {
   title: "Privacy requests",
@@ -12,7 +13,8 @@ export const metadata: Metadata = {
 
 export default async function PrivacyRequestsPage() {
   await requireViewer("/privacy/requests");
-  const requests = await getMyPrivacyRequests();
+  const result = await getMyPrivacyRequestsResult();
+  const requests = result.data;
   return (
     <div className="reading-shell stack-lg">
       <PageHeading
@@ -70,7 +72,8 @@ export default async function PrivacyRequestsPage() {
         <h2 className="section-title" id="privacy-history">
           Request history
         </h2>
-        {requests.length > 0 ? (
+        <RepositoryNotice result={result} resource="Privacy requests" />
+        {result.state === "ready" && requests.length > 0 ? (
           <div className="stack">
             {requests.map((request) => (
               <article className="private-row" key={request.id}>
@@ -86,14 +89,14 @@ export default async function PrivacyRequestsPage() {
               </article>
             ))}
           </div>
-        ) : (
+        ) : result.state === "ready" ? (
           <div className="empty-state">
             <h3 className="m-0 text-xl font-bold">No privacy requests yet</h3>
             <p>
               Your submitted requests and their current status will appear here.
             </p>
           </div>
-        )}
+        ) : null}
       </section>
     </div>
   );

@@ -1,7 +1,15 @@
 import "server-only";
 
+import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 
+import {
+  mapRepositoryResult,
+  repositoryDegraded,
+  repositoryFailure,
+  repositoryIssue,
+  repositoryReady,
+} from "@/lib/data/repository-result";
 import { getSupabasePublicConfig } from "@/lib/env";
 import { readBoundedJson } from "@/lib/http/json";
 
@@ -40,9 +48,19 @@ export const REMOTE_JOBS_GUIDE: EditorialArticle = {
   ],
 };
 
-export async function getPublishedEditorial(): Promise<EditorialArticle[]> {
+export async function getPublishedEditorialResult() {
   const configuration = getSupabasePublicConfig();
-  if (!configuration) return [REMOTE_JOBS_GUIDE];
+  if (!configuration) {
+    return repositoryFailure(
+      "unconfigured",
+      [REMOTE_JOBS_GUIDE],
+      repositoryIssue(
+        "editorial.list",
+        "not_configured",
+        "editorial_backend_unconfigured",
+      ),
+    );
+  }
   const endpoint = new URL(
     "/rest/v1/rpc/list_published_editorial",
     configuration.url,
@@ -64,25 +82,71 @@ export async function getPublishedEditorial(): Promise<EditorialArticle[]> {
       redirect: "error",
       signal: AbortSignal.timeout(4_000),
     });
-    if (!response.ok) return [REMOTE_JOBS_GUIDE];
+    if (!response.ok) {
+      return repositoryDegraded(
+        [REMOTE_JOBS_GUIDE],
+        [
+          repositoryIssue(
+            "editorial.list",
+            "upstream_unavailable",
+            `editorial_http_${response.status}`,
+          ),
+        ],
+      );
+    }
     const payload = await readBoundedJson(response, 2 * 1024 * 1024);
     const parsed = z.array(editorialArticleSchema).max(200).safeParse(payload);
-    if (!parsed.success) return [REMOTE_JOBS_GUIDE];
+    if (!parsed.success) {
+      return repositoryDegraded(
+        [REMOTE_JOBS_GUIDE],
+        [
+          repositoryIssue(
+            "editorial.list",
+            "invalid_rows",
+            "editorial_invalid_rows",
+            parsed.error,
+          ),
+        ],
+      );
+    }
     const bySlug = new Map(
       [REMOTE_JOBS_GUIDE, ...parsed.data].map((article) => [
         article.slug,
         article,
       ]),
     );
-    return [...bySlug.values()].sort(
-      (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
+    return repositoryReady(
+      [...bySlug.values()].sort(
+        (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
+      ),
     );
-  } catch {
-    return [REMOTE_JOBS_GUIDE];
+  } catch (reason) {
+    unstable_rethrow(reason);
+    return repositoryDegraded(
+      [REMOTE_JOBS_GUIDE],
+      [
+        repositoryIssue(
+          "editorial.list",
+          "upstream_unavailable",
+          "editorial_request_failed",
+          reason,
+        ),
+      ],
+    );
   }
 }
 
+export async function getPublishedEditorial(): Promise<EditorialArticle[]> {
+  return (await getPublishedEditorialResult()).data;
+}
+
+export async function getPublishedArticleResult(slug: string) {
+  return mapRepositoryResult(
+    await getPublishedEditorialResult(),
+    (articles) => articles.find((article) => article.slug === slug) ?? null,
+  );
+}
+
 export async function getPublishedArticle(slug: string) {
-  const articles = await getPublishedEditorial();
-  return articles.find((article) => article.slug === slug) ?? null;
+  return (await getPublishedArticleResult(slug)).data;
 }

@@ -1,5 +1,11 @@
 import "server-only";
 
+import {
+  repositoryDegraded,
+  repositoryFailure,
+  repositoryIssue,
+  repositoryReady,
+} from "@/lib/data/repository-result";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export interface PublicSalaryAggregate {
@@ -22,10 +28,13 @@ export interface PublicSalaryAggregate {
   calculatedAt: string;
 }
 
-function mapAggregate(
-  row: Record<string, unknown>,
-): PublicSalaryAggregate | null {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function mapAggregate(row: unknown): PublicSalaryAggregate | null {
   if (
+    !isRecord(row) ||
     typeof row.id !== "string" ||
     typeof row.role_slug !== "string" ||
     typeof row.role_family !== "string" ||
@@ -79,7 +88,7 @@ function mapAggregate(
   };
 }
 
-export async function searchSalaryAggregates({
+export async function searchSalaryAggregatesResult({
   role,
   country,
   company,
@@ -89,7 +98,17 @@ export async function searchSalaryAggregates({
   company?: string;
 }) {
   const supabase = await createServerSupabaseClient();
-  if (!supabase) return [];
+  if (!supabase) {
+    return repositoryFailure(
+      "unconfigured",
+      [],
+      repositoryIssue(
+        "salaries.search",
+        "not_configured",
+        "salaries_backend_unconfigured",
+      ),
+    );
+  }
   let query = supabase
     .schema("api")
     .from("salary_aggregates")
@@ -99,8 +118,35 @@ export async function searchSalaryAggregates({
   if (country) query = query.eq("country_code", country.toUpperCase());
   if (company) query = query.eq("company_slug", company);
   const { data, error } = await query;
-  if (error || !Array.isArray(data)) return [];
-  return data
-    .map((row) => mapAggregate(row as Record<string, unknown>))
+  if (error || !Array.isArray(data)) {
+    return repositoryFailure(
+      "unavailable",
+      [],
+      repositoryIssue(
+        "salaries.search",
+        error ? "query_failed" : "invalid_container",
+        error ? "salaries_query_failed" : "salaries_invalid_container",
+        error,
+      ),
+    );
+  }
+  const mapped = data
+    .map((row) => mapAggregate(row))
     .filter((row): row is PublicSalaryAggregate => row !== null);
+  if (mapped.length !== data.length) {
+    return repositoryDegraded(mapped, [
+      repositoryIssue(
+        "salaries.search",
+        "invalid_rows",
+        "salaries_invalid_rows",
+      ),
+    ]);
+  }
+  return repositoryReady(mapped);
+}
+
+export async function searchSalaryAggregates(
+  filters: Parameters<typeof searchSalaryAggregatesResult>[0],
+): Promise<PublicSalaryAggregate[]> {
+  return (await searchSalaryAggregatesResult(filters)).data;
 }

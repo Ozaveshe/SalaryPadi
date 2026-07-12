@@ -2,6 +2,15 @@ import "server-only";
 
 import { z } from "zod";
 
+import {
+  mapRepositoryResult,
+  repositoryDegraded,
+  repositoryFailure,
+  repositoryIssue,
+  repositoryReady,
+  type RepositoryIssue,
+  type RepositoryResult,
+} from "@/lib/data/repository-result";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
 import type { Job } from "@/lib/jobs/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -119,17 +128,40 @@ function formatCompanyLocation(
     .join(", ");
 }
 
-async function getDatabaseCompanies(): Promise<CompanySummary[]> {
+async function getDatabaseCompaniesResult(): Promise<
+  RepositoryResult<CompanySummary[]>
+> {
   const supabase = await createServerSupabaseClient();
-  if (!supabase) return [];
+  if (!supabase) {
+    return repositoryFailure(
+      "unconfigured",
+      [],
+      repositoryIssue(
+        "companies.list",
+        "not_configured",
+        "companies_backend_unconfigured",
+      ),
+    );
+  }
   const { data, error } = await supabase
     .schema("api")
     .from("companies")
     .select("*")
     .order("display_name")
     .limit(500);
-  if (error || !Array.isArray(data)) return [];
-  return data.flatMap((row) => {
+  if (error || !Array.isArray(data)) {
+    return repositoryFailure(
+      "unavailable",
+      [],
+      repositoryIssue(
+        "companies.list",
+        error ? "query_failed" : "invalid_container",
+        error ? "companies_query_failed" : "companies_invalid_container",
+        error,
+      ),
+    );
+  }
+  const companies = data.flatMap((row) => {
     const parsed = companyRowSchema.safeParse(row);
     if (!parsed.success) return [];
     const company = parsed.data;
@@ -153,13 +185,26 @@ async function getDatabaseCompanies(): Promise<CompanySummary[]> {
       } satisfies CompanySummary,
     ];
   });
+  if (companies.length !== data.length) {
+    return repositoryDegraded(companies, [
+      repositoryIssue(
+        "companies.list",
+        "invalid_rows",
+        "companies_invalid_rows",
+      ),
+    ]);
+  }
+  return repositoryReady(companies);
 }
 
-export async function getCompanies(): Promise<CompanySummary[]> {
-  const [feed, databaseCompanies] = await Promise.all([
+export async function getCompaniesResult(): Promise<
+  RepositoryResult<CompanySummary[]>
+> {
+  const [feed, databaseResult] = await Promise.all([
     getLiveJobFeed(),
-    getDatabaseCompanies(),
+    getDatabaseCompaniesResult(),
   ]);
+  const databaseCompanies = databaseResult.data;
   const grouped = new Map(
     databaseCompanies.map((company) => [company.slug, company]),
   );
@@ -196,16 +241,50 @@ export async function getCompanies(): Promise<CompanySummary[]> {
     });
   }
 
-  return [...grouped.values()].toSorted((a, b) => a.name.localeCompare(b.name));
+  const companies = [...grouped.values()].toSorted((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+  const issues: RepositoryIssue[] = [...databaseResult.issues];
+  if (feed.state === "unavailable" || feed.state === "degraded") {
+    issues.push(
+      repositoryIssue(
+        "companies.jobs",
+        "upstream_unavailable",
+        feed.sources.find(
+          (source) =>
+            source.state === "unavailable" || source.state === "degraded",
+        )?.code ?? "companies_job_feed_degraded",
+      ),
+    );
+  }
+  if (issues.length === 0) return repositoryReady(companies);
+  if (companies.length > 0) return repositoryDegraded(companies, issues);
+  const onlyUnconfigured = issues.every(
+    (issue) => issue.kind === "not_configured",
+  );
+  return {
+    state: onlyUnconfigured ? "unconfigured" : "unavailable",
+    data: companies,
+    issues,
+  };
+}
+
+export async function getCompanies(): Promise<CompanySummary[]> {
+  return (await getCompaniesResult()).data;
 }
 
 export async function getCompany(slug: string) {
-  return (
-    (await getCompanies()).find((company) => company.slug === slug) ?? null
+  return (await getCompanyResult(slug)).data;
+}
+
+export async function getCompanyResult(slug: string) {
+  return mapRepositoryResult(
+    await getCompaniesResult(),
+    (companies) => companies.find((company) => company.slug === slug) ?? null,
   );
 }
 
-async function readCompanyRows<T>(
+async function readCompanyRowsResult<T>(
   table:
     | "company_reviews"
     | "interview_experiences"
@@ -213,46 +292,99 @@ async function readCompanyRows<T>(
     | "company_benefits",
   slug: string,
   schema: z.ZodType<T>,
-): Promise<T[]> {
+): Promise<RepositoryResult<T[]>> {
   const supabase = await createServerSupabaseClient();
-  if (!supabase) return [];
+  const operation = `companies.${table}`;
+  if (!supabase) {
+    return repositoryFailure(
+      "unconfigured",
+      [],
+      repositoryIssue(
+        operation,
+        "not_configured",
+        "company_intelligence_backend_unconfigured",
+      ),
+    );
+  }
   const { data, error } = await supabase
     .schema("api")
     .from(table)
     .select("*")
     .eq("company_slug", slug)
     .limit(100);
-  if (error || !Array.isArray(data)) return [];
-  return data.flatMap((row) => {
+  if (error || !Array.isArray(data)) {
+    return repositoryFailure(
+      "unavailable",
+      [],
+      repositoryIssue(
+        operation,
+        error ? "query_failed" : "invalid_container",
+        error
+          ? "company_intelligence_query_failed"
+          : "company_intelligence_invalid_container",
+        error,
+      ),
+    );
+  }
+  const rows = data.flatMap((row) => {
     const parsed = schema.safeParse(row);
     return parsed.success ? [parsed.data] : [];
   });
+  if (rows.length !== data.length) {
+    return repositoryDegraded(rows, [
+      repositoryIssue(
+        operation,
+        "invalid_rows",
+        "company_intelligence_invalid_rows",
+      ),
+    ]);
+  }
+  return repositoryReady(rows);
+}
+
+export async function getCompanyReviewsResult(slug: string) {
+  return mapRepositoryResult(
+    await readCompanyRowsResult("company_reviews", slug, reviewSchema),
+    (rows) =>
+      rows.toSorted(
+        (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
+      ),
+  );
 }
 
 export async function getCompanyReviews(slug: string) {
-  const rows = await readCompanyRows("company_reviews", slug, reviewSchema);
-  return rows.toSorted(
-    (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
+  return (await getCompanyReviewsResult(slug)).data;
+}
+
+export async function getInterviewExperiencesResult(slug: string) {
+  return mapRepositoryResult(
+    await readCompanyRowsResult("interview_experiences", slug, interviewSchema),
+    (rows) =>
+      rows.toSorted(
+        (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
+      ),
   );
 }
 
 export async function getInterviewExperiences(slug: string) {
-  const rows = await readCompanyRows(
-    "interview_experiences",
-    slug,
-    interviewSchema,
-  );
-  return rows.toSorted(
-    (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
+  return (await getInterviewExperiencesResult(slug)).data;
+}
+
+export async function getCompanyRatingResult(slug: string) {
+  return mapRepositoryResult(
+    await readCompanyRowsResult("company_ratings", slug, ratingSchema),
+    (rows) => rows[0] ?? null,
   );
 }
 
 export async function getCompanyRating(slug: string) {
-  return (
-    (await readCompanyRows("company_ratings", slug, ratingSchema))[0] ?? null
-  );
+  return (await getCompanyRatingResult(slug)).data;
+}
+
+export async function getCompanyBenefitsResult(slug: string) {
+  return readCompanyRowsResult("company_benefits", slug, benefitSchema);
 }
 
 export async function getCompanyBenefits(slug: string) {
-  return readCompanyRows("company_benefits", slug, benefitSchema);
+  return (await getCompanyBenefitsResult(slug)).data;
 }

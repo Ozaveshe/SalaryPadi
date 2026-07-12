@@ -1,7 +1,7 @@
 export function PrivateDataStatus({
   state,
 }: {
-  state: "unconfigured" | "unavailable" | "invalid";
+  state: "degraded" | "unconfigured" | "unavailable" | "invalid";
 }) {
   return (
     <div className="notice notice-danger" role="alert">

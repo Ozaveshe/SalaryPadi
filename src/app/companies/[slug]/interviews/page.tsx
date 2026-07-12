@@ -3,9 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CompanyHeading } from "@/components/companies/company-heading";
+import { RepositoryNotice } from "@/components/repository-notice";
 import {
-  getCompany,
-  getInterviewExperiences,
+  getCompanyResult,
+  getInterviewExperiencesResult,
 } from "@/lib/companies/repository";
 import { formatDate, formatEnum } from "@/lib/format";
 
@@ -20,16 +21,29 @@ export default async function CompanyInterviewsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [company, interviews] = await Promise.all([
-    getCompany(slug),
-    getInterviewExperiences(slug),
+  const [companyResult, interviewsResult] = await Promise.all([
+    getCompanyResult(slug),
+    getInterviewExperiencesResult(slug),
   ]);
-  if (!company) notFound();
+  const company = companyResult.data;
+  if (companyResult.state === "ready" && !company) notFound();
+  if (!company) {
+    return (
+      <div className="site-shell stack-lg">
+        <RepositoryNotice result={companyResult} resource="Company profile" />
+      </div>
+    );
+  }
+  const interviews = interviewsResult.data;
   return (
     <div className="site-shell stack-lg">
       <CompanyHeading company={company} />
       <section className="rule-section stack">
         <h2 className="section-title">Interview experiences</h2>
+        <RepositoryNotice
+          result={interviewsResult}
+          resource="Interview experiences"
+        />
         {interviews.length > 0 ? (
           <div className="stack">
             {interviews.map((interview) => (
@@ -105,7 +119,7 @@ export default async function CompanyInterviewsPage({
               </article>
             ))}
           </div>
-        ) : (
+        ) : interviewsResult.state === "ready" ? (
           <div className="empty-state">
             <h3 className="m-0 text-xl font-bold">
               No approved interview evidence yet
@@ -118,7 +132,7 @@ export default async function CompanyInterviewsPage({
               Share an interview experience
             </Link>
           </div>
-        )}
+        ) : null}
       </section>
     </div>
   );

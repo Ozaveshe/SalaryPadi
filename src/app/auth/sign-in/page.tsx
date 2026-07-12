@@ -37,6 +37,12 @@ export default async function SignInPage({
       {viewer.state === "unconfigured" || status === "setup" ? (
         <BackendNotice />
       ) : null}
+      {viewer.state === "unavailable" ? (
+        <div className="notice notice-danger" role="alert">
+          Sign-in status could not be checked. This is a temporary service
+          problem; reload before requesting another link.
+        </div>
+      ) : null}
       {status === "check-email" ? (
         <div className="notice" role="status">
           Check your email for the SalaryPadi sign-in link. It may take a
@@ -65,7 +71,12 @@ export default async function SignInPage({
           </a>
         </div>
       ) : (
-        <SignInForm disabled={viewer.state === "unconfigured"} next={next} />
+        <SignInForm
+          disabled={
+            viewer.state === "unconfigured" || viewer.state === "unavailable"
+          }
+          next={next}
+        />
       )}
     </div>
   );

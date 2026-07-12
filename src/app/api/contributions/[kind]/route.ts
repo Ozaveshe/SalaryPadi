@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { getViewer } from "@/lib/auth/dal";
+import { getAuthenticatedApiContext } from "@/lib/auth/api";
 import {
   contributionSchemas,
   type ContributionKind,
 } from "@/lib/contributions/schemas";
 import { getAppOrigin } from "@/lib/env";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const kinds = new Set<ContributionKind>(["salary", "review", "interview"]);
 
@@ -26,12 +25,8 @@ export async function POST(
       { status: 404 },
     );
   const kind = rawKind as ContributionKind;
-  const viewer = await getViewer();
-  if (viewer.state !== "authenticated")
-    return Response.json(
-      { error: "Authentication required." },
-      { status: 401 },
-    );
+  const authenticated = await getAuthenticatedApiContext();
+  if (!authenticated.ok) return authenticated.response;
   const formData = await request.formData();
   const payload = Object.fromEntries(formData.entries());
   const parsed = contributionSchemas[kind].safeParse(payload);
@@ -40,16 +35,12 @@ export async function POST(
       new URL(`/contribute/${kind}?status=error`, getAppOrigin()),
       303,
     );
-  const supabase = await createServerSupabaseClient();
-  if (!supabase)
-    return NextResponse.redirect(
-      new URL("/auth/sign-in?status=setup", getAppOrigin()),
-      303,
-    );
-  const { error } = await supabase.schema("api").rpc("submit_contribution", {
-    contribution_kind: kind,
-    contribution_payload: parsed.data,
-  });
+  const { error } = await authenticated.supabase
+    .schema("api")
+    .rpc("submit_contribution", {
+      contribution_kind: kind,
+      contribution_payload: parsed.data,
+    });
   return NextResponse.redirect(
     new URL(
       error ? "/contribute?status=error" : "/contribute?status=submitted",

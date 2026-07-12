@@ -2,6 +2,12 @@ import "server-only";
 
 import { z } from "zod";
 
+import {
+  repositoryFailure,
+  repositoryIssue,
+  repositoryReady,
+  type RepositoryResult,
+} from "@/lib/data/repository-result";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const savedJobSchema = z.object({
@@ -43,39 +49,47 @@ const alertSchema = z.object({
 type CareerRpcName =
   "get_my_saved_jobs" | "get_my_applications" | "get_my_job_alerts";
 
-export type CareerDataResult<T> =
-  | { state: "ready"; data: T[] }
-  | { state: "unconfigured" | "unavailable" | "invalid"; data: [] };
-
-function recordReadFailure(name: CareerRpcName, code: string) {
-  console.error(
-    JSON.stringify({
-      event: "career.repository.read_failed",
-      operation: name,
-      code,
-    }),
-  );
-}
-
 async function readCareerRows<T>(
   name: CareerRpcName,
   schema: z.ZodType<T[]>,
-): Promise<CareerDataResult<T>> {
+): Promise<RepositoryResult<T[]>> {
   const supabase = await createServerSupabaseClient();
-  if (!supabase) return { state: "unconfigured", data: [] };
+  if (!supabase) {
+    return repositoryFailure(
+      "unconfigured",
+      [],
+      repositoryIssue(name, "not_configured", "career_backend_unconfigured"),
+    );
+  }
   const { data, error } = await supabase.schema("api").rpc(name);
   if (error || !Array.isArray(data)) {
-    recordReadFailure(name, error ? "rpc_error" : "invalid_container");
-    return { state: "unavailable", data: [] };
+    return repositoryFailure(
+      "unavailable",
+      [],
+      repositoryIssue(
+        name,
+        error ? "query_failed" : "invalid_container",
+        error ? "career_rpc_error" : "career_invalid_container",
+        error,
+      ),
+    );
   }
 
   const parsed = schema.safeParse(data);
   if (!parsed.success) {
-    recordReadFailure(name, "invalid_rows");
-    return { state: "invalid", data: [] };
+    return repositoryFailure(
+      "invalid",
+      [],
+      repositoryIssue(
+        name,
+        "invalid_rows",
+        "career_invalid_rows",
+        parsed.error,
+      ),
+    );
   }
 
-  return { state: "ready", data: parsed.data };
+  return repositoryReady(parsed.data);
 }
 
 export async function getSavedJobs() {

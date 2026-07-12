@@ -14,6 +14,13 @@ const navigation = [
 ] as const;
 
 function AccountLinks({ viewer }: { viewer: Viewer }) {
+  if (viewer.state === "unavailable") {
+    return (
+      <span className="status status-neutral" role="status">
+        Account status unavailable
+      </span>
+    );
+  }
   if (viewer.state !== "authenticated") {
     return (
       <Link className="button button-secondary" href="/auth/sign-in">

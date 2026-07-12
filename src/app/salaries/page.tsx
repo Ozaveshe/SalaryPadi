@@ -2,8 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHeading } from "@/components/page-heading";
+import { RepositoryNotice } from "@/components/repository-notice";
 import { SalaryAggregateCard } from "@/components/salaries/salary-aggregate-card";
-import { searchSalaryAggregates } from "@/lib/salaries/repository";
+import {
+  searchSalaryAggregatesResult,
+  type PublicSalaryAggregate,
+} from "@/lib/salaries/repository";
 
 export const metadata: Metadata = {
   title: "Salary intelligence",
@@ -25,9 +29,14 @@ export default async function SalariesPage({
   const company =
     typeof input.company === "string" ? input.company.slice(0, 120) : "";
   const hasSearch = Boolean(role || company);
-  const results = hasSearch
-    ? await searchSalaryAggregates({ role, country, company })
-    : [];
+  const result = hasSearch
+    ? await searchSalaryAggregatesResult({ role, country, company })
+    : {
+        state: "ready" as const,
+        data: [] as PublicSalaryAggregate[],
+        issues: [],
+      };
+  const results = result.data;
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -78,6 +87,7 @@ export default async function SalariesPage({
           Search salaries
         </button>
       </form>
+      <RepositoryNotice result={result} resource="Salary aggregates" />
       {results.length > 0 ? (
         <section className="stack" aria-labelledby="salary-results">
           <h2 className="section-title" id="salary-results">
@@ -89,7 +99,7 @@ export default async function SalariesPage({
             ))}
           </div>
         </section>
-      ) : (
+      ) : result.state === "ready" ? (
         <section className="empty-state">
           <h2 className="section-title">
             {hasSearch
@@ -110,7 +120,7 @@ export default async function SalariesPage({
             </Link>
           </div>
         </section>
-      )}
+      ) : null}
     </div>
   );
 }

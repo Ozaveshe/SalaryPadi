@@ -4,13 +4,18 @@ import { notFound } from "next/navigation";
 
 import { CompanyHeading } from "@/components/companies/company-heading";
 import { JobCard } from "@/components/jobs/job-card";
+import {
+  CombinedRepositoryNotice,
+  RepositoryNotice,
+} from "@/components/repository-notice";
 import { formatEnum } from "@/lib/format";
 import {
   getCompany,
-  getCompanyBenefits,
-  getCompanyRating,
-  getCompanyReviews,
-  getInterviewExperiences,
+  getCompanyBenefitsResult,
+  getCompanyRatingResult,
+  getCompanyResult,
+  getCompanyReviewsResult,
+  getInterviewExperiencesResult,
 } from "@/lib/companies/repository";
 
 export async function generateMetadata({
@@ -34,16 +39,35 @@ export default async function CompanyPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [company, rating, reviews, interviews, benefits] = await Promise.all([
-    getCompany(slug),
-    getCompanyRating(slug),
-    getCompanyReviews(slug),
-    getInterviewExperiences(slug),
-    getCompanyBenefits(slug),
+  const [
+    companyResult,
+    ratingResult,
+    reviewsResult,
+    interviewsResult,
+    benefitsResult,
+  ] = await Promise.all([
+    getCompanyResult(slug),
+    getCompanyRatingResult(slug),
+    getCompanyReviewsResult(slug),
+    getInterviewExperiencesResult(slug),
+    getCompanyBenefitsResult(slug),
   ]);
-  if (!company) notFound();
+  const company = companyResult.data;
+  if (companyResult.state === "ready" && !company) notFound();
+  if (!company) {
+    return (
+      <div className="site-shell stack-lg">
+        <RepositoryNotice result={companyResult} resource="Company profile" />
+      </div>
+    );
+  }
+  const rating = ratingResult.data;
+  const reviews = reviewsResult.data;
+  const interviews = interviewsResult.data;
+  const benefits = benefitsResult.data;
   return (
     <div className="site-shell stack-lg">
+      <RepositoryNotice result={companyResult} resource="Company profile" />
       <CompanyHeading company={company} />
       <section className="rule-section" aria-labelledby="company-facts-heading">
         <h2 className="section-title" id="company-facts-heading">
@@ -128,6 +152,15 @@ export default async function CompanyPage({
         <h2 className="section-title" id="community-evidence-heading">
           Community evidence
         </h2>
+        <CombinedRepositoryNotice
+          resource="Company intelligence"
+          results={[
+            ratingResult,
+            reviewsResult,
+            interviewsResult,
+            benefitsResult,
+          ]}
+        />
         {rating || reviews.length > 0 || interviews.length > 0 ? (
           <dl className="data-list">
             <div>
@@ -147,13 +180,15 @@ export default async function CompanyPage({
               </dd>
             </div>
           </dl>
-        ) : (
+        ) : ratingResult.state === "ready" &&
+          reviewsResult.state === "ready" &&
+          interviewsResult.state === "ready" ? (
           <div className="notice">
             No approved salary, review or interview aggregate is available for
             this company yet. A missing aggregate is not a positive or negative
             signal.
           </div>
-        )}
+        ) : null}
         {benefits.length > 0 ? (
           <div className="stack">
             <h3 className="text-lg font-bold">Published benefits evidence</h3>

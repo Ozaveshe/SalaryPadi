@@ -26,12 +26,23 @@ describe("private career repository states", () => {
     await expect(getSavedJobs()).resolves.toEqual({
       state: "unconfigured",
       data: [],
+      issues: [
+        {
+          operation: "get_my_saved_jobs",
+          kind: "not_configured",
+          code: "career_backend_unconfigured",
+        },
+      ],
     });
   });
 
   it("returns a real empty state only after a successful RPC", async () => {
     mockedCreateClient.mockResolvedValue(clientReturning([]));
-    await expect(getSavedJobs()).resolves.toEqual({ state: "ready", data: [] });
+    await expect(getSavedJobs()).resolves.toEqual({
+      state: "ready",
+      data: [],
+      issues: [],
+    });
   });
 
   it("fails closed and records a stable code for malformed rows", async () => {
@@ -44,9 +55,16 @@ describe("private career repository states", () => {
     await expect(getSavedJobs()).resolves.toEqual({
       state: "invalid",
       data: [],
+      issues: [
+        {
+          operation: "get_my_saved_jobs",
+          kind: "invalid_rows",
+          code: "career_invalid_rows",
+        },
+      ],
     });
     expect(error).toHaveBeenCalledWith(
-      expect.stringContaining('"invalid_rows"'),
+      expect.stringContaining('"code":"career_invalid_rows"'),
     );
   });
 
@@ -58,6 +76,13 @@ describe("private career repository states", () => {
     await expect(getSavedJobs()).resolves.toEqual({
       state: "unavailable",
       data: [],
+      issues: [
+        {
+          operation: "get_my_saved_jobs",
+          kind: "query_failed",
+          code: "career_rpc_error",
+        },
+      ],
     });
   });
 });

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHeading } from "@/components/page-heading";
+import { RepositoryNotice } from "@/components/repository-notice";
 import { formatDate } from "@/lib/format";
-import { getCompanies } from "@/lib/companies/repository";
+import { getCompaniesResult } from "@/lib/companies/repository";
 
 export const metadata: Metadata = {
   title: "Companies",
@@ -14,7 +15,8 @@ export const metadata: Metadata = {
 };
 
 export default async function CompaniesPage() {
-  const companies = await getCompanies();
+  const result = await getCompaniesResult();
+  const companies = result.data;
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -22,6 +24,7 @@ export default async function CompaniesPage() {
         title="Know more before you accept"
         description="Start with current vacancies, then look for approved salary, workplace and interview evidence. Missing data stays missing."
       />
+      <RepositoryNotice result={result} resource="Company records" />
       {companies.length > 0 ? (
         <div className="company-list">
           {companies.map((company) => (
@@ -51,7 +54,7 @@ export default async function CompaniesPage() {
             </article>
           ))}
         </div>
-      ) : (
+      ) : result.state === "ready" ? (
         <div className="empty-state">
           <h2 className="section-title">
             No source-listed companies available
@@ -61,7 +64,7 @@ export default async function CompaniesPage() {
             fake company profiles to fill the directory.
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -5,7 +5,8 @@ import { notFound } from "next/navigation";
 
 import { JsonLd } from "@/components/json-ld";
 import { PageHeading } from "@/components/page-heading";
-import { getPublishedArticle } from "@/lib/editorial/repository";
+import { RepositoryNotice } from "@/components/repository-notice";
+import { getPublishedArticleResult } from "@/lib/editorial/repository";
 import { getAppOrigin } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const article = await getPublishedArticle(slug);
+  const article = (await getPublishedArticleResult(slug)).data;
   if (!article || article.article_kind !== "data_brief") return {};
   return {
     title: article.title,
@@ -31,11 +32,29 @@ export default async function InsightPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [article, requestHeaders] = await Promise.all([
-    getPublishedArticle(slug),
+  const [result, requestHeaders] = await Promise.all([
+    getPublishedArticleResult(slug),
     headers(),
   ]);
-  if (!article || article.article_kind !== "data_brief") notFound();
+  const article = result.data;
+  if (
+    result.state === "ready" &&
+    (!article || article.article_kind !== "data_brief")
+  ) {
+    notFound();
+  }
+  if (!article || article.article_kind !== "data_brief") {
+    return (
+      <div className="site-shell stack-lg">
+        <PageHeading
+          eyebrow="Editorial data unavailable"
+          title="This brief could not be checked"
+          description="SalaryPadi will not replace a failed editorial read with an unsupported article or a false not-found response."
+        />
+        <RepositoryNotice result={result} resource="Editorial brief" />
+      </div>
+    );
+  }
   const url = `${getAppOrigin()}/insights/${article.slug}`;
   return (
     <article className="site-shell stack-lg">

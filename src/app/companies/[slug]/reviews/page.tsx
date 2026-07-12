@@ -4,9 +4,13 @@ import { notFound } from "next/navigation";
 
 import { CompanyHeading } from "@/components/companies/company-heading";
 import {
-  getCompany,
-  getCompanyRating,
-  getCompanyReviews,
+  CombinedRepositoryNotice,
+  RepositoryNotice,
+} from "@/components/repository-notice";
+import {
+  getCompanyRatingResult,
+  getCompanyResult,
+  getCompanyReviewsResult,
 } from "@/lib/companies/repository";
 import { formatDate, formatEnum } from "@/lib/format";
 
@@ -21,17 +25,31 @@ export default async function CompanyReviewsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [company, reviews, rating] = await Promise.all([
-    getCompany(slug),
-    getCompanyReviews(slug),
-    getCompanyRating(slug),
+  const [companyResult, reviewsResult, ratingResult] = await Promise.all([
+    getCompanyResult(slug),
+    getCompanyReviewsResult(slug),
+    getCompanyRatingResult(slug),
   ]);
-  if (!company) notFound();
+  const company = companyResult.data;
+  if (companyResult.state === "ready" && !company) notFound();
+  if (!company) {
+    return (
+      <div className="site-shell stack-lg">
+        <RepositoryNotice result={companyResult} resource="Company profile" />
+      </div>
+    );
+  }
+  const reviews = reviewsResult.data;
+  const rating = ratingResult.data;
   return (
     <div className="site-shell stack-lg">
       <CompanyHeading company={company} />
       <section className="rule-section stack">
         <h2 className="section-title">Workplace reviews</h2>
+        <CombinedRepositoryNotice
+          results={[reviewsResult, ratingResult]}
+          resource="Company reviews"
+        />
         {reviews.length > 0 ? (
           <>
             <div className="notice">
@@ -108,7 +126,7 @@ export default async function CompanyReviewsPage({
               ))}
             </div>
           </>
-        ) : (
+        ) : reviewsResult.state === "ready" ? (
           <div className="empty-state">
             <h3 className="m-0 text-xl font-bold">
               No rating is published yet
@@ -122,7 +140,7 @@ export default async function CompanyReviewsPage({
               Share a moderated review
             </Link>
           </div>
-        )}
+        ) : null}
       </section>
     </div>
   );
