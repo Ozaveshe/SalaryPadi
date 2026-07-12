@@ -225,7 +225,7 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 - Resend is selected for authentication and alert email through verified domain `mail.salarypadi.com`; credentials are split between the Supabase SMTP integration and a sending-only Netlify Functions key.
 - Oza is the interim moderation, privacy, security, incident, source-terms, data-quality and release owner through monitored role aliases. A second named AAL2 administrator and human coverage remain operating-growth requirements.
 - European Commission InforEuro is the reviewed monthly FX reference under the Commission legal notice/CC BY 4.0. User-entered rates override it.
-- Privacy-safe analytics uses SalaryPadi's own Supabase project, explicit consent and aggregate-only 90-day daily counts; no behavioral analytics vendor receives events.
+- Privacy-safe analytics keeps aggregate-only 90-day daily counts in SalaryPadi's Supabase project. A separately versioned explicit choice can also enable Google Analytics for query-free public-page visits, allowlisted events and Web Vitals; private routes, form values, stable user IDs and ad signals remain excluded.
 
 ## Decisions and assumptions
 
@@ -310,6 +310,12 @@ The product is designed with the Nigeria Data Protection Act in mind, but docume
 - Created the initial production admin role with an auditable project-owner reason. The human owner completed TOTP enrolment and reached the protected control room at AAL2; automation retained no factor secret, QR data, one-time code, recovery material or session token.
 - Created `privacy@`, `security@`, `sources@` and `ops@` aliases and assigned Oza as interim accountable owner with internal response targets.
 - Integrated explicit-consent first-party analytics and European Commission InforEuro monthly reference rates with provenance, freshness, fallback and user-facing limitations.
+
+### 2026-07-12 — Consent-versioned measurement baseline
+
+- Added opt-in-only GA4 loading for public routes, allowlisted product events and Core Web Vitals, with Google ad storage, ad personalisation and Google signals disabled.
+- Versioned the consent cookie so prior first-party-only consent cannot silently activate Google Analytics, added a persistent preferences control, and excluded private and sensitive route groups.
+- Created GA4 property `SalaryPadi` and its production web stream, published Google Search Console and Bing DNS verification records, verified Bing ownership, and submitted the canonical sitemap to Bing. Google Search Console verification remains subject to its DNS-cache refresh before sitemap submission.
 - Updated GitHub Actions to current supported majors, renamed the Supabase local SMTP block, and pinned a compatible fixed PostCSS override; `npm audit` reports zero known vulnerabilities.
 - Closed the separated [Phase Two production release record](PHASE_TWO_RELEASE_RECORD.md) as `released` after main CI, hosted database checks, live workers, branded email, cross-browser token-hash sign-in, verified admin TOTP and production route evidence passed.
 

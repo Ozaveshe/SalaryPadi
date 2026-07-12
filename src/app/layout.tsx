@@ -6,7 +6,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { JsonLd } from "@/components/json-ld";
 import { getViewer } from "@/lib/auth/dal";
-import { getAppOrigin } from "@/lib/env";
+import { ANALYTICS_CONSENT_COOKIE } from "@/lib/analytics/consent";
+import { getAppOrigin, getGoogleAnalyticsId } from "@/lib/env";
 
 import "./globals.css";
 
@@ -52,7 +53,8 @@ export default async function RootLayout({
   const requestHeaders = await headers();
   const nonce = requestHeaders.get("x-nonce");
   const viewer = await getViewer();
-  const analyticsCookie = (await cookies()).get("salarypadi_analytics")?.value;
+  const cookieStore = await cookies();
+  const analyticsCookie = cookieStore.get(ANALYTICS_CONSENT_COOKIE)?.value;
   const analyticsConsent =
     analyticsCookie === "granted" || analyticsCookie === "denied"
       ? analyticsCookie
@@ -81,7 +83,11 @@ export default async function RootLayout({
           {children}
         </main>
         <SiteFooter />
-        <AnalyticsConsent initialConsent={analyticsConsent} />
+        <AnalyticsConsent
+          initialConsent={analyticsConsent}
+          measurementId={getGoogleAnalyticsId()}
+          nonce={nonce}
+        />
       </body>
     </html>
   );

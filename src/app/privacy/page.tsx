@@ -19,7 +19,7 @@ export default function PrivacyPage() {
       description="SalaryPadi uses data minimisation, private ownership controls and moderated publication. This notice describes the current production service; it is not a claim of legal compliance or a substitute for jurisdiction-specific advice."
     >
       <p>
-        <strong>Last updated:</strong> 10 July 2026.
+        <strong>Last updated:</strong> 12 July 2026.
       </p>
       <h2>Data we need</h2>
       <p>
@@ -49,6 +49,18 @@ export default function PrivacyPage() {
         user agent, session identifier or event-level record, and daily counts
         are deleted after 90 days.
       </p>
+      <p>
+        The same optional choice can enable Google Analytics on public pages.
+        SalaryPadi sends a query-free page path, page title, coarse allowlisted
+        event names and Core Web Vitals. It does not load Google Analytics on
+        account, application, alert, admin, authentication, contribution,
+        privacy-request or employer-submission routes, and it does not attach a
+        SalaryPadi account or stable user ID. Google necessarily receives
+        network and browser/device context, including the connection IP, while
+        processing a request. Advertising storage, ad personalisation and Google
+        signals are disabled. You can reopen “Analytics choices” at any time to
+        withdraw consent and clear SalaryPadi-domain Google Analytics cookies.
+      </p>
       <h2>Your choices</h2>
       <p>
         Authenticated users can request data export, correction, contribution
@@ -65,15 +77,17 @@ export default function PrivacyPage() {
       </p>
       <h2>Hosting and processors</h2>
       <p>
-        Account, career, moderation and aggregate analytics data is stored in a
-        dedicated Supabase project in AWS eu-north-1. Netlify hosts the web
-        application and scheduled operations through its managed platform.
-        Hostinger provides DNS and the operational mailbox. Resend sends
-        authentication and job-alert email through its eu-west-1 sending region;
-        email delivery necessarily shares the recipient address and message with
-        that provider, but tracking metrics are not enabled. The European
-        Commission InforEuro endpoint supplies public monthly reference rates
-        and receives no account or career data.
+        Account, career, moderation and aggregate first-party analytics data is
+        stored in a dedicated Supabase project in AWS eu-north-1. Netlify hosts
+        the web application and scheduled operations through its managed
+        platform. When optional analytics is allowed, Google Analytics processes
+        the limited public-page and performance data described above under
+        Google’s provider terms. Hostinger provides DNS and the operational
+        mailbox. Resend sends authentication and job-alert email through its
+        eu-west-1 sending region; email delivery necessarily shares the
+        recipient address and message with that provider, but tracking metrics
+        are not enabled. The European Commission InforEuro endpoint supplies
+        public monthly reference rates and receives no account or career data.
       </p>
       <p>
         AfroTools processes take-home-pay inputs, offer values and job-vacancy

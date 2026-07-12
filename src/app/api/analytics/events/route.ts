@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 
+import { ANALYTICS_CONSENT_COOKIE } from "@/lib/analytics/consent";
 import { isAnalyticsEventName } from "@/lib/analytics/events";
 import { analyticsRouteGroup } from "@/lib/analytics/route-group";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
@@ -14,7 +15,7 @@ const eventSchema = z.object({
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
   if (crossOrigin) return crossOrigin;
-  if ((await cookies()).get("salarypadi_analytics")?.value !== "granted") {
+  if ((await cookies()).get(ANALYTICS_CONSENT_COOKIE)?.value !== "granted") {
     return new Response(null, { status: 204 });
   }
   const parsed = eventSchema.safeParse(await request.json().catch(() => null));

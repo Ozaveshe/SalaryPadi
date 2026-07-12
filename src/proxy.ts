@@ -21,6 +21,7 @@ function buildContentSecurityPolicy(nonce: string) {
   const isDevelopment = process.env.NODE_ENV === "development";
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const connectSources = ["'self'"];
+  const imageSources = ["'self'", "blob:", "data:"];
 
   if (supabaseUrl) {
     try {
@@ -30,11 +31,22 @@ function buildContentSecurityPolicy(nonce: string) {
     }
   }
 
+  if (process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) {
+    connectSources.push(
+      "https://www.google-analytics.com",
+      "https://*.google-analytics.com",
+    );
+    imageSources.push(
+      "https://www.google-analytics.com",
+      "https://*.google-analytics.com",
+    );
+  }
+
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDevelopment ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'nonce-${nonce}'${isDevelopment ? " 'unsafe-inline'" : ""}`,
-    "img-src 'self' blob: data:",
+    `img-src ${imageSources.join(" ")}`,
     "font-src 'self'",
     `connect-src ${connectSources.join(" ")}`,
     "object-src 'none'",

@@ -1,3 +1,5 @@
+import { sendGoogleAnalyticsEvent } from "@/lib/analytics/google";
+
 const eventNames = [
   "page_view",
   "job_search",
@@ -63,4 +65,5 @@ export function trackEvent(
     body: JSON.stringify({ event_name: name, path: window.location.pathname }),
     keepalive: true,
   });
+  if (name !== "page_view") sendGoogleAnalyticsEvent(name);
 }

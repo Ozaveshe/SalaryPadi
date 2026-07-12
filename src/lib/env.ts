@@ -16,6 +16,18 @@ const optionalString = z.preprocess(
   z.string().min(1).optional(),
 );
 
+const optionalGoogleAnalyticsId = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z
+    .string()
+    .trim()
+    .regex(
+      /^G-[A-Z0-9]{6,20}$/,
+      "must be a GA4 measurement ID such as G-ABC123DEF4",
+    )
+    .optional(),
+);
+
 const optionalInternalToken = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z
@@ -31,6 +43,7 @@ const serverEnvironmentSchema = z
     NEXT_PUBLIC_APP_URL: optionalUrl,
     NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: optionalString,
+    NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: optionalGoogleAnalyticsId,
     SUPABASE_SERVICE_ROLE_KEY: optionalString,
     JOB_SOURCE_SYNC_TOKEN: optionalInternalToken,
     AFROTOOLS_API_BASE_URL: optionalUrl,
@@ -161,6 +174,8 @@ export function parseServerEnvironment(
     NEXT_PUBLIC_SUPABASE_URL: environment.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    NEXT_PUBLIC_GOOGLE_ANALYTICS_ID:
+      environment.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID,
     SUPABASE_SERVICE_ROLE_KEY: environment.SUPABASE_SERVICE_ROLE_KEY,
     JOB_SOURCE_SYNC_TOKEN: environment.JOB_SOURCE_SYNC_TOKEN,
     AFROTOOLS_API_BASE_URL: environment.AFROTOOLS_API_BASE_URL,
@@ -208,6 +223,10 @@ export function getSupabasePublicConfig() {
 
 export function getAppOrigin() {
   return new URL(getServerEnvironment().NEXT_PUBLIC_APP_URL).origin;
+}
+
+export function getGoogleAnalyticsId() {
+  return getServerEnvironment().NEXT_PUBLIC_GOOGLE_ANALYTICS_ID ?? null;
 }
 
 export function getAfroToolsConfig() {

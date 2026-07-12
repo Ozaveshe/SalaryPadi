@@ -29,6 +29,7 @@ The application follows these boundaries:
 - Contribution, alert, employer-submission, privacy-request, and reporting functions enforce per-account database rate limits.
 - Two Netlify edge rate-limit rules bound direct scripted use of the server-key-backed tool APIs (`/api/tools/*`, 20/60s per IP) and the OTP sign-in and auth routes (`/api/auth/*`, 10/60s per IP), which would otherwise allow one IP to flood third-party mailboxes with magic-link email.
 - The anonymous first-party analytics counter is capped at one million events per day per event/route cell, so direct PostgREST calls cannot overflow or run the counter to absurd values; the fixed allow-listed key space already prevents row growth.
+- Google Analytics is opt-in-only, uses a separately versioned consent cookie, and is not loaded on private, account, authentication, contribution, privacy-request or employer-submission routes. Only query-free public paths, page titles, allowlisted event names and Core Web Vitals are sent; stable user IDs, form values, Google signals, ad storage and ad personalisation are disabled.
 - Moderation transitions require a reason, use an expected version to prevent stale writes, and append actor/action state to audit records.
 - Raw community content is private. Reviews and interview experiences publish from a separate redacted projection.
 - Salary publication uses distinct-contributor thresholds, a 24-hour lag, a 36-month window, rounded values, and sparse-cell suppression. Individual salary submissions are never exposed through the public API.
@@ -61,6 +62,7 @@ The daily maintenance worker removes aggregate analytics counts after 90 days, w
 ## Provider and data-region record
 
 - Account, private career, moderation, operational, and first-party aggregate analytics data is stored in the dedicated Supabase project `bxelrhklsznmpksgrqep` in AWS `eu-north-1`.
+- When a visitor explicitly opts in, Google Analytics additionally processes the limited public-page and performance telemetry described in the privacy notice. The browser connection necessarily exposes network and device context to Google; this data flow must remain absent before consent and from excluded routes.
 - Authentication and alert email is sent through Resend's `eu-west-1` sending region from the isolated `mail.salarypadi.com` domain. Delivery necessarily discloses the recipient address and message contents to the mail provider; tracking metrics are not enabled.
 - Netlify serves the web application and scheduled Functions through its managed platform and global delivery network. One site-scoped Blob stores only the current description-free Remotive alert catalog and is overwritten on each successful sync; no catalog history is retained. Hostinger is authoritative for DNS and the operational mailbox. Their current subprocessors and transfer terms must be reviewed through the provider contracts; this repository does not freeze a provider's live subprocessor list.
 - European Commission InforEuro is fetched as public monthly reference data. No user or account data is sent with that request.

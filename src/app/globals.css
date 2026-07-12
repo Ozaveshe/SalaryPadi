@@ -1628,6 +1628,28 @@ a:hover {
   gap: 0.75rem;
 }
 
+.analytics-consent-manage {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 40;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--surface-default);
+  box-shadow: var(--shadow-small);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.analytics-consent-manage:hover,
+.analytics-consent-manage:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
 @media (min-width: 48rem) {
   .site-shell,
   .reading-shell {

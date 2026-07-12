@@ -16,7 +16,7 @@ The repository is deployable without fabricated data: public tools and trust pag
 - Nigeria take-home pay, side-by-side offer comparison, and an explainable job-scam checker.
 - Scheduled source-health, alert-delivery, currency-rate, retention, expiry, and aggregate-maintenance workers with idempotent run evidence.
 - A protected scheduled refresh reads or revalidates the same bounded source cache used by public pages, then publishes one site-scoped, description-free Netlify Blob snapshot for ten-minute alert delivery.
-- Consent-gated first-party analytics that stores daily event totals only, plus reviewed European Commission InforEuro reference rates.
+- Consent-gated first-party daily event totals plus opt-in-only Google Analytics on public routes, with private routes, form values, user IDs and ad signals excluded.
 - Canonical metadata, sitemaps, robots controls, structured data, accessibility foundations, CSP nonces, and baseline security headers.
 
 ## Prerequisites

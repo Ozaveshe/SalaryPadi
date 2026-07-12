@@ -37,6 +37,24 @@ describe("server environment", () => {
     ).toBe("https://salarypadi.test");
   });
 
+  it("accepts a GA4 measurement ID", () => {
+    expect(
+      parseServerEnvironment({
+        NODE_ENV: "development",
+        NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: "G-ABC123DEF4",
+      }).NEXT_PUBLIC_GOOGLE_ANALYTICS_ID,
+    ).toBe("G-ABC123DEF4");
+  });
+
+  it("rejects a malformed Google Analytics ID", () => {
+    expect(() =>
+      parseServerEnvironment({
+        NODE_ENV: "development",
+        NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: "UA-12345-6",
+      }),
+    ).toThrow(/GA4 measurement ID/);
+  });
+
   it("rejects a different Supabase project in production", () => {
     expect(() =>
       parseServerEnvironment({

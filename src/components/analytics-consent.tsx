@@ -4,16 +4,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { GoogleAnalytics } from "@/components/google-analytics";
 import { trackEvent } from "@/lib/analytics/events";
+import {
+  clearGoogleAnalyticsCookies,
+  setGoogleAnalyticsEnabled,
+} from "@/lib/analytics/google";
 
 type Consent = "granted" | "denied" | null;
 
 export function AnalyticsConsent({
   initialConsent,
+  measurementId,
+  nonce,
 }: {
   initialConsent: Consent;
+  measurementId: string | null;
+  nonce: string | null;
 }) {
   const [consent, setConsent] = useState<Consent>(initialConsent);
+  const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(false);
   const pathname = usePathname();
 
@@ -29,48 +39,77 @@ export function AnalyticsConsent({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ allowed }),
       });
-      if (response.ok) setConsent(allowed ? "granted" : "denied");
+      if (response.ok) {
+        if (!allowed && measurementId) {
+          setGoogleAnalyticsEnabled(measurementId, false);
+          clearGoogleAnalyticsCookies();
+        }
+        setConsent(allowed ? "granted" : "denied");
+        setEditing(false);
+      }
     } finally {
       setPending(false);
     }
   }
 
-  if (consent !== null) return null;
+  const googleAnalytics =
+    consent === "granted" && measurementId ? (
+      <GoogleAnalytics measurementId={measurementId} nonce={nonce} />
+    ) : null;
+
+  if (consent !== null && !editing) {
+    return (
+      <>
+        {googleAnalytics}
+        <button
+          className="analytics-consent-manage"
+          onClick={() => setEditing(true)}
+          type="button"
+        >
+          Analytics choices
+        </button>
+      </>
+    );
+  }
   return (
-    <aside
-      aria-labelledby="analytics-consent-title"
-      className="analytics-consent"
-      role="dialog"
-    >
-      <div>
-        <strong id="analytics-consent-title">
-          Optional, aggregate analytics
-        </strong>
-        <p>
-          Help improve SalaryPadi with page and feature counts. We never send
-          salary values, searches, notes, email addresses, free text, IP
-          addresses or device identifiers to analytics. Read the{" "}
-          <Link href="/privacy">privacy notice</Link>.
-        </p>
-      </div>
-      <div className="analytics-consent-actions">
-        <button
-          className="button"
-          disabled={pending}
-          onClick={() => void choose(true)}
-          type="button"
-        >
-          Allow optional analytics
-        </button>
-        <button
-          className="button button-quiet"
-          disabled={pending}
-          onClick={() => void choose(false)}
-          type="button"
-        >
-          No thanks
-        </button>
-      </div>
-    </aside>
+    <>
+      {googleAnalytics}
+      <aside
+        aria-labelledby="analytics-consent-title"
+        aria-modal="true"
+        className="analytics-consent"
+        role="dialog"
+      >
+        <div>
+          <strong id="analytics-consent-title">Optional analytics</strong>
+          <p>
+            Help improve SalaryPadi with aggregate feature counts and Google
+            Analytics on public pages. Google receives coarse page visits,
+            browser/device context and performance metrics only after you allow
+            it. Private routes, salary values, searches, notes, email addresses
+            and free text are excluded. Read the{" "}
+            <Link href="/privacy">privacy notice</Link>.
+          </p>
+        </div>
+        <div className="analytics-consent-actions">
+          <button
+            className="button"
+            disabled={pending}
+            onClick={() => void choose(true)}
+            type="button"
+          >
+            Allow optional analytics
+          </button>
+          <button
+            className="button button-quiet"
+            disabled={pending}
+            onClick={() => void choose(false)}
+            type="button"
+          >
+            {consent === "granted" ? "Turn off analytics" : "No thanks"}
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

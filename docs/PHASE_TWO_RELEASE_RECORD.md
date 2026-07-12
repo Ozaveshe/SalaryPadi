@@ -27,6 +27,11 @@
 - The four published Netlify schedules are registered and have successful production run evidence. `/api/health` reports `job_source_sync`, `alert_delivery`, `currency_rates`, and `operations_maintenance` inside their stale thresholds.
 - Job alerts and authentication mail use separate restricted credentials. The real authentication delivery reached `support@salarypadi.com`; open/click tracking remains disabled.
 - First-party analytics remains consent-gated and aggregate-only with 90-day retention. European Commission InforEuro reference rates retain source URL, data month, review state, freshness, fallback, and user-facing limitations.
+
+This historical release statement covers the 10 July baseline. The 12 July
+measurement update preserves those first-party counts and introduces a new,
+separately versioned consent choice before any Google Analytics tag can load.
+
 - `support@`, `privacy@`, `security@`, `sources@`, and `ops@` ownership is assigned to Oza as interim accountable operator under the internal response targets in [Operations](OPERATIONS.md).
 - GitHub Actions uses supported action majors. The tested PostCSS override removes the known advisory without downgrading Next.js, and `npm audit --omit=dev` reports zero known vulnerabilities.
 

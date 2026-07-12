@@ -17,6 +17,7 @@ Required web configuration:
 | `ATS_SOURCE_SYNC_ENABLED`              | `false` until a separately approved ATS activation |
 | `ALLOW_DEMO_DATA`                      | Always `false`                                     |
 | `ANALYTICS_PROVIDER`                   | `supabase_first_party`                             |
+| `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID`      | `G-8W6LCTFSK2`                                     |
 | `EMAIL_PROVIDER`                       | `resend`                                           |
 | `CURRENCY_RATE_PROVIDER`               | `european_commission_inforeuro`                    |
 | `TRANSACTIONAL_EMAIL_FROM`             | `SalaryPadi <updates@mail.salarypadi.com>`         |
@@ -26,6 +27,12 @@ Required web configuration:
 | `JOB_SOURCE_SYNC_TOKEN`                | Independent protected internal-refresh bearer      |
 
 Never expose a service-role key through a `NEXT_PUBLIC_*` variable. Production configuration rejects demo data.
+
+The GA4 tag is public configuration, but it remains entirely unloaded until the
+versioned optional-analytics consent is granted. Keep enhanced measurement for
+form interactions and site search disabled in the Google data stream, keep ad
+signals and ad personalisation disabled, and do not reuse the AfroTools
+measurement ID.
 
 ## Supabase preparation
 

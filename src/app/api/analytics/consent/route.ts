@@ -2,6 +2,10 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { getViewer } from "@/lib/auth/dal";
+import {
+  ANALYTICS_CONSENT_COOKIE,
+  ANALYTICS_POLICY_VERSION,
+} from "@/lib/analytics/consent";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -26,7 +30,7 @@ export async function POST(request: Request) {
       .rpc("set_analytics_consent", {
         p_purpose: "aggregate_product_analytics",
         p_allowed: parsed.data.allowed,
-        p_policy_version: "2026-07-10.2",
+        p_policy_version: ANALYTICS_POLICY_VERSION,
       });
     if (error)
       return Response.json(
@@ -37,7 +41,7 @@ export async function POST(request: Request) {
 
   const store = await cookies();
   store.set(
-    "salarypadi_analytics",
+    ANALYTICS_CONSENT_COOKIE,
     parsed.data.allowed ? "granted" : "denied",
     {
       httpOnly: true,
