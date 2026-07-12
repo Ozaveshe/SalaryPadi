@@ -1,9 +1,8 @@
 "use client";
 
-import Script from "next/script";
 import { usePathname } from "next/navigation";
 import { useReportWebVitals } from "next/web-vitals";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   isGoogleAnalyticsRouteAllowed,
@@ -39,64 +38,63 @@ export function GoogleAnalytics({
   nonce: string | null;
 }) {
   const pathname = usePathname();
-  const [ready, setReady] = useState(false);
+  const pathnameRef = useRef(pathname);
   const routeAllowed = isGoogleAnalyticsRouteAllowed(pathname);
 
   useReportWebVitals(reportWebVital);
 
   useEffect(() => {
-    if (!ready) return;
-    setGoogleAnalyticsEnabled(measurementId, routeAllowed);
-    return () => setGoogleAnalyticsEnabled(measurementId, false);
-  }, [measurementId, ready, routeAllowed]);
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
-    if (ready && routeAllowed) sendGoogleAnalyticsPageView(pathname);
-  }, [pathname, ready, routeAllowed]);
+    if (!routeAllowed) return;
 
-  if (!routeAllowed) return null;
+    window.dataLayer ??= [];
+    window.gtag ??= (...args: unknown[]) => window.dataLayer?.push(args);
+    window.gtag("consent", "default", {
+      analytics_storage: "denied",
+      ad_storage: "denied",
+      ad_user_data: "denied",
+      ad_personalization: "denied",
+      wait_for_update: 500,
+    });
+    window.gtag("consent", "update", {
+      analytics_storage: "granted",
+      ad_storage: "denied",
+      ad_user_data: "denied",
+      ad_personalization: "denied",
+    });
+    window.gtag("js", new Date());
+    window.gtag("config", measurementId, {
+      send_page_view: false,
+      page_location: `${window.location.origin}${window.location.pathname}`,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false,
+      cookie_flags: "SameSite=Lax;Secure",
+    });
 
-  const safeLocation = `window.location.origin + window.location.pathname`;
-  const bootstrap = `
-window.dataLayer = window.dataLayer || [];
-window.gtag = window.gtag || function(){window.dataLayer.push(arguments);};
-window.gtag('consent', 'default', {
-  analytics_storage: 'denied',
-  ad_storage: 'denied',
-  ad_user_data: 'denied',
-  ad_personalization: 'denied',
-  wait_for_update: 500
-});
-window.gtag('consent', 'update', {
-  analytics_storage: 'granted',
-  ad_storage: 'denied',
-  ad_user_data: 'denied',
-  ad_personalization: 'denied'
-});
-window.gtag('js', new Date());
-window.gtag('config', ${JSON.stringify(measurementId)}, {
-  send_page_view: false,
-  page_location: ${safeLocation},
-  allow_google_signals: false,
-  allow_ad_personalization_signals: false,
-  cookie_flags: 'SameSite=Lax;Secure'
-});`;
+    document.getElementById("salarypadi-google-analytics")?.remove();
+    const script = document.createElement("script");
+    script.async = true;
+    script.id = "salarypadi-google-analytics";
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`;
+    if (nonce) script.nonce = nonce;
+    script.addEventListener("load", () => {
+      setGoogleAnalyticsEnabled(measurementId, true);
+      sendGoogleAnalyticsPageView(pathnameRef.current);
+    });
+    document.head.appendChild(script);
 
-  return (
-    <>
-      <Script
-        dangerouslySetInnerHTML={{ __html: bootstrap }}
-        id="salarypadi-google-analytics-bootstrap"
-        nonce={nonce ?? undefined}
-        strategy="afterInteractive"
-      />
-      <Script
-        id="salarypadi-google-analytics"
-        nonce={nonce ?? undefined}
-        onReady={() => setReady(true)}
-        src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`}
-        strategy="afterInteractive"
-      />
-    </>
-  );
+    return () => {
+      setGoogleAnalyticsEnabled(measurementId, false);
+      script.remove();
+    };
+  }, [measurementId, nonce, routeAllowed]);
+
+  useEffect(() => {
+    if (routeAllowed) sendGoogleAnalyticsPageView(pathname);
+  }, [pathname, routeAllowed]);
+
+  return null;
 }
