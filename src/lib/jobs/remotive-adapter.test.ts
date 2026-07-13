@@ -212,6 +212,7 @@ describe("Remotive adapter", () => {
             }),
           ),
           requestedAt,
+          maxAttempts: 1,
         }),
       "remotive_http_error",
     );
@@ -220,13 +221,59 @@ describe("Remotive adapter", () => {
     expect(error.message).not.toContain("private upstream detail");
   });
 
+  it("retries transient provider failures and returns the recovered payload", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("temporary outage", {
+          status: 503,
+          headers: { "Content-Type": "text/plain" },
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ jobs: [sourceJob(1)] }));
+
+    const result = await fetchRemotiveJobs({
+      fetch: fetchImpl as unknown as RemotiveFetch,
+      requestedAt,
+      retryDelayMs: 0,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result.jobs).toHaveLength(1);
+  });
+
+  it("does not retry a non-transient provider rejection", async () => {
+    const fetchImpl = fixedFetch(
+      new Response("forbidden", {
+        status: 403,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
+
+    await captureAdapterError(
+      () =>
+        fetchRemotiveJobs({
+          fetch: fetchImpl,
+          requestedAt,
+          retryDelayMs: 0,
+        }),
+      "remotive_http_error",
+    );
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   it("maps transport failures to a typed safe code", async () => {
     const fetchImpl = vi.fn(async () => {
       throw new Error("socket details must remain internal");
     }) as unknown as RemotiveFetch;
 
     const error = await captureAdapterError(
-      () => fetchRemotiveJobs({ fetch: fetchImpl, requestedAt }),
+      () =>
+        fetchRemotiveJobs({
+          fetch: fetchImpl,
+          requestedAt,
+          maxAttempts: 1,
+        }),
       "remotive_request_failed",
     );
     expect(error.message).not.toContain("socket details");

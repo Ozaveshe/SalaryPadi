@@ -74,6 +74,10 @@ export interface RemotiveAdapterOptions {
   fetch?: RemotiveFetch;
   signal?: AbortSignal;
   requestedAt?: Date;
+  /** Total attempts for transient transport/provider failures. */
+  maxAttempts?: number;
+  /** Base delay between retries. May be set to zero by deterministic tests. */
+  retryDelayMs?: number;
   /** May lower, but never raise, the production response limit. */
   maxResponseBytes?: number;
   /**
@@ -118,6 +122,44 @@ function resolveResponseLimit(value: number | undefined): number {
     throw adapterError("remotive_invalid_options");
   }
   return value;
+}
+
+function resolveMaxAttempts(value: number | undefined): number {
+  if (value === undefined) return 3;
+  if (!Number.isSafeInteger(value) || value < 1 || value > 3) {
+    throw adapterError("remotive_invalid_options");
+  }
+  return value;
+}
+
+function resolveRetryDelay(value: number | undefined): number {
+  if (value === undefined) return 250;
+  if (!Number.isSafeInteger(value) || value < 0 || value > 2_000) {
+    throw adapterError("remotive_invalid_options");
+  }
+  return value;
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+async function waitForRetry(
+  delayMs: number,
+  attempt: number,
+  signal: AbortSignal | null | undefined,
+) {
+  if (isAborted(signal)) throw adapterError("remotive_request_aborted");
+  if (delayMs === 0) return;
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(resolve, delayMs * attempt);
+    const abort = () => {
+      clearTimeout(timeout);
+      reject(adapterError("remotive_request_aborted"));
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    timeout.unref?.();
+  });
 }
 
 function isJsonResponse(response: Response): boolean {
@@ -218,30 +260,39 @@ export async function fetchRemotivePayload(
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const requestedAt = resolveRequestedAt(options.requestedAt);
   const maxBytes = resolveResponseLimit(options.maxResponseBytes);
+  const maxAttempts = resolveMaxAttempts(options.maxAttempts);
+  const retryDelayMs = resolveRetryDelay(options.retryDelayMs);
   const signal = options.signal ?? options.requestInit?.signal;
 
-  let response: Response;
-  try {
-    response = await fetchImpl(REMOTIVE_ENDPOINT, {
-      ...options.requestInit,
-      method: "GET",
-      body: null,
-      credentials: "omit",
-      redirect: "error",
-      headers: safeRequestHeaders(options.requestInit),
-      signal,
-    });
-  } catch {
-    throw adapterError(
-      isAborted(signal)
-        ? "remotive_request_aborted"
-        : "remotive_request_failed",
-    );
-  }
+  let response: Response | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      response = await fetchImpl(REMOTIVE_ENDPOINT, {
+        ...options.requestInit,
+        method: "GET",
+        body: null,
+        credentials: "omit",
+        redirect: "error",
+        headers: safeRequestHeaders(options.requestInit),
+        signal,
+      });
+    } catch {
+      if (isAborted(signal)) throw adapterError("remotive_request_aborted");
+      if (attempt === maxAttempts) {
+        throw adapterError("remotive_request_failed");
+      }
+      await waitForRetry(retryDelayMs, attempt, signal);
+      continue;
+    }
 
-  if (!response.ok) {
-    throw adapterError("remotive_http_error", response.status);
+    if (response.ok) break;
+    if (attempt === maxAttempts || !isRetryableStatus(response.status)) {
+      throw adapterError("remotive_http_error", response.status);
+    }
+    await response.body?.cancel().catch(() => undefined);
+    await waitForRetry(retryDelayMs, attempt, signal);
   }
+  if (!response) throw adapterError("remotive_request_failed");
   if (!isJsonResponse(response)) {
     throw adapterError("remotive_invalid_content_type");
   }
