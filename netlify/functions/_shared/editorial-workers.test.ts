@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import editorialDraft from "./editorial-draft.mjs";
-import editorialJobSnapshot from "./editorial-job-snapshot.mjs";
-import editorialLiveBlocks from "./editorial-live-blocks.mjs";
-import editorialNightlyAudit from "./editorial-nightly-audit.mjs";
-import editorialPreflight from "./editorial-preflight.mjs";
-import editorialPublish from "./editorial-publish.mjs";
-import editorialQueue from "./editorial-queue.mjs";
-import editorialTopicCandidates from "./editorial-topic-candidates.mjs";
-import editorialWeeklyAudit from "./editorial-weekly-audit.mjs";
+import editorialDraft from "../editorial-draft.mjs";
+import editorialJobSnapshot from "../editorial-job-snapshot.mjs";
+import editorialLiveBlocks from "../editorial-live-blocks.mjs";
+import editorialNightlyAudit from "../editorial-nightly-audit.mjs";
+import editorialPreflight from "../editorial-preflight.mjs";
+import editorialPublish from "../editorial-publish.mjs";
+import editorialQueue from "../editorial-queue.mjs";
+import editorialTopicCandidates from "../editorial-topic-candidates.mjs";
+import editorialWeeklyAudit from "../editorial-weekly-audit.mjs";
 import {
   installWorkerFetch,
   nonBookkeepingUrls,

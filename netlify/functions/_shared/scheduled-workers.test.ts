@@ -9,20 +9,20 @@ vi.mock("@netlify/blobs", () => ({
   getStore: () => ({ get: blobMocks.get, setJSON: blobMocks.setJSON }),
 }));
 
-import type { RemotiveJob } from "../../src/lib/jobs/remotive-schema";
-import { normalizeRemotiveJob } from "../../src/lib/jobs/normalize";
+import type { RemotiveJob } from "../../../src/lib/jobs/remotive-schema";
+import { normalizeRemotiveJob } from "../../../src/lib/jobs/normalize";
 import {
   REMOTIVE_REQUIRED_DESTINATION_KIND,
   REMOTIVE_SOURCE_POLICY,
   REMOTIVE_TERMS_VERSION,
-} from "../../src/lib/jobs/source-policy";
-import afroToolsCatalogSync from "./afrotools-catalog-sync.mjs";
-import alertDelivery from "./alert-delivery.mjs";
-import atsSourceSync from "./ats-source-sync.mjs";
-import currencyRates from "./currency-rates";
-import jobSourceSync from "./job-source-sync.mjs";
-import operationsMaintenance from "./operations-maintenance";
-import { createAlertCatalog } from "./_shared/jobs";
+} from "../../../src/lib/jobs/source-policy";
+import afroToolsCatalogSync from "../afrotools-catalog-sync.mjs";
+import alertDelivery from "../alert-delivery.mjs";
+import atsSourceSync from "../ats-source-sync.mjs";
+import currencyRates from "../currency-rates";
+import jobSourceSync from "../job-source-sync.mjs";
+import operationsMaintenance from "../operations-maintenance";
+import { createAlertCatalog } from "./jobs";
 import {
   installWorkerFetch,
   nonBookkeepingUrls,
