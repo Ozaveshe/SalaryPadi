@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(15);
+select plan(16);
 
 select ok(
   to_regclass('private.salary_submissions_market_cell') is not null,
@@ -110,6 +110,17 @@ update private.profiles
 set account_status = 'active'
 where user_id = 'da000000-0000-0000-0000-000000000001';
 
+insert into app.companies (
+  id, slug, display_name, website_url, website_domain, record_status
+) values (
+  'da100000-0000-0000-0000-000000000001',
+  'existing-example',
+  'Existing Example',
+  'https://example.test',
+  'example.test',
+  'published'
+) on conflict (id) do nothing;
+
 select set_config(
   'request.jwt.claims',
   jsonb_build_object(
@@ -195,6 +206,15 @@ select is(
    where title = 'Matching Domain Engineer'),
   true,
   'a legitimate domain match is derived as true despite a false caller value'
+);
+select is(
+  (select company_id
+   from private.employer_job_submissions
+   where title = 'Matching Domain Engineer'),
+  (select id
+   from app.companies
+   where website_domain = 'example.test'),
+  'a matching domain reuses the existing published company during moderation'
 );
 
 set local role authenticated;

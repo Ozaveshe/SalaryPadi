@@ -110,6 +110,18 @@ begin
       )
     );
 
+  -- A reviewed public company may already own this unique website domain.
+  -- Reuse that public identity for the pending submission so moderation does
+  -- not try to create a duplicate company. This does not grant the submitter
+  -- company-management privileges; it only records the target of moderation.
+  if v_company_id is null and v_domain_matches then
+    select company.id into v_company_id
+    from app.companies as company
+    where company.website_domain = v_website_domain::extensions.citext
+      and company.record_status = 'published'
+    limit 1;
+  end if;
+
   v_salary_min := coalesce(
     nullif(p_payload ->> 'salary_min', '')::numeric,
     nullif(p_payload ->> 'salary_minimum', '')::numeric

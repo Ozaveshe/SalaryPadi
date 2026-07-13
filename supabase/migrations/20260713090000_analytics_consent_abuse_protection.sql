@@ -185,6 +185,10 @@ revoke all on function security.capture_analytics_event_internal(text,text,text,
 revoke all on function api.capture_analytics_event(text,text,text,timestamptz)
   from public, anon, authenticated;
 
+-- The exposed wrapper is intentionally security invoker. The trusted service
+-- role therefore needs schema resolution in addition to EXECUTE on the two
+-- analytics routines; no unrelated routine execution is granted here.
+grant usage on schema security to service_role;
 grant execute on function security.consume_anonymous_rate_limit(text,text,timestamptz,integer)
   to service_role;
 grant execute on function security.capture_analytics_event_internal(text,text,text,timestamptz)

@@ -27,9 +27,10 @@ select ok(
   ) like '%search_path=%',
   'the narrow public reader is a fixed-search-path definer'
 );
-select unlike(
-  pg_get_function_arguments('api.get_salary_cell_progress(text,text)'::regprocedure),
-  '%company%',
+select ok(
+  pg_get_function_arguments(
+    'api.get_salary_cell_progress(text,text)'::regprocedure
+  ) not like '%company%',
   'the RPC has no company filter that could expose a narrow cell'
 );
 
