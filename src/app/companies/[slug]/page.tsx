@@ -1,36 +1,120 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { CompanyHeading } from "@/components/companies/company-heading";
 import { JobCard } from "@/components/jobs/job-card";
+import { JsonLd } from "@/components/json-ld";
 import {
   CombinedRepositoryNotice,
   RepositoryNotice,
 } from "@/components/repository-notice";
-import { formatEnum } from "@/lib/format";
 import {
-  getCompany,
   getCompanyBenefitsResult,
+  getCompanyRatingMinimumSampleResult,
   getCompanyRatingResult,
   getCompanyResult,
   getCompanyReviewsResult,
   getInterviewExperiencesResult,
 } from "@/lib/companies/repository";
+import { getAppOrigin } from "@/lib/env";
+import { formatEnum } from "@/lib/format";
+import { searchSalaryAggregatesResult } from "@/lib/salaries/repository";
+import { canIndexCompanyDetail } from "@/lib/seo/indexability";
+import { buildSocialImageMetadata } from "@/lib/seo/open-graph";
+import { buildCompanyAggregateRatingStructuredData } from "@/lib/seo/structured-data";
+
+const getCompanyPageData = cache(async (slug: string) => {
+  const [
+    companyResult,
+    ratingResult,
+    ratingMinimumResult,
+    reviewsResult,
+    interviewsResult,
+    benefitsResult,
+    salaryAggregatesResult,
+  ] = await Promise.all([
+    getCompanyResult(slug),
+    getCompanyRatingResult(slug),
+    getCompanyRatingMinimumSampleResult(),
+    getCompanyReviewsResult(slug),
+    getInterviewExperiencesResult(slug),
+    getCompanyBenefitsResult(slug),
+    searchSalaryAggregatesResult({ company: slug }),
+  ]);
+  return {
+    companyResult,
+    ratingResult,
+    ratingMinimumResult,
+    reviewsResult,
+    interviewsResult,
+    benefitsResult,
+    salaryAggregatesResult,
+  };
+});
+
+function hasPublishedCommunityEvidence(
+  data: Awaited<ReturnType<typeof getCompanyPageData>>,
+) {
+  return (
+    data.ratingResult.data !== null ||
+    data.reviewsResult.data.length > 0 ||
+    data.interviewsResult.data.length > 0 ||
+    data.salaryAggregatesResult.data.length > 0 ||
+    data.benefitsResult.data.some(
+      (benefit) => benefit.source_kind === "community_reported",
+    )
+  );
+}
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const company = await getCompany((await params).slug);
+  const { slug } = await params;
+  const data = await getCompanyPageData(slug);
+  const company = data.companyResult.data;
+  const description = company
+    ? `Current jobs and clearly sourced intelligence for ${company.name}.`
+    : "Company profile unavailable.";
+  const socialImage = company
+    ? buildSocialImageMetadata(
+        `/companies/${company.slug}/opengraph-image`,
+        `${company.name} company profile on SalaryPadi`,
+      )
+    : null;
   return company
     ? {
         title: company.name,
-        description: `Current jobs and clearly sourced intelligence for ${company.name}.`,
-        robots: { index: false, follow: true },
+        description,
+        alternates: { canonical: `/companies/${company.slug}` },
+        robots: {
+          index: canIndexCompanyDetail(
+            company,
+            hasPublishedCommunityEvidence(data),
+          ),
+          follow: true,
+        },
+        openGraph: {
+          title: company.name,
+          description,
+          type: "website",
+          images: socialImage?.openGraphImages,
+        },
+        twitter: {
+          card: "summary_large_image",
+          title: company.name,
+          description,
+          images: socialImage?.twitterImages,
+        },
       }
-    : { title: "Company unavailable" };
+    : {
+        title: "Company unavailable",
+        robots: { index: false, follow: true },
+      };
 }
 
 export default async function CompanyPage({
@@ -39,19 +123,15 @@ export default async function CompanyPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [
+  const {
     companyResult,
     ratingResult,
+    ratingMinimumResult,
     reviewsResult,
     interviewsResult,
     benefitsResult,
-  ] = await Promise.all([
-    getCompanyResult(slug),
-    getCompanyRatingResult(slug),
-    getCompanyReviewsResult(slug),
-    getInterviewExperiencesResult(slug),
-    getCompanyBenefitsResult(slug),
-  ]);
+    salaryAggregatesResult,
+  } = await getCompanyPageData(slug);
   const company = companyResult.data;
   if (companyResult.state === "ready" && !company) notFound();
   if (!company) {
@@ -65,9 +145,36 @@ export default async function CompanyPage({
   const reviews = reviewsResult.data;
   const interviews = interviewsResult.data;
   const benefits = benefitsResult.data;
+  const salaryAggregates = salaryAggregatesResult.data;
+  const publishedCommunityEvidence = hasPublishedCommunityEvidence({
+    companyResult,
+    ratingResult,
+    ratingMinimumResult,
+    reviewsResult,
+    interviewsResult,
+    benefitsResult,
+    salaryAggregatesResult,
+  });
+  const canonicalUrl = new URL(
+    `/companies/${company.slug}`,
+    getAppOrigin(),
+  ).toString();
+  const aggregateRatingStructuredData =
+    buildCompanyAggregateRatingStructuredData(
+      company,
+      canonicalUrl,
+      rating,
+      ratingMinimumResult.data,
+    );
   return (
     <div className="site-shell stack-lg">
       <RepositoryNotice result={companyResult} resource="Company profile" />
+      {aggregateRatingStructuredData ? (
+        <JsonLd
+          nonce={(await headers()).get("x-nonce")}
+          data={aggregateRatingStructuredData}
+        />
+      ) : null}
       <CompanyHeading company={company} />
       <section className="rule-section" aria-labelledby="company-facts-heading">
         <h2 className="section-title" id="company-facts-heading">
@@ -139,11 +246,18 @@ export default async function CompanyPage({
             {company.activeJobs.length} source-listed
           </span>
         </div>
-        <div className="job-list">
-          {company.activeJobs.map((job) => (
-            <JobCard job={job} key={job.id} />
-          ))}
-        </div>
+        {company.activeJobs.length > 0 ? (
+          <div className="job-list">
+            {company.activeJobs.map((job) => (
+              <JobCard job={job} key={job.id} />
+            ))}
+          </div>
+        ) : (
+          <div className="notice">
+            No active source-listed job is available for this company right now.
+            SalaryPadi does not create openings to fill this section.
+          </div>
+        )}
       </section>
       <section
         className="rule-section stack"
@@ -159,9 +273,10 @@ export default async function CompanyPage({
             reviewsResult,
             interviewsResult,
             benefitsResult,
+            salaryAggregatesResult,
           ]}
         />
-        {rating || reviews.length > 0 || interviews.length > 0 ? (
+        {publishedCommunityEvidence ? (
           <dl className="data-list">
             <div>
               <dt>Approved reviews</dt>
@@ -170,6 +285,20 @@ export default async function CompanyPage({
             <div>
               <dt>Published interviews</dt>
               <dd>{interviews.length}</dd>
+            </div>
+            <div>
+              <dt>Published salary aggregates</dt>
+              <dd>{salaryAggregates.length}</dd>
+            </div>
+            <div>
+              <dt>Community-reported benefits</dt>
+              <dd>
+                {
+                  benefits.filter(
+                    (benefit) => benefit.source_kind === "community_reported",
+                  ).length
+                }
+              </dd>
             </div>
             <div>
               <dt>Overall rating</dt>
@@ -182,7 +311,9 @@ export default async function CompanyPage({
           </dl>
         ) : ratingResult.state === "ready" &&
           reviewsResult.state === "ready" &&
-          interviewsResult.state === "ready" ? (
+          interviewsResult.state === "ready" &&
+          benefitsResult.state === "ready" &&
+          salaryAggregatesResult.state === "ready" ? (
           <div className="notice">
             No approved salary, review or interview aggregate is available for
             this company yet. A missing aggregate is not a positive or negative

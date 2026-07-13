@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildJobFingerprint, normalizeRemotiveJob } from "./normalize";
+import { buildJobFingerprintLookupKeys } from "./fingerprint";
 import type { RemotiveJob } from "./remotive-schema";
+import { REMOTIVE_CACHE_TAG } from "./source-policy";
 import type { Job } from "./types";
 
 const mocks = vi.hoisted(() => ({
@@ -28,7 +30,12 @@ vi.mock("./database", () => ({
   decodeDatabaseJobRow: mocks.decodeDatabaseJobRow,
 }));
 
-import { getJobBySlug, getLiveJobFeed, getRemotiveJobFeed } from "./repository";
+import {
+  getDatabaseJobBySlugResult,
+  getJobBySlug,
+  getLiveJobFeed,
+  getRemotiveJobFeed,
+} from "./repository";
 
 const sourceJob: RemotiveJob = {
   id: 77,
@@ -55,6 +62,7 @@ type ClientOptions = {
 let databaseRows: unknown[] = [];
 let databaseStatus = 200;
 let databaseThrows = false;
+let databaseRowsForRequest: ((url: URL) => unknown[]) | null = null;
 
 function client({
   policy = {
@@ -116,6 +124,7 @@ beforeEach(() => {
   databaseRows = [];
   databaseStatus = 200;
   databaseThrows = false;
+  databaseRowsForRequest = null;
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async (input) => {
@@ -123,7 +132,10 @@ beforeEach(() => {
         throw new Error(`Unexpected fetch ${String(input)}`);
       }
       if (databaseThrows) throw new Error("database jobs failed");
-      return Response.json(databaseRows, { status: databaseStatus });
+      const rows = databaseRowsForRequest
+        ? databaseRowsForRequest(new URL(String(input)))
+        : databaseRows;
+      return Response.json(rows, { status: databaseStatus });
     }),
   );
   mocks.fetchRemotiveJobs.mockReset();
@@ -267,17 +279,27 @@ describe("job feed source orchestration", () => {
 
   it("lets a reviewed employer record win an exact-destination collision", async () => {
     const remote = remotiveJob();
+    const employerDestination = `${remote.applicationUrl}?utm_source=ats&ref=feed`;
     const employer: Job = {
       ...remote,
       id: "00000000-0000-4000-8000-000000000077",
       databaseId: "00000000-0000-4000-8000-000000000077",
       slug: "platform-engineer-at-example-ltd",
+      applicationUrl: employerDestination,
+      sourceUrl: employerDestination,
       source: {
         ...remote.source,
         id: "00000000-0000-4000-8000-000000000078",
         name: "Example employer submission",
         type: "employer",
       },
+      fingerprint: buildJobFingerprint({
+        title: remote.title,
+        company: remote.company.name,
+        location: remote.locationDisplay,
+        arrangement: remote.arrangement,
+        destination: employerDestination,
+      }),
     };
     databaseRows = [employer];
     mocks.createClient.mockResolvedValue(client() as never);
@@ -332,6 +354,187 @@ describe("job feed source orchestration", () => {
 
     expect(byId.job?.id).toBe("remotive-77");
     expect(bySlug.job?.id).toBe("remotive-77");
+  });
+
+  it("resolves a database slug directly without loading Remotive", async () => {
+    const remote = remotiveJob();
+    const employer: Job = {
+      ...remote,
+      id: "00000000-0000-4000-8000-000000000077",
+      databaseId: "00000000-0000-4000-8000-000000000077",
+      slug: "platform-engineer-at-example-ltd-direct",
+      source: {
+        ...remote.source,
+        id: "00000000-0000-4000-8000-000000000078",
+        name: "Example employer submission",
+        type: "employer",
+      },
+    };
+    databaseRows = [employer];
+
+    const result = await getJobBySlug(employer.slug);
+
+    expect(result.job).toEqual(employer);
+    expect(result.feed).toMatchObject({ state: "live", jobs: [employer] });
+    expect(mocks.fetchRemotiveJobs).not.toHaveBeenCalled();
+    const lookupUrl = new URL(String(vi.mocked(fetch).mock.calls[0]?.[0]));
+    expect(lookupUrl.searchParams.get("slug")).toBe(`eq.${employer.slug}`);
+    expect(lookupUrl.searchParams.get("limit")).toBe("2");
+    expect(lookupUrl.searchParams.has("order")).toBe(false);
+  });
+
+  it("supports a direct database UUID lookup", async () => {
+    const remote = remotiveJob();
+    const employer: Job = {
+      ...remote,
+      id: "00000000-0000-4000-8000-000000000077",
+      databaseId: "00000000-0000-4000-8000-000000000077",
+      slug: "platform-engineer-at-example-ltd-direct",
+      source: {
+        ...remote.source,
+        type: "employer",
+      },
+    };
+    databaseRows = [employer];
+
+    const result = await getDatabaseJobBySlugResult(employer.id);
+
+    expect(result).toMatchObject({ state: "ready", data: employer });
+    const lookupUrl = new URL(String(vi.mocked(fetch).mock.calls[0]?.[0]));
+    expect(lookupUrl.searchParams.get("or")).toBe(
+      `(slug.eq.${employer.id},id.eq.${employer.id})`,
+    );
+  });
+
+  it("preserves the unconfigured state for a direct database lookup", async () => {
+    mocks.publicConfig.mockReturnValue(null);
+
+    const result = await getDatabaseJobBySlugResult("missing-job-slug");
+
+    expect(result).toMatchObject({
+      state: "unconfigured",
+      data: null,
+      issues: [{ code: "database_unconfigured" }],
+    });
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it("preserves the unavailable state for a failed direct database lookup", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    databaseThrows = true;
+
+    const result = await getDatabaseJobBySlugResult("missing-job-slug");
+
+    expect(result).toMatchObject({
+      state: "unavailable",
+      data: null,
+      issues: [{ code: "database_jobs_query_failed" }],
+    });
+  });
+
+  it("preserves the invalid state for a malformed direct response", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(Response.json({ unexpected: true })),
+    );
+
+    const result = await getDatabaseJobBySlugResult("missing-job-slug");
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      data: null,
+      issues: [{ code: "database_jobs_shape" }],
+    });
+  });
+
+  it("returns a ready not-found result without scanning the database catalog", async () => {
+    mocks.createClient.mockResolvedValue(client() as never);
+
+    const result = await getJobBySlug("missing-job-slug");
+
+    expect(result.job).toBeNull();
+    expect(vi.mocked(fetch)).toHaveBeenCalledOnce();
+    const lookupUrl = new URL(String(vi.mocked(fetch).mock.calls[0]?.[0]));
+    expect(lookupUrl.searchParams.get("slug")).toBe("eq.missing-job-slug");
+    expect(lookupUrl.searchParams.get("limit")).toBe("2");
+  });
+
+  it("keeps the Remotive cache tag on database misses", async () => {
+    mocks.createClient.mockResolvedValue(client() as never);
+
+    const result = await getJobBySlug(remotiveJob().slug);
+
+    expect(result.job?.id).toBe("remotive-77");
+    expect(mocks.fetchRemotiveJobs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestInit: expect.objectContaining({
+          next: expect.objectContaining({ tags: [REMOTIVE_CACHE_TAG] }),
+        }),
+      }),
+    );
+  });
+
+  it("surfaces invalid direct rows as a degraded Remotive fallback", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    databaseRows = [{ invalid: true }];
+    mocks.decodeDatabaseJobRow.mockReturnValue({
+      ok: false,
+      code: "database_job_contract_invalid",
+      issuePaths: ["title"],
+    });
+    mocks.createClient.mockResolvedValue(client() as never);
+
+    const result = await getJobBySlug("remotive-77");
+
+    expect(result.job?.id).toBe("remotive-77");
+    expect(result.feed.state).toBe("degraded");
+    expect(result.feed.sources).toContainEqual(
+      expect.objectContaining({
+        key: "database",
+        state: "degraded",
+        code: "database_jobs_invalid_rows",
+      }),
+    );
+  });
+
+  it("does not resurface a Remotive slug owned by a database collision", async () => {
+    const remote = remotiveJob();
+    const employer: Job = {
+      ...remote,
+      id: "00000000-0000-4000-8000-000000000077",
+      databaseId: "00000000-0000-4000-8000-000000000077",
+      slug: "platform-engineer-at-example-ltd-direct",
+      source: {
+        ...remote.source,
+        id: "00000000-0000-4000-8000-000000000078",
+        name: "Example employer submission",
+        type: "employer",
+      },
+    };
+    databaseRowsForRequest = (url) =>
+      url.searchParams.has("dedup_fingerprint") ? [employer] : [];
+    mocks.createClient.mockResolvedValue(client() as never);
+
+    const result = await getJobBySlug(remote.slug);
+
+    expect(result.job).toBeNull();
+    expect(result.feed.jobs).toEqual([employer]);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    const collisionUrl = new URL(String(vi.mocked(fetch).mock.calls[1]?.[0]));
+    const fingerprintKeys = buildJobFingerprintLookupKeys({
+      title: remote.title,
+      company: remote.company.name,
+      location: remote.locationDisplay,
+      arrangement: remote.arrangement,
+      destination: remote.applicationUrl,
+    });
+    expect(collisionUrl.searchParams.get("dedup_fingerprint")).toBe(
+      `in.(${fingerprintKeys.join(",")})`,
+    );
+    expect(collisionUrl.searchParams.get("limit")).toBe("10");
   });
 
   it("fails closed before provider acquisition when policy lookup fails", async () => {

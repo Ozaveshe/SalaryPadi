@@ -1249,6 +1249,17 @@ export type Database = {
           title: string;
         }[];
       };
+      get_salary_cell_progress: {
+        Args: { p_country_code: string; p_role_slug: string };
+        Returns: {
+          country_code: string;
+          displayed_contributions: number | null;
+          privacy_threshold: number;
+          progress_status: string;
+          role_family: string;
+          role_slug: string;
+        }[];
+      };
       get_worker_health: {
         Args: never;
         Returns: {
@@ -1473,6 +1484,19 @@ export type Database = {
           application_status: string;
           next_action_date?: string;
           notes?: string;
+        };
+        Returns: boolean;
+      };
+      update_community_profile: {
+        Args: { display_name: string; state_code: string };
+        Returns: string;
+      };
+      update_job_alert: {
+        Args: {
+          alert_active?: boolean;
+          alert_cadence?: string;
+          alert_id: string;
+          alert_query?: Json;
         };
         Returns: boolean;
       };

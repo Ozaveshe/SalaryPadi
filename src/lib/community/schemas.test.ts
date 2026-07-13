@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  communityProfileSchema,
   feedPostSchema,
   forumReplySchema,
   forumThreadSchema,
@@ -8,6 +9,21 @@ import {
 } from "@/lib/community/schemas";
 
 describe("community form schemas", () => {
+  it("validates central community profile updates", () => {
+    expect(
+      communityProfileSchema.safeParse({
+        display_name: "Ada Career",
+        state_code: "LA",
+      }).success,
+    ).toBe(true);
+    expect(
+      communityProfileSchema.safeParse({
+        display_name: "A",
+        state_code: "LAGOS",
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts a state-specific feed post", () => {
     expect(
       feedPostSchema.safeParse({

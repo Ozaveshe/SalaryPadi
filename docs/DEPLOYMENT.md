@@ -28,6 +28,10 @@ Required web configuration:
 
 Never expose a service-role key through a `NEXT_PUBLIC_*` variable. Production configuration rejects demo data.
 
+Optional Netlify build configuration:
+
+- `GITHUB_STATUS_TOKEN` is a protected, build-only fine-grained GitHub token with Metadata read and Actions read access to the private SalaryPadi repository. When present, `npm run deploy:verify` checks the latest `CI` workflow run for Netlify's `COMMIT_REF` and rejects a completed failed run before the application build. Missing credentials, a pending or absent run, and GitHub API failures are logged and skipped deliberately so a GitHub outage cannot take down deploys. The stronger dashboard-level control remains configuring Netlify to wait for required GitHub checks before publishing.
+
 The GA4 tag is public configuration, but it remains entirely unloaded until the
 versioned optional-analytics consent is granted. Keep enhanced measurement for
 form interactions and site search disabled in the Google data stream, keep ad
@@ -117,7 +121,15 @@ Published production deploys register these Netlify schedules:
 
 The ATS schedule is operational scaffolding, not source authorization. Keep `ATS_SOURCE_SYNC_ENABLED=false`; with no seeded employer source/configuration, it must make no provider request. After written permission and final policy/config review, a controlled one-off gate activation may perform the claimed review-only production dry run. Return the gate to false while reviewing budget, snapshot, quarantine, moderation, and kill-switch evidence; leaving it true for schedules requires a separate named approval.
 
-After every production deploy, use Netlify's scheduled-function **Run now** control once for each function. Verify one new `private.worker_runs` success per task and check `/api/health`; a configured schedule is not proof that a worker executed.
+The `Production freshness` GitHub Actions workflow runs at 03:43, 09:43, 15:43, and 21:43 UTC, deliberately offset from the production browser canaries. It checks `/api/health`, every registered scheduled worker, and the key public routes through `node scripts/verify-production-freshness.mjs`. A failed check fails the workflow so GitHub's repository-owner workflow-failure email is the baseline alert channel; it requires no repository secret or external service.
+
+After every production deploy, record the deploy's UTC published-at timestamp, then use Netlify's scheduled-function **Run now** control once for each function. After the runs finish, replace manual worker-row inspection with the exact timestamp check:
+
+```powershell
+node scripts/verify-production-freshness.mjs --expect-deploy-freshness 2026-07-13T14:00:00Z
+```
+
+Post-deploy mode requires every registered worker's `last_started_at` from `/api/health` to be strictly newer than the supplied deploy timestamp. It also retains the normal freshness and public-route checks. Use `--json` for a single machine-readable result; the default output prints one summary line per check. A configured schedule or a merely recent pre-deploy run is not post-deploy execution proof.
 
 ## Staging verification
 
@@ -142,7 +154,7 @@ Use a dedicated staging backend and non-sensitive test accounts.
 3. Back up the production database and verify restore status.
 4. Apply backward-compatible database migrations first.
 5. Deploy the web artifact.
-6. Start each scheduled worker only after both schema and web compatibility are verified; run it manually once and record the run ID, deploy ID, summary, and stale threshold. The ATS worker must produce a disabled safe skip with zero provider requests while `ATS_SOURCE_SYNC_ENABLED=false`.
+6. Start each scheduled worker only after both schema and web compatibility are verified; run it manually once, then run `node scripts/verify-production-freshness.mjs --expect-deploy-freshness <deploy-UTC-timestamp>` and retain its output with the run ID, deploy ID, summary, and stale threshold. The ATS worker must produce a disabled safe skip with zero provider requests while `ATS_SOURCE_SYNC_ENABLED=false`.
 7. Perform production smoke checks without creating real-looking public data.
 8. Monitor errors, auth, queues, source health, and aggregate jobs through the agreed observation window.
 
@@ -172,7 +184,7 @@ Close every release with separate proof for:
 - web deployment artifact;
 - production route/header smoke;
 - live dependency/source health;
-- worker/schedule health for every registered production task, including a manual post-deploy run.
+- worker/schedule health for every registered production task, including a passing timestamp-bound `--expect-deploy-freshness` result after the manual post-deploy runs.
 
 If the release includes ATS infrastructure, record separately that `ATS_SOURCE_SYNC_ENABLED=false`, candidate employers remain disabled, the authorized-source list is empty, the scheduled worker produced a safe skip, and no provider request occurred. If a later release enables a source, add the written-permission evidence reference, exact source/config policy, budget claim, complete snapshot outcome, quarantine count, public moderation result, and kill-switch smoke without including private correspondence or payloads.
 

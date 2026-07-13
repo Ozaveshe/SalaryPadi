@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { ContributionShell } from "@/components/contributions/contribution-shell";
 import { requireViewer } from "@/lib/auth/dal";
+import { sliceSearchParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
   title: "Submit salary",
@@ -21,8 +22,23 @@ const moneyBenefits = [
   ["thirteenth_month", "Thirteenth-month pay"],
 ] as const;
 
-export default async function SalaryContributionPage() {
+export default async function SalaryContributionPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireViewer("/contribute/salary");
+  const input = await searchParams;
+  const prefilledRole = sliceSearchParam(input.role, 160);
+  const prefilledCompany = sliceSearchParam(input.company, 180);
+  const requestedCountry = sliceSearchParam(
+    input.country,
+    2,
+    "NG",
+  ).toUpperCase();
+  const country = ["NG", "GH", "KE", "ZA"].includes(requestedCountry)
+    ? requestedCountry
+    : "NG";
   return (
     <ContributionShell
       title="Share salary evidence"
@@ -43,6 +59,7 @@ export default async function SalaryContributionPage() {
                 id="role"
                 name="role"
                 maxLength={160}
+                defaultValue={prefilledRole}
                 required
               />
             </div>
@@ -64,6 +81,7 @@ export default async function SalaryContributionPage() {
                 id="company"
                 name="company"
                 maxLength={180}
+                defaultValue={prefilledCompany}
               />
               <p className="field-help">Leave blank to prefer not to say.</p>
             </div>
@@ -73,17 +91,13 @@ export default async function SalaryContributionPage() {
                 className="select"
                 id="country"
                 name="country"
-                defaultValue="NG"
+                defaultValue={country}
               >
                 <option value="NG">Nigeria</option>
                 <option value="GH">Ghana</option>
                 <option value="KE">Kenya</option>
                 <option value="ZA">South Africa</option>
               </select>
-            </div>
-            <div className="field">
-              <label htmlFor="city">City</label>
-              <input className="input" id="city" name="city" maxLength={120} />
             </div>
             <div className="field">
               <label htmlFor="work_mode">Work mode</label>
@@ -219,46 +233,77 @@ export default async function SalaryContributionPage() {
             </div>
           </div>
         </fieldset>
-        <fieldset>
-          <legend>Additional pay and benefits</legend>
-          <p className="field-help">
-            Use amounts in the same currency and pay period where known. Leave
-            unknown fields blank.
-          </p>
-          <div className="form-grid">
-            {moneyBenefits.map(([name, label]) => (
-              <div className="field" key={name}>
-                <label htmlFor={name}>{label}</label>
+        <details className="contribution-details">
+          <summary>Add more detail (optional)</summary>
+          <div className="stack">
+            <fieldset>
+              <legend>Location detail</legend>
+              <div className="field">
+                <label htmlFor="city">City</label>
                 <input
                   className="input"
-                  id={name}
-                  name={name}
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  id="city"
+                  name="city"
+                  maxLength={120}
                 />
               </div>
-            ))}
-            <div className="field">
-              <label htmlFor="equity">Equity</label>
-              <input
-                className="input"
-                id="equity"
-                name="equity"
-                maxLength={300}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="other_benefits">Other benefits</label>
-              <textarea
-                className="textarea"
-                id="other_benefits"
-                name="other_benefits"
-                maxLength={500}
-              />
-            </div>
+            </fieldset>
+            <fieldset>
+              <legend>Additional pay and benefits</legend>
+              <p className="field-help">
+                Use amounts in the same currency and pay period where known.
+                Leave unknown fields blank.
+              </p>
+              <div className="form-grid">
+                {moneyBenefits.map(([name, label]) => (
+                  <div className="field" key={name}>
+                    <label htmlFor={name}>{label}</label>
+                    <input
+                      className="input"
+                      id={name}
+                      name={name}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                ))}
+                <div className="field">
+                  <label htmlFor="equity">Equity</label>
+                  <input
+                    className="input"
+                    id="equity"
+                    name="equity"
+                    maxLength={300}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="other_benefits">Other benefits</label>
+                  <textarea
+                    className="textarea"
+                    id="other_benefits"
+                    name="other_benefits"
+                    maxLength={500}
+                  />
+                </div>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Currency policy detail</legend>
+              <div className="field">
+                <label htmlFor="foreign_currency_policy">
+                  Foreign-currency conversion policy
+                </label>
+                <textarea
+                  className="textarea"
+                  id="foreign_currency_policy"
+                  name="foreign_currency_policy"
+                  maxLength={500}
+                />
+              </div>
+            </fieldset>
           </div>
-        </fieldset>
+        </details>
         <fieldset>
           <legend>Payment reality</legend>
           <div className="form-grid">
@@ -278,17 +323,6 @@ export default async function SalaryContributionPage() {
                 <option value="often_late">Often late</option>
                 <option value="prefer_not_to_say">Prefer not to say</option>
               </select>
-            </div>
-            <div className="field">
-              <label htmlFor="foreign_currency_policy">
-                Foreign-currency conversion policy
-              </label>
-              <textarea
-                className="textarea"
-                id="foreign_currency_policy"
-                name="foreign_currency_policy"
-                maxLength={500}
-              />
             </div>
           </div>
         </fieldset>

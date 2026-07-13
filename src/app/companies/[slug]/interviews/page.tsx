@@ -37,7 +37,13 @@ export default async function CompanyInterviewsPage({
   const interviews = interviewsResult.data;
   return (
     <div className="site-shell stack-lg">
-      <CompanyHeading company={company} />
+      <CompanyHeading
+        company={company}
+        section={{
+          label: "Interviews",
+          path: `/companies/${company.slug}/interviews`,
+        }}
+      />
       <section className="rule-section stack">
         <h2 className="section-title">Interview experiences</h2>
         <RepositoryNotice

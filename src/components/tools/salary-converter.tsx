@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import type { FormEvent } from "react";
 
 import { trackEvent } from "@/lib/analytics/events";
 import { formatSalaryAmount } from "@/lib/format";
+
+import {
+  isToolResponseRecord,
+  toolResponseError,
+  useToolRequest,
+} from "./use-tool-request";
 
 type AfroToolsFxEvidence = {
   from: string;
@@ -26,41 +32,39 @@ type Conversion = {
 };
 
 export function SalaryConverter() {
-  const [result, setResult] = useState<Conversion | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { result, error, loading, run } =
+    useToolRequest<Conversion>("Conversion failed.");
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setResult(null);
-    setError(null);
-    setLoading(true);
     trackEvent("tool_started", { tool_id: "salary_converter" });
-    try {
-      const form = new FormData(event.currentTarget);
-      const response = await fetch("/api/tools/salary-convert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    const completed = await run({
+      endpoint: "/api/tools/salary-convert",
+      createPayload: () => {
+        const form = new FormData(event.currentTarget);
+        return {
           input: {
             amount: Number(form.get("amount")),
             from: String(form.get("from")).toUpperCase(),
             to: String(form.get("to")).toUpperCase(),
             period: form.get("period"),
           },
-        }),
-      });
-      const body = (await response.json()) as {
-        result?: Conversion;
-        error?: string;
-      };
-      if (!response.ok || !body.result)
-        throw new Error(body.error ?? "No verified conversion is available.");
-      setResult(body.result);
+        };
+      },
+      parseResponse: (response, body) => {
+        const parsedResult = isToolResponseRecord(body)
+          ? body.result
+          : undefined;
+        if (!response.ok || !isToolResponseRecord(parsedResult)) {
+          throw new Error(
+            toolResponseError(body, "No verified conversion is available."),
+          );
+        }
+        return parsedResult as unknown as Conversion;
+      },
+    });
+    if (completed) {
       trackEvent("tool_completed", { tool_id: "salary_converter" });
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Conversion failed.");
-    } finally {
-      setLoading(false);
     }
   }
   return (

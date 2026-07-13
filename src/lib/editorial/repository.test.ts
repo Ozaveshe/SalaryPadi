@@ -41,6 +41,15 @@ describe("editorial repository", () => {
     const result = await getPublishedEditorialResult();
     expect(result.state).toBe("unconfigured");
     expect(result.data).toEqual([REMOTE_JOBS_GUIDE]);
+    await expect(
+      getPublishedArticleResult("missing-brief"),
+    ).resolves.toMatchObject({ state: "unconfigured", data: null });
+    await expect(
+      getPublishedArticleResult(REMOTE_JOBS_GUIDE.slug),
+    ).resolves.toMatchObject({
+      state: "unconfigured",
+      data: REMOTE_JOBS_GUIDE,
+    });
   });
 
   it("does not relabel a failed upstream read as a valid empty feed", async () => {
@@ -69,17 +78,15 @@ describe("editorial repository", () => {
   });
 
   it("returns validated articles and resolves a single brief", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockImplementation(async () =>
-        Promise.resolve(
-          new Response(JSON.stringify([validBrief]), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Promise.resolve(
+        new Response(JSON.stringify([validBrief]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
       ),
     );
+    vi.stubGlobal("fetch", fetchMock);
     const result = await getPublishedEditorialResult();
     expect(result.state).toBe("ready");
     expect(result.data.map((article) => article.slug)).toContain(
@@ -88,7 +95,61 @@ describe("editorial repository", () => {
     expect((await getPublishedArticleResult(validBrief.slug)).data).toEqual(
       validBrief,
     );
+    const lookupUrl = new URL(String(fetchMock.mock.calls[1]?.[0]));
+    expect(lookupUrl.searchParams.get("slug")).toBe(`eq.${validBrief.slug}`);
+    expect(lookupUrl.searchParams.get("limit")).toBe("1");
     await expect(getPublishedEditorial()).resolves.toHaveLength(2);
+  });
+
+  it("returns a ready null for a missing filtered article", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getPublishedArticleResult("missing-brief");
+
+    expect(result).toMatchObject({ state: "ready", data: null });
+    const lookupUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(lookupUrl.pathname).toBe("/rest/v1/rpc/list_published_editorial");
+    expect(lookupUrl.searchParams.get("slug")).toBe("eq.missing-brief");
+    expect(lookupUrl.searchParams.get("limit")).toBe("1");
+  });
+
+  it("retains degraded state for a failed filtered article read", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 503 })),
+    );
+
+    const result = await getPublishedArticleResult("missing-brief");
+
+    expect(result).toMatchObject({ state: "degraded", data: null });
+    expect(result.issues[0]?.code).toBe("editorial_http_503");
+  });
+
+  it("quarantines an invalid filtered article without loading the list", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Promise.resolve(
+          new Response(JSON.stringify([{ id: "not-a-uuid" }]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      ),
+    );
+
+    const result = await getPublishedArticleResult("invalid-brief");
+
+    expect(result).toMatchObject({ state: "degraded", data: null });
+    expect(result.issues[0]?.code).toBe("editorial_invalid_rows");
   });
 
   it("records non-success HTTP responses as degraded", async () => {

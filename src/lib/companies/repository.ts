@@ -12,7 +12,7 @@ import {
   type RepositoryResult,
 } from "@/lib/data/repository-result";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
-import type { Job } from "@/lib/jobs/types";
+import type { Job, JobFeedResult } from "@/lib/jobs/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const companyLocationSchema = z.object({
@@ -93,10 +93,29 @@ const benefitSchema = z.object({
   last_verified_at: z.string().nullable(),
 });
 
+const companyRatingThresholdSchema = z.object({
+  metric: z.literal("company_overall_rating"),
+  min_distinct_contributors: z.coerce.number().int().min(3),
+});
+
+const companyEvidenceRowSchema = z.object({
+  company_slug: z.string().nullable(),
+  published_at: z.string().nullable().optional(),
+  computed_at: z.string().nullable().optional(),
+  calculated_at: z.string().nullable().optional(),
+  last_verified_at: z.string().nullable().optional(),
+  source_kind: z.string().optional(),
+});
+
 export type CompanyReview = z.infer<typeof reviewSchema>;
 export type InterviewExperience = z.infer<typeof interviewSchema>;
 export type CompanyRating = z.infer<typeof ratingSchema>;
 export type CompanyBenefit = z.infer<typeof benefitSchema>;
+
+export interface CompanyPublishedEvidence {
+  companySlug: string;
+  lastModified: string | null;
+}
 
 export interface CompanySummary {
   databaseId: string | null;
@@ -197,11 +216,11 @@ async function getDatabaseCompaniesResult(): Promise<
   return repositoryReady(companies);
 }
 
-export async function getCompaniesResult(): Promise<
-  RepositoryResult<CompanySummary[]>
-> {
+export async function getCompaniesResult(
+  suppliedFeed?: JobFeedResult | Promise<JobFeedResult>,
+): Promise<RepositoryResult<CompanySummary[]>> {
   const [feed, databaseResult] = await Promise.all([
-    getLiveJobFeed(),
+    suppliedFeed ?? getLiveJobFeed(),
     getDatabaseCompaniesResult(),
   ]);
   const databaseCompanies = databaseResult.data;
@@ -381,10 +400,236 @@ export async function getCompanyRating(slug: string) {
   return (await getCompanyRatingResult(slug)).data;
 }
 
+export async function getCompanyRatingMinimumSampleResult() {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return repositoryFailure(
+      "unconfigured",
+      null,
+      repositoryIssue(
+        "companies.rating_threshold",
+        "not_configured",
+        "company_rating_threshold_backend_unconfigured",
+      ),
+    );
+  }
+  const { data, error } = await supabase
+    .schema("api")
+    .from("privacy_thresholds")
+    .select("metric,min_distinct_contributors")
+    .eq("metric", "company_overall_rating")
+    .maybeSingle();
+  if (error || !data) {
+    return repositoryFailure(
+      "unavailable",
+      null,
+      repositoryIssue(
+        "companies.rating_threshold",
+        error ? "query_failed" : "invalid_container",
+        error
+          ? "company_rating_threshold_query_failed"
+          : "company_rating_threshold_missing",
+        error,
+      ),
+    );
+  }
+  const parsed = companyRatingThresholdSchema.safeParse(data);
+  if (!parsed.success) {
+    return repositoryFailure(
+      "invalid",
+      null,
+      repositoryIssue(
+        "companies.rating_threshold",
+        "invalid_rows",
+        "company_rating_threshold_invalid",
+        parsed.error,
+      ),
+    );
+  }
+  return repositoryReady(parsed.data.min_distinct_contributors);
+}
+
 export async function getCompanyBenefitsResult(slug: string) {
   return readCompanyRowsResult("company_benefits", slug, benefitSchema);
 }
 
 export async function getCompanyBenefits(slug: string) {
   return (await getCompanyBenefitsResult(slug)).data;
+}
+
+type CompanyEvidenceTable =
+  | "company_reviews"
+  | "interview_experiences"
+  | "company_ratings"
+  | "company_benefits"
+  | "salary_aggregates";
+
+type ServerSupabaseClient = NonNullable<
+  Awaited<ReturnType<typeof createServerSupabaseClient>>
+>;
+
+async function readCompanyEvidencePage(
+  supabase: ServerSupabaseClient,
+  table: CompanyEvidenceTable,
+  from: number,
+  to: number,
+): Promise<{ data: unknown; error: unknown }> {
+  const api = supabase.schema("api");
+  switch (table) {
+    case "company_reviews":
+      return api
+        .from("company_reviews")
+        .select("id,company_slug,published_at")
+        .order("id", { ascending: true })
+        .range(from, to);
+    case "interview_experiences":
+      return api
+        .from("interview_experiences")
+        .select("id,company_slug,published_at")
+        .order("id", { ascending: true })
+        .range(from, to);
+    case "company_ratings":
+      return api
+        .from("company_ratings")
+        .select("id,company_slug,computed_at")
+        .order("id", { ascending: true })
+        .range(from, to);
+    case "company_benefits":
+      return api
+        .from("company_benefits")
+        .select("id,company_slug,last_verified_at,source_kind")
+        .eq("source_kind", "community_reported")
+        .order("id", { ascending: true })
+        .range(from, to);
+    case "salary_aggregates":
+      return api
+        .from("salary_aggregates")
+        .select("id,company_slug,calculated_at")
+        .not("company_slug", "is", null)
+        .order("id", { ascending: true })
+        .range(from, to);
+  }
+}
+
+async function readAllCompanyEvidenceRows(
+  supabase: ServerSupabaseClient,
+  table: CompanyEvidenceTable,
+) {
+  const rows: unknown[] = [];
+  const issues: RepositoryIssue[] = [];
+  const pageSize = 1_000;
+  const maximumPages = 40;
+  for (let page = 0; page < maximumPages; page += 1) {
+    const from = page * pageSize;
+    const { data, error } = await readCompanyEvidencePage(
+      supabase,
+      table,
+      from,
+      from + pageSize - 1,
+    );
+    if (error || !Array.isArray(data)) {
+      issues.push(
+        repositoryIssue(
+          `companies.discovery.${table}`,
+          error ? "query_failed" : "invalid_container",
+          error
+            ? "company_discovery_query_failed"
+            : "company_discovery_invalid_container",
+          error,
+        ),
+      );
+      break;
+    }
+    rows.push(...data);
+    if (data.length < pageSize) break;
+    if (page === maximumPages - 1) {
+      issues.push(
+        repositoryIssue(
+          `companies.discovery.${table}`,
+          "invalid_container",
+          "company_discovery_capacity_exceeded",
+        ),
+      );
+    }
+  }
+  return { rows, issues };
+}
+
+function newerTimestamp(current: string | null, candidate: string | null) {
+  if (!candidate || !Number.isFinite(Date.parse(candidate))) return current;
+  if (!current || Date.parse(candidate) > Date.parse(current)) return candidate;
+  return current;
+}
+
+export async function getPublishedCompanyEvidenceResult(): Promise<
+  RepositoryResult<CompanyPublishedEvidence[]>
+> {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return repositoryFailure(
+      "unconfigured",
+      [],
+      repositoryIssue(
+        "companies.discovery",
+        "not_configured",
+        "company_discovery_backend_unconfigured",
+      ),
+    );
+  }
+
+  const tableResults = await Promise.all(
+    [
+      "company_reviews",
+      "interview_experiences",
+      "company_ratings",
+      "company_benefits",
+      "salary_aggregates",
+    ].map((table) =>
+      readAllCompanyEvidenceRows(supabase, table as CompanyEvidenceTable),
+    ),
+  );
+  const evidence = new Map<string, CompanyPublishedEvidence>();
+  const issues = tableResults.flatMap((result) => result.issues);
+  let rejected = 0;
+  for (const row of tableResults.flatMap((result) => result.rows)) {
+    const parsed = companyEvidenceRowSchema.safeParse(row);
+    if (!parsed.success) {
+      rejected += 1;
+      continue;
+    }
+    const item = parsed.data;
+    if (!item.company_slug) continue;
+    if (
+      item.source_kind !== undefined &&
+      item.source_kind !== "community_reported"
+    ) {
+      continue;
+    }
+    const timestamp =
+      item.published_at ??
+      item.computed_at ??
+      item.calculated_at ??
+      item.last_verified_at ??
+      null;
+    const current = evidence.get(item.company_slug);
+    evidence.set(item.company_slug, {
+      companySlug: item.company_slug,
+      lastModified: newerTimestamp(current?.lastModified ?? null, timestamp),
+    });
+  }
+  if (rejected > 0) {
+    issues.push(
+      repositoryIssue(
+        "companies.discovery",
+        "invalid_rows",
+        "company_discovery_invalid_rows",
+      ),
+    );
+  }
+  const data = [...evidence.values()].toSorted((a, b) =>
+    a.companySlug.localeCompare(b.companySlug),
+  );
+  return issues.length > 0
+    ? repositoryDegraded(data, issues)
+    : repositoryReady(data);
 }

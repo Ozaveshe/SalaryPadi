@@ -6,6 +6,7 @@ import { safeRelativePath } from "@/lib/security/urls";
 import type { Database } from "@/lib/supabase/database.types";
 
 const protectedPrefixes = [
+  "/account",
   "/saved",
   "/applications",
   "/alerts",

@@ -48,12 +48,23 @@ export const REMOTE_JOBS_GUIDE: EditorialArticle = {
   ],
 };
 
-export async function getPublishedEditorialResult() {
+const EDITORIAL_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function mergeBuiltInGuide(articles: EditorialArticle[]) {
+  const bySlug = new Map(
+    [REMOTE_JOBS_GUIDE, ...articles].map((article) => [article.slug, article]),
+  );
+  return [...bySlug.values()].sort(
+    (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
+  );
+}
+
+async function readPublishedEditorialRowsResult(slug?: string) {
   const configuration = getSupabasePublicConfig();
   if (!configuration) {
     return repositoryFailure(
       "unconfigured",
-      [REMOTE_JOBS_GUIDE],
+      [],
       repositoryIssue(
         "editorial.list",
         "not_configured",
@@ -65,6 +76,13 @@ export async function getPublishedEditorialResult() {
     "/rest/v1/rpc/list_published_editorial",
     configuration.url,
   );
+  if (slug !== undefined) {
+    endpoint.searchParams.set(
+      "slug",
+      `eq.${EDITORIAL_SLUG_PATTERN.test(slug) ? slug : "__invalid__"}`,
+    );
+    endpoint.searchParams.set("limit", "1");
+  }
   try {
     const response = await fetch(endpoint, {
       method: "POST",
@@ -84,7 +102,7 @@ export async function getPublishedEditorialResult() {
     });
     if (!response.ok) {
       return repositoryDegraded(
-        [REMOTE_JOBS_GUIDE],
+        [],
         [
           repositoryIssue(
             "editorial.list",
@@ -94,11 +112,17 @@ export async function getPublishedEditorialResult() {
         ],
       );
     }
-    const payload = await readBoundedJson(response, 2 * 1024 * 1024);
-    const parsed = z.array(editorialArticleSchema).max(200).safeParse(payload);
+    const payload = await readBoundedJson(
+      response,
+      slug === undefined ? 2 * 1024 * 1024 : 256 * 1024,
+    );
+    const parsed = z
+      .array(editorialArticleSchema)
+      .max(slug === undefined ? 200 : 1)
+      .safeParse(payload);
     if (!parsed.success) {
       return repositoryDegraded(
-        [REMOTE_JOBS_GUIDE],
+        [],
         [
           repositoryIssue(
             "editorial.list",
@@ -109,21 +133,11 @@ export async function getPublishedEditorialResult() {
         ],
       );
     }
-    const bySlug = new Map(
-      [REMOTE_JOBS_GUIDE, ...parsed.data].map((article) => [
-        article.slug,
-        article,
-      ]),
-    );
-    return repositoryReady(
-      [...bySlug.values()].sort(
-        (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
-      ),
-    );
+    return repositoryReady(parsed.data);
   } catch (reason) {
     unstable_rethrow(reason);
     return repositoryDegraded(
-      [REMOTE_JOBS_GUIDE],
+      [],
       [
         repositoryIssue(
           "editorial.list",
@@ -136,14 +150,23 @@ export async function getPublishedEditorialResult() {
   }
 }
 
+export async function getPublishedEditorialResult() {
+  return mapRepositoryResult(
+    await readPublishedEditorialRowsResult(),
+    mergeBuiltInGuide,
+  );
+}
+
 export async function getPublishedEditorial(): Promise<EditorialArticle[]> {
   return (await getPublishedEditorialResult()).data;
 }
 
 export async function getPublishedArticleResult(slug: string) {
   return mapRepositoryResult(
-    await getPublishedEditorialResult(),
-    (articles) => articles.find((article) => article.slug === slug) ?? null,
+    await readPublishedEditorialRowsResult(slug),
+    (articles) =>
+      mergeBuiltInGuide(articles).find((article) => article.slug === slug) ??
+      null,
   );
 }
 

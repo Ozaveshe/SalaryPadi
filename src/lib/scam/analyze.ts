@@ -5,6 +5,7 @@ import {
   extractEmails,
   extractUrls,
   feeIsNegated,
+  feeRequestInTokenWindow,
   findStatement,
   isSameOrSubdomain,
   normalizeDomain,
@@ -114,16 +115,27 @@ export function checkJobScam(input: ScamCheckInput): ScamCheckResult {
     addFlag("training_or_equipment_fee", "text", trainingFeeEvidence);
   }
 
-  const genericFeeEvidence = findStatement(
-    statements,
-    [
-      /\b(?:application|registration|processing|onboarding|administrative|security)\s+(?:fee|deposit|payment)\b/i,
-      /\b(?:upfront|advance)\s+(?:fee|payment|deposit)\b/i,
-      /\b(?:fee|deposit)\s+(?:is\s+)?(?:required|mandatory|payable|upfront)\b/i,
-      /\bpay\b.{0,35}\b(?:application|registration|processing|onboarding)\b/i,
-    ],
-    (statement) => feeIsNegated(statement) || statement === trainingFeeEvidence,
-  );
+  const genericFeeEvidence =
+    findStatement(
+      statements,
+      [
+        /\b(?:application|registration|processing|onboarding|administrative|security|logistics)\s+(?:fee|deposit|payment)\b/i,
+        /\b(?:upfront|advance)\s+(?:fee|payment|deposit)\b/i,
+        /\b(?:fee|deposit)\s+(?:is\s+)?(?:required|mandatory|payable|upfront)\b/i,
+        /\bpay\b.{0,35}\b(?:application|registration|processing|onboarding)\b/i,
+        /\b(?:make you|you (?:go|gats?|suppose)|abeg)\b.{0,40}\b(?:pay|send|transfer|remit|drop)\b.{0,45}\b(?:registration|processing|logistics)\b.{0,20}\b(?:money|fee|payment)\b/i,
+        /\b(?:pay|send|transfer|remit|drop)\b.{0,30}\b(?:₦\s*)?\d[\d,]*(?:k|000)?\b.{0,30}\b(?:registration|processing|logistics)\b/i,
+      ],
+      (statement) =>
+        feeIsNegated(statement) || statement === trainingFeeEvidence,
+    ) ??
+    statements
+      .filter(
+        (statement) =>
+          statement !== trainingFeeEvidence && !feeIsNegated(statement),
+      )
+      .find((statement) => feeRequestInTokenWindow(statement)) ??
+    null;
   if (genericFeeEvidence) {
     addFlag("upfront_payment", "text", genericFeeEvidence);
   }
@@ -236,6 +248,8 @@ export function checkJobScam(input: ScamCheckInput): ScamCheckResult {
       /\b(?:interview|assessment)\b.{0,55}\b(?:whatsapp|telegram|signal|text|chat|messag\w*)\b.{0,25}\b(?:only|exclusively|no (?:call|video|voice))\b/i,
       /\b(?:whatsapp|telegram|signal|text|chat|messag\w*)[- ]?only\b.{0,35}\b(?:interview|assessment)\b/i,
       /\b(?:only|exclusively)\b.{0,25}\b(?:whatsapp|telegram|signal|text|chat)\b.{0,35}\b(?:interview|assessment)\b/i,
+      /\b(?:interview|assessment)\b.{0,35}\bna\s+only\b.{0,20}\b(?:whatsapp|telegram|chat|message)\b/i,
+      /\bna\s+(?:whatsapp|telegram|chat|message)\b.{0,30}\b(?:we|dem)\s+go\s+(?:use|take)\b.{0,20}\b(?:do|conduct)\s+(?:the\s+)?(?:interview|assessment)\b/i,
     ],
     safetyWarningIsNegated,
   );
@@ -332,7 +346,7 @@ export function checkJobScam(input: ScamCheckInput): ScamCheckResult {
   const cryptocurrencyEvidence = findStatement(
     statements,
     [
-      /\b(?:salary|pay|payment|deposit|fee|purchase|send|receive)\b.{0,45}\b(?:bitcoin|btc|ethereum|eth|usdt|cryptocurrency|crypto|wallet address)\b/i,
+      /\b(?:salary|pay|payment|deposit|fee|purchase|send|receive|transfer|drop|fund)\b.{0,45}\b(?:bitcoin|btc|ethereum|eth|usdt|cryptocurrency|crypto|wallet address)\b/i,
       /\b(?:bitcoin|btc|ethereum|eth|usdt|cryptocurrency|crypto|wallet address)\b.{0,45}\b(?:salary|pay|payment|deposit|fee|purchase|send|receive)\b/i,
     ],
     safetyWarningIsNegated,
@@ -354,6 +368,8 @@ export function checkJobScam(input: ScamCheckInput): ScamCheckResult {
       /\b(?:act now|respond immediately|reply immediately|do not delay|limited slots?|offer expires today|last chance)\b/i,
       /\b(?:within|in the next)\s+\d{1,2}\s+hours?\b/i,
       /\b(?:pay|send|submit|share)\b.{0,75}\b(?:immediately|right now|before time runs out)\b/i,
+      /\b(?:do am|send am|pay am|reply|respond|pay|send|transfer)\b.{0,45}\bsharp[\s-]+sharp\b/i,
+      /\b(?:before|else)\b.{0,35}\b(?:slot|position|work)\b.{0,20}\b(?:go finish|go close|commot)\b/i,
     ],
     safetyWarningIsNegated,
   );

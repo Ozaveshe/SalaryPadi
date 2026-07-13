@@ -24,6 +24,10 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/account/:path*",
+        headers: [{ key: "Cache-Control", value: "private, no-store" }],
+      },
+      {
         source: "/saved/:path*",
         headers: [{ key: "Cache-Control", value: "private, no-store" }],
       },

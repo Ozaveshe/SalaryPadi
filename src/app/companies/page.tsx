@@ -1,21 +1,28 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { formatDate } from "@/lib/format";
 import { getCompaniesResult } from "@/lib/companies/repository";
+import { canIndexCompanyHub } from "@/lib/seo/indexability";
 
-export const metadata: Metadata = {
-  title: "Companies",
-  description:
-    "Inspect source-labelled employer facts, jobs and safely published community intelligence.",
-  alternates: { canonical: "/companies" },
-  robots: { index: false, follow: true },
-};
+const getCompaniesPageResult = cache(() => getCompaniesResult());
+
+export async function generateMetadata(): Promise<Metadata> {
+  const result = await getCompaniesPageResult();
+  return {
+    title: "Companies",
+    description:
+      "Inspect source-labelled employer facts, jobs and safely published community intelligence.",
+    alternates: { canonical: "/companies" },
+    robots: { index: canIndexCompanyHub(result), follow: true },
+  };
+}
 
 export default async function CompaniesPage() {
-  const result = await getCompaniesResult();
+  const result = await getCompaniesPageResult();
   const companies = result.data;
   return (
     <div className="site-shell stack-lg">

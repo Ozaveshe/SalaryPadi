@@ -1,29 +1,18 @@
-const exactRoutes = new Set([
-  "/",
-  "/about",
-  "/methodology",
-  "/trust-and-safety",
-  "/privacy",
-  "/terms",
-  "/post-a-job",
-]);
+import {
+  ANALYTICS_CATALOG,
+  type AnalyticsRouteGroup,
+} from "@/lib/analytics/catalog";
 
-const groupedPrefixes = [
-  "/jobs",
-  "/companies",
-  "/salaries",
-  "/tools",
-  "/auth",
-  "/account",
-  "/contribute",
-] as const;
+const exactRoutes = ANALYTICS_CATALOG.routeGroups.exact;
+const groupedPrefixes = ANALYTICS_CATALOG.routeGroups.prefixes;
 
-export function analyticsRouteGroup(pathname: string): string {
+export function analyticsRouteGroup(pathname: string): AnalyticsRouteGroup {
   const normalized = pathname.split("?", 1)[0]?.replace(/\/+$/, "") || "/";
-  if (exactRoutes.has(normalized)) return normalized;
+  const exactRoute = exactRoutes.find((route) => route === normalized);
+  if (exactRoute) return exactRoute;
   return (
     groupedPrefixes.find(
       (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`),
-    ) ?? "/other"
+    ) ?? ANALYTICS_CATALOG.routeGroups.fallback
   );
 }

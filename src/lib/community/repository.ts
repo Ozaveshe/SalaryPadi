@@ -1,5 +1,13 @@
 import "server-only";
 
+import { z } from "zod";
+
+import {
+  repositoryFailure,
+  repositoryIssue,
+  repositoryReady,
+  type RepositoryResult,
+} from "@/lib/data/repository-result";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export const feedCategories = [
@@ -21,6 +29,11 @@ export interface CommunityProfile {
   displayName: string;
   handle: string;
   stateCode: string | null;
+}
+
+export interface CommunityAccountData {
+  profile: CommunityProfile | null;
+  states: NigeriaState[];
 }
 
 export interface FeedPost {
@@ -78,13 +91,101 @@ export interface ForumReply {
 function mapProfile(row: {
   display_name: string;
   handle: string;
-  state_code: string;
+  state_code: string | null;
 }): CommunityProfile {
   return {
     displayName: row.display_name,
     handle: row.handle,
     stateCode: row.state_code || null,
   };
+}
+
+const accountStateRowsSchema = z.array(
+  z.object({
+    code: z.string().regex(/^[A-Z]{2,4}$/),
+    name: z.string().min(3).max(40),
+  }),
+);
+
+const accountProfileRowsSchema = z
+  .array(
+    z.object({
+      display_name: z.string().min(2).max(60),
+      handle: z.string().min(1).max(80),
+      state_code: z
+        .string()
+        .regex(/^[A-Z]{2,4}$/)
+        .nullable(),
+    }),
+  )
+  .max(1);
+
+const emptyCommunityAccountData: CommunityAccountData = {
+  profile: null,
+  states: [],
+};
+
+export async function getCommunityAccountData(): Promise<
+  RepositoryResult<CommunityAccountData>
+> {
+  const operation = "community.account";
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return repositoryFailure(
+      "unconfigured",
+      emptyCommunityAccountData,
+      repositoryIssue(
+        operation,
+        "not_configured",
+        "community_backend_unconfigured",
+      ),
+    );
+  }
+
+  const api = supabase.schema("api");
+  const [statesResult, profileResult] = await Promise.all([
+    api.rpc("list_nigeria_states"),
+    api.rpc("get_my_community_profile"),
+  ]);
+  const error = statesResult.error ?? profileResult.error;
+  if (
+    error ||
+    !Array.isArray(statesResult.data) ||
+    !Array.isArray(profileResult.data)
+  ) {
+    return repositoryFailure(
+      "unavailable",
+      emptyCommunityAccountData,
+      repositoryIssue(
+        operation,
+        error ? "query_failed" : "invalid_container",
+        error
+          ? "community_account_rpc_error"
+          : "community_account_invalid_container",
+        error,
+      ),
+    );
+  }
+
+  const states = accountStateRowsSchema.safeParse(statesResult.data);
+  const profiles = accountProfileRowsSchema.safeParse(profileResult.data);
+  if (!states.success || !profiles.success) {
+    return repositoryFailure(
+      "invalid",
+      emptyCommunityAccountData,
+      repositoryIssue(
+        operation,
+        "invalid_rows",
+        "community_account_invalid_rows",
+        states.success ? profiles.error : states.error,
+      ),
+    );
+  }
+
+  return repositoryReady({
+    states: states.data,
+    profile: profiles.data[0] ? mapProfile(profiles.data[0]) : null,
+  });
 }
 
 export async function getFeedPage({

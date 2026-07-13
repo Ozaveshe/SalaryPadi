@@ -19,6 +19,31 @@ test.beforeEach(({}, testInfo) => {
   );
 });
 
+test("updates central account identity and exposes private controls", async ({
+  page,
+}) => {
+  const displayName = `E2E Member ${Date.now().toString().slice(-8)}`;
+
+  await page.goto("/account");
+  await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Saved jobs" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Export or delete account data" }),
+  ).toBeVisible();
+
+  await page.getByLabel("Public name").fill(displayName);
+  await page.getByLabel("State relevance").selectOption("LA");
+  await page.getByRole("button", { name: "Save community identity" }).click();
+
+  await expect(page).toHaveURL(/\/account\?profile=updated/);
+  await expect(page.getByText("Community identity updated.")).toBeVisible();
+  await expect(page.getByLabel("Public name")).toHaveValue(displayName);
+  await expect(page.getByText(/@sp-[a-f0-9]{8}/)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Multi-factor authentication" }),
+  ).toBeVisible();
+});
+
 test("saves a job, tracks an application and reports a safety concern", async ({
   page,
 }) => {
@@ -41,16 +66,47 @@ test("saves a job, tracks an application and reports a safety concern", async ({
 });
 
 test("creates a focused private job alert", async ({ page }) => {
+  const keyword = `product design ${Date.now().toString().slice(-8)}`;
   await page.goto("/alerts");
-  await page.getByLabel("Role or skill").fill("product design");
-  await page.getByLabel("Location or region").fill("Worldwide");
-  await page.getByLabel("Eligibility").selectOption("worldwide");
-  await page.getByRole("button", { name: "Create alert" }).click();
+  const createForm = page.locator('form[action="/api/alerts"]').first();
+  await createForm.getByLabel("Role or skill").fill(keyword);
+  await createForm.getByLabel("Location or region").fill("Worldwide");
+  await createForm.getByLabel("Eligibility").selectOption("worldwide");
+  await createForm.getByRole("button", { name: "Create alert" }).click();
 
   await expect(page).toHaveURL(/created=true/);
   await expect(
     page.getByRole("heading", { name: "Saved alerts" }),
   ).toBeVisible();
+
+  let alertRow = page.getByRole("article").filter({ hasText: keyword });
+  await expect(alertRow).toBeVisible();
+  await alertRow.getByText("Edit alert").click();
+  await alertRow.getByLabel("Location or region").fill("Nigeria");
+  await alertRow.getByLabel("Eligibility").selectOption("nigeria");
+  await alertRow.getByLabel("Cadence").selectOption("weekly");
+  await alertRow.getByRole("button", { name: "Save alert changes" }).click();
+
+  await expect(page).toHaveURL(/updated=true/);
+  alertRow = page.getByRole("article").filter({ hasText: keyword });
+  await expect(alertRow).toContainText("Nigeria");
+  await expect(alertRow).toContainText("weekly");
+
+  await alertRow.getByRole("button", { name: "Pause alert" }).click();
+  await expect(page).toHaveURL(/updated=paused/);
+  alertRow = page.getByRole("article").filter({ hasText: keyword });
+  await expect(alertRow).toContainText("Paused");
+
+  await alertRow.getByRole("button", { name: "Resume alert" }).click();
+  await expect(page).toHaveURL(/updated=resumed/);
+  alertRow = page.getByRole("article").filter({ hasText: keyword });
+  await expect(alertRow).toContainText("Active");
+
+  await alertRow.getByRole("button", { name: "Remove" }).click();
+  await expect(page).toHaveURL(/removed=true/);
+  await expect(
+    page.getByRole("article").filter({ hasText: keyword }),
+  ).toHaveCount(0);
 });
 
 test("submits salary, review and interview evidence for moderation", async ({

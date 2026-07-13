@@ -182,6 +182,7 @@ Assign every correction, export, account-deletion, and contribution-deletion req
 ## Daily checks
 
 - `/api/health` responds, reports the expected provider configuration, and shows every registered worker inside its stale threshold. While ATS acquisition is disabled, `ats_source_sync` should have recent safe-skip evidence and zero provider requests. Source-provider availability still needs its own run evidence.
+- The scheduled `Production freshness` GitHub workflow runs every six hours at 03:43, 09:43, 15:43, and 21:43 UTC. A failed health, worker, or route check fails the workflow and uses GitHub's repository-owner workflow-failure email as the baseline alert.
 - The scheduled GitHub production canary runs at 01:20 and 13:20 UTC and proves a populated Remotive-backed listing, stable detail route, attribution, noindex/structured-data policy, and HTTPS source destination without calling Remotive itself.
 - Public pages, sign-in, save/apply/alert flows, and admin gates behave as expected.
 - Source freshness and outbound application links are within policy.

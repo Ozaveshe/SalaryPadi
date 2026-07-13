@@ -10,15 +10,12 @@ import { CommunityStatus } from "@/components/community/community-status";
 import { getViewer } from "@/lib/auth/dal";
 import { getForumThreadPage } from "@/lib/community/repository";
 import { formatDate } from "@/lib/format";
+import { firstSearchParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
   title: "Forum discussion",
   robots: { index: false, follow: true },
 };
-
-function first(input: string | string[] | undefined) {
-  return typeof input === "string" ? input : "";
-}
 
 export default async function ForumThreadPage({
   params,
@@ -47,8 +44,8 @@ export default async function ForumThreadPage({
         ]}
       />
       <CommunityStatus
-        reported={first(input.reported)}
-        status={first(input.status)}
+        reported={firstSearchParam(input.reported)}
+        status={firstSearchParam(input.status)}
       />
       {data.loadError ? (
         <div className="notice notice-warning" role="status">

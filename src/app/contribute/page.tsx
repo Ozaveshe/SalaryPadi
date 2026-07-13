@@ -7,12 +7,15 @@ import {
 import Link from "next/link";
 
 import { PageHeading } from "@/components/page-heading";
+import { getAppOrigin } from "@/lib/env";
+import { buildWhatsAppShareUrl } from "@/lib/share/whatsapp";
 
 export const metadata: Metadata = {
   title: "Contribute career evidence",
   description:
     "Privately submit salary, workplace or interview evidence for moderation.",
   alternates: { canonical: "/contribute" },
+  robots: { index: false, follow: true },
 };
 
 const options = [
@@ -41,7 +44,12 @@ export default async function ContributePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const status = (await searchParams).status;
+  const input = await searchParams;
+  const status = Array.isArray(input.status) ? input.status[0] : input.status;
+  const kind = Array.isArray(input.kind) ? input.kind[0] : input.kind;
+  const salaryShareUrl = buildWhatsAppShareUrl(
+    `Help others see real salaries. Share your own pay privately on SalaryPadi: ${new URL("/contribute/salary", getAppOrigin()).toString()}`,
+  );
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -53,6 +61,25 @@ export default async function ContributePage({
         <div className="notice" role="status">
           <strong>Contribution received.</strong> It is pending moderation and
           is not public.
+        </div>
+      ) : null}
+      {status === "submitted" && kind === "salary" ? (
+        <div className="surface surface-pad stack">
+          <h2 className="m-0 text-xl font-bold">
+            Help others see real salaries
+          </h2>
+          <p className="text-muted m-0">
+            Invite someone you trust to add their own private, moderated salary
+            evidence too.
+          </p>
+          <a
+            className="button button-secondary w-fit"
+            href={salaryShareUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Share on WhatsApp
+          </a>
         </div>
       ) : null}
       {status === "error" ? (

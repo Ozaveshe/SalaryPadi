@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/analytics/google", () => ({
+  isGoogleAnalyticsEnabled: vi.fn(() => false),
+  sendGoogleAnalyticsEvent: vi.fn(),
+}));
 
 import { assertPrivacySafeAnalytics, trackEvent } from "./events";
+import { isGoogleAnalyticsEnabled, sendGoogleAnalyticsEvent } from "./google";
 
 describe("privacy-safe analytics", () => {
   it("accepts coarse non-personal dimensions", () => {
@@ -21,4 +27,38 @@ describe("privacy-safe analytics", () => {
       );
     },
   );
+});
+
+describe("Google Analytics consent handoff", () => {
+  beforeEach(() => {
+    vi.stubGlobal("window", {
+      location: { pathname: "/jobs/example" },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 204 })),
+    );
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("does not call the Google event sink before the loader grants consent", () => {
+    vi.mocked(isGoogleAnalyticsEnabled).mockReturnValue(false);
+
+    trackEvent("job_view");
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(sendGoogleAnalyticsEvent).not.toHaveBeenCalled();
+  });
+
+  it("calls the Google event sink after the loader grants consent", () => {
+    vi.mocked(isGoogleAnalyticsEnabled).mockReturnValue(true);
+
+    trackEvent("job_view");
+
+    expect(sendGoogleAnalyticsEvent).toHaveBeenCalledWith("job_view");
+  });
 });

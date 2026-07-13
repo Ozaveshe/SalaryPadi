@@ -20,7 +20,7 @@ env:
 
 jobs:
   quality:
-    name: Format, lint, typecheck, unit, build
+    name: Format, lint, typecheck, coverage, audit, build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -45,8 +45,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Run unit tests
-        run: npm test
+      - name: Run unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Build production application
         run: npm run build
@@ -62,7 +65,7 @@ jobs:
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v2
         with:
-          version: latest
+          version: 2.109.1
           github-token: ${{ github.token }}
 
       - name: Start local Supabase

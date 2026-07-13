@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import type { FormEvent } from "react";
 
 import { trackEvent } from "@/lib/analytics/events";
 import { offerComparisonResultResponseSchema } from "@/lib/afrotools/schemas";
@@ -12,14 +12,15 @@ import {
   type FxEvidence,
 } from "./offer-comparison-results";
 import { OfferFields } from "./offer-fields";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+import {
+  isToolResponseRecord,
+  toolResponseError,
+  useToolRequest,
+} from "./use-tool-request";
 
 function isFxEvidence(value: unknown): value is FxEvidence {
   return (
-    isRecord(value) &&
+    isToolResponseRecord(value) &&
     typeof value.from === "string" &&
     typeof value.to === "string" &&
     typeof value.rate === "number" &&
@@ -30,10 +31,6 @@ function isFxEvidence(value: unknown): value is FxEvidence {
   );
 }
 
-function responseError(body: unknown): string | null {
-  return isRecord(body) && typeof body.error === "string" ? body.error : null;
-}
-
 function responseFxEvidence(body: Record<string, unknown>): FxEvidence[] {
   if (body.fxEvidence === undefined) return [];
   if (!Array.isArray(body.fxEvidence) || !body.fxEvidence.every(isFxEvidence)) {
@@ -42,77 +39,78 @@ function responseFxEvidence(body: Record<string, unknown>): FxEvidence[] {
   return body.fxEvidence;
 }
 
+interface OfferToolResult {
+  comparison: OfferComparisonResult;
+  fxEvidence: FxEvidence[];
+  providerNotice: string | null;
+}
+
 export function OfferCompare() {
-  const [result, setResult] = useState<OfferComparisonResult | null>(null);
-  const [fxEvidence, setFxEvidence] = useState<FxEvidence[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [providerNotice, setProviderNotice] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const {
+    result: responseResult,
+    error,
+    loading,
+    run,
+  } = useToolRequest<OfferToolResult>("Check both offers and FX rates.");
+  const result = responseResult?.comparison ?? null;
+  const fxEvidence = responseResult?.fxEvidence ?? [];
+  const providerNotice = responseResult?.providerNotice ?? null;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setProviderNotice(null);
-    setFxEvidence([]);
-    setLoading(true);
     trackEvent("tool_started", { tool_id: "offer_compare" });
 
-    try {
-      const form = new FormData(event.currentTarget);
-      const comparisonCurrency = String(form.get("comparison_currency") ?? "")
-        .trim()
-        .toUpperCase();
-      if (!/^[A-Z]{3}$/.test(comparisonCurrency)) {
-        throw new Error(
-          "comparison currency must use a three-letter currency code.",
-        );
-      }
+    const completed = await run({
+      endpoint: "/api/tools/offer-compare",
+      createPayload: () => {
+        const form = new FormData(event.currentTarget);
+        const comparisonCurrency = String(form.get("comparison_currency") ?? "")
+          .trim()
+          .toUpperCase();
+        if (!/^[A-Z]{3}$/.test(comparisonCurrency)) {
+          throw new Error(
+            "comparison currency must use a three-letter currency code.",
+          );
+        }
 
-      const providerConsent = form.get("afrotools_consent") === "on";
-      if (!providerConsent) {
-        throw new Error("Allow the required AfroTools currency request.");
-      }
+        const providerConsent = form.get("afrotools_consent") === "on";
+        if (!providerConsent) {
+          throw new Error("Allow the required AfroTools currency request.");
+        }
 
-      const offerA = buildOfferFromForm(form, "a");
-      const offerB = buildOfferFromForm(form, "b");
-      const response = await fetch("/api/tools/offer-compare", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        const offerA = buildOfferFromForm(form, "a");
+        const offerB = buildOfferFromForm(form, "b");
+        return {
           consent: providerConsent,
           input: { offerA, offerB, comparisonCurrency },
-        }),
-      });
-      const body: unknown = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          responseError(body) || "The comparison could not be completed.",
+        };
+      },
+      parseResponse: (response, body) => {
+        if (!response.ok) {
+          throw new Error(
+            toolResponseError(body, "The comparison could not be completed."),
+          );
+        }
+        if (!isToolResponseRecord(body)) {
+          throw new Error("The comparison returned an invalid response.");
+        }
+
+        const parsedResult = offerComparisonResultResponseSchema.safeParse(
+          body.result,
         );
-      }
-      if (!isRecord(body)) {
-        throw new Error("The comparison returned an invalid response.");
-      }
+        if (!parsedResult.success) {
+          throw new Error("The comparison returned an invalid response.");
+        }
 
-      const parsedResult = offerComparisonResultResponseSchema.safeParse(
-        body.result,
-      );
-      if (!parsedResult.success) {
-        throw new Error("The comparison returned an invalid response.");
-      }
-
-      setResult(parsedResult.data);
-      setFxEvidence(responseFxEvidence(body));
-      setProviderNotice(typeof body.notice === "string" ? body.notice : null);
+        return {
+          comparison: parsedResult.data,
+          fxEvidence: responseFxEvidence(body),
+          providerNotice: typeof body.notice === "string" ? body.notice : null,
+        };
+      },
+    });
+    if (completed) {
       trackEvent("tool_completed", { tool_id: "offer_compare" });
-    } catch (reason) {
-      setResult(null);
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Check both offers and FX rates.",
-      );
-    } finally {
-      setLoading(false);
     }
   }
 

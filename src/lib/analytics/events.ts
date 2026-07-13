@@ -1,25 +1,13 @@
-import { sendGoogleAnalyticsEvent } from "@/lib/analytics/google";
+import {
+  ANALYTICS_EVENT_NAMES,
+  type AnalyticsEventName,
+} from "@/lib/analytics/catalog";
+import {
+  isGoogleAnalyticsEnabled,
+  sendGoogleAnalyticsEvent,
+} from "@/lib/analytics/google";
 
-const eventNames = [
-  "page_view",
-  "job_search",
-  "job_filter_applied",
-  "job_view",
-  "outbound_apply_click",
-  "job_saved",
-  "application_created",
-  "application_status_changed",
-  "alert_created",
-  "salary_search",
-  "company_view",
-  "tool_started",
-  "tool_completed",
-  "contribution_started",
-  "contribution_submitted",
-  "content_reported",
-] as const;
-
-export type AnalyticsEventName = (typeof eventNames)[number];
+export type { AnalyticsEventName } from "@/lib/analytics/catalog";
 
 type SafeAnalyticsValue = string | number | boolean;
 export type AnalyticsProperties = Record<string, SafeAnalyticsValue>;
@@ -27,7 +15,7 @@ export type AnalyticsProperties = Record<string, SafeAnalyticsValue>;
 export function isAnalyticsEventName(
   value: string,
 ): value is AnalyticsEventName {
-  return (eventNames as readonly string[]).includes(value);
+  return (ANALYTICS_EVENT_NAMES as readonly string[]).includes(value);
 }
 
 const prohibitedKeyPattern =
@@ -51,7 +39,7 @@ export function trackEvent(
   name: AnalyticsEventName,
   properties: AnalyticsProperties = {},
 ): void {
-  if (!eventNames.includes(name)) {
+  if (!ANALYTICS_EVENT_NAMES.includes(name)) {
     throw new Error("Unknown analytics event.");
   }
   assertPrivacySafeAnalytics(properties);
@@ -65,5 +53,7 @@ export function trackEvent(
     body: JSON.stringify({ event_name: name, path: window.location.pathname }),
     keepalive: true,
   });
-  if (name !== "page_view") sendGoogleAnalyticsEvent(name);
+  if (name !== "page_view" && isGoogleAnalyticsEnabled()) {
+    sendGoogleAnalyticsEvent(name);
+  }
 }

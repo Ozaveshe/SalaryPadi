@@ -1,8 +1,8 @@
-import { createHash } from "node:crypto";
-
 import he from "he";
 import sanitizeHtml from "sanitize-html";
 
+import { classifyEligibility } from "./eligibility";
+import { buildJobFingerprint } from "./fingerprint";
 import { remotiveJobSchema, type RemotiveJob } from "./remotive-schema";
 import { REMOTIVE_SOURCE_POLICY } from "./source-policy";
 import type {
@@ -10,87 +10,116 @@ import type {
   EmploymentType,
   ExperienceLevel,
   Job,
-  JobEligibility,
   PayPeriod,
   SalaryRange,
 } from "./types";
 
-const africanCountries = new Set([
-  "algeria",
-  "angola",
-  "benin",
-  "botswana",
-  "burkina faso",
-  "burundi",
-  "cabo verde",
-  "cameroon",
-  "central african republic",
-  "chad",
-  "comoros",
-  "congo",
-  "democratic republic of the congo",
-  "djibouti",
-  "egypt",
-  "equatorial guinea",
-  "eritrea",
-  "eswatini",
-  "ethiopia",
-  "gabon",
-  "gambia",
-  "ghana",
-  "guinea",
-  "guinea-bissau",
-  "ivory coast",
-  "kenya",
-  "lesotho",
-  "liberia",
-  "libya",
-  "madagascar",
-  "malawi",
-  "mali",
-  "mauritania",
-  "mauritius",
-  "morocco",
-  "mozambique",
-  "namibia",
-  "niger",
-  "nigeria",
-  "rwanda",
-  "senegal",
-  "seychelles",
-  "sierra leone",
-  "somalia",
-  "south africa",
-  "south sudan",
-  "sudan",
-  "tanzania",
-  "togo",
-  "tunisia",
-  "uganda",
-  "zambia",
-  "zimbabwe",
-]);
+type SupportedSalaryCurrency =
+  "NGN" | "USD" | "EUR" | "GBP" | "KES" | "GHS" | "ZAR";
 
-const knownCountries = new Map(
-  [
-    ...africanCountries,
-    "united states",
-    "usa",
-    "canada",
-    "united kingdom",
-    "uk",
-    "india",
-    "australia",
-    "new zealand",
-    "germany",
-    "france",
-    "spain",
-    "portugal",
-    "netherlands",
-    "ireland",
-    "singapore",
-  ].map((country) => [country, country]),
-);
+interface SalaryAmountBounds {
+  minimum: number;
+  maximum: number;
+}
+
+const SALARY_CURRENCY_PATTERNS: readonly {
+  currency: SupportedSalaryCurrency;
+  pattern: RegExp;
+}[] = [
+  { currency: "NGN", pattern: /\bNGN\b|₦/i },
+  { currency: "USD", pattern: /\bUSD\b|\$/i },
+  { currency: "EUR", pattern: /\bEUR\b|€/i },
+  { currency: "GBP", pattern: /\bGBP\b|£/i },
+  { currency: "KES", pattern: /\bKES\b/i },
+  { currency: "GHS", pattern: /\bGHS\b|₵/i },
+  { currency: "ZAR", pattern: /\bZAR\b/i },
+];
+
+/**
+ * Deliberately wide ingestion guardrails, not salary-market claims. The
+ * bounds only reject obvious parser errors and fat-finger magnitudes. Unknown
+ * periods span the lowest supported unit floor through the annual ceiling.
+ */
+export const SALARY_PLAUSIBILITY_BOUNDS = {
+  USD: {
+    hourly: { minimum: 1, maximum: 5_000 },
+    daily: { minimum: 10, maximum: 50_000 },
+    weekly: { minimum: 50, maximum: 250_000 },
+    monthly: { minimum: 100, maximum: 1_000_000 },
+    annual: { minimum: 1_000, maximum: 10_000_000 },
+    unknown: { minimum: 1, maximum: 10_000_000 },
+  },
+  EUR: {
+    hourly: { minimum: 1, maximum: 5_000 },
+    daily: { minimum: 10, maximum: 50_000 },
+    weekly: { minimum: 50, maximum: 250_000 },
+    monthly: { minimum: 100, maximum: 1_000_000 },
+    annual: { minimum: 1_000, maximum: 10_000_000 },
+    unknown: { minimum: 1, maximum: 10_000_000 },
+  },
+  GBP: {
+    hourly: { minimum: 1, maximum: 5_000 },
+    daily: { minimum: 10, maximum: 50_000 },
+    weekly: { minimum: 50, maximum: 250_000 },
+    monthly: { minimum: 100, maximum: 1_000_000 },
+    annual: { minimum: 1_000, maximum: 10_000_000 },
+    unknown: { minimum: 1, maximum: 10_000_000 },
+  },
+  NGN: {
+    hourly: { minimum: 50, maximum: 2_500_000 },
+    daily: { minimum: 500, maximum: 10_000_000 },
+    weekly: { minimum: 2_500, maximum: 50_000_000 },
+    monthly: { minimum: 5_000, maximum: 100_000_000 },
+    annual: { minimum: 50_000, maximum: 1_000_000_000 },
+    unknown: { minimum: 50, maximum: 1_000_000_000 },
+  },
+  KES: {
+    hourly: { minimum: 10, maximum: 500_000 },
+    daily: { minimum: 100, maximum: 2_000_000 },
+    weekly: { minimum: 500, maximum: 10_000_000 },
+    monthly: { minimum: 1_000, maximum: 50_000_000 },
+    annual: { minimum: 10_000, maximum: 500_000_000 },
+    unknown: { minimum: 10, maximum: 500_000_000 },
+  },
+  GHS: {
+    hourly: { minimum: 1, maximum: 100_000 },
+    daily: { minimum: 10, maximum: 500_000 },
+    weekly: { minimum: 50, maximum: 2_000_000 },
+    monthly: { minimum: 100, maximum: 10_000_000 },
+    annual: { minimum: 1_000, maximum: 100_000_000 },
+    unknown: { minimum: 1, maximum: 100_000_000 },
+  },
+  ZAR: {
+    hourly: { minimum: 1, maximum: 100_000 },
+    daily: { minimum: 10, maximum: 500_000 },
+    weekly: { minimum: 50, maximum: 2_000_000 },
+    monthly: { minimum: 100, maximum: 10_000_000 },
+    annual: { minimum: 1_000, maximum: 100_000_000 },
+    unknown: { minimum: 1, maximum: 100_000_000 },
+  },
+} as const satisfies Record<
+  SupportedSalaryCurrency,
+  Record<PayPeriod, SalaryAmountBounds>
+>;
+
+export const SALARY_ANNUALIZATION_ASSUMPTIONS = {
+  weeksPerYear: 52,
+  workDaysPerWeek: 5,
+  workHoursPerWeek: 40,
+} as const;
+
+export const PAY_PERIOD_ANNUALIZATION_FACTORS = {
+  hourly:
+    SALARY_ANNUALIZATION_ASSUMPTIONS.weeksPerYear *
+    SALARY_ANNUALIZATION_ASSUMPTIONS.workHoursPerWeek,
+  daily:
+    SALARY_ANNUALIZATION_ASSUMPTIONS.weeksPerYear *
+    SALARY_ANNUALIZATION_ASSUMPTIONS.workDaysPerWeek,
+  weekly: SALARY_ANNUALIZATION_ASSUMPTIONS.weeksPerYear,
+  monthly: 12,
+  annual: 1,
+  unknown: null,
+} satisfies Record<PayPeriod, number | null>;
 
 function normalizeWhitespace(value: string) {
   return value
@@ -127,106 +156,6 @@ export function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 90);
-}
-
-function splitLocationTokens(value: string): string[] {
-  return value
-    .toLowerCase()
-    .split(/[,;/|]+|\bor\b/)
-    .map((token) => token.replace(/[()]/g, "").trim())
-    .filter(Boolean);
-}
-
-export function classifyEligibility(
-  evidence: string | null | undefined,
-  verifiedAt: string,
-): JobEligibility {
-  const evidenceText = evidence?.trim() || "Not stated by the source";
-  const normalized = evidenceText.toLowerCase().replace(/\s+/g, " ").trim();
-  const base = {
-    excludedCountries: [],
-    requiredTimezone: null,
-    workAuthorization: null,
-    visaSponsorship: "unclear" as const,
-    relocationSupport: "unclear" as const,
-    evidenceText,
-    provenance: "source_provided" as const,
-    lastVerifiedAt: verifiedAt,
-  };
-
-  if (/^world(?:wide)?(?: only)?$/.test(normalized)) {
-    return {
-      ...base,
-      scope: "worldwide",
-      nigeria: "eligible",
-      africa: "eligible",
-      includedCountries: [],
-    };
-  }
-
-  if (/^nigeria(?: only)?$/.test(normalized)) {
-    return {
-      ...base,
-      scope: "nigeria",
-      nigeria: "eligible",
-      africa: "not_eligible",
-      includedCountries: ["Nigeria"],
-    };
-  }
-
-  if (/^africa(?: only)?$/.test(normalized)) {
-    return {
-      ...base,
-      scope: "africa",
-      nigeria: "eligible",
-      africa: "eligible",
-      includedCountries: [],
-    };
-  }
-
-  if (
-    /^emea(?: only)?$|europe,? middle east(?:,? and)? africa/.test(normalized)
-  ) {
-    return {
-      ...base,
-      scope: "emea",
-      nigeria: "unclear",
-      africa: "unclear",
-      includedCountries: [],
-    };
-  }
-
-  const tokens = splitLocationTokens(normalized);
-  const countries = tokens
-    .map((token) => knownCountries.get(token))
-    .filter((country): country is string => Boolean(country));
-
-  if (countries.length > 0 && countries.length === tokens.length) {
-    const nigeriaIncluded = countries.includes("nigeria");
-    const africaIncluded = countries.some((country) =>
-      africanCountries.has(country),
-    );
-    return {
-      ...base,
-      scope: "named_countries",
-      nigeria: nigeriaIncluded ? "eligible" : "not_eligible",
-      africa: africaIncluded ? "eligible" : "not_eligible",
-      includedCountries: countries.map((country) =>
-        country.replace(/\b\w/g, (letter) => letter.toUpperCase()),
-      ),
-    };
-  }
-
-  return {
-    ...base,
-    scope:
-      normalized === "not stated by the source"
-        ? "unclear"
-        : "restricted_region",
-    nigeria: "unclear",
-    africa: "unclear",
-    includedCountries: [],
-  };
 }
 
 function parseEmploymentType(value: string | null | undefined): EmploymentType {
@@ -275,18 +204,18 @@ function parseAmount(rawValue: string): number | null {
       : match[2]?.toLowerCase() === "m"
         ? 1_000_000
         : 1;
-  return Number.isFinite(amount) ? Math.round(amount * multiplier) : null;
+  const scaled = amount * multiplier;
+  return Number.isFinite(scaled) &&
+    scaled > 0 &&
+    scaled <= Number.MAX_SAFE_INTEGER
+    ? Math.round(scaled)
+    : null;
 }
 
-function detectCurrency(value: string): string | null {
-  if (/\b(?:NGN)\b|₦/i.test(value)) return "NGN";
-  if (/\b(?:USD)\b|\$/i.test(value)) return "USD";
-  if (/\b(?:EUR)\b|€/i.test(value)) return "EUR";
-  if (/\b(?:GBP)\b|£/i.test(value)) return "GBP";
-  if (/\bKES\b/i.test(value)) return "KES";
-  if (/\bGHS\b|₵/i.test(value)) return "GHS";
-  if (/\bZAR\b/i.test(value)) return "ZAR";
-  return null;
+function detectCurrencies(value: string): SupportedSalaryCurrency[] {
+  return SALARY_CURRENCY_PATTERNS.filter(({ pattern }) =>
+    pattern.test(value),
+  ).map(({ currency }) => currency);
 }
 
 function detectPayPeriod(value: string): PayPeriod {
@@ -304,50 +233,43 @@ export function parseSalary(
 ): SalaryRange | null {
   const originalText = value?.trim();
   if (!originalText) return null;
+  const currencies = detectCurrencies(originalText);
+  if (currencies.length > 1) return null;
+  const currency = currencies[0] ?? null;
+  const payPeriod = detectPayPeriod(originalText);
   const amountParts = originalText
     .split(/\s*(?:-|–|—|to)\s*/i)
     .map(parseAmount);
   const present = amountParts.filter(
     (amount): amount is number => amount !== null,
   );
+  if (present.length === 0) return null;
+  if (currency) {
+    const bounds = SALARY_PLAUSIBILITY_BOUNDS[currency][payPeriod];
+    if (
+      present.some(
+        (amount) => amount < bounds.minimum || amount > bounds.maximum,
+      )
+    ) {
+      return null;
+    }
+  }
+
+  const first = present[0]!;
+  const second = present[1] ?? first;
 
   return {
     originalText,
-    currency: detectCurrency(originalText),
-    minimum: present[0] ?? null,
-    maximum: present.length > 1 ? (present[1] ?? null) : (present[0] ?? null),
-    payPeriod: detectPayPeriod(originalText),
+    currency,
+    minimum: Math.min(first, second),
+    maximum: Math.max(first, second),
+    payPeriod,
     grossNet: /\bnet\b/i.test(originalText)
       ? "net"
       : /\bgross\b/i.test(originalText)
         ? "gross"
         : "unknown",
   };
-}
-
-export function buildJobFingerprint(input: {
-  title: string;
-  company: string;
-  location: string;
-  arrangement: EmploymentArrangement;
-  destination: string;
-}) {
-  const canonicalText = (value: string) =>
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
-  const destination = new URL(input.destination);
-  destination.hash = "";
-  destination.hostname = destination.hostname.toLowerCase();
-  const canonical = JSON.stringify([
-    canonicalText(input.title),
-    canonicalText(input.company),
-    canonicalText(input.location),
-    input.arrangement,
-    destination.toString(),
-  ]);
-  return createHash("sha256").update(canonical).digest("hex");
 }
 
 export function normalizeRemotiveJob(
@@ -357,9 +279,9 @@ export function normalizeRemotiveJob(
   const source = remotiveJobSchema.parse(input);
   const employmentType = parseEmploymentType(source.job_type);
   const arrangement = inferArrangement(employmentType);
-  const evidence =
+  const location =
     source.candidate_required_location || "Not stated by the source";
-  const eligibility = classifyEligibility(evidence, checkedAt);
+  const eligibility = classifyEligibility(location, checkedAt);
   const companySlug = slugify(source.company_name);
   const titleSlug = slugify(source.title);
   const sourceUrl = new URL(source.url);
@@ -376,7 +298,7 @@ export function normalizeRemotiveJob(
   const fingerprint = buildJobFingerprint({
     title: source.title,
     company: source.company_name,
-    location: evidence,
+    location,
     arrangement,
     destination: sourceUrl.toString(),
   });
@@ -395,7 +317,7 @@ export function normalizeRemotiveJob(
       slug: companySlug,
       verification: "source_listed",
     },
-    locationDisplay: evidence,
+    locationDisplay: location,
     workMode: "remote",
     employmentType,
     arrangement,
@@ -424,17 +346,12 @@ export function normalizeRemotiveJob(
   };
 }
 
+export { classifyEligibility } from "./eligibility";
+export { buildJobFingerprint } from "./fingerprint";
+
 export function annualizedSalaryMinimum(job: Job): number | null {
   const salary = job.salary;
   if (!salary?.minimum) return null;
-  const multiplier: Record<PayPeriod, number | null> = {
-    hourly: 2_080,
-    daily: 260,
-    weekly: 52,
-    monthly: 12,
-    annual: 1,
-    unknown: null,
-  };
-  const factor = multiplier[salary.payPeriod];
-  return factor ? salary.minimum * factor : null;
+  const factor = PAY_PERIOD_ANNUALIZATION_FACTORS[salary.payPeriod];
+  return factor === null ? null : salary.minimum * factor;
 }

@@ -45,6 +45,10 @@ export async function POST(request: Request) {
   const destination = safeRelativePath(parsed.data.return_to, "/saved");
   const url = new URL(destination, getAppOrigin());
   url.searchParams.set("saved", error ? "error" : "true");
+  if (!error) {
+    url.searchParams.set("salary_company", job.company.name);
+    url.searchParams.set("salary_role", job.title);
+  }
   return NextResponse.redirect(url, 303);
 }
 

@@ -71,9 +71,23 @@ select ok(
   'only service role can claim recipient email addresses'
 );
 select ok(
-  has_function_privilege('anon', 'api.capture_analytics_event(text,text)', 'EXECUTE')
-  and has_function_privilege('authenticated', 'api.capture_analytics_event(text,text)', 'EXECUTE'),
-  'public application roles can submit only the constrained aggregate event RPC'
+  to_regprocedure('api.capture_analytics_event(text,text)') is null
+  and not has_function_privilege(
+    'anon',
+    'api.capture_analytics_event(text,text,text,timestamptz)',
+    'EXECUTE'
+  )
+  and not has_function_privilege(
+    'authenticated',
+    'api.capture_analytics_event(text,text,text,timestamptz)',
+    'EXECUTE'
+  )
+  and has_function_privilege(
+    'service_role',
+    'api.capture_analytics_event(text,text,text,timestamptz)',
+    'EXECUTE'
+  ),
+  'analytics capture is available only to the consent-checking service route'
 );
 select ok(
   has_function_privilege('anon', 'api.get_worker_health()', 'EXECUTE')
@@ -95,9 +109,17 @@ select is(
   'the exposed worker-health wrapper is security invoker'
 );
 select ok(
-  has_function_privilege('anon', 'security.capture_analytics_event_internal(text,text)', 'EXECUTE')
-  and not has_function_privilege('service_role', 'security.capture_analytics_event_internal(text,text)', 'EXECUTE'),
-  'the internal analytics implementation has explicit application-role grants only'
+  not has_function_privilege(
+    'anon',
+    'security.capture_analytics_event_internal(text,text,text,timestamptz)',
+    'EXECUTE'
+  )
+  and has_function_privilege(
+    'service_role',
+    'security.capture_analytics_event_internal(text,text,text,timestamptz)',
+    'EXECUTE'
+  ),
+  'the internal analytics implementation has an explicit service-role grant only'
 );
 select ok(
   has_function_privilege('anon', 'security.get_worker_health_internal()', 'EXECUTE')
@@ -120,12 +142,49 @@ select throws_ok(
   '42501', null,
   'anonymous callers cannot execute worker start even through a direct grant regression'
 );
-select lives_ok(
-  $$ select api.capture_analytics_event('page_view', '/jobs') $$,
-  'allowlisted anonymous aggregate event is accepted'
+select throws_ok(
+  $$ select api.capture_analytics_event(
+       'page_view',
+       '/jobs',
+       repeat('a', 64),
+       date_bin(
+         interval '5 minutes',
+         clock_timestamp(),
+         timestamptz '1970-01-01 00:00:00+00'
+       )
+     ) $$,
+  '42501', null,
+  'anonymous callers cannot bypass the consent-checking application route'
+);
+
+reset role;
+select set_config(
+  'request.jwt.claims',
+  jsonb_build_object('role', 'service_role')::text,
+  true
+);
+set local role service_role;
+select api.capture_analytics_event(
+  'page_view',
+  '/jobs',
+  repeat('a', 64),
+  date_bin(
+    interval '5 minutes',
+    clock_timestamp(),
+    timestamptz '1970-01-01 00:00:00+00'
+  )
 );
 select throws_ok(
-  $$ select api.capture_analytics_event('salary_amount', '/jobs') $$,
+  $$ select api.capture_analytics_event(
+       'salary_amount',
+       '/jobs',
+       repeat('a', 64),
+       date_bin(
+         interval '5 minutes',
+         clock_timestamp(),
+         timestamptz '1970-01-01 00:00:00+00'
+       )
+     ) $$,
   '22023', null,
   'analytics event denylist fails closed in the database'
 );
@@ -143,9 +202,27 @@ set event_count = 999999
 where occurred_on = current_date
   and event_name = 'page_view'
   and route_group = '/jobs';
-set local role anon;
-select api.capture_analytics_event('page_view', '/jobs');
-select api.capture_analytics_event('page_view', '/jobs');
+set local role service_role;
+select api.capture_analytics_event(
+  'page_view',
+  '/jobs',
+  repeat('a', 64),
+  date_bin(
+    interval '5 minutes',
+    clock_timestamp(),
+    timestamptz '1970-01-01 00:00:00+00'
+  )
+);
+select api.capture_analytics_event(
+  'page_view',
+  '/jobs',
+  repeat('a', 64),
+  date_bin(
+    interval '5 minutes',
+    clock_timestamp(),
+    timestamptz '1970-01-01 00:00:00+00'
+  )
+);
 reset role;
 select is(
   (select event_count::integer from private.analytics_daily_counts
@@ -153,7 +230,7 @@ select is(
      and event_name = 'page_view'
      and route_group = '/jobs'),
   1000000,
-  'anonymous analytics counters saturate at the bounded daily maximum'
+  'service-routed analytics counters saturate at the bounded daily maximum'
 );
 
 select set_config(

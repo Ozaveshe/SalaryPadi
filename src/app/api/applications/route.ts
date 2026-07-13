@@ -53,5 +53,9 @@ export async function POST(request: Request) {
       });
   const url = new URL("/applications", getAppOrigin());
   url.searchParams.set("created", error ? "error" : "true");
+  if (!error) {
+    url.searchParams.set("salary_company", job.company.name);
+    url.searchParams.set("salary_role", job.title);
+  }
   return NextResponse.redirect(url, 303);
 }

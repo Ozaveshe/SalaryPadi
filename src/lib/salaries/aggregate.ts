@@ -44,11 +44,22 @@ export interface SalaryAggregate {
 }
 
 export const DEFAULT_SALARY_PRIVACY_RULE: SalaryPrivacyRule = {
-  version: "salary-privacy-v1",
+  version: "salary-privacy-v2",
   minimumDistinctContributors: 3,
   percentileMinimumDistinctContributors: 5,
   roundingIncrement: 10_000,
 };
+
+/**
+ * A deliberately conservative MAD fence. When MAD is zero, retain values
+ * within 50% of the median (or two rounding increments) so one repeated-value
+ * cell cannot publish a lone fat-finger amount.
+ */
+export const DEFAULT_SALARY_OUTLIER_RULE = {
+  medianAbsoluteDeviationMultiplier: 6,
+  zeroMadRelativeTolerance: 0.5,
+  zeroMadMinimumRoundingIncrements: 2,
+} as const;
 
 function groupKey(submission: SalarySubmissionForAggregation) {
   return [
@@ -78,6 +89,36 @@ function nearestRank(values: number[], percentile: number) {
   return values[index] ?? values.at(-1) ?? 0;
 }
 
+function trimSalaryOutliers(
+  submissions: SalarySubmissionForAggregation[],
+  roundingIncrement: number,
+): SalarySubmissionForAggregation[] {
+  if (submissions.length < 3) return submissions;
+  const values = submissions
+    .map((submission) => submission.annualEquivalent)
+    .toSorted((a, b) => a - b);
+  const center = median(values);
+  const deviations = values
+    .map((value) => Math.abs(value - center))
+    .toSorted((a, b) => a - b);
+  const medianAbsoluteDeviation = median(deviations);
+  const maximumDeviation =
+    medianAbsoluteDeviation > 0
+      ? medianAbsoluteDeviation *
+        DEFAULT_SALARY_OUTLIER_RULE.medianAbsoluteDeviationMultiplier
+      : Math.max(
+          Math.abs(center) *
+            DEFAULT_SALARY_OUTLIER_RULE.zeroMadRelativeTolerance,
+          roundingIncrement *
+            DEFAULT_SALARY_OUTLIER_RULE.zeroMadMinimumRoundingIncrements,
+        );
+
+  return submissions.filter(
+    (submission) =>
+      Math.abs(submission.annualEquivalent - center) <= maximumDeviation,
+  );
+}
+
 function month(value: string) {
   return value.slice(0, 7);
 }
@@ -104,8 +145,7 @@ export function aggregateSalaryCell(
   }
 
   const distinct = [...latestByContributor.values()];
-  if (distinct.length < rule.minimumDistinctContributors) return null;
-
+  if (distinct.length === 0) return null;
   const keys = new Set(distinct.map(groupKey));
   if (keys.size !== 1) {
     throw new Error(
@@ -113,13 +153,16 @@ export function aggregateSalaryCell(
     );
   }
 
-  const values = distinct
+  const retained = trimSalaryOutliers(distinct, rule.roundingIncrement);
+  if (retained.length < rule.minimumDistinctContributors) return null;
+
+  const values = retained
     .map((submission) => submission.annualEquivalent)
     .toSorted((a, b) => a - b);
-  const example = distinct[0]!;
-  const dates = distinct.map((submission) => submission.approvedAt).toSorted();
+  const example = retained[0]!;
+  const dates = retained.map((submission) => submission.approvedAt).toSorted();
   const canPublishPercentiles =
-    distinct.length >= rule.percentileMinimumDistinctContributors;
+    retained.length >= rule.percentileMinimumDistinctContributors;
 
   return {
     groupKey: groupKey(example),
@@ -137,11 +180,11 @@ export function aggregateSalaryCell(
     percentile75Annual: canPublishPercentiles
       ? roundTo(nearestRank(values, 0.75), rule.roundingIncrement)
       : null,
-    sampleSize: distinct.length,
+    sampleSize: retained.length,
     submissionMonthStart: month(dates[0]!),
     submissionMonthEnd: month(dates.at(-1)!),
     confidence:
-      distinct.length >= 10 ? "high" : distinct.length >= 5 ? "medium" : "low",
+      retained.length >= 10 ? "high" : retained.length >= 5 ? "medium" : "low",
     ruleVersion: rule.version,
   };
 }

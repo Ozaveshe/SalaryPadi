@@ -1,21 +1,31 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { SalaryAggregateCard } from "@/components/salaries/salary-aggregate-card";
+import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
+import { SalaryProgress } from "@/components/salaries/salary-progress";
 import {
+  getSalaryCellProgressResult,
   searchSalaryAggregatesResult,
-  type PublicSalaryAggregate,
 } from "@/lib/salaries/repository";
+import { sliceSearchParam } from "@/lib/search-params";
+import { canIndexSalaryHub } from "@/lib/seo/indexability";
 
-export const metadata: Metadata = {
-  title: "Salary intelligence",
-  description:
-    "Search privacy-thresholded, confidence-labelled salary evidence by role, company and country.",
-  alternates: { canonical: "/salaries" },
-  robots: { index: false, follow: true },
-};
+const getSalaryHubResult = cache(() => searchSalaryAggregatesResult({}));
+
+export async function generateMetadata(): Promise<Metadata> {
+  const result = await getSalaryHubResult();
+  return {
+    title: "Salary intelligence",
+    description:
+      "Search privacy-thresholded, confidence-labelled salary evidence by role, company and country.",
+    alternates: { canonical: "/salaries" },
+    robots: { index: canIndexSalaryHub(result), follow: true },
+  };
+}
 
 export default async function SalariesPage({
   searchParams,
@@ -23,20 +33,21 @@ export default async function SalariesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const input = await searchParams;
-  const role = typeof input.role === "string" ? input.role.slice(0, 120) : "";
-  const country =
-    typeof input.country === "string" ? input.country.slice(0, 2) : "NG";
-  const company =
-    typeof input.company === "string" ? input.company.slice(0, 120) : "";
+  const role = sliceSearchParam(input.role, 120);
+  const country = sliceSearchParam(input.country, 2, "NG");
+  const company = sliceSearchParam(input.company, 120);
   const hasSearch = Boolean(role || company);
   const result = hasSearch
     ? await searchSalaryAggregatesResult({ role, country, company })
-    : {
-        state: "ready" as const,
-        data: [] as PublicSalaryAggregate[],
-        issues: [],
-      };
+    : await getSalaryHubResult();
   const results = result.data;
+  const progressResult =
+    result.state === "ready" &&
+    results.length === 0 &&
+    Boolean(role) &&
+    !company
+      ? await getSalaryCellProgressResult({ role, country })
+      : null;
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -104,17 +115,28 @@ export default async function SalariesPage({
           <h2 className="section-title">
             {hasSearch
               ? "No safe aggregate matches yet"
-              : "Search a role to begin"}
+              : "No safe aggregate is published yet"}
           </h2>
           <p>
             {hasSearch
               ? "The data may be too sparse, still pending moderation, or absent. SalaryPadi does not invent a market number."
-              : "Employer-role-country cells require at least three sufficiently similar approved contributions from distinct accounts."}
+              : "Employer-role-country cells require at least three sufficiently similar approved contributions from distinct accounts. SalaryPadi does not invent a market number."}
           </p>
+          {progressResult?.state === "ready" && progressResult.data ? (
+            <SalaryProgress progress={progressResult.data} />
+          ) : null}
+          {company ? (
+            <p className="text-muted m-0 text-sm">
+              Company-level sub-threshold counts are never exposed because they
+              could identify a contributor.
+            </p>
+          ) : null}
+          <SalaryContributionCta
+            company={company}
+            role={role}
+            country={country}
+          />
           <div className="cluster">
-            <Link className="button" href="/contribute/salary">
-              Contribute salary privately
-            </Link>
             <Link className="button button-secondary" href="/methodology">
               Read the methodology
             </Link>

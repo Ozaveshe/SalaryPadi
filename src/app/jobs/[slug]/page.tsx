@@ -9,6 +9,7 @@ import { JobCard } from "@/components/jobs/job-card";
 import { JobTruthCard } from "@/components/jobs/job-truth-card";
 import { JsonLd } from "@/components/json-ld";
 import { CombinedRepositoryNotice } from "@/components/repository-notice";
+import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { getViewer } from "@/lib/auth/dal";
 import {
   getCompanyBenefitsResult,
@@ -19,7 +20,14 @@ import {
 import { formatDate, formatEnum } from "@/lib/format";
 import { getAppOrigin } from "@/lib/env";
 import { getJobBySlug } from "@/lib/jobs/repository";
-import { buildJobPostingStructuredData } from "@/lib/seo/job-posting";
+import { searchSalaryAggregatesResult } from "@/lib/salaries/repository";
+import { buildWhatsAppShareUrl } from "@/lib/share/whatsapp";
+import {
+  buildJobPostingStructuredData,
+  canIndexJobDetail,
+} from "@/lib/seo/job-posting";
+import { buildSocialImageMetadata } from "@/lib/seo/open-graph";
+import { buildBreadcrumbStructuredData } from "@/lib/seo/structured-data";
 
 export async function generateMetadata({
   params,
@@ -30,35 +38,58 @@ export async function generateMetadata({
   const { job } = await getJobBySlug(slug);
   if (!job)
     return { title: "Job unavailable", robots: { index: false, follow: true } };
+  const title = `${job.title} at ${job.company.name}`;
+  const description = `${job.locationDisplay}. ${job.salary?.originalText ?? "Salary not disclosed"}. Check eligibility and source evidence before applying.`;
+  const socialImage = buildSocialImageMetadata(
+    `/jobs/${job.slug}/opengraph-image`,
+    `${title} on SalaryPadi`,
+  );
   return {
-    title: `${job.title} at ${job.company.name}`,
-    description: `${job.locationDisplay}. ${job.salary?.originalText ?? "Salary not disclosed"}. Check eligibility and source evidence before applying.`,
+    title,
+    description,
     alternates: { canonical: `/jobs/${job.slug}` },
-    robots: { index: job.source.canIndex, follow: true },
+    robots: { index: canIndexJobDetail(job), follow: true },
     openGraph: {
-      title: `${job.title} at ${job.company.name}`,
+      title,
       description: `${job.locationDisplay} · ${job.eligibility.evidenceText}`,
       type: "article",
+      images: socialImage.openGraphImages,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: socialImage.twitterImages,
     },
   };
 }
 
 export default async function JobDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ saved?: string | string[] }>;
 }) {
   const { slug } = await params;
+  const savedInput = (await searchParams).saved;
+  const saved = Array.isArray(savedInput) ? savedInput[0] : savedInput;
   const { feed, job } = await getJobBySlug(slug);
   if (!job) notFound();
   const viewer = await getViewer();
-  const [ratingResult, reviewsResult, interviewsResult, benefitsResult] =
-    await Promise.all([
-      getCompanyRatingResult(job.company.slug),
-      getCompanyReviewsResult(job.company.slug),
-      getInterviewExperiencesResult(job.company.slug),
-      getCompanyBenefitsResult(job.company.slug),
-    ]);
+  const [
+    ratingResult,
+    reviewsResult,
+    interviewsResult,
+    benefitsResult,
+    salaryResult,
+  ] = await Promise.all([
+    getCompanyRatingResult(job.company.slug),
+    getCompanyReviewsResult(job.company.slug),
+    getInterviewExperiencesResult(job.company.slug),
+    getCompanyBenefitsResult(job.company.slug),
+    searchSalaryAggregatesResult({ company: job.company.slug }),
+  ]);
   const companyRating = ratingResult.data;
   const companyReviews = reviewsResult.data;
   const companyInterviews = interviewsResult.data;
@@ -66,7 +97,9 @@ export default async function JobDetailPage({
   const nonce = (await headers()).get("x-nonce");
   const canonicalUrl = new URL(`/jobs/${job.slug}`, getAppOrigin()).toString();
   const jobPosting = buildJobPostingStructuredData(job, canonicalUrl);
-  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${job.title} at ${job.company.name} — check eligibility and source on SalaryPadi: ${canonicalUrl}`)}`;
+  const whatsappUrl = buildWhatsAppShareUrl(
+    `${job.title} at ${job.company.name} — check eligibility and source on SalaryPadi: ${canonicalUrl}`,
+  );
   const similar = feed.jobs
     .filter(
       (candidate) =>
@@ -78,30 +111,14 @@ export default async function JobDetailPage({
     <article className="site-shell job-detail-layout">
       <JsonLd
         nonce={nonce}
-        data={{
-          "@context": "https://schema.org",
-          "@type": "BreadcrumbList",
-          itemListElement: [
-            {
-              "@type": "ListItem",
-              position: 1,
-              name: "Home",
-              item: getAppOrigin(),
-            },
-            {
-              "@type": "ListItem",
-              position: 2,
-              name: "Jobs",
-              item: new URL("/jobs", getAppOrigin()).toString(),
-            },
-            {
-              "@type": "ListItem",
-              position: 3,
-              name: job.title,
-              item: canonicalUrl,
-            },
-          ],
-        }}
+        data={buildBreadcrumbStructuredData([
+          { name: "Home", url: getAppOrigin() },
+          {
+            name: "Jobs",
+            url: new URL("/jobs", getAppOrigin()).toString(),
+          },
+          { name: job.title, url: canonicalUrl },
+        ])}
       />
       {jobPosting ? <JsonLd nonce={nonce} data={jobPosting} /> : null}
       <Breadcrumbs
@@ -173,7 +190,29 @@ export default async function JobDetailPage({
           ) : null}
         </div>
       </header>
+      {saved === "true" ? (
+        <div className="notice" role="status">
+          Job saved to your private workspace.
+        </div>
+      ) : saved === "error" ? (
+        <div className="notice notice-danger" role="alert">
+          The job could not be saved. Try again.
+        </div>
+      ) : null}
       <JobTruthCard job={job} />
+      {salaryResult.state === "ready" &&
+      (salaryResult.data.length === 0 || saved === "true") ? (
+        <SalaryContributionCta
+          company={job.company.name}
+          role={job.title}
+          heading={
+            saved === "true"
+              ? "Job saved. Know what this work pays?"
+              : `No published salary data for ${job.company.name} yet`
+          }
+          description="Share your own pay evidence privately to help future applicants compare this role without exposing an individual salary."
+        />
+      ) : null}
       <div className="job-detail-layout lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="stack-lg">
           <section

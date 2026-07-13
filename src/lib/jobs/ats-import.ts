@@ -1,29 +1,11 @@
 import { createHash } from "node:crypto";
 
-import { buildJobFingerprint, htmlToPlainText, slugify } from "./normalize";
+import { classifyEligibilityEvidence } from "./eligibility";
+import { buildJobFingerprint } from "./fingerprint";
+import { htmlToPlainText, slugify } from "./normalize";
 import type { AtsSourceRecord } from "./ats";
 
 const MAX_DESCRIPTION_LENGTH = 100_000;
-
-const countryPatterns = [
-  ["NG", /\bnigeria\b/i],
-  ["GH", /\bghana\b/i],
-  ["KE", /\bkenya\b/i],
-  ["ZA", /\bsouth africa\b/i],
-  ["CI", /\b(?:c[oô]te d['’]ivoire|ivory coast)\b/i],
-  ["EG", /\begypt\b/i],
-  ["SN", /\bsenegal\b/i],
-  ["UG", /\buganda\b/i],
-  ["RW", /\brwanda\b/i],
-  ["TZ", /\btanzania\b/i],
-  ["ZM", /\bzambia\b/i],
-  ["MA", /\bmorocco\b/i],
-  ["DZ", /\balgeria\b/i],
-  ["TN", /\btunisia\b/i],
-  ["BW", /\bbotswana\b/i],
-  ["ET", /\bethiopia\b/i],
-  ["CM", /\bcameroon\b/i],
-] as const;
 
 type AtsWorkArrangement = "remote" | "hybrid" | "onsite" | "unspecified";
 type AtsEmploymentType =
@@ -73,7 +55,7 @@ export interface AtsImportJob {
     provenance: "source_provided";
     countries: Array<{
       country_code: string;
-      rule: "include";
+      rule: "include" | "exclude";
     }>;
   };
   locations: Array<{
@@ -133,35 +115,10 @@ function mapEngagementType(
   return "employee";
 }
 
-function extractCountryCodes(location: string | null): string[] {
-  if (!location) return [];
-  return countryPatterns
-    .filter(([, pattern]) => pattern.test(location))
-    .map(([countryCode]) => countryCode);
-}
-
-function mapEligibilityScope(
-  location: string | null,
-  countryCodes: string[],
-): AtsEligibilityScope {
-  const value = location?.trim() ?? "";
-  if (/\b(?:worldwide|world-wide|anywhere|global remote)\b/i.test(value)) {
-    return "worldwide";
-  }
-  if (countryCodes.length === 1 && countryCodes[0] === "NG") return "nigeria";
-  if (countryCodes.length > 0) return "named_countries";
-  if (/^\s*(?:remote\s*[-,/|:]\s*)?africa(?:\s+only)?\s*$/i.test(value)) {
-    return "africa";
-  }
-  if (/\bemea\b|europe,? middle east(?:,? and)? africa/i.test(value)) {
-    return "emea";
-  }
-  return value ? "restricted_region" : "unclear";
-}
-
 function mapLocations(
   location: string | null,
   countryCodes: string[],
+  checkedAt: string,
 ): AtsImportJob["locations"] {
   if (countryCodes.length === 0) return [];
   const segments =
@@ -173,7 +130,8 @@ function mapLocations(
     countryCodes.length === 1 &&
     segments.length > 1 &&
     !/\b(?:remote|hybrid|onsite|on-site)\b/i.test(segments[0]!) &&
-    !countryPatterns.some(([, pattern]) => pattern.test(segments[0]!))
+    classifyEligibilityEvidence(segments[0], checkedAt).includedCountryCodes
+      .length === 0
       ? segments[0]!.slice(0, 160)
       : null;
 
@@ -247,9 +205,13 @@ function normalizeRecord(
   const workArrangement = mapWorkArrangement(record.workplaceType);
   const employmentType = mapEmploymentType(record.employmentType);
   const engagementType = mapEngagementType(employmentType);
-  const countryCodes = extractCountryCodes(location);
   const eligibilityEvidence =
     location?.slice(0, 2_000) ?? "Location not stated by the employer ATS.";
+  const eligibility = classifyEligibilityEvidence(
+    eligibilityEvidence,
+    record.checkedAt,
+  );
+  const countryCodes = eligibility.includedCountryCodes;
   const storedDescription =
     policy.mayStoreFullDescription && description.length >= 20
       ? description
@@ -297,15 +259,21 @@ function normalizeRecord(
       destination: applicationUrl.toString(),
     }),
     eligibility: {
-      scope: mapEligibilityScope(location, countryCodes),
+      scope: eligibility.eligibility.scope,
       evidence_text: eligibilityEvidence,
       provenance: "source_provided",
-      countries: countryCodes.map((countryCode) => ({
-        country_code: countryCode,
-        rule: "include",
-      })),
+      countries: [
+        ...countryCodes.map((countryCode) => ({
+          country_code: countryCode,
+          rule: "include" as const,
+        })),
+        ...eligibility.excludedCountryCodes.map((countryCode) => ({
+          country_code: countryCode,
+          rule: "exclude" as const,
+        })),
+      ],
     },
-    locations: mapLocations(location, countryCodes),
+    locations: mapLocations(location, countryCodes, record.checkedAt),
   };
 }
 

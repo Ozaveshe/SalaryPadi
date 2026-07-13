@@ -1,6 +1,7 @@
 import type { AnalyticsEventName } from "@/lib/analytics/events";
 
 const privateRoutePrefixes = [
+  "/account",
   "/admin",
   "/alerts",
   "/applications",
@@ -42,6 +43,13 @@ export function setGoogleAnalyticsEnabled(
   });
 }
 
+export function isGoogleAnalyticsEnabled(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.__salarypadiGoogleAnalyticsEnabled === true
+  );
+}
+
 export function clearGoogleAnalyticsCookies(): void {
   if (typeof document === "undefined") return;
   for (const cookie of document.cookie.split(";")) {
@@ -53,21 +61,12 @@ export function clearGoogleAnalyticsCookies(): void {
 }
 
 export function sendGoogleAnalyticsEvent(name: AnalyticsEventName): void {
-  if (
-    typeof window === "undefined" ||
-    !window.__salarypadiGoogleAnalyticsEnabled
-  ) {
-    return;
-  }
+  if (!isGoogleAnalyticsEnabled()) return;
   window.gtag?.("event", name);
 }
 
 export function sendGoogleAnalyticsPageView(pathname: string): void {
-  if (
-    typeof window === "undefined" ||
-    !window.__salarypadiGoogleAnalyticsEnabled ||
-    !isGoogleAnalyticsRouteAllowed(pathname)
-  ) {
+  if (!isGoogleAnalyticsEnabled() || !isGoogleAnalyticsRouteAllowed(pathname)) {
     return;
   }
   window.gtag?.("event", "page_view", {

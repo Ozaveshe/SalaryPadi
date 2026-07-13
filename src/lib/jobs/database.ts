@@ -1,8 +1,12 @@
 import { z } from "zod";
 
-import { buildJobFingerprint } from "./normalize";
+import {
+  countryNameFromCode,
+  eligibilityDecisionForAfrica,
+  eligibilityDecisionForNigeria,
+} from "./eligibility";
+import { buildJobFingerprint } from "./fingerprint";
 import type {
-  EligibilityDecision,
   EmploymentArrangement,
   EmploymentType,
   ExperienceLevel,
@@ -96,73 +100,6 @@ const databaseJobSchema = z.object({
   risk_indicators: z.array(riskSchema).max(100),
 });
 
-const africanCountryCodes = new Set([
-  "DZ",
-  "AO",
-  "BJ",
-  "BW",
-  "BF",
-  "BI",
-  "CV",
-  "CM",
-  "CF",
-  "TD",
-  "KM",
-  "CG",
-  "CD",
-  "DJ",
-  "EG",
-  "GQ",
-  "ER",
-  "SZ",
-  "ET",
-  "GA",
-  "GM",
-  "GH",
-  "GN",
-  "GW",
-  "CI",
-  "KE",
-  "LS",
-  "LR",
-  "LY",
-  "MG",
-  "MW",
-  "ML",
-  "MR",
-  "MU",
-  "MA",
-  "MZ",
-  "NA",
-  "NE",
-  "NG",
-  "RW",
-  "ST",
-  "SN",
-  "SC",
-  "SL",
-  "SO",
-  "ZA",
-  "SS",
-  "SD",
-  "TZ",
-  "TG",
-  "TN",
-  "UG",
-  "ZM",
-  "ZW",
-]);
-
-const countryNames: Record<string, string> = {
-  NG: "Nigeria",
-  GH: "Ghana",
-  KE: "Kenya",
-  ZA: "South Africa",
-  US: "United States",
-  GB: "United Kingdom",
-  CA: "Canada",
-};
-
 function mapSourceType(value: string): JobSourcePolicy["type"] {
   if (value === "direct_employer" || value === "employer_ats")
     return "employer";
@@ -240,32 +177,6 @@ function mapSalary(row: z.infer<typeof databaseJobSchema>): SalaryRange | null {
   };
 }
 
-function decisionForNigeria(
-  scope: RemoteEligibilityScope,
-  included: Set<string>,
-  excluded: Set<string>,
-): EligibilityDecision {
-  if (excluded.has("NG")) return "not_eligible";
-  if (scope === "worldwide" || scope === "africa" || scope === "nigeria")
-    return "eligible";
-  if (scope === "named_countries")
-    return included.has("NG") ? "eligible" : "not_eligible";
-  return "unclear";
-}
-
-function decisionForAfrica(
-  scope: RemoteEligibilityScope,
-  included: Set<string>,
-): EligibilityDecision {
-  if (scope === "worldwide" || scope === "africa") return "eligible";
-  if (scope === "named_countries") {
-    return [...included].some((code) => africanCountryCodes.has(code))
-      ? "eligible"
-      : "not_eligible";
-  }
-  return "unclear";
-}
-
 function mapEligibility(
   row: z.infer<typeof databaseJobSchema>,
 ): JobEligibility {
@@ -300,10 +211,10 @@ function mapEligibility(
       : "source_provided";
   return {
     scope,
-    nigeria: decisionForNigeria(scope, included, excluded),
-    africa: decisionForAfrica(scope, included),
-    includedCountries: [...included].map((code) => countryNames[code] ?? code),
-    excludedCountries: [...excluded].map((code) => countryNames[code] ?? code),
+    nigeria: eligibilityDecisionForNigeria(scope, included, excluded),
+    africa: eligibilityDecisionForAfrica(scope, included),
+    includedCountries: [...included].map(countryNameFromCode),
+    excludedCountries: [...excluded].map(countryNameFromCode),
     requiredTimezone: row.required_timezone_overlap,
     workAuthorization: row.work_authorization_requirement,
     visaSponsorship:
@@ -335,7 +246,7 @@ function mapLocation(row: z.infer<typeof databaseJobSchema>): string {
         location.city,
         location.region,
         location.country_code
-          ? (countryNames[location.country_code] ?? location.country_code)
+          ? countryNameFromCode(location.country_code)
           : null,
       ]
         .filter(Boolean)

@@ -55,6 +55,30 @@ describe("fee and payment warnings", () => {
     );
   });
 
+  it.each([
+    "Send the logistics fee to the coordinator before onboarding.",
+    "Kindly transfer your processing fee to the account provided.",
+    "You need to remit the registration payment before your interview.",
+  ])("detects rephrased recruitment fee instructions: %s", (text) => {
+    expect(flagCodes(text)).toContain("upfront_payment");
+  });
+
+  it("does not let an unrelated negation hide a later fee instruction", () => {
+    expect(
+      flagCodes(
+        "No fee is charged by the employer; simply transfer the processing fee to the agent.",
+      ),
+    ).toContain("upfront_payment");
+  });
+
+  it("does not flag a clearly employer-paid registration cost", () => {
+    expect(
+      flagCodes(
+        "The employer will pay all registration fees on your behalf. Candidates pay nothing.",
+      ),
+    ).not.toContain("upfront_payment");
+  });
+
   it("does not mistake an employer-paid equipment allowance for a fee", () => {
     expect(
       flagCodes(
@@ -109,6 +133,20 @@ describe("contact, domain, and link warnings", () => {
     );
   });
 
+  it.each([
+    "yandex.com",
+    "gmx.com",
+    "gmx.net",
+    "zoho.com",
+    "mail.com",
+    "yahoo.com.ng",
+    "outlook.co.uk",
+  ])("recognises the personal mailbox domain %s", (domain) => {
+    expect(flagCodes(`Send your CV to recruiter@${domain}.`)).toContain(
+      "personal_email_domain",
+    );
+  });
+
   it("flags a near-match or internationalised domain for verification", () => {
     const typo = checkJobScam({
       answers: {
@@ -122,6 +160,65 @@ describe("contact, domain, and link warnings", () => {
       answers: { applicationUrl: "https://xn--acm-epa.example/apply" },
     });
     expect(internationalised.flags.map((flag) => flag.code)).toContain(
+      "suspicious_domain",
+    );
+  });
+
+  it("compares registrable domains instead of being distracted by subdomains", () => {
+    const result = checkJobScam({
+      answers: {
+        officialEmployerDomain: "acme.co.uk",
+        recruiterEmail: "jobs@careers.acm3.co.uk",
+      },
+    });
+
+    expect(result.flags.map((flag) => flag.code)).toContain(
+      "suspicious_domain",
+    );
+  });
+
+  it.each([
+    ["microsoft.com", "jobs@rnicros0ft.com"],
+    ["paypal.com", "jobs@paypa1.com"],
+    ["xo.com", "jobs@x0.com"],
+  ])(
+    "normalises visual ASCII confusables in %s versus %s",
+    (officialEmployerDomain, recruiterEmail) => {
+      const result = checkJobScam({
+        answers: { officialEmployerDomain, recruiterEmail },
+      });
+      expect(result.flags.map((flag) => flag.code)).toContain(
+        "suspicious_domain",
+      );
+    },
+  );
+
+  it("flags a mixed-script internationalised lookalike without opening it", () => {
+    const result = checkJobScam({
+      answers: {
+        officialEmployerDomain: "paypal.com",
+        applicationUrl: "https://раypal.com/careers",
+      },
+    });
+
+    expect(result.flags.map((flag) => flag.code)).toContain(
+      "suspicious_domain",
+    );
+    expect(result.inputCoverage.urlFetchPerformed).toBe(false);
+  });
+
+  it("does not elevate known legitimate regional mailbox variants as lookalikes", () => {
+    const result = checkJobScam({
+      answers: {
+        officialEmployerDomain: "yahoo.com",
+        recruiterEmail: "jobs@yahoo.co.uk",
+      },
+    });
+
+    expect(result.flags.map((flag) => flag.code)).toContain(
+      "personal_email_domain",
+    );
+    expect(result.flags.map((flag) => flag.code)).not.toContain(
       "suspicious_domain",
     );
   });
@@ -230,6 +327,16 @@ describe("interview, employer, offer, and pressure warnings", () => {
       ]),
     );
   });
+
+  it("detects Nigeria-relevant Pidgin messaging and urgency pressure", () => {
+    const codes = flagCodes(
+      "Interview na only WhatsApp chat, no call or video. Abeg do am sharp sharp before slot go finish.",
+    );
+
+    expect(codes).toEqual(
+      expect.arrayContaining(["messaging_only_interview", "urgency_pressure"]),
+    );
+  });
 });
 
 describe("sensitive information and cryptocurrency warnings", () => {
@@ -271,6 +378,20 @@ describe("sensitive information and cryptocurrency warnings", () => {
         "We are hiring a Bitcoin protocol engineer for our security team.",
       ),
     ).not.toContain("cryptocurrency_request");
+  });
+
+  it("detects Pidgin fee and cryptocurrency payment instructions", () => {
+    const codes = flagCodes(
+      "Abeg make you send 5k registration money sharp sharp. You go transfer USDT give the coordinator.",
+    );
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        "upfront_payment",
+        "cryptocurrency_request",
+        "urgency_pressure",
+      ]),
+    );
   });
 
   it("adds a recovery action when a sensitive request is reported", () => {

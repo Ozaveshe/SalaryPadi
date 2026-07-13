@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import type { FormEvent } from "react";
 
 import { trackEvent } from "@/lib/analytics/events";
 import { formatSalaryAmount } from "@/lib/format";
+
+import {
+  isToolResponseRecord,
+  toolResponseError,
+  useToolRequest,
+} from "./use-tool-request";
 
 type PayeResult = {
   grossAnnual: number;
@@ -33,47 +39,41 @@ function money(value: number) {
 }
 
 export function TakeHomeCalculator() {
-  const [result, setResult] = useState<PayeResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { result, error, loading, run } = useToolRequest<PayeResult>(
+    "Calculation failed.",
+  );
 
   async function calculate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setResult(null);
-    setLoading(true);
     trackEvent("tool_started", { tool_id: "ng_paye" });
-    try {
-      const form = new FormData(event.currentTarget);
-      const amount = Number(form.get("amount"));
-      const response = await fetch("/api/tools/take-home-pay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    const completed = await run({
+      endpoint: "/api/tools/take-home-pay",
+      createPayload: () => {
+        const form = new FormData(event.currentTarget);
+        return {
           consent: true,
           input: {
             country: "NG",
             mode: form.get("mode"),
             period: form.get("period"),
-            amount,
+            amount: Number(form.get("amount")),
           },
-        }),
-      });
-      const body = (await response.json()) as {
-        result?: PayeResult;
-        error?: string;
-      };
-      if (!response.ok || !body.result) {
-        throw new Error(body.error ?? "No verified PAYE result is available.");
-      }
-      setResult(body.result);
+        };
+      },
+      parseResponse: (response, body) => {
+        const parsedResult = isToolResponseRecord(body)
+          ? body.result
+          : undefined;
+        if (!response.ok || !isToolResponseRecord(parsedResult)) {
+          throw new Error(
+            toolResponseError(body, "No verified PAYE result is available."),
+          );
+        }
+        return parsedResult as unknown as PayeResult;
+      },
+    });
+    if (completed) {
       trackEvent("tool_completed", { tool_id: "ng_paye" });
-    } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Calculation failed.",
-      );
-    } finally {
-      setLoading(false);
     }
   }
 

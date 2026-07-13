@@ -5,8 +5,15 @@ import {
   classifyEligibility,
   htmlToPlainText,
   normalizeRemotiveJob,
+  PAY_PERIOD_ANNUALIZATION_FACTORS,
   parseSalary,
+  SALARY_ANNUALIZATION_ASSUMPTIONS,
 } from "./normalize";
+import {
+  buildLegacyJobFingerprint,
+  canonicalizeJobDestination,
+  JOB_FINGERPRINT_VERSION,
+} from "./fingerprint";
 
 const checkedAt = "2026-07-10T00:00:00.000Z";
 
@@ -41,6 +48,40 @@ describe("eligibility classification", () => {
     expect(result.scope).toBe("named_countries");
     expect(result.nigeria).toBe("not_eligible");
   });
+
+  it.each([
+    ["Remote (Nigeria preferred)", "nigeria", "eligible"],
+    ["Africa & EMEA", "africa", "eligible"],
+    ["LATAM/Africa", "africa", "eligible"],
+  ] as const)(
+    "handles compound eligibility evidence: %s",
+    (value, scope, nigeria) => {
+      const result = classifyEligibility(value, checkedAt);
+      expect(result).toMatchObject({ scope, nigeria });
+      expect(result.evidenceText).toBe(value);
+    },
+  );
+
+  it.each([
+    ["Côte d'Ivoire", "Côte d'Ivoire"],
+    ["Ivory Coast", "Côte d'Ivoire"],
+    ["DRC", "Democratic Republic of the Congo"],
+    ["UAE", "United Arab Emirates"],
+  ])("recognizes the country variant %s", (value, country) => {
+    const result = classifyEligibility(value, checkedAt);
+    expect(result.scope).toBe("named_countries");
+    expect(result.includedCountries).toContain(country);
+  });
+
+  it.each(["Remote", "Flexible", "Work from wherever the team agrees"])(
+    "keeps unsupported evidence unclear: %s",
+    (value) => {
+      expect(classifyEligibility(value, checkedAt)).toMatchObject({
+        scope: "unclear",
+        nigeria: "unclear",
+      });
+    },
+  );
 });
 
 describe("job normalization", () => {
@@ -157,6 +198,81 @@ describe("salary and duplicate normalization", () => {
     });
   });
 
+  it("orders a reversed salary range before exposing it", () => {
+    expect(parseSalary("$150k - $120k per year")).toMatchObject({
+      currency: "USD",
+      minimum: 120_000,
+      maximum: 150_000,
+      payPeriod: "annual",
+    });
+  });
+
+  it.each([
+    "0 monthly",
+    "99999999999999999999 monthly",
+    "$100,000,000 per year",
+    "$100,000 per hour",
+    "EUR 100,000,000 per year",
+    "GBP 100,000,000 per year",
+    "NGN 100,000,000,000 monthly",
+    "KES 1,000,000,000 per year",
+    "GHS 200,000,000 per year",
+    "ZAR 200,000,000 per year",
+  ])("drops an implausible salary instead of blocking the job: %s", (value) => {
+    expect(parseSalary(value)).toBeNull();
+  });
+
+  it("rejects a mixed-currency range instead of guessing a currency", () => {
+    expect(parseSalary("USD 80,000 - NGN 120,000 per year")).toBeNull();
+  });
+
+  it("keeps a plain-number salary currency unknown", () => {
+    expect(parseSalary("40,000 - 60,000 monthly")).toMatchObject({
+      currency: null,
+      minimum: 40_000,
+      maximum: 60_000,
+      payPeriod: "monthly",
+    });
+  });
+
+  it("derives annualization factors from documented work-year assumptions", () => {
+    expect(PAY_PERIOD_ANNUALIZATION_FACTORS).toMatchObject({
+      hourly:
+        SALARY_ANNUALIZATION_ASSUMPTIONS.weeksPerYear *
+        SALARY_ANNUALIZATION_ASSUMPTIONS.workHoursPerWeek,
+      daily:
+        SALARY_ANNUALIZATION_ASSUMPTIONS.weeksPerYear *
+        SALARY_ANNUALIZATION_ASSUMPTIONS.workDaysPerWeek,
+      weekly: SALARY_ANNUALIZATION_ASSUMPTIONS.weeksPerYear,
+      monthly: 12,
+      annual: 1,
+      unknown: null,
+    });
+  });
+
+  it("degrades a rejected source salary to no salary on the job", () => {
+    const job = normalizeRemotiveJob(
+      {
+        id: 43,
+        url: "https://remotive.com/remote-jobs/software-dev/example-43",
+        title: "Product Engineer",
+        company_name: "Padi Labs",
+        company_logo: null,
+        company_logo_url: null,
+        category: "Software Development",
+        tags: [],
+        job_type: "full_time",
+        publication_date: "2026-07-09T12:00:00+00:00",
+        candidate_required_location: "Worldwide",
+        salary: "$100,000,000 per year",
+        description: "<p>Build useful things.</p>",
+      },
+      checkedAt,
+    );
+
+    expect(job.salary).toBeNull();
+  });
+
   it("creates stable duplicate fingerprints", () => {
     const first = buildJobFingerprint({
       title: "Senior Engineer",
@@ -192,5 +308,77 @@ describe("salary and duplicate normalization", () => {
     });
 
     expect(first).not.toBe(second);
+  });
+
+  it("removes destination tracking noise but retains identity parameters", () => {
+    const first = buildJobFingerprint({
+      title: "Engineer",
+      company: "Acme",
+      location: "Lagos, Nigeria",
+      arrangement: "employee",
+      destination:
+        "https://JOBS.EXAMPLE.TEST:443/openings/123?utm_source=feed&gclid=123&ref=remotive&source=api&department=engineering#apply",
+    });
+    const second = buildJobFingerprint({
+      title: "Engineer",
+      company: "Acme",
+      location: "lagos nigeria",
+      arrangement: "employee",
+      destination:
+        "https://jobs.example.test/openings/123?department=engineering",
+    });
+    const distinctDepartment = buildJobFingerprint({
+      title: "Engineer",
+      company: "Acme",
+      location: "Lagos, Nigeria",
+      arrangement: "employee",
+      destination: "https://jobs.example.test/openings/123?department=sales",
+    });
+
+    expect(first).toBe(second);
+    expect(first).not.toBe(distinctDepartment);
+  });
+
+  it.each([
+    [
+      "https://jobs.lever.co/acme/role-123/apply?utm_campaign=hiring",
+      "https://jobs.lever.co/acme/role-123",
+    ],
+    [
+      "https://jobs.ashbyhq.com/acme/role-123/application?fbclid=123",
+      "https://jobs.ashbyhq.com/acme/role-123",
+    ],
+  ])("folds a known ATS apply page into its posting path", (apply, posting) => {
+    expect(canonicalizeJobDestination(apply)).toBe(
+      canonicalizeJobDestination(posting),
+    );
+  });
+
+  it("versions v2 without losing the exact legacy transition key", () => {
+    const input = {
+      title: "Engineer",
+      company: "Acme",
+      location: "Lagos",
+      arrangement: "employee" as const,
+      destination: "https://jobs.example.test/openings/123?utm_source=feed",
+    };
+
+    expect(JOB_FINGERPRINT_VERSION).toBe(2);
+    expect(buildJobFingerprint(input)).not.toBe(
+      buildLegacyJobFingerprint(input),
+    );
+  });
+
+  it("keeps the pre-v2 hash byte-compatible for transition lookups", () => {
+    expect(
+      buildLegacyJobFingerprint({
+        title: "Ingénieur",
+        company: "Côte Labs",
+        location: "Lagos",
+        arrangement: "employee",
+        destination:
+          "https://Jobs.Example.test/openings/123?utm_source=feed#apply",
+      }),
+    ).toBe("ab7a6d7b897dcceff293192ca3592aeb7f98021fa14c811ec9175d04953312bc");
   });
 });

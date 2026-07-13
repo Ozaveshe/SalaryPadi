@@ -117,7 +117,9 @@ Every adapter must provide a fixed source identity and return normalized jobs pl
 - idempotent source/external ID reconciliation and the shared canonical duplicate key;
 - quarantine rules, expiry/missing policy, takedown path and operator kill switch.
 
-Provider IDs remain source-specific identity. The runtime fingerprint includes normalized visible facts and the exact application/source destination; a title/company/location match alone never merges two roles. Cross-source lookalikes with different destinations remain separate reconciliation candidates until a reviewer explicitly links them.
+Provider IDs remain source-specific identity. Fingerprint v2 includes normalized visible facts and a canonical application/source destination. It preserves the host, posting path and non-tracking query parameters, while removing fragments, common campaign parameters and only the known Greenhouse/Lever/Ashby apply-page suffix. A title/company/location match alone never merges two roles: different posting paths or genuine identity parameters remain separate reconciliation candidates until a reviewer explicitly links them.
+
+The v2 re-key is forward-compatible rather than a destructive database migration. ATS snapshots continue to upsert on `(source_id, external_source_id)`, so a successful source refresh replaces the stored v1 hash in place; the two-complete-omission expiry rule also uses source identity, never the fingerprint. During the transition, detail collision checks query both the current v2 key and the exact legacy v1 key, and alert-catalog reads recompute v2 from their redacted public facts before merging. Direct employer/database records retain priority when a canonical fingerprint collides. No published job is expired or duplicated solely because its fingerprint version changes.
 
 ## Nationwide source expansion
 

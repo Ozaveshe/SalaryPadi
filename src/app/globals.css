@@ -228,7 +228,7 @@ a:hover {
   color: var(--forest-950);
 }
 
-.mobile-nav summary {
+.mobile-nav-trigger {
   display: grid;
   min-width: 2.75rem;
   min-height: 2.75rem;
@@ -238,10 +238,12 @@ a:hover {
   border: 1px solid var(--border-default);
   border-radius: var(--radius-small);
   background: var(--surface-default);
+  color: var(--text-primary);
+  font: inherit;
   font-weight: 700;
 }
 
-.mobile-nav summary::-webkit-details-marker {
+.mobile-nav-fallback summary::-webkit-details-marker {
   display: none;
 }
 
@@ -256,7 +258,8 @@ a:hover {
   box-shadow: var(--shadow-medium);
 }
 
-.mobile-nav:not([open]) .mobile-nav-panel {
+.mobile-nav-fallback:not([open]) .mobile-nav-panel,
+.mobile-nav-panel[hidden] {
   display: none;
 }
 
@@ -598,6 +601,46 @@ a:hover {
   border-block: 1px solid var(--border-default);
   padding-block: 2rem;
   text-align: left;
+}
+
+.route-skeleton {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.route-skeleton-copy,
+.route-skeleton-card {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.route-skeleton-card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-medium);
+  background: var(--surface-default);
+  padding: 1.25rem;
+}
+
+.route-skeleton-line {
+  display: block;
+  width: min(100%, 42rem);
+  height: 0.85rem;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+}
+
+.route-skeleton-line-short {
+  width: min(38%, 12rem);
+}
+
+.route-skeleton-line-medium {
+  width: min(66%, 24rem);
+}
+
+.route-skeleton-line-title {
+  width: min(82%, 34rem);
+  height: 1.65rem;
+  background: var(--surface-brand-soft);
 }
 
 .community-composer > summary {
@@ -1333,6 +1376,22 @@ a:hover {
 .contribution-form legend {
   padding-inline: 0.4rem;
   font-weight: 800;
+}
+
+.contribution-details {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-medium);
+  background: var(--surface-default);
+  padding: 1rem;
+}
+
+.contribution-details > summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.contribution-details[open] > summary {
+  margin-bottom: 1rem;
 }
 
 .form-grid {

@@ -21,6 +21,7 @@ export default function robots(): MetadataRoute.Robots {
       ],
       disallow: [
         "/api/",
+        "/account",
         "/admin/",
         "/auth/",
         "/saved",
@@ -30,9 +31,6 @@ export default function robots(): MetadataRoute.Robots {
         "/contribute/salary",
         "/contribute/review",
         "/contribute/interview",
-        "/jobs/",
-        "/companies/",
-        "/salaries/",
       ],
     },
     sitemap: [`${origin}/sitemap.xml`, `${origin}/tools/sitemap.xml`],

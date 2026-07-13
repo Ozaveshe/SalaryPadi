@@ -43,7 +43,13 @@ export default async function CompanyReviewsPage({
   const rating = ratingResult.data;
   return (
     <div className="site-shell stack-lg">
-      <CompanyHeading company={company} />
+      <CompanyHeading
+        company={company}
+        section={{
+          label: "Reviews",
+          path: `/companies/${company.slug}/reviews`,
+        }}
+      />
       <section className="rule-section stack">
         <h2 className="section-title">Workplace reviews</h2>
         <CombinedRepositoryNotice

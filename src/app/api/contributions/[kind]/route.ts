@@ -41,11 +41,10 @@ export async function POST(
       contribution_kind: kind,
       contribution_payload: parsed.data,
     });
-  return NextResponse.redirect(
-    new URL(
-      error ? "/contribute?status=error" : "/contribute?status=submitted",
-      getAppOrigin(),
-    ),
-    303,
+  const destination = new URL(
+    error ? "/contribute?status=error" : "/contribute?status=submitted",
+    getAppOrigin(),
   );
+  if (!error) destination.searchParams.set("kind", kind);
+  return NextResponse.redirect(destination, 303);
 }

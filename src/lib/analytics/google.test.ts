@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { isGoogleAnalyticsRouteAllowed } from "@/lib/analytics/google";
+import {
+  isGoogleAnalyticsEnabled,
+  isGoogleAnalyticsRouteAllowed,
+  sendGoogleAnalyticsEvent,
+} from "@/lib/analytics/google";
 
 describe("Google Analytics route boundary", () => {
   it.each([
+    "/account",
     "/admin",
     "/alerts/123",
     "/applications",
@@ -22,4 +27,25 @@ describe("Google Analytics route boundary", () => {
       expect(isGoogleAnalyticsRouteAllowed(pathname)).toBe(true);
     },
   );
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the event sink closed until the consent-gated loader enables it", () => {
+    const gtag = vi.fn();
+    vi.stubGlobal("window", {
+      __salarypadiGoogleAnalyticsEnabled: false,
+      gtag,
+    });
+
+    expect(isGoogleAnalyticsEnabled()).toBe(false);
+    sendGoogleAnalyticsEvent("job_view");
+    expect(gtag).not.toHaveBeenCalled();
+
+    window.__salarypadiGoogleAnalyticsEnabled = true;
+    expect(isGoogleAnalyticsEnabled()).toBe(true);
+    sendGoogleAnalyticsEvent("job_view");
+    expect(gtag).toHaveBeenCalledWith("event", "job_view");
+  });
 });

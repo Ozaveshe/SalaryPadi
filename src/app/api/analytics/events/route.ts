@@ -4,8 +4,8 @@ import { z } from "zod";
 import { ANALYTICS_CONSENT_COOKIE } from "@/lib/analytics/consent";
 import { isAnalyticsEventName } from "@/lib/analytics/events";
 import { analyticsRouteGroup } from "@/lib/analytics/route-group";
+import { captureAnalyticsEvent } from "@/lib/analytics/server";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const eventSchema = z.object({
   event_name: z.string().trim().max(80),
@@ -25,16 +25,25 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const supabase = await createServerSupabaseClient();
-  if (!supabase)
-    return Response.json({ error: "Backend unavailable." }, { status: 503 });
-  const { error } = await supabase
-    .schema("api")
-    .rpc("capture_analytics_event", {
-      p_event_name: parsed.data.event_name,
-      p_route_group: analyticsRouteGroup(parsed.data.path),
+  const result = await captureAnalyticsEvent({
+    eventName: parsed.data.event_name,
+    routeGroup: analyticsRouteGroup(parsed.data.path),
+    request,
+  });
+  if (result.status === "rate_limited") {
+    return new Response(null, {
+      status: 429,
+      headers: { "Retry-After": "300" },
     });
-  if (error)
+  }
+  if (result.status === "unavailable") {
+    console.error(
+      JSON.stringify({
+        event: "analytics_capture_failed",
+        error_code: result.errorCode,
+      }),
+    );
     return Response.json({ error: "Analytics unavailable." }, { status: 503 });
+  }
   return new Response(null, { status: 204 });
 }

@@ -7,8 +7,10 @@ const publicProfile = {
   state_code: stateCode,
 };
 
+export const communityProfileSchema = z.object(publicProfile);
+
 export const feedPostSchema = z.object({
-  ...publicProfile,
+  ...communityProfileSchema.shape,
   category: z.enum([
     "career_update",
     "opportunity",
@@ -20,14 +22,14 @@ export const feedPostSchema = z.object({
 });
 
 export const forumThreadSchema = z.object({
-  ...publicProfile,
+  ...communityProfileSchema.shape,
   topic_slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   title: z.string().trim().min(8).max(160),
   body: z.string().trim().min(20).max(5000),
 });
 
 export const forumReplySchema = z.object({
-  ...publicProfile,
+  ...communityProfileSchema.shape,
   thread_id: z.string().uuid(),
   body: z.string().trim().min(2).max(3000),
 });

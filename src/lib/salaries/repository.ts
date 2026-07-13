@@ -6,6 +6,10 @@ import {
   repositoryIssue,
   repositoryReady,
 } from "@/lib/data/repository-result";
+import {
+  parseSalaryCellProgress,
+  type SalaryCellProgress,
+} from "@/lib/salaries/progress";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export interface PublicSalaryAggregate {
@@ -88,6 +92,89 @@ function mapAggregate(row: unknown): PublicSalaryAggregate | null {
   };
 }
 
+function mapAggregateRows(rows: unknown[]) {
+  const mapped = rows
+    .map((row) => mapAggregate(row))
+    .filter((row): row is PublicSalaryAggregate => row !== null);
+  return { mapped, rejected: rows.length - mapped.length };
+}
+
+function normalizeRoleSlug(role: string): string {
+  return role
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+export async function getSalaryCellProgressResult({
+  role,
+  country,
+}: {
+  role: string;
+  country: string;
+}) {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return repositoryFailure<SalaryCellProgress | null>(
+      "unconfigured",
+      null,
+      repositoryIssue(
+        "salaries.progress",
+        "not_configured",
+        "salary_progress_backend_unconfigured",
+      ),
+    );
+  }
+
+  const { data, error } = await supabase
+    .schema("api")
+    .rpc("get_salary_cell_progress", {
+      p_role_slug: normalizeRoleSlug(role),
+      p_country_code: country.trim().toUpperCase(),
+    });
+  if (error || !Array.isArray(data)) {
+    return repositoryFailure<SalaryCellProgress | null>(
+      "unavailable",
+      null,
+      repositoryIssue(
+        "salaries.progress",
+        error ? "query_failed" : "invalid_container",
+        error
+          ? "salary_progress_query_failed"
+          : "salary_progress_invalid_container",
+        error,
+      ),
+    );
+  }
+  if (data.length === 0)
+    return repositoryReady<SalaryCellProgress | null>(null);
+  if (data.length !== 1) {
+    return repositoryFailure<SalaryCellProgress | null>(
+      "invalid",
+      null,
+      repositoryIssue(
+        "salaries.progress",
+        "invalid_rows",
+        "salary_progress_invalid_rows",
+      ),
+    );
+  }
+  const progress = parseSalaryCellProgress(data[0]);
+  if (!progress) {
+    return repositoryFailure<SalaryCellProgress | null>(
+      "invalid",
+      null,
+      repositoryIssue(
+        "salaries.progress",
+        "invalid_rows",
+        "salary_progress_privacy_gate_rejected",
+      ),
+    );
+  }
+  return repositoryReady<SalaryCellProgress | null>(progress);
+}
+
 export async function searchSalaryAggregatesResult({
   role,
   country,
@@ -130,15 +217,80 @@ export async function searchSalaryAggregatesResult({
       ),
     );
   }
-  const mapped = data
-    .map((row) => mapAggregate(row))
-    .filter((row): row is PublicSalaryAggregate => row !== null);
-  if (mapped.length !== data.length) {
+  const { mapped, rejected } = mapAggregateRows(data);
+  if (rejected > 0) {
     return repositoryDegraded(mapped, [
       repositoryIssue(
         "salaries.search",
         "invalid_rows",
         "salaries_invalid_rows",
+      ),
+    ]);
+  }
+  return repositoryReady(mapped);
+}
+
+export async function listPublishedSalaryAggregatesResult() {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return repositoryFailure(
+      "unconfigured",
+      [],
+      repositoryIssue(
+        "salaries.sitemap",
+        "not_configured",
+        "salaries_backend_unconfigured",
+      ),
+    );
+  }
+
+  const rows: unknown[] = [];
+  const pageSize = 1_000;
+  const maximumPages = 40;
+  for (let page = 0; page < maximumPages; page += 1) {
+    const from = page * pageSize;
+    const { data, error } = await supabase
+      .schema("api")
+      .from("salary_aggregates")
+      .select("*")
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error || !Array.isArray(data)) {
+      return repositoryFailure(
+        "unavailable",
+        [],
+        repositoryIssue(
+          "salaries.sitemap",
+          error ? "query_failed" : "invalid_container",
+          error
+            ? "salary_sitemap_query_failed"
+            : "salary_sitemap_invalid_container",
+          error,
+        ),
+      );
+    }
+    rows.push(...data);
+    if (data.length < pageSize) break;
+    if (page === maximumPages - 1) {
+      return repositoryFailure(
+        "invalid",
+        [],
+        repositoryIssue(
+          "salaries.sitemap",
+          "invalid_container",
+          "salary_sitemap_capacity_exceeded",
+        ),
+      );
+    }
+  }
+
+  const { mapped, rejected } = mapAggregateRows(rows);
+  if (rejected > 0) {
+    return repositoryDegraded(mapped, [
+      repositoryIssue(
+        "salaries.sitemap",
+        "invalid_rows",
+        "salary_sitemap_invalid_rows",
       ),
     ]);
   }

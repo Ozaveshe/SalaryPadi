@@ -1,84 +1,94 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import type { FormEvent } from "react";
 import { CircleAlert, CircleCheck, ShieldAlert } from "lucide-react";
 
 import { type ScamCheckResult, type ScamStructuredAnswers } from "@/lib/scam";
+
+import {
+  isToolResponseRecord,
+  toolResponseError,
+  useToolRequest,
+} from "./use-tool-request";
 
 function optional(form: FormData, name: string) {
   const value = String(form.get(name) ?? "").trim();
   return value || undefined;
 }
 
+interface ScamToolResult {
+  check: ScamCheckResult;
+  providerNotice: string | null;
+}
+
 export function ScamChecker() {
-  const [result, setResult] = useState<ScamCheckResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [providerNotice, setProviderNotice] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const {
+    result: responseResult,
+    error,
+    loading,
+    run,
+  } = useToolRequest<ScamToolResult>("The warning-sign check could not run.");
+  const result = responseResult?.check ?? null;
+  const providerNotice = responseResult?.providerNotice ?? null;
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setProviderNotice(null);
-    setLoading(true);
-    const form = new FormData(event.currentTarget);
-    const answers: ScamStructuredAnswers = {
-      employerName: optional(form, "employer_name"),
-      recruiterEmail: optional(form, "recruiter_email"),
-      officialEmployerDomain: optional(form, "official_domain"),
-      applicationUrl: optional(form, "application_url"),
-      feeRequested: form.get("fee_requested") === "on",
-      feePurpose:
-        form.get("fee_requested") === "on"
-          ? (String(
-              form.get("fee_purpose"),
-            ) as ScamStructuredAnswers["feePurpose"])
-          : undefined,
-      interviewChannel: String(
-        form.get("interview_channel"),
-      ) as ScamStructuredAnswers["interviewChannel"],
-      compensationSeemsUnrealistic:
-        form.get("unrealistic_compensation") === "on",
-      employerIdentityIsClear:
-        form.get("employer_unclear") === "on" ? false : undefined,
-      offerMadeWithoutAssessment: form.get("instant_offer") === "on",
-      bankingCredentialsRequested: form.get("banking_requested") === "on",
-      unnecessaryIdentityDocumentsRequested:
-        form.get("identity_requested") === "on",
-      cryptocurrencyRequested: form.get("crypto_requested") === "on",
-      pressureOrUrgency: form.get("urgency") === "on",
-      domainAppearsMisspelled: form.get("domain_misspelled") === "on",
-      applicationLinkRelatedToEmployer:
-        form.get("link_unrelated") === "on" ? false : undefined,
-    };
-    try {
-      const response = await fetch("/api/tools/job-scam-check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    await run({
+      endpoint: "/api/tools/job-scam-check",
+      createPayload: () => {
+        const form = new FormData(event.currentTarget);
+        const answers: ScamStructuredAnswers = {
+          employerName: optional(form, "employer_name"),
+          recruiterEmail: optional(form, "recruiter_email"),
+          officialEmployerDomain: optional(form, "official_domain"),
+          applicationUrl: optional(form, "application_url"),
+          feeRequested: form.get("fee_requested") === "on",
+          feePurpose:
+            form.get("fee_requested") === "on"
+              ? (String(
+                  form.get("fee_purpose"),
+                ) as ScamStructuredAnswers["feePurpose"])
+              : undefined,
+          interviewChannel: String(
+            form.get("interview_channel"),
+          ) as ScamStructuredAnswers["interviewChannel"],
+          compensationSeemsUnrealistic:
+            form.get("unrealistic_compensation") === "on",
+          employerIdentityIsClear:
+            form.get("employer_unclear") === "on" ? false : undefined,
+          offerMadeWithoutAssessment: form.get("instant_offer") === "on",
+          bankingCredentialsRequested: form.get("banking_requested") === "on",
+          unnecessaryIdentityDocumentsRequested:
+            form.get("identity_requested") === "on",
+          cryptocurrencyRequested: form.get("crypto_requested") === "on",
+          pressureOrUrgency: form.get("urgency") === "on",
+          domainAppearsMisspelled: form.get("domain_misspelled") === "on",
+          applicationLinkRelatedToEmployer:
+            form.get("link_unrelated") === "on" ? false : undefined,
+        };
+        return {
           consent: true,
           input: { vacancyText: optional(form, "vacancy_text"), answers },
-        }),
-      });
-      const body = (await response.json()) as {
-        result?: ScamCheckResult;
-        error?: string;
-        notice?: string;
-      };
-      if (!response.ok || !body.result) {
-        throw new Error(body.error || "The warning-sign check could not run.");
-      }
-      setResult(body.result);
-      setProviderNotice(body.notice ?? null);
-    } catch (reason) {
-      setResult(null);
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "The warning-sign check could not run.",
-      );
-    } finally {
-      setLoading(false);
-    }
+        };
+      },
+      parseResponse: (response, body) => {
+        const parsedResult = isToolResponseRecord(body)
+          ? body.result
+          : undefined;
+        if (!response.ok || !isToolResponseRecord(parsedResult)) {
+          throw new Error(
+            toolResponseError(body, "The warning-sign check could not run."),
+          );
+        }
+        return {
+          check: parsedResult as unknown as ScamCheckResult,
+          providerNotice:
+            isToolResponseRecord(body) && typeof body.notice === "string"
+              ? body.notice
+              : null,
+        };
+      },
+    });
   }
   return (
     <div className="tool-workspace">

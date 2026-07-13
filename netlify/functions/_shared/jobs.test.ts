@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { normalizeRemotiveJob } from "../../../src/lib/jobs/normalize";
+import {
+  buildJobFingerprint,
+  buildLegacyJobFingerprint,
+} from "../../../src/lib/jobs/fingerprint";
 import type { RemotiveJob } from "../../../src/lib/jobs/remotive-schema";
 
 const { blobGet } = vi.hoisted(() => ({ blobGet: vi.fn() }));
@@ -15,6 +19,7 @@ import {
   fetchAlertJobCatalog,
   fetchPublishedRemotiveSnapshot,
   matchAlertJobs,
+  mergeAlertJobCatalogs,
   parseAlertCatalog,
   parseRemotivePublicationEnabled,
   renderAlertEmail,
@@ -119,6 +124,46 @@ describe("alert job catalog", () => {
     expect(() =>
       parseAlertCatalog(catalog, new Date("2026-07-09T14:00:00.001Z")),
     ).toThrow("alert_catalog_stale");
+  });
+
+  it("re-keys legacy Blob jobs and lets the database source win a collision", () => {
+    const remote = normalizedJob();
+    const trackedDestination = `${remote.applicationUrl}?utm_source=remotive`;
+    const fingerprintInput = {
+      title: remote.title,
+      company: remote.company.name,
+      location: remote.locationDisplay,
+      arrangement: remote.arrangement,
+      destination: trackedDestination,
+    };
+    const legacyRemote = {
+      ...remote,
+      applicationUrl: trackedDestination,
+      sourceUrl: trackedDestination,
+      fingerprint: buildLegacyJobFingerprint(fingerprintInput),
+    };
+    const employer = {
+      ...remote,
+      id: "00000000-0000-4000-8000-000000000077",
+      databaseId: "00000000-0000-4000-8000-000000000077",
+      source: {
+        ...remote.source,
+        id: "00000000-0000-4000-8000-000000000078",
+        name: "Example employer submission",
+        type: "employer" as const,
+      },
+    };
+
+    const merged = mergeAlertJobCatalogs([employer], [legacyRemote]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.id).toBe(employer.id);
+    expect(merged[0]?.fingerprint).toBe(
+      buildJobFingerprint({
+        ...fingerprintInput,
+        destination: employer.applicationUrl,
+      }),
+    );
   });
 
   it("allows five minutes of clock skew but rejects a catalog further in the future", () => {

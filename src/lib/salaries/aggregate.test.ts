@@ -69,6 +69,68 @@ describe("salary privacy aggregation", () => {
     });
   });
 
+  it("trims an outlier before enforcing the minimum contributor threshold", () => {
+    expect(
+      aggregateSalaryCell([
+        submission(1),
+        submission(2),
+        submission(3, { annualEquivalent: 100_000_000 }),
+      ]),
+    ).toBeNull();
+  });
+
+  it("suppresses percentiles when trimming leaves fewer than five contributors", () => {
+    const result = aggregateSalaryCell([
+      submission(1),
+      submission(2),
+      submission(3),
+      submission(4),
+      submission(5, { annualEquivalent: 100_000_000 }),
+    ]);
+
+    expect(result).toMatchObject({
+      sampleSize: 4,
+      medianAnnual: 2_500_000,
+      percentile25Annual: null,
+      percentile75Annual: null,
+    });
+  });
+
+  it("publishes percentiles only from the retained contributors", () => {
+    const result = aggregateSalaryCell([
+      submission(1),
+      submission(2),
+      submission(3),
+      submission(4),
+      submission(5),
+      submission(6, { annualEquivalent: 100_000_000 }),
+    ]);
+
+    expect(result).toMatchObject({
+      sampleSize: 5,
+      medianAnnual: 3_000_000,
+      percentile25Annual: 2_000_000,
+      percentile75Annual: 4_000_000,
+      submissionMonthEnd: "2026-05",
+      confidence: "medium",
+      ruleVersion: "salary-privacy-v2",
+    });
+  });
+
+  it("uses a bounded fallback when most retained values are identical", () => {
+    const result = aggregateSalaryCell([
+      submission(1, { annualEquivalent: 2_000_000 }),
+      submission(2, { annualEquivalent: 2_000_000 }),
+      submission(3, { annualEquivalent: 2_000_000 }),
+      submission(4, { annualEquivalent: 100_000_000 }),
+    ]);
+
+    expect(result).toMatchObject({
+      sampleSize: 3,
+      medianAnnual: 2_000_000,
+    });
+  });
+
   it("ignores removed and superseded contributions", () => {
     const result = aggregateSalaryCell([
       submission(1),

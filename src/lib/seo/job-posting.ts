@@ -1,5 +1,9 @@
 import type { Job, PayPeriod } from "@/lib/jobs/types";
 
+export function canIndexJobDetail(job: Job): boolean {
+  return job.source.canIndex;
+}
+
 const employmentTypes: Record<Job["employmentType"], string | null> = {
   full_time: "FULL_TIME",
   part_time: "PART_TIME",
@@ -57,7 +61,7 @@ export function buildJobPostingStructuredData(
 ): Record<string, unknown> | null {
   if (
     !job.source.canUseJobPostingStructuredData ||
-    !job.source.canIndex ||
+    !canIndexJobDetail(job) ||
     job.status !== "open"
   ) {
     return null;

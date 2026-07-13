@@ -6,6 +6,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import {
+  getCommunityAccountData,
   getFeedPage,
   getForumsPage,
   getForumThreadPage,
@@ -37,6 +38,11 @@ describe("community repository", () => {
 
   it("distinguishes an unconfigured community backend", async () => {
     mockedCreateClient.mockResolvedValue(null);
+    await expect(getCommunityAccountData()).resolves.toMatchObject({
+      state: "unconfigured",
+      data: { states: [], profile: null },
+      issues: [{ code: "community_backend_unconfigured" }],
+    });
     await expect(getFeedPage({ includeProfile: false })).resolves.toMatchObject(
       {
         available: false,
@@ -45,6 +51,47 @@ describe("community repository", () => {
         posts: [],
       },
     );
+  });
+
+  it("loads central account identity settings as a ready repository result", async () => {
+    mockedCreateClient.mockResolvedValue(
+      clientReturning({
+        list_nigeria_states: { data: [stateRow], error: null },
+        get_my_community_profile: { data: [profileRow], error: null },
+      }),
+    );
+
+    await expect(getCommunityAccountData()).resolves.toEqual({
+      state: "ready",
+      issues: [],
+      data: {
+        states: [stateRow],
+        profile: {
+          displayName: "Ada",
+          handle: "ada",
+          stateCode: "LA",
+        },
+      },
+    });
+  });
+
+  it("does not relabel an account identity RPC outage as an empty profile", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockedCreateClient.mockResolvedValue(
+      clientReturning({
+        list_nigeria_states: { data: [stateRow], error: null },
+        get_my_community_profile: {
+          data: null,
+          error: { message: "database unavailable" },
+        },
+      }),
+    );
+
+    await expect(getCommunityAccountData()).resolves.toMatchObject({
+      state: "unavailable",
+      data: { states: [], profile: null },
+      issues: [{ code: "community_account_rpc_error" }],
+    });
   });
 
   it("surfaces an RPC outage through loadError", async () => {

@@ -1,10 +1,19 @@
 import "server-only";
 
+import {
+  mapRepositoryResult,
+  repositoryDegraded,
+  repositoryFailure,
+  repositoryIssue,
+  repositoryReady,
+  type RepositoryResult,
+} from "@/lib/data/repository-result";
 import { getServerEnvironment, getSupabasePublicConfig } from "@/lib/env";
 import { readBoundedJson } from "@/lib/http/json";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { decodeDatabaseJobRow } from "./database";
+import { buildJobFingerprintLookupKeys } from "./fingerprint";
 import {
   fetchRemotiveJobs,
   RemotiveAdapterError,
@@ -27,6 +36,11 @@ type SourceFeed = JobFeedSourceStatus & { jobs: Job[] };
 const SOURCE_MAX_AGE_MS = 14 * 60 * 60 * 1_000;
 const SOURCE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1_000;
 const DATABASE_JOBS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+const DATABASE_JOB_LOOKUP_MAX_RESPONSE_BYTES = 512 * 1024;
+const PUBLIC_JOB_IDENTIFIER_PATTERN = /^[a-z0-9][a-z0-9_-]{0,199}$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const FINGERPRINT_PATTERN = /^[0-9a-f]{64}$/;
 
 function createRemotiveProxyFetch(): RemotiveFetch {
   const environment = getServerEnvironment();
@@ -306,11 +320,191 @@ async function getDatabaseJobFeed(): Promise<SourceFeed> {
   };
 }
 
+type DatabaseJobLookup = {
+  column: "slug" | "dedup_fingerprint";
+  value: string;
+  operator?: "eq" | "in";
+  includeId: boolean;
+  limit: number;
+};
+
+async function readDatabaseJobLookupResult({
+  column,
+  value,
+  operator = "eq",
+  includeId,
+  limit,
+}: DatabaseJobLookup): Promise<RepositoryResult<Job[]>> {
+  const operation = "jobs.public_detail";
+  const configuration = getSupabasePublicConfig();
+  if (!configuration) {
+    return repositoryFailure(
+      "unconfigured",
+      [],
+      repositoryIssue(operation, "not_configured", "database_unconfigured"),
+    );
+  }
+
+  const endpoint = new URL("/rest/v1/jobs", configuration.url);
+  endpoint.searchParams.set("select", "*");
+  if (includeId && UUID_PATTERN.test(value)) {
+    endpoint.searchParams.set("or", `(slug.eq.${value},id.eq.${value})`);
+  } else {
+    endpoint.searchParams.set(column, `${operator}.${value}`);
+  }
+  endpoint.searchParams.set("limit", `${limit}`);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      headers: {
+        Accept: "application/json",
+        "Accept-Profile": "api",
+        apikey: configuration.publishableKey,
+        Authorization: `Bearer ${configuration.publishableKey}`,
+      },
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+      signal: AbortSignal.timeout(6_000),
+    });
+  } catch (reason) {
+    return repositoryFailure(
+      "unavailable",
+      [],
+      repositoryIssue(
+        operation,
+        "query_failed",
+        "database_jobs_query_failed",
+        reason,
+      ),
+    );
+  }
+  if (!response.ok) {
+    return repositoryFailure(
+      "unavailable",
+      [],
+      repositoryIssue(
+        operation,
+        "query_failed",
+        `database_jobs_${response.status}`,
+      ),
+    );
+  }
+
+  let data: unknown;
+  try {
+    data = await readBoundedJson(
+      response,
+      DATABASE_JOB_LOOKUP_MAX_RESPONSE_BYTES,
+    );
+  } catch (reason) {
+    return repositoryFailure(
+      "invalid",
+      [],
+      repositoryIssue(
+        operation,
+        "invalid_container",
+        "database_jobs_invalid_json",
+        reason,
+      ),
+    );
+  }
+  if (!Array.isArray(data) || data.length > limit) {
+    return repositoryFailure(
+      "invalid",
+      [],
+      repositoryIssue(operation, "invalid_container", "database_jobs_shape"),
+    );
+  }
+
+  const decoded = data.map((row) => decodeDatabaseJobRow(row));
+  const jobs = decoded.flatMap((result) => (result.ok ? [result.job] : []));
+  const rejectedRows = decoded.filter((result) => !result.ok);
+  if (rejectedRows.length > 0) {
+    return repositoryDegraded(jobs, [
+      repositoryIssue(operation, "invalid_rows", "database_jobs_invalid_rows"),
+    ]);
+  }
+  return repositoryReady(jobs);
+}
+
+export async function getDatabaseJobBySlugResult(
+  slugOrId: string,
+): Promise<RepositoryResult<Job | null>> {
+  if (!PUBLIC_JOB_IDENTIFIER_PATTERN.test(slugOrId)) {
+    return repositoryReady(null);
+  }
+  return mapRepositoryResult(
+    await readDatabaseJobLookupResult({
+      column: "slug",
+      value: slugOrId,
+      includeId: true,
+      limit: 2,
+    }),
+    (jobs) =>
+      jobs.find((job) => job.id === slugOrId) ??
+      jobs.find((job) => job.slug === slugOrId) ??
+      null,
+  );
+}
+
+async function getDatabaseJobsByFingerprintResult(fingerprints: string[]) {
+  const validFingerprints = fingerprints.filter((fingerprint) =>
+    FINGERPRINT_PATTERN.test(fingerprint),
+  );
+  if (validFingerprints.length === 0) return repositoryReady([]);
+  return readDatabaseJobLookupResult({
+    column: "dedup_fingerprint",
+    value: `(${validFingerprints.join(",")})`,
+    operator: "in",
+    includeId: false,
+    limit: 10,
+  });
+}
+
 function sourcePriority(job: Job) {
   if (job.source.type === "employer") return 4;
   if (job.source.type === "partner") return 3;
   if (job.source.type === "manual") return 2;
   return 1;
+}
+
+function databaseDetailSource(
+  result: RepositoryResult<Job | null> | RepositoryResult<Job[]>,
+): SourceFeed {
+  const jobs = Array.isArray(result.data)
+    ? result.data
+    : result.data
+      ? [result.data]
+      : [];
+  const checkedAt =
+    jobs
+      .map((job) => job.lastCheckedAt)
+      .filter((value) => Number.isFinite(Date.parse(value)))
+      .toSorted((a, b) => Date.parse(b) - Date.parse(a))[0] ??
+    new Date().toISOString();
+  if (result.state === "ready") {
+    return {
+      key: "database",
+      jobs,
+      state: "live",
+      checkedAt,
+      count: jobs.length,
+    };
+  }
+  const degraded = result.state === "degraded";
+  return {
+    key: "database",
+    jobs,
+    state: degraded ? "degraded" : "unavailable",
+    checkedAt,
+    count: jobs.length,
+    code: result.issues[0]?.code ?? "database_jobs_query_failed",
+    message: degraded
+      ? "Some reviewed employer job evidence was invalid and was excluded."
+      : "Reviewed employer jobs are temporarily unavailable.",
+  };
 }
 
 function overallCheckedAt(sources: SourceFeed[]): string {
@@ -322,24 +516,21 @@ function overallCheckedAt(sources: SourceFeed[]): string {
   ).toISOString();
 }
 
-export async function getLiveJobFeed(): Promise<JobFeedResult> {
-  const supabase = await createServerSupabaseClient();
-  const [remotive, database] = await Promise.all([
-    getRemotiveJobFeed(supabase),
-    getDatabaseJobFeed(),
-  ]);
-  const sources = [remotive, database];
+function combineJobSources(sources: SourceFeed[]): JobFeedResult {
   const jobsByFingerprint = new Map<string, Job>();
-  for (const job of [...remotive.jobs, ...database.jobs]) {
-    const current = jobsByFingerprint.get(job.fingerprint);
-    if (!current || sourcePriority(job) > sourcePriority(current)) {
-      jobsByFingerprint.set(job.fingerprint, job);
+  for (const source of sources) {
+    for (const job of source.jobs) {
+      const current = jobsByFingerprint.get(job.fingerprint);
+      if (!current || sourcePriority(job) > sourcePriority(current)) {
+        jobsByFingerprint.set(job.fingerprint, job);
+      }
     }
   }
   const jobs = [...jobsByFingerprint.values()];
   const sourceProblems = sources.filter(
     ({ state }) => state === "unavailable" || state === "degraded",
   );
+  const remotive = sources.find(({ key }) => key === "remotive");
   const state: JobFeedResult["state"] =
     jobs.length > 0
       ? sourceProblems.length > 0
@@ -347,7 +538,7 @@ export async function getLiveJobFeed(): Promise<JobFeedResult> {
         : "live"
       : sourceProblems.length > 0
         ? "unavailable"
-        : remotive.state === "disabled"
+        : remotive?.state === "disabled"
           ? "disabled"
           : "live";
   const messageSources =
@@ -376,8 +567,40 @@ export async function getLiveJobFeed(): Promise<JobFeedResult> {
   };
 }
 
+export async function getLiveJobFeed(): Promise<JobFeedResult> {
+  const supabase = await createServerSupabaseClient();
+  const [remotive, database] = await Promise.all([
+    getRemotiveJobFeed(supabase),
+    getDatabaseJobFeed(),
+  ]);
+  return combineJobSources([remotive, database]);
+}
+
 export async function getJobBySlug(slugOrId: string) {
-  const feed = await getLiveJobFeed();
+  const databaseResult = await getDatabaseJobBySlugResult(slugOrId);
+  if (databaseResult.data) {
+    const feed = combineJobSources([databaseDetailSource(databaseResult)]);
+    return { feed, job: databaseResult.data };
+  }
+
+  const remotive = await getRemotiveJobFeed();
+  const candidate = remotive.jobs.find(
+    (job) => job.slug === slugOrId || job.id === slugOrId,
+  );
+  let databaseSource = databaseDetailSource(databaseResult);
+  if (candidate && databaseResult.state === "ready") {
+    const fingerprintKeys = buildJobFingerprintLookupKeys({
+      title: candidate.title,
+      company: candidate.company.name,
+      location: candidate.locationDisplay,
+      arrangement: candidate.arrangement,
+      destination: candidate.applicationUrl,
+    });
+    databaseSource = databaseDetailSource(
+      await getDatabaseJobsByFingerprintResult(fingerprintKeys),
+    );
+  }
+  const feed = combineJobSources([remotive, databaseSource]);
   return {
     feed,
     job:

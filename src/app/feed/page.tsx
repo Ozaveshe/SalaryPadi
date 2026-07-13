@@ -8,6 +8,7 @@ import { PageHeading } from "@/components/page-heading";
 import { getViewer } from "@/lib/auth/dal";
 import { feedCategories, getFeedPage } from "@/lib/community/repository";
 import { formatDate, formatEnum } from "@/lib/format";
+import { firstSearchParam, sliceSearchParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
   title: "Career feed",
@@ -17,18 +18,14 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-function first(input: string | string[] | undefined) {
-  return typeof input === "string" ? input : "";
-}
-
 export default async function FeedPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const input = await searchParams;
-  const category = first(input.category).slice(0, 40);
-  const state = first(input.state).slice(0, 4).toUpperCase();
+  const category = sliceSearchParam(input.category, 40);
+  const state = sliceSearchParam(input.state, 4).toUpperCase();
   const viewer = await getViewer();
   const data = await getFeedPage({
     category,
@@ -44,8 +41,8 @@ export default async function FeedPage({
         description="A public text board for useful career updates across Nigeria. Read without an account; sign in to post, report or remove your own contribution."
       />
       <CommunityStatus
-        reported={first(input.reported)}
-        status={first(input.status)}
+        reported={firstSearchParam(input.reported)}
+        status={firstSearchParam(input.status)}
       />
       {data.loadError ? (
         <div className="notice notice-warning" role="status">

@@ -3,9 +3,11 @@ import Link from "next/link";
 
 import { PageHeading } from "@/components/page-heading";
 import { PrivateDataStatus } from "@/components/private-data-status";
+import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { requireViewer } from "@/lib/auth/dal";
 import { getApplications } from "@/lib/career/repository";
 import { formatDate, formatEnum } from "@/lib/format";
+import { sliceSearchParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
   title: "Application tracker",
@@ -25,10 +27,14 @@ const statuses = [
 export default async function ApplicationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ removed?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireViewer("/applications");
-  const { removed } = await searchParams;
+  const input = await searchParams;
+  const removed = sliceSearchParam(input.removed, 10);
+  const created = sliceSearchParam(input.created, 10);
+  const salaryCompany = sliceSearchParam(input.salary_company, 180);
+  const salaryRole = sliceSearchParam(input.salary_role, 160);
   const result = await getApplications();
   const applications = result.data;
   return (
@@ -46,6 +52,22 @@ export default async function ApplicationsPage({
         <div className="notice notice-danger" role="alert">
           The application record could not be removed. Reload and try again.
         </div>
+      ) : null}
+      {created === "true" ? (
+        <div className="notice" role="status">
+          Application added to your private tracker.
+        </div>
+      ) : created === "error" ? (
+        <div className="notice notice-danger" role="alert">
+          The application could not be tracked. Try again.
+        </div>
+      ) : null}
+      {created === "true" ? (
+        <SalaryContributionCta
+          company={salaryCompany}
+          role={salaryRole}
+          heading="Application tracked. Help the next applicant compare pay."
+        />
       ) : null}
       {result.state !== "ready" ? (
         <PrivateDataStatus state={result.state} />

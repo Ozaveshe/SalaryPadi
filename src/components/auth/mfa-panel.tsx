@@ -7,7 +7,14 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type PanelMode = "loading" | "enrol" | "challenge" | "complete";
 
-export function MfaPanel() {
+export function MfaPanel({
+  returnTo = "/admin",
+  variant = "admin",
+}: {
+  returnTo?: "/account" | "/admin";
+  variant?: "account" | "admin";
+}) {
+  const accountVariant = variant === "account";
   const [mode, setMode] = useState<PanelMode>("loading");
   const [factorId, setFactorId] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -79,7 +86,7 @@ export function MfaPanel() {
 
     const { data, error: enrolmentError } = await supabase.auth.mfa.enroll({
       factorType: "totp",
-      friendlyName: "SalaryPadi admin",
+      friendlyName: accountVariant ? "SalaryPadi account" : "SalaryPadi admin",
     });
 
     if (enrolmentError) {
@@ -133,7 +140,7 @@ export function MfaPanel() {
     }
 
     setMode("complete");
-    window.location.assign("/admin");
+    window.location.assign(returnTo);
   }
 
   if (mode === "loading") {
@@ -147,12 +154,18 @@ export function MfaPanel() {
   if (mode === "complete") {
     return (
       <div className="surface surface-pad stack">
-        <h2 className="section-title">Strong session confirmed</h2>
+        <h2 className="section-title">
+          {accountVariant
+            ? "Authenticator protection active"
+            : "Strong session confirmed"}
+        </h2>
         <p className="text-muted m-0">
-          This session has the AAL2 protection required for staff operations.
+          {accountVariant
+            ? "This session has strong multi-factor protection."
+            : "This session has the AAL2 protection required for staff operations."}
         </p>
-        <a className="button w-fit" href="/admin">
-          Continue to admin
+        <a className="button w-fit" href={returnTo}>
+          {accountVariant ? "Return to account" : "Continue to admin"}
         </a>
       </div>
     );

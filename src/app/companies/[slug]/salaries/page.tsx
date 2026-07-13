@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CompanyHeading } from "@/components/companies/company-heading";
@@ -8,6 +7,7 @@ import {
   RepositoryNotice,
 } from "@/components/repository-notice";
 import { SalaryAggregateCard } from "@/components/salaries/salary-aggregate-card";
+import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { getCompanyResult } from "@/lib/companies/repository";
 import { searchSalaryAggregatesResult } from "@/lib/salaries/repository";
 
@@ -38,7 +38,13 @@ export default async function CompanySalariesPage({
   const aggregates = aggregatesResult.data;
   return (
     <div className="site-shell stack-lg">
-      <CompanyHeading company={company} />
+      <CompanyHeading
+        company={company}
+        section={{
+          label: "Salaries",
+          path: `/companies/${company.slug}/salaries`,
+        }}
+      />
       <section className="rule-section stack">
         <h2 className="section-title">Salary evidence</h2>
         <CombinedRepositoryNotice
@@ -61,9 +67,11 @@ export default async function CompanySalariesPage({
               submissions from distinct accounts. Individual values are never
               shown.
             </p>
-            <Link className="button w-fit" href="/contribute/salary">
-              Contribute privately
-            </Link>
+            <p className="text-muted m-0 text-sm">
+              Company-level progress is intentionally not shown: a count below
+              the threshold could identify a contributor.
+            </p>
+            <SalaryContributionCta company={company.name} />
           </div>
         ) : null}
       </section>

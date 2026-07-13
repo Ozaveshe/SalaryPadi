@@ -3,9 +3,11 @@ import Link from "next/link";
 
 import { PageHeading } from "@/components/page-heading";
 import { PrivateDataStatus } from "@/components/private-data-status";
+import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { requireViewer } from "@/lib/auth/dal";
 import { getSavedJobs } from "@/lib/career/repository";
 import { formatDate } from "@/lib/format";
+import { sliceSearchParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
   title: "Saved jobs",
@@ -15,10 +17,14 @@ export const metadata: Metadata = {
 export default async function SavedJobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ removed?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireViewer("/saved");
-  const { removed } = await searchParams;
+  const input = await searchParams;
+  const removed = sliceSearchParam(input.removed, 10);
+  const saved = sliceSearchParam(input.saved, 10);
+  const salaryCompany = sliceSearchParam(input.salary_company, 180);
+  const salaryRole = sliceSearchParam(input.salary_role, 160);
   const result = await getSavedJobs();
   const jobs = result.data;
   return (
@@ -36,6 +42,22 @@ export default async function SavedJobsPage({
         <div className="notice notice-danger" role="alert">
           The saved job could not be removed. Reload and try again.
         </div>
+      ) : null}
+      {saved === "true" ? (
+        <div className="notice" role="status">
+          Job saved to your private workspace.
+        </div>
+      ) : saved === "error" ? (
+        <div className="notice notice-danger" role="alert">
+          The job could not be saved. Try again.
+        </div>
+      ) : null}
+      {saved === "true" ? (
+        <SalaryContributionCta
+          company={salaryCompany}
+          role={salaryRole}
+          heading="Job saved. Know what this work pays?"
+        />
       ) : null}
       {result.state !== "ready" ? (
         <PrivateDataStatus state={result.state} />

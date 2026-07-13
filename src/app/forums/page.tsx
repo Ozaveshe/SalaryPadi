@@ -8,6 +8,7 @@ import { PageHeading } from "@/components/page-heading";
 import { getViewer } from "@/lib/auth/dal";
 import { getForumsPage } from "@/lib/community/repository";
 import { formatDate } from "@/lib/format";
+import { firstSearchParam, sliceSearchParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
   title: "Career forums",
@@ -17,17 +18,13 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-function first(input: string | string[] | undefined) {
-  return typeof input === "string" ? input : "";
-}
-
 export default async function ForumsPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const input = await searchParams;
-  const topic = first(input.topic).slice(0, 80);
+  const topic = sliceSearchParam(input.topic, 80);
   const viewer = await getViewer();
   const data = await getForumsPage({
     topic,
@@ -43,8 +40,8 @@ export default async function ForumsPage({
         description="Ask practical questions, compare approaches and share useful experience. The forums are public to read and require a secure account to write."
       />
       <CommunityStatus
-        reported={first(input.reported)}
-        status={first(input.status)}
+        reported={firstSearchParam(input.reported)}
+        status={firstSearchParam(input.status)}
       />
       {data.loadError ? (
         <div className="notice notice-warning" role="status">

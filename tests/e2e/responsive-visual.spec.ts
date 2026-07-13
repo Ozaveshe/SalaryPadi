@@ -26,6 +26,45 @@ async function expectNoHorizontalOverflow(
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
 }
 
+async function expectResponsiveNavigation(
+  page: import("@playwright/test").Page,
+) {
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("A fixed viewport is required.");
+
+  if (viewport.width >= 1152) {
+    await expect(
+      page.getByRole("navigation", { name: "Primary navigation" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^(Open|Close) navigation$/ }),
+    ).toHaveCount(0);
+    return;
+  }
+
+  const trigger = page.getByRole("button", {
+    name: /^(Open|Close) navigation$/,
+  });
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    page.getByRole("navigation", { name: "Mobile navigation" }),
+  ).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(trigger).toBeFocused();
+
+  await trigger.click();
+  await page
+    .getByRole("navigation", { name: "Mobile navigation" })
+    .getByRole("link", { name: "Tools", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/tools$/);
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+}
+
 test("captures responsive home and completed calculator surfaces", async ({
   page,
 }, testInfo) => {
@@ -36,6 +75,7 @@ test("captures responsive home and completed calculator surfaces", async ({
     path: testInfo.outputPath("homepage.png"),
     fullPage: true,
   });
+  await expectResponsiveNavigation(page);
 
   await page.goto("/tools/take-home-pay");
   await page.getByLabel("Salary amount").fill("500000");
@@ -78,4 +118,18 @@ test("captures responsive home and completed calculator surfaces", async ({
     fullPage: true,
     mask: [page.getByLabel("Salary amount"), page.locator(".data-list dd")],
   });
+});
+
+test("keeps audited public surface shells responsive", async ({ page }) => {
+  for (const route of [
+    "/jobs",
+    "/companies",
+    "/salaries",
+    "/insights",
+    "/tools",
+  ]) {
+    await page.goto(route);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  }
 });

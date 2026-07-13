@@ -11,10 +11,12 @@ vi.mock("@/lib/jobs/repository", () => ({
 import {
   getCompaniesResult,
   getCompanyBenefitsResult,
+  getCompanyRatingMinimumSampleResult,
   getCompanyRatingResult,
   getCompanyResult,
   getCompanyReviewsResult,
   getInterviewExperiencesResult,
+  getPublishedCompanyEvidenceResult,
 } from "@/lib/companies/repository";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -30,6 +32,32 @@ function clientReturning(data: unknown, error: unknown = null) {
     limit: async () => ({ data, error }),
   };
   return { schema: () => ({ from: () => query }) } as never;
+}
+
+function clientReturningSingle(data: unknown, error: unknown = null) {
+  const query = {
+    select: () => query,
+    eq: () => query,
+    maybeSingle: async () => ({ data, error }),
+  };
+  return { schema: () => ({ from: () => query }) } as never;
+}
+
+function discoveryClientReturning(rows: Record<string, unknown[]>) {
+  return {
+    schema: () => ({
+      from: (table: string) => {
+        const query = {
+          select: () => query,
+          eq: () => query,
+          not: () => query,
+          order: () => query,
+          range: async () => ({ data: rows[table] ?? [], error: null }),
+        };
+        return query;
+      },
+    }),
+  } as never;
 }
 
 const disabledFeed = {
@@ -256,6 +284,66 @@ describe("companies repository", () => {
     expect((await getCompanyRatingResult("acme")).data).toEqual(validRating);
     expect((await getCompanyBenefitsResult("acme")).data).toEqual([
       validBenefit,
+    ]);
+  });
+
+  it("reads the active company-rating sample threshold", async () => {
+    mockedCreateClient.mockResolvedValue(
+      clientReturningSingle({
+        metric: "company_overall_rating",
+        min_distinct_contributors: 5,
+      }),
+    );
+
+    expect((await getCompanyRatingMinimumSampleResult()).data).toBe(5);
+  });
+
+  it("summarizes only published community evidence for sitemap discovery", async () => {
+    mockedCreateClient.mockResolvedValue(
+      discoveryClientReturning({
+        company_reviews: [
+          {
+            company_slug: "acme",
+            published_at: "2026-07-11T00:00:00.000Z",
+          },
+        ],
+        interview_experiences: [],
+        company_ratings: [
+          {
+            company_slug: "acme",
+            computed_at: "2026-07-12T00:00:00.000Z",
+          },
+        ],
+        company_benefits: [
+          {
+            company_slug: "community-co",
+            source_kind: "community_reported",
+            last_verified_at: "2026-07-10T00:00:00.000Z",
+          },
+          {
+            company_slug: "public-fact-co",
+            source_kind: "public_fact",
+            last_verified_at: "2026-07-13T00:00:00.000Z",
+          },
+        ],
+        salary_aggregates: [
+          {
+            company_slug: null,
+            calculated_at: "2026-07-13T00:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    expect((await getPublishedCompanyEvidenceResult()).data).toEqual([
+      {
+        companySlug: "acme",
+        lastModified: "2026-07-12T00:00:00.000Z",
+      },
+      {
+        companySlug: "community-co",
+        lastModified: "2026-07-10T00:00:00.000Z",
+      },
     ]);
   });
 

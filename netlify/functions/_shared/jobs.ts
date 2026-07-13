@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { readBoundedJson } from "../../../src/lib/http/json";
 import { mapDatabaseJobRow } from "../../../src/lib/jobs/database";
+import { buildJobFingerprint } from "../../../src/lib/jobs/fingerprint";
 import { REMOTIVE_ADAPTER_ERROR_CODES } from "../../../src/lib/jobs/remotive-adapter";
 import {
   REMOTIVE_ADAPTER_KEY,
@@ -351,10 +352,28 @@ export async function fetchAlertJobCatalog(
     }
     throw reason;
   }
+  return mergeAlertJobCatalogs(database, remotive);
+}
+
+export function mergeAlertJobCatalogs(
+  database: readonly Job[],
+  remotive: readonly Job[],
+): Job[] {
   const byFingerprint = new Map<string, Job>();
   for (const job of [...database, ...remotive]) {
-    if (!byFingerprint.has(job.fingerprint))
-      byFingerprint.set(job.fingerprint, job);
+    const fingerprint = buildJobFingerprint({
+      title: job.title,
+      company: job.company.name,
+      location: job.locationDisplay,
+      arrangement: job.arrangement,
+      destination: job.applicationUrl,
+    });
+    if (!byFingerprint.has(fingerprint)) {
+      byFingerprint.set(
+        fingerprint,
+        job.fingerprint === fingerprint ? job : { ...job, fingerprint },
+      );
+    }
   }
   return [...byFingerprint.values()];
 }

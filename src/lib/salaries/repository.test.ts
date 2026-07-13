@@ -5,7 +5,10 @@ vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(),
 }));
 
-import { searchSalaryAggregatesResult } from "@/lib/salaries/repository";
+import {
+  getSalaryCellProgressResult,
+  searchSalaryAggregatesResult,
+} from "@/lib/salaries/repository";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const mockedCreateClient = vi.mocked(createServerSupabaseClient);
@@ -20,6 +23,14 @@ function clientReturning(data: unknown, error: unknown = null) {
     then: result.then.bind(result),
   };
   return { schema: () => ({ from: () => query }) } as never;
+}
+
+function clientReturningProgress(data: unknown, error: unknown = null) {
+  const rpc = vi.fn().mockResolvedValue({ data, error });
+  return {
+    client: { schema: () => ({ rpc }) } as never,
+    rpc,
+  };
 }
 
 const validAggregate = {
@@ -70,4 +81,72 @@ describe("salary repository", () => {
     );
     expect((await searchSalaryAggregatesResult({})).state).toBe("unavailable");
   });
+
+  it("returns only validated broad-cell progress", async () => {
+    const { client, rpc } = clientReturningProgress([
+      {
+        role_slug: "product-management",
+        role_family: "Product Management",
+        country_code: "NG",
+        displayed_contributions: null,
+        privacy_threshold: 3,
+        progress_status: "fewer_than_threshold",
+      },
+    ]);
+    mockedCreateClient.mockResolvedValue(client);
+
+    const result = await getSalaryCellProgressResult({
+      role: "Product Management",
+      country: "ng",
+    });
+
+    expect(result.state).toBe("ready");
+    expect(result.data?.status).toBe("fewer_than_threshold");
+    expect(rpc).toHaveBeenCalledWith("get_salary_cell_progress", {
+      p_role_slug: "product-management",
+      p_country_code: "NG",
+    });
+  });
+
+  it("treats a missing role cell as an honest empty result", async () => {
+    const { client } = clientReturningProgress([]);
+    mockedCreateClient.mockResolvedValue(client);
+
+    const result = await getSalaryCellProgressResult({
+      role: "Unknown",
+      country: "NG",
+    });
+
+    expect(result.state).toBe("ready");
+    expect(result.data).toBeNull();
+  });
+
+  it.each([1, 2])(
+    "rejects an exact sub-threshold count of %i from the repository boundary",
+    async (displayedContributions) => {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const { client } = clientReturningProgress([
+        {
+          role_slug: "product-management",
+          role_family: "Product Management",
+          country_code: "NG",
+          displayed_contributions: displayedContributions,
+          privacy_threshold: 3,
+          progress_status: "fewer_than_threshold",
+        },
+      ]);
+      mockedCreateClient.mockResolvedValue(client);
+
+      const result = await getSalaryCellProgressResult({
+        role: "Product Management",
+        country: "NG",
+      });
+
+      expect(result.state).toBe("invalid");
+      expect(result.data).toBeNull();
+      expect(result.issues[0]?.code).toBe(
+        "salary_progress_privacy_gate_rejected",
+      );
+    },
+  );
 });

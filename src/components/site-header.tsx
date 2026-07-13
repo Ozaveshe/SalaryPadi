@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import type { Viewer } from "@/lib/auth/dal";
 import { Brand } from "@/components/brand";
+import { MobileNavigation } from "@/components/mobile-navigation";
 
 const navigation = [
   { href: "/jobs", label: "Jobs" },
@@ -32,7 +33,7 @@ function AccountLinks({ viewer }: { viewer: Viewer }) {
 
   return (
     <>
-      <Link className="nav-link" href="/saved">
+      <Link className="nav-link" href="/account">
         My career
       </Link>
       {viewer.isAdmin ? (
@@ -62,17 +63,14 @@ export function SiteHeader({ viewer }: { viewer: Viewer }) {
           ))}
           <AccountLinks viewer={viewer} />
         </nav>
-        <details className="mobile-nav">
-          <summary aria-label="Open navigation">Menu</summary>
-          <nav className="mobile-nav-panel" aria-label="Mobile navigation">
-            {navigation.map((item) => (
-              <Link className="nav-link" href={item.href} key={item.href}>
-                {item.label}
-              </Link>
-            ))}
-            <AccountLinks viewer={viewer} />
-          </nav>
-        </details>
+        <MobileNavigation>
+          {navigation.map((item) => (
+            <Link className="nav-link" href={item.href} key={item.href}>
+              {item.label}
+            </Link>
+          ))}
+          <AccountLinks viewer={viewer} />
+        </MobileNavigation>
       </div>
     </header>
   );

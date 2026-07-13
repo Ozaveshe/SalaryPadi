@@ -8,6 +8,8 @@ import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { getPublishedArticleResult } from "@/lib/editorial/repository";
 import { getAppOrigin } from "@/lib/env";
+import { buildSocialImageMetadata } from "@/lib/seo/open-graph";
+import { buildBreadcrumbStructuredData } from "@/lib/seo/structured-data";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +21,28 @@ export async function generateMetadata({
   const { slug } = await params;
   const article = (await getPublishedArticleResult(slug)).data;
   if (!article || article.article_kind !== "data_brief") return {};
+  const socialImage = buildSocialImageMetadata(
+    `/insights/${article.slug}/opengraph-image`,
+    `${article.title} on SalaryPadi`,
+  );
   return {
     title: article.title,
     description: article.description,
     alternates: { canonical: `/insights/${article.slug}` },
+    openGraph: {
+      title: article.title,
+      description: article.description,
+      type: "article",
+      publishedTime: article.published_at,
+      modifiedTime: article.updated_at,
+      images: socialImage.openGraphImages,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: article.title,
+      description: article.description,
+      images: socialImage.twitterImages,
+    },
   };
 }
 
@@ -56,10 +76,22 @@ export default async function InsightPage({
     );
   }
   const url = `${getAppOrigin()}/insights/${article.slug}`;
+  const nonce = requestHeaders.get("x-nonce");
   return (
     <article className="site-shell stack-lg">
       <JsonLd
-        nonce={requestHeaders.get("x-nonce")}
+        nonce={nonce}
+        data={buildBreadcrumbStructuredData([
+          { name: "Home", url: getAppOrigin() },
+          {
+            name: "Insights",
+            url: new URL("/insights", getAppOrigin()).toString(),
+          },
+          { name: article.title, url },
+        ])}
+      />
+      <JsonLd
+        nonce={nonce}
         data={{
           "@context": "https://schema.org",
           "@type": "Article",

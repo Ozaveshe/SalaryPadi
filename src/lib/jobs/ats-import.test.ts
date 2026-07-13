@@ -109,11 +109,73 @@ describe("ATS import normalization", () => {
     );
     expect(result.jobs.map((job) => job.eligibility.scope)).toEqual([
       "emea",
-      "restricted_region",
+      "unclear",
     ]);
     expect(
       result.jobs.every((job) => job.eligibility.countries.length === 0),
     ).toBe(true);
+  });
+
+  it.each([
+    ["Remote", "unclear", []],
+    ["Remote (Nigeria preferred)", "nigeria", ["NG"]],
+    ["Africa & EMEA", "africa", []],
+    ["LATAM/Africa", "africa", []],
+    ["Ivory Coast / DRC / UAE", "named_countries", ["CI", "CD", "AE"]],
+  ] as const)(
+    "uses the shared classifier for %s",
+    (location, scope, countryCodes) => {
+      const result = normalizeAtsImportRecords(
+        [record({ location })],
+        noDescriptionPolicy,
+      );
+
+      expect(result.jobs[0]?.eligibility.scope).toBe(scope);
+      expect(
+        result.jobs[0]?.eligibility.countries
+          .filter(({ rule }) => rule === "include")
+          .map(({ country_code }) => country_code),
+      ).toEqual(countryCodes);
+      expect(result.jobs[0]?.eligibility.evidence_text).toBe(location);
+    },
+  );
+
+  it("canonicalizes ATS apply variants without dropping posting IDs", () => {
+    const hosted = normalizeAtsImportRecords(
+      [
+        record({
+          provider: "lever",
+          applicationUrl: "https://jobs.lever.co/example/role-123",
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+    const trackedApply = normalizeAtsImportRecords(
+      [
+        record({
+          provider: "lever",
+          applicationUrl:
+            "https://jobs.lever.co/example/role-123/apply?utm_source=feed",
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+    const otherPosting = normalizeAtsImportRecords(
+      [
+        record({
+          provider: "lever",
+          applicationUrl: "https://jobs.lever.co/example/role-456/apply",
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(hosted.jobs[0]?.dedup_fingerprint).toBe(
+      trackedApply.jobs[0]?.dedup_fingerprint,
+    );
+    expect(hosted.jobs[0]?.dedup_fingerprint).not.toBe(
+      otherPosting.jobs[0]?.dedup_fingerprint,
+    );
   });
 
   it("quarantines duplicate and mismatched records without rejecting good rows", () => {
