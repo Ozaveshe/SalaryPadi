@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  outputFileTracingIncludes: {
+    "/*": ["./public/brand/salarypadi-logo-dark.svg"],
+  },
   async headers() {
     return [
       {
