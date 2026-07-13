@@ -60,6 +60,10 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
+    "@opentelemetry/core": "2.9.0",
+    "@opentelemetry/resources": "2.9.0",
+    "@opentelemetry/sdk-trace-base": "2.9.0",
+    "@opentelemetry/sdk-trace-node": "2.9.0",
     "postcss": "8.5.10"
   }
 }
