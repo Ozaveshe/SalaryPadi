@@ -340,7 +340,7 @@ begin
       end if;
       select role.id into strict v_role_family_id
       from app.role_families role
-      where role.slug = v_item->>'roleFamilySlug' and role.active;
+      where role.slug = v_item->>'roleFamilySlug' and role.is_active;
 
       insert into app.salary_benchmarks (
         source_id, source_run_id, external_record_id, role_family_id,
