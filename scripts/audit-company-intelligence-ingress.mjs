@@ -40,7 +40,7 @@ const seedOrIndexPath = /(?:seed|fixture|sitemap|search|index)/i;
 const reviewedNonOpinionReferences = new Set([
   "scripts/generate-brand-assets.mjs",
   "src/lib/jobs/source-policy.ts",
-  "supabase/migrations/20260714023000_job_supply_system.sql",
+  "supabase/migrations/20260714030605_job_supply_system.sql",
 ]);
 
 const applicationIngressFiles = files

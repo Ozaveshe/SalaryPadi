@@ -95,7 +95,7 @@ No description, legal entity, office, industry, headcount, review, rating, salar
 
 ## Quarantine behavior
 
-`20260714030100_company_fact_provenance.sql` removes from public state any review or interview publication whose linked contribution lacks first-party origin attestation. It removes legacy `community_reported` benefit rows because that table has no contributor provenance. The audit record stores a SHA-256 digest, never the original text. Quarantine rows and moderation actions reject update and delete operations.
+`20260714030526_company_fact_provenance.sql` removes from public state any review or interview publication whose linked contribution lacks first-party origin attestation. It removes legacy `community_reported` benefit rows because that table has no contributor provenance. The audit record stores a SHA-256 digest, never the original text. Quarantine rows and moderation actions reject update and delete operations.
 
 ## Proof commands
 

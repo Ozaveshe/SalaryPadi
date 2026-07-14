@@ -4,7 +4,7 @@
 
 SalaryPadi has a production-grade, fail-closed supply boundary in this repository, but it does **not** yet have authorized external capacity sufficient to demonstrate 200 new canonical jobs per day. The daily target is a measurement target, not permission to acquire data.
 
-The machine source of truth is [`config/job-source-policy-registry.json`](../config/job-source-policy-registry.json). Database enforcement is in migrations `20260714023000_job_supply_system.sql` and `20260714023100_job_supply_operations.sql`. A source adapter is runnable only when its policy is enabled, its review deadline is in the future, all required dependencies are evidenced, its requested fields are allowlisted, and its database authorization is current. Missing, disabled, expired, or overdue policies fail before a provider request.
+The machine source of truth is [`config/job-source-policy-registry.json`](../config/job-source-policy-registry.json). Database enforcement is in migrations `20260714030605_job_supply_system.sql` and `20260714030620_job_supply_operations.sql`. A source adapter is runnable only when its policy is enabled, its review deadline is in the future, all required dependencies are evidenced, its requested fields are allowlisted, and its database authorization is current. Missing, disabled, expired, or overdue policies fail before a provider request.
 
 No source was activated and no migration or worker was deployed by this work.
 

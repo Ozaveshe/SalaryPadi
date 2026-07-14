@@ -6,27 +6,27 @@ import { describe, expect, it } from "vitest";
 
 const root = process.cwd();
 const provenanceMigration = readFileSync(
-  join(root, "supabase/migrations/20260714030100_company_fact_provenance.sql"),
+  join(root, "supabase/migrations/20260714030526_company_fact_provenance.sql"),
   "utf8",
 );
 const intakeMigration = readFileSync(
   join(
     root,
-    "supabase/migrations/20260714030200_company_contribution_intake.sql",
+    "supabase/migrations/20260714030633_company_contribution_intake.sql",
   ),
   "utf8",
 );
 const employerMigration = readFileSync(
   join(
     root,
-    "supabase/migrations/20260714030300_employer_claims_and_responses.sql",
+    "supabase/migrations/20260714030647_employer_claims_and_responses.sql",
   ),
   "utf8",
 );
 const aggregateMigration = readFileSync(
   join(
     root,
-    "supabase/migrations/20260714030400_company_aggregate_evidence.sql",
+    "supabase/migrations/20260714030700_company_aggregate_evidence.sql",
   ),
   "utf8",
 );

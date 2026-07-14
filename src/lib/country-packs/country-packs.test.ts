@@ -61,7 +61,7 @@ const fixture = fixtureSchema.parse(
 const migration = readFileSync(
   resolve(
     process.cwd(),
-    "supabase/migrations/20260714050000_country_pack_architecture.sql",
+    "supabase/migrations/20260714030735_country_pack_architecture.sql",
   ),
   "utf8",
 );

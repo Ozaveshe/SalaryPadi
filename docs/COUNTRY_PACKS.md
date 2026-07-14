@@ -8,7 +8,7 @@ SalaryPadi has one application and one country-pack registry. It does not create
 
 Nigeria is the launch pack. Ghana, Kenya, and South Africa are configured as candidates so engineering and data work can be tested without exposing a route or indexable page. Candidate configuration is not activation.
 
-The source of truth for application behavior is `config/country-packs.json`. The database source of truth for measured activation evidence is `app.market_countries` plus the readiness tables introduced by `20260714050000_country_pack_architecture.sql`.
+The source of truth for application behavior is `config/country-packs.json`. The database source of truth for measured activation evidence is `app.market_countries` plus the readiness tables introduced by `20260714030735_country_pack_architecture.sql`.
 
 | Pack         | Route strategy             | Locale  | Currency | Time zone           | Public | Indexable                        |
 | ------------ | -------------------------- | ------- | -------- | ------------------- | ------ | -------------------------------- |
