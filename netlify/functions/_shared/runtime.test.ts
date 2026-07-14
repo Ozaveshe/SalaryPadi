@@ -103,6 +103,46 @@ describe("scheduled worker runtime", () => {
     );
   });
 
+  it("scopes scheduled-run idempotency to the immutable deploy", async () => {
+    const startCalls: Record<string, unknown>[] = [];
+    const fakeRpc = async <T>(
+      functionName: string,
+      parameters: Record<string, unknown> = {},
+    ): Promise<T> => {
+      if (functionName !== "worker_start") {
+        throw new Error(`unexpected RPC ${functionName}`);
+      }
+      startCalls.push(parameters);
+      return [
+        { run_id: "00000000-0000-4000-8000-000000000004", should_run: false },
+      ] as T;
+    };
+
+    await runTrackedWorker(
+      "test_worker",
+      scheduledRequest(),
+      { deploy: { id: "deploy-1" } } as Context,
+      async () => workerSucceeded({}),
+      { rpc: fakeRpc },
+    );
+    await runTrackedWorker(
+      "test_worker",
+      scheduledRequest(),
+      { deploy: { id: "deploy-2" } } as Context,
+      async () => workerSucceeded({}),
+      { rpc: fakeRpc },
+    );
+
+    expect(startCalls.map((call) => call.p_run_key)).toEqual([
+      "schedule:2026-07-10T12:00:00.000Z:deploy:deploy-1",
+      "schedule:2026-07-10T12:00:00.000Z:deploy:deploy-2",
+    ]);
+    expect(startCalls.map((call) => call.p_deploy_id)).toEqual([
+      "deploy-1",
+      "deploy-2",
+    ]);
+  });
+
   it("rejects a false terminal write instead of logging success", async () => {
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);

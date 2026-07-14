@@ -265,13 +265,17 @@ export async function runTrackedWorker(
   ]);
   const callRpc = runtimeOptions.rpc ?? rpc;
   const schedule = await readSchedule(request);
+  const deployId = context.deploy?.id?.trim();
+  const runKey = deployId
+    ? `${schedule.runKey}:deploy:${deployId}`
+    : schedule.runKey;
   const started = await callRpc<WorkerStart[]>(
     "worker_start",
     {
       p_task_key: taskKey,
-      p_run_key: schedule.runKey,
+      p_run_key: runKey,
       p_scheduled_for: schedule.scheduledFor,
-      p_deploy_id: context.deploy?.id ?? null,
+      p_deploy_id: deployId ?? null,
     },
     { signal: workerSignal },
   );

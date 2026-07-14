@@ -131,6 +131,8 @@ node scripts/verify-production-freshness.mjs --expect-deploy-freshness 2026-07-1
 
 Post-deploy mode requires every registered worker's `last_started_at` from `/api/health` to be strictly newer than the supplied deploy timestamp. It also retains the normal freshness and public-route checks. Use `--json` for a single machine-readable result; the default output prints one summary line per check. A configured schedule or a merely recent pre-deploy run is not post-deploy execution proof.
 
+Worker run idempotency is scoped to both the scheduled timestamp and Netlify's immutable deploy ID. Repeated delivery within one deploy remains a duplicate, while `Run now` on a newly published deploy creates fresh execution evidence even when Netlify reports the same next scheduled timestamp.
+
 ## Staging verification
 
 Use a dedicated staging backend and non-sensitive test accounts.
