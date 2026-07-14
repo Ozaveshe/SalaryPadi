@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-14T00:00:00.000Z",
+  "generatedAt": "2026-07-14T19:40:00.000Z",
   "reviewIntervalDays": 31,
   "sources": [
     {
@@ -264,6 +264,51 @@
         "clickable_source_attribution",
         "six_hour_polling_limit",
         "no_external_redistribution"
+      ],
+      "missingDependencies": []
+    },
+    {
+      "adapterKey": "himalayas",
+      "name": "Himalayas public jobs API",
+      "authority": "secondary_feed",
+      "state": "enabled",
+      "permissionBasis": "documented_public_api_for_job_board_backfill",
+      "evidenceReference": "https://himalayas.app/api",
+      "termsUrl": "https://himalayas.app/api",
+      "reviewedAt": "2026-07-14T19:40:00.000Z",
+      "reviewDueAt": "2026-08-14T19:40:00.000Z",
+      "allowedFields": [
+        "guid",
+        "applicationLink",
+        "title",
+        "excerpt",
+        "companyName",
+        "companySlug",
+        "employmentType",
+        "minSalary",
+        "maxSalary",
+        "salaryPeriod",
+        "seniority",
+        "currency",
+        "locationRestrictions",
+        "timezoneRestrictions",
+        "categories",
+        "parentCategories",
+        "pubDate",
+        "expiryDate"
+      ],
+      "fullDescriptionPermission": false,
+      "attribution": "Source: Himalayas; preserve a clickable Himalayas job URL",
+      "minimumPollingSeconds": 86400,
+      "maximumRequestsPerDay": 3,
+      "rawRetentionDays": 1,
+      "publicDisplayPermission": true,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": [
+        "clickable_source_attribution",
+        "daily_polling_limit",
+        "no_third_party_redistribution"
       ],
       "missingDependencies": []
     }

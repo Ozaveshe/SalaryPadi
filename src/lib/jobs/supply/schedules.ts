@@ -31,6 +31,11 @@ export const JOB_SUPPLY_SCHEDULES = {
     intervalMinutes: 360,
     jitterMinutes: 0,
   },
+  himalayas: {
+    cron: "47 2 * * *",
+    intervalMinutes: 1_440,
+    jitterMinutes: 0,
+  },
   deadline_and_alerts: {
     cron: "*/15 * * * *",
     intervalMinutes: 15,

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   fetchRemotiveJobs: vi.fn(),
   fetchJobicyJobs: vi.fn(),
+  fetchHimalayasJobs: vi.fn(),
   decodeDatabaseJobRow: vi.fn(),
   openSupplyAdapter: vi.fn(),
 }));
@@ -33,6 +34,10 @@ vi.mock("./jobicy-adapter", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./jobicy-adapter")>();
   return { ...actual, fetchJobicyJobs: mocks.fetchJobicyJobs };
 });
+vi.mock("./himalayas-adapter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./himalayas-adapter")>();
+  return { ...actual, fetchHimalayasJobs: mocks.fetchHimalayasJobs };
+});
 vi.mock("./database", () => ({
   decodeDatabaseJobRow: mocks.decodeDatabaseJobRow,
 }));
@@ -43,6 +48,7 @@ vi.mock("./supply/adapters", async (importOriginal) => {
 
 import {
   getDatabaseJobBySlugResult,
+  getHimalayasJobFeed,
   getJobicyJobFeed,
   getJobBySlug,
   getLiveJobFeed,
@@ -70,6 +76,7 @@ const checkedAt = "2026-07-10T13:05:00.000Z";
 type ClientOptions = {
   policy?: Record<string, unknown> | null;
   jobicyPolicy?: Record<string, unknown> | null;
+  himalayasPolicy?: Record<string, unknown> | null;
   policyError?: boolean;
   policyThrows?: boolean;
 };
@@ -110,6 +117,20 @@ function client({
     required_destination_kind: "source_url",
     refresh_interval_seconds: 21_600,
   },
+  himalayasPolicy = {
+    adapter_key: "himalayas",
+    source_type: "permitted_api",
+    terms_url: "https://himalayas.app/api",
+    terms_reviewed_at: "2026-07-15T00:00:00+00:00",
+    terms_version: "himalayas-public-api-reviewed-2026-07-15",
+    attribution_required: true,
+    may_store_full_description: false,
+    may_index_jobs: false,
+    may_emit_jobposting_schema: false,
+    allow_public_listing: true,
+    required_destination_kind: "source_url",
+    refresh_interval_seconds: 86_400,
+  },
 }: ClientOptions = {}) {
   return {
     schema: () => ({
@@ -123,7 +144,12 @@ function client({
                     if (policyThrows)
                       throw new Error("policy transport failed");
                     return {
-                      data: adapterKey === "jobicy" ? jobicyPolicy : policy,
+                      data:
+                        adapterKey === "jobicy"
+                          ? jobicyPolicy
+                          : adapterKey === "himalayas"
+                            ? himalayasPolicy
+                            : policy,
                       error: policyError ? new Error("policy failed") : null,
                     };
                   },
@@ -174,6 +200,7 @@ beforeEach(() => {
   );
   mocks.fetchRemotiveJobs.mockReset();
   mocks.fetchJobicyJobs.mockReset();
+  mocks.fetchHimalayasJobs.mockReset();
   mocks.openSupplyAdapter.mockReset();
   mocks.openSupplyAdapter.mockReturnValue({
     policy: { adapterKey: "remotive" },
@@ -191,6 +218,12 @@ beforeEach(() => {
     checkedAt,
   });
   mocks.fetchJobicyJobs.mockResolvedValue({ jobs: [], checkedAt });
+  mocks.fetchHimalayasJobs.mockResolvedValue({
+    jobs: [],
+    checkedAt,
+    partial: false,
+    successfulRequestCount: 3,
+  });
 });
 
 afterEach(() => {
@@ -199,6 +232,44 @@ afterEach(() => {
 });
 
 describe("job feed source orchestration", () => {
+  it("checks the live Himalayas policy and applies the daily cache contract", async () => {
+    const result = await getHimalayasJobFeed(client() as never);
+
+    expect(result).toMatchObject({
+      key: "himalayas",
+      state: "live",
+      jobs: [],
+    });
+    expect(mocks.fetchHimalayasJobs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestInit: {
+          next: {
+            revalidate: 86_400,
+            tags: ["salarypadi-job-source-himalayas"],
+          },
+        },
+      }),
+    );
+  });
+
+  it("surfaces a partial Himalayas page set without discarding valid jobs", async () => {
+    mocks.fetchHimalayasJobs.mockResolvedValueOnce({
+      jobs: [remotiveJob()],
+      checkedAt,
+      partial: true,
+      successfulRequestCount: 2,
+    });
+
+    const result = await getHimalayasJobFeed(client() as never);
+
+    expect(result).toMatchObject({
+      key: "himalayas",
+      state: "degraded",
+      count: 1,
+      code: "himalayas_partial_snapshot",
+    });
+  });
+
   it("does not contact Jobicy when its application policy is disabled", async () => {
     const { AdapterPolicyError } = await import("./supply/policy");
     mocks.openSupplyAdapter.mockImplementationOnce(() => {

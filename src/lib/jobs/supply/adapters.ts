@@ -46,6 +46,19 @@ export const SUPPLY_ADAPTERS = {
     endpoint: "https://jobicy.com/api/v2/remote-jobs",
     requiredFields: ["id", "url", "jobTitle", "companyName"] as const,
   },
+  himalayas: {
+    kind: "secondary_feed",
+    endpoint: "https://himalayas.app/jobs/api/search",
+    requiredFields: [
+      "guid",
+      "applicationLink",
+      "title",
+      "companyName",
+      "locationRestrictions",
+      "pubDate",
+      "expiryDate",
+    ] as const,
+  },
   salarypadi_employer_submissions: {
     kind: "direct_employer",
     endpoint: null,

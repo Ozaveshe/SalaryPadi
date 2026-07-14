@@ -90,8 +90,24 @@ describe("job source policy registry", () => {
     });
   });
 
+  it("opens Himalayas only with daily polling and no syndication rights", () => {
+    expect(
+      openSupplyAdapter("himalayas", new Date("2026-07-15T12:00:00.000Z"))
+        .policy,
+    ).toMatchObject({
+      state: "enabled",
+      authority: "secondary_feed",
+      publicDisplayPermission: true,
+      searchIndexPermission: false,
+      googleJobPostingPermission: false,
+      minimumPollingSeconds: 86_400,
+      maximumRequestsPerDay: 3,
+      missingDependencies: [],
+    });
+  });
+
   it("keeps secondary feeds out of search and Google Jobs", () => {
-    for (const key of ["remotive", "jobicy"] as const) {
+    for (const key of ["remotive", "jobicy", "himalayas"] as const) {
       const policy = jobSourcePolicyRegistry.sources.find(
         (candidate) => candidate.adapterKey === key,
       );
@@ -166,6 +182,7 @@ describe("supply schedules and retry bounds", () => {
       reliefweb_incremental: { intervalMinutes: 120 },
       remotive: { intervalMinutes: 360 },
       jobicy: { intervalMinutes: 360 },
+      himalayas: { intervalMinutes: 1_440 },
       deadline_and_alerts: { intervalMinutes: 15 },
       apply_link_full: { intervalMinutes: 1_440 },
       fuzzy_review: { intervalMinutes: 1_440 },

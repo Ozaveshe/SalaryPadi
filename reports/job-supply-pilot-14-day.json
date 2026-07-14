@@ -157,7 +157,25 @@
     },
     {
       "adapter_key": "jobicy",
-      "policy_state": "disabled",
+      "policy_state": "enabled_read_through",
+      "run_time": null,
+      "status": "not_run",
+      "duration_seconds": null,
+      "fetched": null,
+      "accepted": null,
+      "new_canonical_jobs": null,
+      "updated": null,
+      "duplicates": null,
+      "rejected": null,
+      "closed": null,
+      "nigeria_local": null,
+      "explicit_nigeria_africa_eligible": null,
+      "unclear_eligibility": null,
+      "errors": null
+    },
+    {
+      "adapter_key": "himalayas",
+      "policy_state": "enabled_read_through",
       "run_time": null,
       "status": "not_run",
       "duration_seconds": null,
@@ -336,7 +354,7 @@
     "visible_jobs_without_provenance": 0,
     "closures_from_non_complete_runs": 0,
     "automatic_fuzzy_merges": 0,
-    "remotive_or_jobicy_google_submission": 0
+    "remotive_jobicy_or_himalayas_google_submission": 0
   },
   "external_dependencies": [
     "Run the repository migration and pgTAP suites in an isolated database before any production migration apply; no local Supabase CLI or Docker runtime was available during launch review",
@@ -344,7 +362,7 @@
     "Written employer permission and exact board allowlists for each Greenhouse, Lever or Ashby tenant",
     "Pre-approved ReliefWeb app name and information-partner field-rights review",
     "Written Remotive republication confirmation resolving the API/general-terms conflict",
-    "Jobicy storage/retention and search-index review"
+    "Himalayas and Jobicy remain read-through sources; durable canonical capacity still requires a licensed partner or employer-authorized ATS boards"
   ],
   "conclusion": "The system is ready for a controlled pilot after explicit approval and external rights resolution. The 500/day outcome is not yet demonstrated and authorized external capacity is currently zero."
 }

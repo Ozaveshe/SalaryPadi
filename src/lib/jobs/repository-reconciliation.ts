@@ -72,7 +72,9 @@ export function combineJobSources(
           // Reviewed secondary feeds use the same Africa-access publication
           // rule. It must not suppress moderated first-party employer
           // jobs, including legitimate onsite and hybrid roles in Nigeria.
-          ((source.key !== "remotive" && source.key !== "jobicy") ||
+          ((source.key !== "remotive" &&
+            source.key !== "jobicy" &&
+            source.key !== "himalayas") ||
             evaluateRemotePublication({
               arrangement: job.workMode,
               evidenceText: job.eligibility.evidenceText,

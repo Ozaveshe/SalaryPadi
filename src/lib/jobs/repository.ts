@@ -8,6 +8,7 @@ import { externalHttpsUrlSchema } from "@/lib/security/url-schema";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { buildJobFingerprintLookupKeys } from "./fingerprint";
+import { fetchHimalayasJobs, HimalayasAdapterError } from "./himalayas-adapter";
 import { fetchJobicyJobs, JobicyAdapterError } from "./jobicy-adapter";
 import {
   fetchRemotiveJobs,
@@ -23,6 +24,11 @@ import {
 } from "./repository-database";
 import { combineJobSources } from "./repository-reconciliation";
 import {
+  HIMALAYAS_ADAPTER_KEY,
+  HIMALAYAS_CACHE_TAG,
+  HIMALAYAS_REQUIRED_DESTINATION_KIND,
+  HIMALAYAS_SOURCE_POLICY,
+  HIMALAYAS_TERMS_VERSION,
   JOBICY_ADAPTER_KEY,
   JOBICY_CACHE_TAG,
   JOBICY_REQUIRED_DESTINATION_KIND,
@@ -128,6 +134,18 @@ function readJobicyPolicy(supabase: ServerSupabaseClient) {
       "adapter_key,source_type,terms_url,terms_reviewed_at,terms_version,attribution_required,may_store_full_description,may_index_jobs,may_emit_jobposting_schema,allow_public_listing,required_destination_kind,refresh_interval_seconds",
     )
     .eq("adapter_key", JOBICY_ADAPTER_KEY)
+    .abortSignal(AbortSignal.timeout(4_000))
+    .maybeSingle();
+}
+
+function readHimalayasPolicy(supabase: ServerSupabaseClient) {
+  return supabase
+    .schema("api")
+    .from("job_sources")
+    .select(
+      "adapter_key,source_type,terms_url,terms_reviewed_at,terms_version,attribution_required,may_store_full_description,may_index_jobs,may_emit_jobposting_schema,allow_public_listing,required_destination_kind,refresh_interval_seconds",
+    )
+    .eq("adapter_key", HIMALAYAS_ADAPTER_KEY)
     .abortSignal(AbortSignal.timeout(4_000))
     .maybeSingle();
 }
@@ -469,13 +487,183 @@ export async function getJobicyJobFeed(
   }
 }
 
+/**
+ * Himalayas is authorized by the reviewed repository and live operator
+ * policies. It is intentionally read-through only: records are attributed to
+ * Himalayas and excluded from search indexing and downstream syndication.
+ */
+export async function getHimalayasJobFeed(
+  suppliedClient?: ServerSupabaseClient | null,
+): Promise<SourceFeed> {
+  const attemptedAt = new Date().toISOString();
+  try {
+    openSupplyAdapter("himalayas", new Date(attemptedAt));
+  } catch (reason) {
+    const code =
+      reason instanceof AdapterPolicyError
+        ? `himalayas_${reason.code}`
+        : "himalayas_policy_invalid";
+    return {
+      key: "himalayas",
+      jobs: [],
+      state: "disabled",
+      checkedAt: attemptedAt,
+      count: 0,
+      code,
+      message:
+        "The reviewed Himalayas source is disabled by the application source-policy registry.",
+    };
+  }
+
+  let supabase: ServerSupabaseClient | null;
+  try {
+    supabase = await resolveClient(suppliedClient);
+  } catch (reason) {
+    unstable_rethrow(reason);
+    return sourceRegistryUnavailable(
+      "himalayas",
+      attemptedAt,
+      "source_registry_client_failed",
+    );
+  }
+  if (!supabase) {
+    return sourceUnavailable(
+      "himalayas",
+      attemptedAt,
+      "source_registry_unconfigured",
+      "The job source registry is not configured.",
+    );
+  }
+
+  let policy: Awaited<ReturnType<typeof readHimalayasPolicy>>;
+  try {
+    policy = await readHimalayasPolicy(supabase);
+  } catch (reason) {
+    unstable_rethrow(reason);
+    return sourceRegistryUnavailable(
+      "himalayas",
+      attemptedAt,
+      "source_registry_query_failed",
+    );
+  }
+  if (policy.error) {
+    return sourceRegistryUnavailable(
+      "himalayas",
+      attemptedAt,
+      "source_registry_query_failed",
+    );
+  }
+  if (!policy.data) {
+    return {
+      key: "himalayas",
+      jobs: [],
+      state: "disabled",
+      checkedAt: attemptedAt,
+      count: 0,
+      code: "himalayas_policy_disabled",
+      message: "The reviewed Himalayas source is paused or disabled.",
+    };
+  }
+
+  const parsedPolicy = reviewedPolicyRowSchema.safeParse(policy.data);
+  if (!parsedPolicy.success) {
+    return sourceUnavailable(
+      "himalayas",
+      attemptedAt,
+      "himalayas_policy_invalid",
+      "The live source policy is malformed and cannot authorize acquisition.",
+    );
+  }
+  const policyRow = parsedPolicy.data;
+  if (
+    policyRow.adapter_key !== HIMALAYAS_ADAPTER_KEY ||
+    policyRow.source_type !== HIMALAYAS_SOURCE_POLICY.type ||
+    policyRow.terms_url !== HIMALAYAS_SOURCE_POLICY.termsUrl ||
+    policyRow.terms_version !== HIMALAYAS_TERMS_VERSION ||
+    !policyRow.attribution_required ||
+    policyRow.may_store_full_description !==
+      HIMALAYAS_SOURCE_POLICY.canStoreFullDescription ||
+    policyRow.may_index_jobs !== HIMALAYAS_SOURCE_POLICY.canIndex ||
+    policyRow.may_emit_jobposting_schema !==
+      HIMALAYAS_SOURCE_POLICY.canUseJobPostingStructuredData ||
+    !policyRow.allow_public_listing ||
+    policyRow.required_destination_kind !==
+      HIMALAYAS_REQUIRED_DESTINATION_KIND ||
+    policyRow.refresh_interval_seconds !==
+      HIMALAYAS_SOURCE_POLICY.refreshIntervalSeconds
+  ) {
+    return sourceUnavailable(
+      "himalayas",
+      attemptedAt,
+      "himalayas_policy_mismatch",
+      "The live source policy does not match the reviewed application policy.",
+    );
+  }
+
+  try {
+    const result = await fetchHimalayasJobs({
+      requestedAt: new Date(attemptedAt),
+      signal: AbortSignal.timeout(12_000),
+      requestInit: {
+        next: {
+          revalidate: HIMALAYAS_SOURCE_POLICY.refreshIntervalSeconds,
+          tags: [HIMALAYAS_CACHE_TAG],
+        },
+      },
+    });
+    const checkedAt = Date.parse(result.checkedAt);
+    const ageMs = Date.now() - checkedAt;
+    if (!Number.isFinite(checkedAt) || ageMs > SOURCE_MAX_AGE_MS) {
+      return sourceUnavailable(
+        "himalayas",
+        attemptedAt,
+        "himalayas_snapshot_stale",
+        "The reviewed Himalayas snapshot is too old to publish.",
+      );
+    }
+    if (ageMs < -SOURCE_MAX_FUTURE_SKEW_MS) {
+      return sourceUnavailable(
+        "himalayas",
+        attemptedAt,
+        "himalayas_snapshot_future",
+        "The reviewed Himalayas source returned invalid freshness evidence.",
+      );
+    }
+    return {
+      key: "himalayas",
+      jobs: result.jobs,
+      state: result.partial ? "degraded" : "live",
+      checkedAt: result.checkedAt,
+      count: result.jobs.length,
+      ...(result.partial
+        ? {
+            code: "himalayas_partial_snapshot",
+            message: `Himalayas returned ${result.successfulRequestCount} of the 3 reviewed result pages. Available jobs are shown as partial.`,
+          }
+        : {}),
+    };
+  } catch (reason) {
+    const code =
+      reason instanceof HimalayasAdapterError
+        ? reason.code
+        : "himalayas_adapter_failed";
+    return sourceUnavailable(
+      "himalayas",
+      attemptedAt,
+      code,
+      "The reviewed Himalayas source could not be safely refreshed. Try again later.",
+    );
+  }
+}
+
 export async function getLiveJobFeed(): Promise<JobFeedResult> {
-  const [jobicy, remotive, database] = await Promise.all([
+  const [himalayas, jobicy, remotive, database] = await Promise.all([
+    getHimalayasJobFeed(),
     getJobicyJobFeed(),
     getRemotiveJobFeed(),
     getDatabaseJobFeed(),
   ]);
-  return combineJobSources([jobicy, remotive, database]);
+  return combineJobSources([himalayas, jobicy, remotive, database]);
 }
 
 export async function getJobBySlug(
@@ -487,11 +675,12 @@ export async function getJobBySlug(
     return { feed, job: feed.jobs[0] ?? null };
   }
 
-  const [jobicy, remotive] = await Promise.all([
+  const [himalayas, jobicy, remotive] = await Promise.all([
+    getHimalayasJobFeed(),
     getJobicyJobFeed(),
     getRemotiveJobFeed(),
   ]);
-  const candidate = [...jobicy.jobs, ...remotive.jobs].find(
+  const candidate = [...himalayas.jobs, ...jobicy.jobs, ...remotive.jobs].find(
     (job) => job.slug === slugOrId || job.id === slugOrId,
   );
   let databaseSource = databaseDetailSource(databaseResult);
@@ -507,7 +696,7 @@ export async function getJobBySlug(
       await getDatabaseJobsByFingerprintResult(fingerprintKeys),
     );
   }
-  const feed = combineJobSources([jobicy, remotive, databaseSource]);
+  const feed = combineJobSources([himalayas, jobicy, remotive, databaseSource]);
   return {
     feed,
     job:

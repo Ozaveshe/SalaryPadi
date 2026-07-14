@@ -3,9 +3,14 @@ import sanitizeHtml from "sanitize-html";
 
 import { classifyEligibility } from "./eligibility";
 import { buildJobFingerprint } from "./fingerprint";
+import { himalayasJobSchema, type HimalayasJob } from "./himalayas-schema";
 import { jobicyJobSchema, type JobicyJob } from "./jobicy-schema";
 import { remotiveJobSchema, type RemotiveJob } from "./remotive-schema";
-import { JOBICY_SOURCE_POLICY, REMOTIVE_SOURCE_POLICY } from "./source-policy";
+import {
+  HIMALAYAS_SOURCE_POLICY,
+  JOBICY_SOURCE_POLICY,
+  REMOTIVE_SOURCE_POLICY,
+} from "./source-policy";
 import { extractCompleteEligibilityEvidence } from "./supply/eligibility-evidence";
 import type {
   EmploymentArrangement,
@@ -467,6 +472,131 @@ export function normalizeJobicyJob(
         label: "Employer not verified by SalaryPadi",
         explanation:
           "This listing comes from Jobicy's documented public feed. Verify the vacancy on the employer's own website before sharing information.",
+        severity: "caution",
+      },
+    ],
+    fingerprint,
+  };
+}
+
+function himalayasSalary(source: HimalayasJob): SalaryRange | null {
+  const minimum = source.minSalary ?? source.maxSalary;
+  const maximum = source.maxSalary ?? source.minSalary;
+  if (
+    minimum == null ||
+    maximum == null ||
+    !source.currency ||
+    !(source.currency in SALARY_PLAUSIBILITY_BOUNDS)
+  ) {
+    return null;
+  }
+  const period = source.salaryPeriod.toLowerCase();
+  const periodText = period.includes("hour")
+    ? "hour"
+    : period.includes("day")
+      ? "day"
+      : period.includes("week")
+        ? "week"
+        : period.includes("month")
+          ? "month"
+          : period.includes("year") || period.includes("annual")
+            ? "year"
+            : "";
+  return parseSalary(
+    `${source.currency} ${minimum} - ${maximum}${periodText ? ` per ${periodText}` : ""}`,
+  );
+}
+
+export function normalizeHimalayasJob(
+  input: HimalayasJob,
+  checkedAt = new Date().toISOString(),
+): Job {
+  const source = himalayasJobSchema.parse(input);
+  const sourceUrl = new URL(source.applicationLink);
+  const guidUrl = new URL(source.guid);
+  for (const url of [sourceUrl, guidUrl]) {
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      (url.port && url.port !== "443") ||
+      (url.hostname !== "himalayas.app" &&
+        !url.hostname.endsWith(".himalayas.app"))
+    ) {
+      throw new Error(
+        "Himalayas returned a destination outside its allowed HTTPS host.",
+      );
+    }
+  }
+
+  const employmentType = parseEmploymentType(source.employmentType);
+  const arrangement = inferArrangement(employmentType);
+  const eligibilityEvidence =
+    source.locationRestrictions.length === 0
+      ? "Worldwide"
+      : source.locationRestrictions.join(", ");
+  const locationDisplay =
+    source.locationRestrictions.length === 0
+      ? "Worldwide"
+      : source.locationRestrictions.length <= 6
+        ? eligibilityEvidence
+        : `${source.locationRestrictions.slice(0, 6).join(", ")} +${source.locationRestrictions.length - 6} countries`;
+  const eligibility = classifyEligibility(eligibilityEvidence, checkedAt);
+  eligibility.requiredTimezone =
+    source.timezoneRestrictions.length > 0
+      ? source.timezoneRestrictions.map(String).join(", ")
+      : null;
+  const companySlug = slugify(source.companyName);
+  const titleSlug = slugify(source.title);
+  const externalKey = slugify(
+    `${source.companySlug}-${guidUrl.pathname.split("/").filter(Boolean).at(-1) ?? titleSlug}`,
+  );
+  const description = htmlToPlainText(source.excerpt).slice(0, 600);
+  const fingerprint = buildJobFingerprint({
+    title: source.title,
+    company: source.companyName,
+    location: eligibilityEvidence,
+    arrangement,
+    destination: sourceUrl.toString(),
+  });
+
+  return {
+    id: `himalayas-${externalKey}`,
+    databaseId: null,
+    slug: `${titleSlug}-at-${companySlug}-${externalKey.slice(-24)}`,
+    externalId: source.guid,
+    source: HIMALAYAS_SOURCE_POLICY,
+    sourceUrl: sourceUrl.toString(),
+    applicationUrl: sourceUrl.toString(),
+    title: source.title,
+    company: {
+      name: source.companyName,
+      slug: companySlug,
+      verification: "source_listed",
+    },
+    locationDisplay,
+    workMode: "remote",
+    employmentType,
+    arrangement,
+    experienceLevel: inferExperienceLevel(source.title, source.seniority),
+    category: source.parentCategories[0] ?? source.categories[0] ?? null,
+    skills: [...new Set(source.categories)].slice(0, 20),
+    salary: himalayasSalary(source),
+    eligibility,
+    description:
+      description || "Open the attributed source listing for full details.",
+    requirements: null,
+    benefits: null,
+    postedAt: new Date(source.pubDate * 1_000).toISOString(),
+    lastCheckedAt: checkedAt,
+    validThrough: new Date(source.expiryDate * 1_000).toISOString(),
+    status: "open",
+    riskIndicators: [
+      {
+        code: "source-not-employer-verified",
+        label: "Employer not verified by SalaryPadi",
+        explanation:
+          "This listing comes from Himalayas' documented public feed. Verify the vacancy on the employer's own website before sharing information.",
         severity: "caution",
       },
     ],

@@ -54,3 +54,31 @@ export const JOBICY_REQUIRED_DESTINATION_KIND = "source_url" as const;
 export const JOBICY_CACHE_TAG = "salarypadi-job-source-jobicy" as const;
 export const JOBICY_TERMS_VERSION =
   "jobicy-public-feed-reviewed-2026-07-14" as const;
+
+/**
+ * Himalayas explicitly permits its public API to backfill other job boards.
+ * SalaryPadi retains only bounded metadata and excerpts, visibly links back to
+ * Himalayas, refreshes daily, and excludes these jobs from search engines,
+ * Google JobPosting markup, email distribution, and downstream syndication.
+ */
+export const HIMALAYAS_SOURCE_POLICY: JobSourcePolicy = {
+  id: "himalayas-public-api",
+  name: "Himalayas",
+  type: "permitted_api",
+  termsUrl: "https://himalayas.app/api",
+  termsReviewedAt: "2026-07-15",
+  attributionRequired:
+    'Show "Source: Himalayas" and link to the returned Himalayas URL.',
+  canStoreFullDescription: false,
+  canIndex: false,
+  canUseJobPostingStructuredData: false,
+  canEmail: false,
+  destinationRequirement: "Use the Himalayas URL returned by the API.",
+  refreshIntervalSeconds: 86_400,
+};
+
+export const HIMALAYAS_ADAPTER_KEY = "himalayas" as const;
+export const HIMALAYAS_REQUIRED_DESTINATION_KIND = "source_url" as const;
+export const HIMALAYAS_CACHE_TAG = "salarypadi-job-source-himalayas" as const;
+export const HIMALAYAS_TERMS_VERSION =
+  "himalayas-public-api-reviewed-2026-07-15" as const;
