@@ -138,8 +138,8 @@ select is(
   'get_my_job_alerts returns only the owner alert'
 );
 select ok(
-  api.report_content('job', 'remotive-123', 'eligibility') is not null,
-  'report_content accepts a normalized external job id without exposing reporter identity'
+  api.report_content('job', 'example-engineer', 'eligibility') is not null,
+  'report_content accepts a current published job slug without exposing reporter identity'
 );
 select ok(
   api.submit_contribution('salary', jsonb_build_object(

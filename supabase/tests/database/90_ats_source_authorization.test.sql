@@ -595,7 +595,8 @@ insert into app.job_sources (
   'ac000000-0000-4000-8000-000000000020',
   'test_expired_ats', 'Expired Authorization ATS', 'employer_ats',
   'draft', 'https://expired.example.test/terms',
-  true, true, interval '12 hours', now() - interval '3 days',
+  true, 'Source: Expired Test Employer', true,
+  interval '12 hours', now() - interval '3 days',
   'expired-terms-v1'
 );
 insert into private.ats_source_configs (
@@ -631,7 +632,7 @@ insert into app.companies (
 );
 insert into app.job_sources (
   id, adapter_key, name, source_type, status, terms_url,
-  attribution_required, allow_public_listing, refresh_interval,
+  attribution_required, attribution_text, allow_public_listing, refresh_interval,
   terms_reviewed_at, terms_version
 ) values (
   'ac000000-0000-4000-8000-000000000031',
