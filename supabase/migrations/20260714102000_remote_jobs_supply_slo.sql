@@ -38,6 +38,23 @@ as $$
         or eligibility.work_authorization_requirement ~* (
           'country (where|in which) you (live|reside)|your country of residence'
         )
+        or exists (
+          select 1
+          from app.job_eligibility_countries authorization_country
+          join app.market_countries market
+            on market.iso2 = authorization_country.country_code
+          where authorization_country.job_id = job.id
+            and authorization_country.rule = 'include'
+            and security.is_african_country_code(authorization_country.country_code)
+            and (
+              eligibility.work_authorization_requirement ~* (
+                '(^|[^[:alnum:]])' || market.iso2 || '([^[:alnum:]]|$)'
+              )
+              or eligibility.work_authorization_requirement ~* (
+                '(^|[^[:alnum:]])' || market.name || '([^[:alnum:]]|$)'
+              )
+            )
+        )
       )
       and (
         eligibility.scope in ('worldwide', 'africa', 'emea', 'nigeria')
@@ -90,10 +107,31 @@ as $$
     'verification_basis', case when job.last_verified_at is null
       then 'source_occurrence_seen' else 'source_verified' end,
     'source_policy_review_due_at', source.policy_review_due_at,
-    'public_display_permitted', source.allow_public_listing,
-    'search_index_permitted', source.may_index_jobs,
-    'google_jobposting_permitted', source.may_emit_jobposting_schema,
+    'public_display_permitted',
+      security.job_country_distribution_allowed(job.id, 'public'),
+    'search_index_permitted',
+      source.may_index_jobs
+      and security.job_country_distribution_allowed(job.id, 'index'),
+    'google_jobposting_permitted',
+      source.may_emit_jobposting_schema
+      and security.job_country_distribution_allowed(job.id, 'jobposting'),
     'remote_africa_eligible', true,
+    'country_rights', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'country_code', rights.country_code,
+        'review_due_at', rights.review_due_at,
+        'public_display', rights.allow_public_display,
+        'search_index', rights.allow_search_index,
+        'google_jobposting', rights.allow_google_jobposting
+      ) order by rights.country_code)
+      from app.source_country_rights rights
+      join app.market_countries country on country.iso2 = rights.country_code
+      where rights.source_id = job.source_id
+        and country.public_routes_enabled
+        and security.job_source_country_policy_is_runnable(
+          rights.source_id, rights.country_code
+        )
+    ), '[]'::jsonb),
     'occurrence_count', (
       select count(*)
       from ingest.job_occurrence_links link
@@ -117,6 +155,7 @@ as $$
     and (job.valid_through is null or job.valid_through > statement_timestamp())
     and security.is_public_job_source(job.source_id)
     and security.job_is_public_remote_eligible(job.id)
+    and security.job_country_distribution_allowed(job.id, 'public')
     and exists (
       select 1 from ingest.job_occurrence_links link
       where link.canonical_job_id = job.id
@@ -133,6 +172,7 @@ for select to anon, authenticated using (
   and (valid_through is null or valid_through > clock_timestamp())
   and (select security.is_public_job_source(source_id))
   and (select security.job_is_public_remote_eligible(id))
+  and (select security.job_country_distribution_allowed(id, 'public'))
   and (select security.public_job_provenance(id)) is not null
 );
 
