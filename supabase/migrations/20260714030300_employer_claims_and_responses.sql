@@ -333,7 +333,7 @@ begin
       when 'revoke' then 'remove'::private.moderation_action_kind
       else p_action::private.moderation_action_kind
     end,
-    p_action, p_reason, v_claim.status, v_new, array['status']
+    p_action, p_reason, null, null, array['status']
   );
   perform audit.write_event(
     'staff', 'company_claim.' || p_action, 'company_claim', p_claim_id, p_action,
@@ -442,7 +442,7 @@ begin
     previous_state, new_state, changed_fields, before_hash, after_hash
   ) values (
     p_case_id, (select auth.uid()), v_role, p_action::private.moderation_action_kind,
-    p_action, p_reason, v_response.state, v_new,
+    p_action, p_reason, null, null,
     case when p_action = 'redact' then array['statement'] else '{}'::text[] end,
     encode(extensions.digest(v_response.statement, 'sha256'), 'hex'),
     encode(extensions.digest(v_statement, 'sha256'), 'hex')
