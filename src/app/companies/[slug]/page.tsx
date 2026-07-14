@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -17,10 +18,12 @@ import {
   getCompanyRatingResult,
   getCompanyResult,
   getCompanyReviewsResult,
+  getEmployerResponsesResult,
   getInterviewExperiencesResult,
 } from "@/lib/companies/repository";
+import { countryAlternates } from "@/lib/country-packs/routing";
 import { getAppOrigin } from "@/lib/env";
-import { formatEnum } from "@/lib/format";
+import { formatDate, formatEnum } from "@/lib/format";
 import { searchSalaryAggregatesResult } from "@/lib/salaries/repository";
 import { canIndexCompanyDetail } from "@/lib/seo/indexability";
 import { buildSocialImageMetadata } from "@/lib/seo/open-graph";
@@ -34,6 +37,7 @@ const getCompanyPageData = cache(async (slug: string) => {
     reviewsResult,
     interviewsResult,
     benefitsResult,
+    employerResponsesResult,
     salaryAggregatesResult,
   ] = await Promise.all([
     getCompanyResult(slug),
@@ -42,6 +46,7 @@ const getCompanyPageData = cache(async (slug: string) => {
     getCompanyReviewsResult(slug),
     getInterviewExperiencesResult(slug),
     getCompanyBenefitsResult(slug),
+    getEmployerResponsesResult(slug),
     searchSalaryAggregatesResult({ company: slug }),
   ]);
   return {
@@ -51,6 +56,7 @@ const getCompanyPageData = cache(async (slug: string) => {
     reviewsResult,
     interviewsResult,
     benefitsResult,
+    employerResponsesResult,
     salaryAggregatesResult,
   };
 });
@@ -65,7 +71,8 @@ function hasPublishedCommunityEvidence(
     data.salaryAggregatesResult.data.length > 0 ||
     data.benefitsResult.data.some(
       (benefit) => benefit.source_kind === "community_reported",
-    )
+    ) ||
+    data.employerResponsesResult.data.length > 0
   );
 }
 
@@ -90,11 +97,17 @@ export async function generateMetadata({
     ? {
         title: company.name,
         description,
-        alternates: { canonical: `/companies/${company.slug}` },
+        alternates: {
+          canonical: `/companies/${company.slug}`,
+          languages: countryAlternates(
+            getAppOrigin(),
+            `/companies/${company.slug}`,
+          ).languages,
+        },
         robots: {
           index: canIndexCompanyDetail(
             company,
-            hasPublishedCommunityEvidence(data),
+            hasPublishedCommunityEvidence(data) || company.citations.length > 0,
           ),
           follow: true,
         },
@@ -130,6 +143,7 @@ export default async function CompanyPage({
     reviewsResult,
     interviewsResult,
     benefitsResult,
+    employerResponsesResult,
     salaryAggregatesResult,
   } = await getCompanyPageData(slug);
   const company = companyResult.data;
@@ -145,7 +159,16 @@ export default async function CompanyPage({
   const reviews = reviewsResult.data;
   const interviews = interviewsResult.data;
   const benefits = benefitsResult.data;
+  const employerResponses = employerResponsesResult.data;
   const salaryAggregates = salaryAggregatesResult.data;
+  const citedJobSources = [
+    ...new Map(
+      company.activeJobs.map((job) => [
+        job.sourceUrl,
+        { name: `${job.source.name}: ${job.title}`, url: job.sourceUrl },
+      ]),
+    ).values(),
+  ];
   const publishedCommunityEvidence = hasPublishedCommunityEvidence({
     companyResult,
     ratingResult,
@@ -153,6 +176,7 @@ export default async function CompanyPage({
     reviewsResult,
     interviewsResult,
     benefitsResult,
+    employerResponsesResult,
     salaryAggregatesResult,
   });
   const canonicalUrl = new URL(
@@ -176,6 +200,23 @@ export default async function CompanyPage({
         />
       ) : null}
       <CompanyHeading company={company} />
+      <div className="company-actions" aria-label="Employer actions">
+        <Link
+          className="button button-secondary"
+          href={`/companies/${company.slug}/claim`}
+        >
+          Claim this company
+        </Link>
+        <Link
+          className="button button-quiet"
+          href={`/companies/${company.slug}/respond`}
+        >
+          Submit an employer response
+        </Link>
+        <span className="source-note">
+          A request starts review; it does not create automatic verification.
+        </span>
+      </div>
       <section className="rule-section" aria-labelledby="company-facts-heading">
         <h2 className="section-title" id="company-facts-heading">
           What is currently known
@@ -187,6 +228,36 @@ export default async function CompanyPage({
               {company.databaseId
                 ? "Reviewed company record plus labelled source evidence"
                 : "Permitted job-source facts"}
+            </dd>
+          </div>
+          <div>
+            <dt>Legal entities</dt>
+            <dd>
+              {company.legalEntities.length > 0
+                ? company.legalEntities
+                    .map((entity) =>
+                      [entity.legal_name, entity.registration_country]
+                        .filter(Boolean)
+                        .join(" · "),
+                    )
+                    .join("; ")
+                : "No cited legal entity is stored"}
+            </dd>
+          </div>
+          <div>
+            <dt>Official domains</dt>
+            <dd>
+              {company.officialDomains.length > 0
+                ? company.officialDomains.map((item) => item.domain).join(", ")
+                : "No cited official domain is stored"}
+            </dd>
+          </div>
+          <div>
+            <dt>Known aliases</dt>
+            <dd>
+              {company.aliases.length > 0
+                ? company.aliases.map((item) => item.alias).join(", ")
+                : "No cited alias is stored"}
             </dd>
           </div>
           <div>
@@ -227,12 +298,66 @@ export default async function CompanyPage({
           </div>
           <div>
             <dt>Remote eligibility seen</dt>
-            <dd>{company.remoteLocations.join("; ")}</dd>
+            <dd>{company.remoteLocations.join("; ") || "Not stated"}</dd>
+          </div>
+          <div>
+            <dt>Last evidence check</dt>
+            <dd>{formatDate(company.lastCheckedAt)}</dd>
           </div>
         </dl>
         {company.description ? (
           <p className="text-muted mt-4 mb-0">{company.description}</p>
         ) : null}
+      </section>
+      <section
+        className="rule-section stack"
+        aria-labelledby="company-sources-heading"
+      >
+        <div>
+          <p className="eyebrow">Citations</p>
+          <h2 className="section-title" id="company-sources-heading">
+            Sources retained for this profile
+          </h2>
+        </div>
+        {company.citations.length > 0 || citedJobSources.length > 0 ? (
+          <ul className="source-list">
+            {company.citations.map((citation) => (
+              <li key={citation.id}>
+                <a
+                  href={citation.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                >
+                  {citation.source_title}
+                  <ExternalLink aria-hidden="true" size={14} />
+                </a>{" "}
+                <span className="source-note">
+                  {formatEnum(citation.source_kind)} · fact checked{" "}
+                  {formatDate(citation.fact_checked_at)} · review due{" "}
+                  {formatDate(citation.review_due_at)}
+                </span>
+              </li>
+            ))}
+            {citedJobSources.map((source) => (
+              <li key={source.url}>
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                >
+                  {source.name}
+                  <ExternalLink aria-hidden="true" size={14} />
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="notice">
+            No public citation URL is stored for this profile. Structured facts
+            remain visible as reviewed records, but they should not be treated
+            as independently confirmed official facts.
+          </div>
+        )}
       </section>
       <section
         className="rule-section stack"
@@ -274,6 +399,7 @@ export default async function CompanyPage({
             interviewsResult,
             benefitsResult,
             salaryAggregatesResult,
+            employerResponsesResult,
           ]}
         />
         {publishedCommunityEvidence ? (
@@ -308,6 +434,10 @@ export default async function CompanyPage({
                   : "Suppressed until the minimum sample is reached"}
               </dd>
             </div>
+            <div>
+              <dt>Employer responses</dt>
+              <dd>{employerResponses.length}</dd>
+            </div>
           </dl>
         ) : ratingResult.state === "ready" &&
           reviewsResult.state === "ready" &&
@@ -328,10 +458,46 @@ export default async function CompanyPage({
                 <li key={benefit.id}>
                   <strong>{benefit.label}</strong>
                   {benefit.description ? ` — ${benefit.description}` : ""}
-                  {` (${formatEnum(benefit.source_kind)})`}
+                  {` (${formatEnum(benefit.source_kind)}`}
+                  {benefit.country_code ? ` / ${benefit.country_code}` : ""}
+                  {benefit.sample_size ? ` / n=${benefit.sample_size}` : ""}
+                  {benefit.confidence_label
+                    ? ` / ${benefit.confidence_label} confidence`
+                    : ""}
+                  {benefit.source_month_from && benefit.source_month_to
+                    ? ` / ${benefit.source_month_from} to ${benefit.source_month_to}`
+                    : ""}
+                  {`)`}
                 </li>
               ))}
             </ul>
+          </div>
+        ) : null}
+        {employerResponses.length > 0 ? (
+          <div className="stack">
+            <h3 className="text-lg font-bold">Employer responses</h3>
+            {employerResponses.map((response) => (
+              <article className="surface surface-pad stack" key={response.id}>
+                <div className="split">
+                  <strong>{formatEnum(response.response_kind)}</strong>
+                  <span className="source-note">
+                    Published {formatDate(response.published_at)}
+                  </span>
+                </div>
+                <p className="m-0">{response.statement}</p>
+                {response.source_url ? (
+                  <a
+                    className="text-link w-fit"
+                    href={response.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                  >
+                    Employer citation
+                  </a>
+                ) : null}
+                <p className="source-note m-0">{response.provenance_label}</p>
+              </article>
+            ))}
           </div>
         ) : null}
         <div className="cluster">
@@ -341,11 +507,28 @@ export default async function CompanyPage({
           <Link className="button button-secondary" href="/contribute/review">
             Share workplace experience
           </Link>
+          <Link className="button button-secondary" href="/contribute/benefits">
+            Add benefits
+          </Link>
+          <Link
+            className="button button-secondary"
+            href="/contribute/pay-reliability"
+          >
+            Share pay reliability
+          </Link>
           <Link
             className="button button-secondary"
             href="/contribute/interview"
           >
             Share interview experience
+          </Link>
+        </div>
+        <div className="cluster">
+          <Link className="text-link" href="/company-intelligence/requests">
+            Report, correct, appeal or request takedown
+          </Link>
+          <Link className="text-link" href="/privacy/requests">
+            Request contribution deletion
           </Link>
         </div>
       </section>

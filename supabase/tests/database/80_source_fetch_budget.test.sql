@@ -31,6 +31,49 @@ select ok(
   'provider fetch claims force RLS'
 );
 
+-- This transaction proves the budget mechanism under a hypothetical reviewed
+-- permission. Production remains disabled by the migration after rollback.
+update private.job_source_dependencies
+set state = 'verified', evidence_reference = 'test:written-confirmation',
+    reviewed_at = clock_timestamp()
+where source_id = (
+  select id from app.job_sources where adapter_key = 'remotive'
+)
+  and dependency_key = 'written_republication_confirmation';
+update app.job_sources
+set status = 'active', policy_state = 'enabled', allow_public_listing = true,
+    policy_review_due_at = clock_timestamp() + interval '1 day',
+    minimum_poll_interval = interval '15 minutes',
+    maximum_requests_per_day = 4
+where adapter_key = 'remotive';
+
+insert into app.source_country_rights (
+  source_id, country_code, policy_state, permission_basis,
+  evidence_reference, terms_url, reviewed_at, review_due_at,
+  allowed_fields, may_store_full_description, attribution_required,
+  attribution_text, minimum_poll_interval, retention_period,
+  allow_public_display, allow_search_index, allow_google_jobposting
+)
+select source.id, 'NG', 'enabled', source.authorization_basis,
+  source.authorization_evidence_ref, source.terms_url,
+  source.authorization_reviewed_at, source.policy_review_due_at,
+  source.allowed_fields, source.may_store_full_description,
+  source.attribution_required, source.attribution_text,
+  source.minimum_poll_interval, source.raw_retention,
+  true, false, false
+from app.job_sources source where source.adapter_key = 'remotive'
+on conflict (source_id, country_code) do update
+set policy_state = excluded.policy_state,
+    permission_basis = excluded.permission_basis,
+    evidence_reference = excluded.evidence_reference,
+    terms_url = excluded.terms_url,
+    reviewed_at = excluded.reviewed_at,
+    review_due_at = excluded.review_due_at,
+    allowed_fields = excluded.allowed_fields,
+    minimum_poll_interval = excluded.minimum_poll_interval,
+    retention_period = excluded.retention_period,
+    allow_public_display = excluded.allow_public_display;
+
 set local role service_role;
 select is(
   api.worker_claim_remotive_fetch(
@@ -66,9 +109,12 @@ select is(
 );
 
 reset role;
-update app.job_sources set status = 'active' where adapter_key = 'remotive';
+update app.job_sources
+set status = 'active', policy_state = 'enabled', allow_public_listing = true,
+    policy_review_due_at = clock_timestamp() + interval '1 day'
+where adapter_key = 'remotive';
 update private.source_fetch_claims
-set claimed_at = claimed_at - interval '2 minutes';
+set claimed_at = claimed_at - interval '16 minutes';
 set local role service_role;
 select is(
   api.worker_claim_remotive_fetch(
@@ -79,7 +125,7 @@ select is(
 );
 reset role;
 update private.source_fetch_claims
-set claimed_at = claimed_at - interval '2 minutes';
+set claimed_at = claimed_at - interval '16 minutes';
 set local role service_role;
 select is(
   api.worker_claim_remotive_fetch(
@@ -90,7 +136,7 @@ select is(
 );
 reset role;
 update private.source_fetch_claims
-set claimed_at = claimed_at - interval '2 minutes';
+set claimed_at = claimed_at - interval '16 minutes';
 set local role service_role;
 select is(
   api.worker_claim_remotive_fetch(
@@ -101,7 +147,7 @@ select is(
 );
 reset role;
 update private.source_fetch_claims
-set claimed_at = claimed_at - interval '2 minutes';
+set claimed_at = claimed_at - interval '16 minutes';
 set local role service_role;
 select is(
   api.worker_claim_remotive_fetch(

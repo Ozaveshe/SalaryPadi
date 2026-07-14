@@ -1,98 +1,67 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/env", () => ({ getAppOrigin: () => "https://salarypadi.com" }));
-vi.mock("@/lib/editorial/repository", () => ({
-  getPublishedEditorialResult: vi.fn().mockResolvedValue({
-    state: "ready",
-    issues: [],
-    data: [
+import type { SitemapGroups } from "@/lib/seo/sitemap";
+
+const { groups } = vi.hoisted((): { groups: SitemapGroups } => ({
+  groups: {
+    jobs: [],
+    companies: [],
+    salaries: [],
+    tools: [{ url: "https://salarypadi.com/tools" }],
+    guides: [
+      { url: "https://salarypadi.com/guides/remote-jobs-open-to-nigerians" },
+    ],
+    insights: [
       {
-        id: "57cb1fcb-e724-4ab7-8df2-a8c95f0dc03e",
-        slug: "remote-jobs-open-to-nigerians",
-        title: "Remote jobs open to Nigerians",
-        description: "Guide",
-        article_kind: "cornerstone",
-        body_markdown: "",
-        author_name: "SalaryPadi Editorial",
-        published_at: "2026-07-11T00:00:00.000Z",
-        updated_at: "2026-07-11T00:00:00.000Z",
-        internal_link_targets: ["/methodology"],
-      },
-      {
-        id: "b21bb2e3-66c7-4044-87ba-c729d8147902",
-        slug: "job-source-freshness-snapshot",
-        title: "Source freshness",
-        description: "Brief",
-        article_kind: "data_brief",
-        body_markdown: "Brief",
-        author_name: "SalaryPadi Editorial",
-        published_at: "2026-07-11T08:00:00.000Z",
-        updated_at: "2026-07-11T08:15:00.000Z",
-        internal_link_targets: ["/methodology"],
+        url: "https://salarypadi.com/insights/job-source-freshness-snapshot",
+        lastModified: "2026-07-11T08:15:00.000Z",
       },
     ],
-  }),
+  },
 }));
-vi.mock("@/lib/jobs/repository", () => ({
-  getLiveJobFeed: vi.fn().mockResolvedValue({
-    jobs: [],
-    state: "disabled",
-    checkedAt: "2026-07-11T00:00:00.000Z",
-    sources: [],
-  }),
-}));
-vi.mock("@/lib/salaries/repository", () => ({
-  listPublishedSalaryAggregatesResult: vi.fn().mockResolvedValue({
-    state: "ready",
-    data: [],
-    issues: [],
-  }),
-}));
-vi.mock("@/lib/companies/repository", () => ({
-  getCompaniesResult: vi.fn().mockResolvedValue({
-    state: "ready",
-    data: [],
-    issues: [],
-  }),
-  getPublishedCompanyEvidenceResult: vi.fn().mockResolvedValue({
-    state: "ready",
-    data: [],
-    issues: [],
-  }),
+
+vi.mock("@/lib/env", () => ({ getAppOrigin: () => "https://salarypadi.com" }));
+vi.mock("@/lib/seo/sitemap-data", () => ({
+  loadSitemapGroups: vi.fn().mockResolvedValue(groups),
 }));
 
 import robots from "@/app/robots";
-import sitemap from "@/app/sitemap";
+import { GET as getSitemapIndex } from "@/app/sitemap.xml/route";
+import { GET as getInsightSitemap } from "@/app/sitemaps/insights.xml/route";
 
 describe("editorial SEO surfaces", () => {
-  it("allows editorial routes and advertises both sitemaps", () => {
+  it("allows crawlable editorial routes and advertises one sitemap index", () => {
     const result = robots();
     const rules = Array.isArray(result.rules) ? result.rules[0] : result.rules;
     if (!rules) throw new Error("robots rules are missing");
     expect(rules.allow).toContain("/guides/");
     expect(rules.allow).toContain("/insights/");
-    expect(result.sitemap).toEqual([
-      "https://salarypadi.com/sitemap.xml",
-      "https://salarypadi.com/tools/sitemap.xml",
-    ]);
+    expect(result.sitemap).toBe("https://salarypadi.com/sitemap.xml");
     expect(rules.disallow).not.toContain("/jobs/");
-    expect(rules.disallow).not.toContain("/companies/");
-    expect(rules.disallow).not.toContain("/salaries/");
     expect(rules.disallow).toContain("/account");
   });
 
-  it("includes only published brief routes with their real modification time", async () => {
-    const result = await sitemap();
-    expect(result).toContainEqual(
-      expect.objectContaining({
-        url: "https://salarypadi.com/insights/job-source-freshness-snapshot",
-        lastModified: "2026-07-11T08:15:00.000Z",
-      }),
+  it("returns a six-part sitemap index and accurate child inventory", async () => {
+    const index = await getSitemapIndex();
+    expect(index.headers.get("content-type")).toContain("application/xml");
+    const indexXml = await index.text();
+    expect(indexXml).toContain("<sitemapindex");
+    for (const kind of [
+      "jobs",
+      "companies",
+      "salaries",
+      "tools",
+      "guides",
+      "insights",
+    ]) {
+      expect(indexXml).toContain(`/sitemaps/${kind}.xml`);
+    }
+
+    const child = await getInsightSitemap();
+    const childXml = await child.text();
+    expect(childXml).toContain(
+      "https://salarypadi.com/insights/job-source-freshness-snapshot",
     );
-    expect(result).toContainEqual(
-      expect.objectContaining({
-        url: "https://salarypadi.com/guides/remote-jobs-open-to-nigerians",
-      }),
-    );
+    expect(childXml).toContain("2026-07-11T08:15:00.000Z");
   });
 });

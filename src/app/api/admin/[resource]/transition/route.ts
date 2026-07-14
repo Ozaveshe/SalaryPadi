@@ -17,6 +17,8 @@ const resources = new Set<AdminResource>([
   "imports",
   "sources",
   "companies",
+  "company_claims",
+  "employer_responses",
   "moderation",
   "reports",
   "users",
@@ -28,6 +30,17 @@ const allowedActions: Record<AdminResource, ReadonlySet<string>> = {
   imports: new Set(),
   sources: new Set(["enable", "disable", "request_review"]),
   companies: new Set(["verify", "request_evidence", "remove"]),
+  company_claims: new Set(["claim", "verify", "reject", "revoke"]),
+  employer_responses: new Set([
+    "claim",
+    "approve",
+    "redact",
+    "request_revision",
+    "reject",
+    "escalate",
+    "remove",
+    "restore",
+  ]),
   moderation: new Set([
     "claim",
     "approve",
@@ -109,6 +122,45 @@ export async function POST(
         p_expected_version: parsed.data.expected_version,
         p_action: parsed.data.action,
         p_reason: parsed.data.reason,
+      } as never,
+    );
+    transitionError = error;
+  } else if (rawResource === "company_claims") {
+    const { error } = await admin.supabase.schema("api").rpc(
+      "transition_company_claim" as never,
+      {
+        p_claim_id: parsed.data.id,
+        p_expected_version: parsed.data.expected_version,
+        p_action: parsed.data.action,
+        p_reason: parsed.data.reason,
+      } as never,
+    );
+    transitionError = error;
+  } else if (rawResource === "employer_responses") {
+    let publicPayload: Record<string, unknown> = {};
+    if (parsed.data.action === "redact") {
+      try {
+        const payload: unknown = JSON.parse(parsed.data.public_payload);
+        const payloadResult = z
+          .object({ statement: z.string().trim().min(20).max(3_000) })
+          .safeParse(payload);
+        if (!payloadResult.success) throw new Error("Invalid statement.");
+        publicPayload = payloadResult.data;
+      } catch {
+        return Response.json(
+          { error: "Redaction requires JSON with a valid statement." },
+          { status: 400 },
+        );
+      }
+    }
+    const { error } = await admin.supabase.schema("api").rpc(
+      "transition_employer_response" as never,
+      {
+        p_case_id: parsed.data.id,
+        p_expected_version: parsed.data.expected_version,
+        p_action: parsed.data.action,
+        p_reason: parsed.data.reason,
+        p_public_payload: publicPayload,
       } as never,
     );
     transitionError = error;
@@ -200,10 +252,12 @@ export async function POST(
       revalidateTag(REMOTIVE_CACHE_TAG, { expire: 0 });
     }
   }
-  const url = new URL(
-    `/admin/${rawResource === "calculation_rules" ? "calculation-rules" : rawResource}`,
-    getAppOrigin(),
-  );
+  const adminPath = {
+    calculation_rules: "calculation-rules",
+    company_claims: "company-claims",
+    employer_responses: "employer-responses",
+  }[rawResource];
+  const url = new URL(`/admin/${adminPath ?? rawResource}`, getAppOrigin());
   url.searchParams.set("updated", transitionError ? "error" : "true");
   return NextResponse.redirect(url, 303);
 }

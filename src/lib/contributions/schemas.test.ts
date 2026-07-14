@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  benefitsContributionSchema,
   containsLikelyPrivateContact,
+  containsProhibitedDocumentField,
+  payReliabilityContributionSchema,
   reviewContributionSchema,
   salaryContributionSchema,
 } from "./schemas";
@@ -79,6 +82,52 @@ describe("contribution validation", () => {
       role_family: "Engineering",
       employment_period: "1_to_2_years",
       anonymity_attestation: "on",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it.each(["payslip", "attachment", "work_email", "verification_evidence"])(
+    "rejects the prohibited evidence field %s",
+    (field) => {
+      const data = new FormData();
+      data.set(field, "private evidence");
+      expect(containsProhibitedDocumentField(data)).toBe(true);
+    },
+  );
+
+  it("accepts structured benefit evidence without forcing narrative", () => {
+    expect(
+      benefitsContributionSchema.parse({
+        company: "Acme",
+        country: "ng",
+        employment_status: "current",
+        pension: "yes",
+        hmo: "yes",
+        transport: "unclear",
+        housing: "no",
+        data_power: "yes",
+        thirteenth_month: "unclear",
+        bonus: "yes",
+        overtime_expectation: "sometimes",
+        weekend_work: "never",
+        context: "",
+        accuracy_attestation: "on",
+      }),
+    ).toMatchObject({ country: "NG", pension: "yes", hmo: "yes" });
+  });
+
+  it("rejects private contact data in pay-reliability context", () => {
+    const result = payReliabilityContributionSchema.safeParse({
+      company: "Acme",
+      country: "NG",
+      employment_status: "former",
+      observation_window: "6_to_12_months",
+      on_time_frequency: "often_late",
+      longest_delay: "1_to_4_weeks",
+      arrears_resolved: "partly",
+      fx_policy: "",
+      context: "Ask manager@example.com for details",
+      accuracy_attestation: "on",
     });
     expect(result.success).toBe(false);
   });

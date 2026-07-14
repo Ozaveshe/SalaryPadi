@@ -9,4 +9,4 @@ const handler = (
     runEditorialOperation("editorial_nightly_audit", execution),
   );
 export default handler;
-export const config: Config = { schedule: "30 22 * * *" };
+export const config: Config = { schedule: "30 0 * * *" };

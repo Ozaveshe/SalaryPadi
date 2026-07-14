@@ -4,8 +4,10 @@ import { cache } from "react";
 
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
-import { formatDate } from "@/lib/format";
 import { getCompaniesResult } from "@/lib/companies/repository";
+import { countryAlternates } from "@/lib/country-packs/routing";
+import { getAppOrigin } from "@/lib/env";
+import { formatDate } from "@/lib/format";
 import { canIndexCompanyHub } from "@/lib/seo/indexability";
 
 const getCompaniesPageResult = cache(() => getCompaniesResult());
@@ -16,7 +18,10 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "Companies",
     description:
       "Inspect source-labelled employer facts, jobs and safely published community intelligence.",
-    alternates: { canonical: "/companies" },
+    alternates: {
+      canonical: "/companies",
+      languages: countryAlternates(getAppOrigin(), "/companies").languages,
+    },
     robots: { index: canIndexCompanyHub(result), follow: true },
   };
 }

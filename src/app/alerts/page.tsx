@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 
 import { PageHeading } from "@/components/page-heading";
+import { CompanyEvidenceInvitation } from "@/components/companies/company-evidence-invitation";
 import { PrivateDataStatus } from "@/components/private-data-status";
 import { requireViewer } from "@/lib/auth/dal";
 import { getAlerts } from "@/lib/career/repository";
 import { formatDate, formatEnum } from "@/lib/format";
-import { parseJobSearch } from "@/lib/jobs/search";
+import { parseJobSearch, serializeJobSearch } from "@/lib/jobs/search";
 
 export const metadata: Metadata = {
   title: "Job alerts",
@@ -59,14 +60,20 @@ function AlertStatus({
 export default async function AlertsPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    created?: string;
-    removed?: string;
-    updated?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireViewer("/alerts");
-  const status = await searchParams;
+  const input = await searchParams;
+  const status = {
+    created: Array.isArray(input.created) ? input.created[0] : input.created,
+    removed: Array.isArray(input.removed) ? input.removed[0] : input.removed,
+    updated: Array.isArray(input.updated) ? input.updated[0] : input.updated,
+  };
+  const prefill = parseJobSearch({
+    ...input,
+    eligibility: input.eligibility ?? "nigeria",
+  });
+  const returnParameters = serializeJobSearch(prefill);
+  await requireViewer(`/alerts?${returnParameters.toString()}`);
   const result = await getAlerts();
   const alerts = result.data;
 
@@ -78,12 +85,20 @@ export default async function AlertsPage({
         description="Save a focused query and receive a private daily or weekly email when newly posted jobs match the selected source evidence."
       />
       <AlertStatus {...status} />
+      {status.created === "true" ? (
+        <CompanyEvidenceInvitation kind="alert" />
+      ) : null}
 
       <form
         className="surface surface-pad form-grid"
         action="/api/alerts"
         method="post"
       >
+        <input
+          type="hidden"
+          name="search_query"
+          value={JSON.stringify(prefill)}
+        />
         <div className="field">
           <label htmlFor="keyword">Role or skill</label>
           <input
@@ -91,6 +106,7 @@ export default async function AlertsPage({
             id="keyword"
             name="keyword"
             maxLength={160}
+            defaultValue={prefill.q}
           />
         </div>
         <div className="field">
@@ -100,6 +116,7 @@ export default async function AlertsPage({
             id="location"
             name="location"
             maxLength={160}
+            defaultValue={prefill.location}
           />
         </div>
         <div className="field">
@@ -108,7 +125,7 @@ export default async function AlertsPage({
             className="select"
             id="eligibility"
             name="eligibility"
-            defaultValue="nigeria"
+            defaultValue={prefill.eligibility}
           >
             <option value="nigeria">Nigeria explicitly eligible</option>
             <option value="africa">Africa explicitly eligible</option>
@@ -127,6 +144,10 @@ export default async function AlertsPage({
         <button className="button w-fit" type="submit">
           Create alert
         </button>
+        <p className="field-help m-0">
+          All filters from the jobs URL are retained. The primary role, location
+          and eligibility fields can be adjusted here.
+        </p>
       </form>
 
       {result.state !== "ready" ? (
@@ -187,6 +208,11 @@ export default async function AlertsPage({
                   >
                     <input type="hidden" name="intent" value="edit" />
                     <input type="hidden" name="id" value={alert.id} />
+                    <input
+                      type="hidden"
+                      name="search_query"
+                      value={JSON.stringify(search)}
+                    />
                     <div className="field">
                       <label htmlFor={`keyword-${alert.id}`}>
                         Role or skill

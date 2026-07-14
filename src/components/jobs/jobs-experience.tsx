@@ -1,9 +1,12 @@
+import Link from "next/link";
+
 import { JobCard } from "@/components/jobs/job-card";
 import { JobSearchForm } from "@/components/jobs/job-search-form";
 import { Pagination } from "@/components/jobs/pagination";
 import { PageHeading } from "@/components/page-heading";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
 import {
+  diversifyJobResults,
   filterAndSortJobs,
   paginateJobs,
   parseJobSearch,
@@ -24,7 +27,8 @@ export async function JobsExperience({
   const search = parseJobSearch({ ...input, ...forcedFilters });
   const feed = await getLiveJobFeed();
   const filteredJobs = filterAndSortJobs(feed.jobs, search);
-  const result = paginateJobs(filteredJobs, search.page);
+  const diversifiedJobs = diversifyJobResults(filteredJobs);
+  const result = paginateJobs(diversifiedJobs, search.page);
   const categories = [
     ...new Set(
       feed.jobs
@@ -32,6 +36,7 @@ export async function JobsExperience({
         .filter((value): value is string => Boolean(value)),
     ),
   ].toSorted();
+  const serializedSearch = serializeJobSearch(search);
 
   return (
     <div className="site-shell stack-lg">
@@ -40,6 +45,36 @@ export async function JobsExperience({
         title={title}
         description={description}
       />
+      <nav className="job-paths" aria-label="Job location paths">
+        {[
+          ["All jobs", "/jobs", search.path === "all"],
+          ["Nigeria local", "/jobs/nigeria", search.path === "local_nigeria"],
+          [
+            "Remote: Nigeria eligible",
+            "/jobs?path=remote_nigeria",
+            search.path === "remote_nigeria",
+          ],
+          [
+            "Remote: Africa eligible",
+            "/jobs?path=remote_africa",
+            search.path === "remote_africa",
+          ],
+          [
+            "Eligibility unclear",
+            "/jobs?eligibility=unclear",
+            search.eligibility === "unclear",
+          ],
+        ].map(([label, href, active]) => (
+          <Link
+            className={active ? "job-path is-active" : "job-path"}
+            href={String(href)}
+            key={String(href)}
+            aria-current={active ? "page" : undefined}
+          >
+            {String(label)}
+          </Link>
+        ))}
+      </nav>
       <JobSearchForm search={search} categories={categories} />
       {feed.state === "unavailable" ? (
         <div className="notice notice-warning" role="alert">
@@ -67,13 +102,46 @@ export async function JobsExperience({
         aria-live="polite"
       >
         <div className="results-heading">
-          <h2 className="section-title" id="job-results-heading">
-            Current results
-          </h2>
-          <span className="results-count">
-            {result.totalItems} {result.totalItems === 1 ? "job" : "jobs"} ·
-            bounded to 10 per page
-          </span>
+          <div>
+            <h2 className="section-title" id="job-results-heading">
+              Current results
+            </h2>
+            <span className="results-count">
+              {result.totalItems} {result.totalItems === 1 ? "job" : "jobs"} ·
+              bounded to 10 per page
+            </span>
+          </div>
+          <div className="cluster result-actions">
+            <form action="/jobs" method="get">
+              {[...serializedSearch.entries()]
+                .filter(([key]) => key !== "sort")
+                .map(([key, value]) => (
+                  <input key={key} type="hidden" name={key} value={value} />
+                ))}
+              <label className="visually-hidden" htmlFor="result-sort">
+                Sort results
+              </label>
+              <select
+                className="select select-compact"
+                id="result-sort"
+                name="sort"
+                defaultValue={search.sort}
+              >
+                <option value="relevance">Most relevant</option>
+                <option value="newest">Newest posted</option>
+                <option value="salary">Highest disclosed salary</option>
+              </select>
+              <button className="button button-quiet" type="submit">
+                Sort
+              </button>
+            </form>
+            <Link
+              className="button button-secondary"
+              href={`/alerts?${serializedSearch.toString()}`}
+            >
+              Save this search
+            </Link>
+          </div>
         </div>
         {result.items.length > 0 ? (
           <div className="job-list">
@@ -96,15 +164,14 @@ export async function JobsExperience({
         <Pagination
           currentPage={result.page}
           totalPages={result.totalPages}
-          searchParams={serializeJobSearch(search)}
+          searchParams={serializedSearch}
         />
       </section>
       <aside className="source-policy-note">
-        <strong>Source policy:</strong> Every result keeps its own source,
-        eligibility evidence, destination, freshness and indexing permissions.
-        Records merge only when normalized facts and the exact application or
-        source destination match. Otherwise each source keeps separate
-        provenance for review.
+        <strong>Result balance:</strong> Repeated employer and location variants
+        are interleaved before pagination so one cluster does not hide other
+        choices. Every result still keeps its own source, eligibility evidence,
+        destination, freshness and indexing permissions.
       </aside>
     </div>
   );

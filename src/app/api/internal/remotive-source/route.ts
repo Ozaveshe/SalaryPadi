@@ -9,6 +9,8 @@ import {
   claimRemotiveFetchBudget,
   SourceFetchBudgetError,
 } from "@/lib/jobs/source-fetch-budget";
+import { openSupplyAdapter } from "@/lib/jobs/supply/adapters";
+import { AdapterPolicyError } from "@/lib/jobs/supply/policy";
 import { isValidInternalBearer } from "@/lib/security/internal-bearer";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +27,15 @@ export async function GET(request: Request): Promise<Response> {
   const expected = environment.JOB_SOURCE_SYNC_TOKEN;
   if (!isValidInternalBearer(request, expected)) {
     return noStoreJson({ error: "unauthorized" }, 401);
+  }
+  try {
+    openSupplyAdapter("remotive");
+  } catch (reason) {
+    const code =
+      reason instanceof AdapterPolicyError
+        ? `remotive_${reason.code}`
+        : "remotive_policy_invalid";
+    return noStoreJson({ error: code }, 503);
   }
   if (!environment.REMOTIVE_SOURCE_ENABLED) {
     return noStoreJson({ error: "remotive_environment_disabled" }, 503);

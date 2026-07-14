@@ -1,13 +1,23 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const blobMocks = vi.hoisted(() => ({
   get: vi.fn(),
   setJSON: vi.fn(),
 }));
+const policyMocks = vi.hoisted(() => ({
+  openSupplyAdapter: vi.fn(),
+}));
 
 vi.mock("@netlify/blobs", () => ({
   getStore: () => ({ get: blobMocks.get, setJSON: blobMocks.setJSON }),
 }));
+vi.mock("../../../src/lib/jobs/supply/adapters", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("../../../src/lib/jobs/supply/adapters")
+    >();
+  return { ...actual, openSupplyAdapter: policyMocks.openSupplyAdapter };
+});
 
 import type { RemotiveJob } from "../../../src/lib/jobs/remotive-schema";
 import { normalizeRemotiveJob } from "../../../src/lib/jobs/normalize";
@@ -48,6 +58,14 @@ const sourceJob: RemotiveJob = {
   description: "<p>Provider description remains outside durable storage.</p>",
 };
 
+beforeEach(() => {
+  policyMocks.openSupplyAdapter.mockReset();
+  policyMocks.openSupplyAdapter.mockReturnValue({
+    policy: { adapterKey: "remotive" },
+    endpoint: "https://remotive.com/api/remote-jobs",
+  });
+});
+
 function remotivePolicy() {
   return [
     {
@@ -55,7 +73,7 @@ function remotivePolicy() {
       source_type: REMOTIVE_SOURCE_POLICY.type,
       status: "active",
       terms_url: REMOTIVE_SOURCE_POLICY.termsUrl,
-      terms_reviewed_at: "2026-07-10T00:00:00.000Z",
+      terms_reviewed_at: "2026-07-14T00:00:00.000Z",
       terms_version: REMOTIVE_TERMS_VERSION,
       allow_public_listing: true,
       attribution_required: true,
@@ -63,7 +81,7 @@ function remotivePolicy() {
       may_index_jobs: false,
       may_emit_jobposting_schema: false,
       required_destination_kind: REMOTIVE_REQUIRED_DESTINATION_KIND,
-      refresh_interval_seconds: 43_200,
+      refresh_interval_seconds: 21_600,
     },
   ];
 }
@@ -268,7 +286,8 @@ describe("scheduled worker successful runs", () => {
     const fetchMock = installWorkerFetch({
       rpc: {
         worker_get_job_source_policy: remotivePolicy(),
-        worker_record_source_import: "30000000-0000-4000-8000-000000000011",
+        worker_claim_remotive_fetch: true,
+        worker_record_source_import_v2: "30000000-0000-4000-8000-000000000011",
       },
       fallback: (url) => {
         if (url.pathname === "/api/internal/job-source-snapshot") {
@@ -443,7 +462,7 @@ describe("scheduled worker failures", () => {
     const fetchMock = installWorkerFetch({
       rpc: {
         worker_get_job_source_policy: new Response(null, { status: 503 }),
-        worker_record_source_import: true,
+        worker_record_source_import_v2: true,
       },
     });
 

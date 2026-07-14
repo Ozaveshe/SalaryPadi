@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHeading } from "@/components/page-heading";
+import { CompanyEvidenceInvitation } from "@/components/companies/company-evidence-invitation";
 import { PrivateDataStatus } from "@/components/private-data-status";
 import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { requireViewer } from "@/lib/auth/dal";
@@ -146,6 +147,10 @@ export default async function ApplicationsPage({
                   Remove record
                 </button>
               </form>
+              {application.status === "interview" ||
+              application.status === "offer" ? (
+                <CompanyEvidenceInvitation kind={application.status} />
+              ) : null}
             </article>
           ))}
         </div>

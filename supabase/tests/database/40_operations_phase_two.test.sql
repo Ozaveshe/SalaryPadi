@@ -18,8 +18,8 @@ select ok(
 );
 select is(
   (select expected_interval from private.worker_schedules where task_key = 'job_source_sync'),
-  interval '12 hours',
-  'source validation is bounded to two scheduled reads per day'
+  interval '6 hours',
+  'source validation is bounded to four scheduled reads per day'
 );
 select is(
   (select stale_after from private.worker_schedules where task_key = 'job_source_sync'),
@@ -28,13 +28,13 @@ select is(
 );
 select is(
   (select expected_interval from private.worker_schedules where task_key = 'alert_delivery'),
-  interval '10 minutes',
+  interval '15 minutes',
   'alert delivery runs frequently enough for its one-claim safety cap'
 );
 select is(
   (select stale_after from private.worker_schedules where task_key = 'alert_delivery'),
-  interval '35 minutes',
-  'alert delivery health tolerates two missed ten-minute runs'
+  interval '45 minutes',
+  'alert delivery health tolerates two missed fifteen-minute runs'
 );
 
 select is(

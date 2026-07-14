@@ -11,7 +11,18 @@ const schema = z.object({
   location: z.string().trim().max(160).default(""),
   eligibility: z.enum(["nigeria", "africa", "worldwide", "unclear", "all"]),
   cadence: z.enum(["daily", "weekly"]),
+  search_query: z.string().max(10_000).optional(),
 });
+
+function storedSearch(value: string | undefined) {
+  if (!value) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return typeof parsed === "object" && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
@@ -24,6 +35,7 @@ export async function POST(request: Request) {
   const context = await getAuthenticatedApiContext();
   if (!context.ok) return context.response;
   const query = parseJobSearch({
+    ...storedSearch(parsed.data.search_query),
     q: parsed.data.keyword,
     location: parsed.data.location,
     eligibility: parsed.data.eligibility,

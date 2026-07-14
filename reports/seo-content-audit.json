@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "auditedAt": "2026-07-13T23:37:27.399Z",
+  "productionOrigin": "https://salarypadi.com",
+  "deploymentPerformed": false,
+  "productionObserved": {
+    "routes": [
+      {
+        "path": "/",
+        "status": 200,
+        "bytes": 69228,
+        "contentType": "text/html; charset=utf-8"
+      },
+      {
+        "path": "/jobs",
+        "status": 200,
+        "bytes": 110539,
+        "contentType": "text/html; charset=utf-8",
+        "robots": "noindex,follow"
+      },
+      {
+        "path": "/jobs/remote",
+        "status": 200,
+        "bytes": 102780,
+        "contentType": "text/html; charset=utf-8",
+        "robots": "noindex,follow"
+      },
+      {
+        "path": "/companies",
+        "status": 200,
+        "bytes": 42378,
+        "contentType": "text/html; charset=utf-8",
+        "robots": "noindex,follow"
+      },
+      {
+        "path": "/salaries",
+        "status": 200,
+        "bytes": 29482,
+        "contentType": "text/html; charset=utf-8",
+        "robots": "noindex,follow"
+      },
+      {
+        "path": "/insights",
+        "status": 200,
+        "bytes": 25513,
+        "contentType": "text/html; charset=utf-8"
+      },
+      {
+        "path": "/feed.xml",
+        "status": 200,
+        "bytes": 1087,
+        "contentType": "application/rss+xml; charset=utf-8"
+      },
+      {
+        "path": "/robots.txt",
+        "status": 200,
+        "bytes": 543,
+        "contentType": "text/plain"
+      },
+      {
+        "path": "/sitemap.xml",
+        "status": 200,
+        "bytes": 1357,
+        "contentType": "application/xml"
+      },
+      {
+        "path": "/definitely-not-a-route",
+        "status": 404,
+        "bytes": 23547,
+        "contentType": "text/html; charset=utf-8"
+      }
+    ],
+    "sitemap": {
+      "kind": "urlset",
+      "urlCount": 9,
+      "productLeafCount": 0,
+      "urls": [
+        "https://salarypadi.com",
+        "https://salarypadi.com/about",
+        "https://salarypadi.com/methodology",
+        "https://salarypadi.com/trust-and-safety",
+        "https://salarypadi.com/privacy",
+        "https://salarypadi.com/terms",
+        "https://salarypadi.com/guides/remote-jobs-open-to-nigerians",
+        "https://salarypadi.com/insights",
+        "https://salarypadi.com/insights/job-source-freshness-snapshot"
+      ]
+    },
+    "publicSearchSignals": [
+      {
+        "query": "exact brand SalaryPadi",
+        "result": "no_salarypadi_pages_returned"
+      },
+      {
+        "query": "site:salarypadi.com",
+        "result": "no_salarypadi_pages_returned"
+      },
+      {
+        "query": "site:salarypadi.com SalaryPadi",
+        "result": "no_salarypadi_pages_returned"
+      }
+    ],
+    "indexationCause": {
+      "robotsBlock": false,
+      "siteWideNoindex": false,
+      "productSurfacesNoindex": true,
+      "sitemapProductCoverage": false,
+      "searchConsoleCoverageKnown": false
+    },
+    "lighthouseMobileLab": [
+      {
+        "kind": "job_leaf",
+        "performance": 80,
+        "accessibility": 100,
+        "bestPractices": 100,
+        "seo": 91,
+        "fcpMs": 999,
+        "lcpMs": 1749,
+        "tbtMs": 207,
+        "cls": 0.332
+      },
+      {
+        "kind": "company_leaf",
+        "performance": 80,
+        "accessibility": 100,
+        "bestPractices": 100,
+        "seo": 91,
+        "fcpMs": 1216,
+        "lcpMs": 2008,
+        "tbtMs": 172,
+        "cls": 0.332
+      }
+    ]
+  },
+  "localImplementation": {
+    "sitemapKinds": [
+      "jobs",
+      "companies",
+      "salaries",
+      "tools",
+      "guides",
+      "insights"
+    ],
+    "landingRoutes": [
+      "/jobs/remote",
+      "/jobs/nigeria",
+      "/jobs/graduate",
+      "/jobs/visa-sponsorship",
+      "/jobs/software",
+      "/jobs/ngo",
+      "/jobs/roles/software-engineering",
+      "/jobs/cities/lagos"
+    ],
+    "landingThresholds": {
+      "activeUniqueJobs": 20,
+      "uniqueJobsSeen90Days": 30,
+      "companies": 3,
+      "stableDemandSignalRequired": true,
+      "deterministicSummaryMinimumCharacters": 180,
+      "minimumInternalLinks": 2
+    },
+    "googleIntegrationsDefault": "disabled",
+    "cornerstoneDraftCount": 12,
+    "cornerstonePublishedCount": 0,
+    "failureMode": "noindex_follow_and_exclude_from_sitemaps"
+  },
+  "validation": {
+    "unitAndIntegration": {
+      "command": "npm test",
+      "testFilesPassed": 112,
+      "testsPassed": 828
+    },
+    "renderedCrawl": {
+      "command": "npx playwright test tests/e2e/seo-crawl.spec.ts --project=desktop-chromium",
+      "testsPassed": 21
+    },
+    "lint": "pass",
+    "typecheck": "pass",
+    "productionBuild": {
+      "result": "pass",
+      "requiredOverride": "NEXT_PUBLIC_APP_URL=https://salarypadi.test"
+    },
+    "postgresParser": "migration_and_pgtap_syntax_accepted",
+    "databasePgtapExecution": "not_run_docker_unavailable"
+  },
+  "unknowns": [
+    "Google Search Console coverage and crawl history",
+    "Chrome UX Report field Core Web Vitals",
+    "post-deployment sitemap contents",
+    "post-deployment Indexing API quota and delivery",
+    "production execution proof for new schedules"
+  ]
+}

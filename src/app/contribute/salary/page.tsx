@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { ContributionShell } from "@/components/contributions/contribution-shell";
+import { DraftControls } from "@/components/contributions/draft-controls";
 import { requireViewer } from "@/lib/auth/dal";
 import { sliceSearchParam } from "@/lib/search-params";
 
@@ -45,6 +46,7 @@ export default async function SalaryContributionPage({
       description="Preserve the original amount, currency and pay period. SalaryPadi calculates equivalents later without replacing what you reported."
     >
       <form
+        id="salary-contribution-form"
         className="contribution-form"
         action="/api/contributions/salary"
         method="post"
@@ -334,6 +336,7 @@ export default async function SalaryContributionPage({
         <button className="button w-fit" type="submit">
           Submit for moderation
         </button>
+        <DraftControls formId="salary-contribution-form" kind="salary" />
       </form>
     </ContributionShell>
   );

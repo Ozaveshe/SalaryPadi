@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "audited_at": "2026-07-14T01:18:23.217Z",
+  "launch_date": "2026-08-01",
+  "decision": "no_go",
+  "candidate": {
+    "base_commit": "29dd7364cf695c015ccb1fe737822765ca9d910b",
+    "origin_main_commit": "29dd7364cf695c015ccb1fe737822765ca9d910b",
+    "working_tree": "dirty_integrated_candidate",
+    "deployed": false,
+    "production_migrated": false,
+    "source_activated": false
+  },
+  "production": {
+    "origin": "https://salarypadi.com",
+    "netlify_deploy_id": "6a552080f4ce3f0008fcfa84",
+    "published_at": "2026-07-13T17:30:49.151Z",
+    "supabase_project_ref": "bxelrhklsznmpksgrqep",
+    "health_status": "ok",
+    "healthy_worker_freshness_count": 15,
+    "new_internal_health_endpoint_status": 404,
+    "new_job_sitemap_status": 404
+  },
+  "job_supply": {
+    "requested_window_days": 7,
+    "observed_calendar_days": 5,
+    "window_complete": false,
+    "source_diversity": 1,
+    "visible_source": "remotive",
+    "durable_raw_occurrences": 0,
+    "durable_canonical_jobs": 0,
+    "published_canonical_jobs": 0,
+    "authorized_external_daily_capacity": 0,
+    "target_daily_new_canonical": 200,
+    "target_proven": false,
+    "duplicate_rate": null,
+    "eligible_share": null,
+    "broken_apply_link_rate": null,
+    "expired_visibility_rate": null,
+    "daily": [
+      {
+        "date_utc": "2026-07-10",
+        "runs": 4,
+        "succeeded": 4,
+        "failed": 0,
+        "fetched_occurrences": 114,
+        "new_canonical_jobs": 0,
+        "errors": 0
+      },
+      {
+        "date_utc": "2026-07-11",
+        "runs": 5,
+        "succeeded": 1,
+        "failed": 4,
+        "fetched_occurrences": 30,
+        "new_canonical_jobs": 0,
+        "errors": 4
+      },
+      {
+        "date_utc": "2026-07-12",
+        "runs": 2,
+        "succeeded": 2,
+        "failed": 0,
+        "fetched_occurrences": 82,
+        "new_canonical_jobs": 0,
+        "errors": 0
+      },
+      {
+        "date_utc": "2026-07-13",
+        "runs": 4,
+        "succeeded": 3,
+        "failed": 1,
+        "fetched_occurrences": 117,
+        "new_canonical_jobs": 0,
+        "errors": 1
+      },
+      {
+        "date_utc": "2026-07-14",
+        "runs": 1,
+        "succeeded": 1,
+        "failed": 0,
+        "fetched_occurrences": 38,
+        "new_canonical_jobs": 0,
+        "errors": 0
+      }
+    ],
+    "totals": {
+      "runs": 16,
+      "succeeded": 11,
+      "failed": 5,
+      "fetched_occurrences": 381,
+      "new_canonical_jobs": 0,
+      "errors": 5
+    },
+    "legacy_ledger_limits": [
+      "accepted, duplicate, rejected, Nigeria-local, explicit-eligibility and unclear-eligibility columns are absent",
+      "run duration is not measurable because the legacy recorder writes start and completion at the same instant",
+      "fetched counts are repeated provider snapshots and are not distinct jobs"
+    ]
+  },
+  "quality_gates": {
+    "lint": "pass",
+    "typecheck": "pass",
+    "unit_integration": {
+      "status": "pass",
+      "files": 115,
+      "tests": 844
+    },
+    "coverage": {
+      "status": "pass",
+      "statements_percent": 83.94,
+      "branches_percent": 74.06,
+      "functions_percent": 87.91,
+      "lines_percent": 86.04
+    },
+    "production_build": {
+      "status": "pass",
+      "routes": 101
+    },
+    "playwright": {
+      "status": "pass_with_required_skips",
+      "passed": 148,
+      "skipped": 29,
+      "failed": 0,
+      "projects": ["mobile-360", "tablet-768", "desktop-chromium"]
+    },
+    "database_pgtap": {
+      "status": "fail",
+      "reason": "no reachable isolated local database"
+    },
+    "dependency_audit": {
+      "status": "pass",
+      "known_vulnerabilities": 0,
+      "dependencies": 590
+    },
+    "company_intelligence_ingress": {
+      "status": "pass",
+      "files_checked": 337,
+      "external_opinion_matches": 0
+    },
+    "lighthouse": {
+      "candidate_jobs_directory_performance": 99,
+      "candidate_companies_directory_performance": 98,
+      "production_job_leaf_performance": 80,
+      "production_company_leaf_performance": 80,
+      "leaf_target": 90,
+      "leaf_target_proven": false
+    }
+  },
+  "criteria": [
+    {
+      "id": 1,
+      "status": "fail",
+      "reason": "seven-day supply window and requested metrics are incomplete"
+    },
+    {
+      "id": 2,
+      "status": "fail",
+      "reason": "candidate code is fail-closed but database and deployed proof are absent"
+    },
+    {
+      "id": 3,
+      "status": "fail",
+      "reason": "application tests pass but pgTAP did not execute"
+    },
+    {
+      "id": 4,
+      "status": "fail",
+      "reason": "authenticated and live-job journeys were intentionally skipped"
+    },
+    {
+      "id": 5,
+      "status": "pass",
+      "reason": "candidate contract, secret scope, fallback and 2-plus-13 presentation are verified"
+    },
+    {
+      "id": 6,
+      "status": "fail",
+      "reason": "candidate crawl tests pass but production still serves the old sitemap and integrations are unproven"
+    },
+    {
+      "id": 7,
+      "status": "fail",
+      "reason": "database advisor warnings and exhaustive security scan remain unresolved"
+    },
+    {
+      "id": 8,
+      "status": "fail",
+      "reason": "database, backup/restore, production alerts and leaf performance gates are not proven"
+    },
+    {
+      "id": 9,
+      "status": "pass",
+      "reason": "public surfaces contain no external workplace opinion, fabricated activity, rating or verification claims"
+    }
+  ],
+  "prohibited_actions_performed": []
+}

@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { Config } from "@netlify/functions";
 import { z } from "zod";
 
@@ -7,9 +9,12 @@ import {
   REMOTIVE_SOURCE_POLICY,
   REMOTIVE_TERMS_VERSION,
 } from "../../src/lib/jobs/source-policy";
+import { openSupplyAdapter } from "../../src/lib/jobs/supply/adapters";
+import { AdapterPolicyError } from "../../src/lib/jobs/supply/policy";
 
 import {
   fetchPublishedRemotiveSnapshot,
+  mergeAlertJobCatalogs,
   storeAlertJobCatalog,
 } from "./_shared/jobs";
 import {
@@ -37,7 +42,9 @@ const sourcePolicySchema = z
       may_index_jobs: z.boolean(),
       may_emit_jobposting_schema: z.boolean(),
       required_destination_kind: z.literal(REMOTIVE_REQUIRED_DESTINATION_KIND),
-      refresh_interval_seconds: z.literal(43_200),
+      refresh_interval_seconds: z.literal(
+        REMOTIVE_SOURCE_POLICY.refreshIntervalSeconds,
+      ),
     }),
   )
   .max(1);
@@ -52,21 +59,39 @@ type JobSourceSyncDependencies = {
   rpc?: SourceSyncRpc;
   fetchSnapshot?: typeof fetchPublishedRemotiveSnapshot;
   storeCatalog?: typeof storeAlertJobCatalog;
+  randomUuid?: () => string;
 };
 
 export async function runJobSourceSync(
   { signal }: WorkerExecution,
   dependencies: JobSourceSyncDependencies = {},
 ) {
+  const startedAt = new Date().toISOString();
   if (!getRuntimeBoolean("REMOTIVE_SOURCE_ENABLED", false)) {
     return workerSkipped("remotive_source_disabled");
+  }
+  try {
+    openSupplyAdapter("remotive", new Date(startedAt));
+  } catch (reason) {
+    const code =
+      reason instanceof AdapterPolicyError
+        ? `remotive_${reason.code}`
+        : "remotive_policy_invalid";
+    return workerSkipped(code);
   }
 
   const callRpc = dependencies.rpc ?? rpc;
   const fetchSnapshot =
     dependencies.fetchSnapshot ?? fetchPublishedRemotiveSnapshot;
   const storeCatalog = dependencies.storeCatalog ?? storeAlertJobCatalog;
+  const createRequestKey = dependencies.randomUuid ?? randomUUID;
   let fetchedCount = 0;
+  let acceptedCount = 0;
+  let duplicateCount = 0;
+  let nigeriaLocalCount = 0;
+  let explicitEligibleCount = 0;
+  let unclearEligibilityCount = 0;
+  let sourceCheckedAt: string | null = null;
   try {
     const rawPolicy = await callRpc(
       "worker_get_job_source_policy",
@@ -92,11 +117,40 @@ export async function runJobSourceSync(
       throw new OperationalError("remotive_source_policy_mismatch");
     }
 
+    const requestKey = createRequestKey();
+    if (!z.string().uuid().safeParse(requestKey).success) {
+      throw new OperationalError("remotive_request_key_invalid");
+    }
+    const claimed = await callRpc(
+      "worker_claim_remotive_fetch",
+      { p_request_key: requestKey, p_purpose: "scheduled_sync" },
+      { signal },
+    );
+    if (claimed !== true) return workerSkipped("remotive_fetch_not_due");
+
     const snapshot = await fetchSnapshot(signal);
+    sourceCheckedAt = snapshot.checkedAt;
     fetchedCount = snapshot.jobs.length;
     if (fetchedCount === 0) {
       throw new OperationalError("remotive_source_empty");
     }
+    const canonicalJobs = mergeAlertJobCatalogs([], snapshot.jobs);
+    acceptedCount = canonicalJobs.length;
+    duplicateCount = fetchedCount - acceptedCount;
+    nigeriaLocalCount = canonicalJobs.filter(
+      (job) =>
+        job.workMode !== "remote" && /\bnigeria\b/i.test(job.locationDisplay),
+    ).length;
+    explicitEligibleCount = canonicalJobs.filter(
+      (job) =>
+        job.eligibility.nigeria === "eligible" ||
+        job.eligibility.africa === "eligible",
+    ).length;
+    unclearEligibilityCount = canonicalJobs.filter(
+      (job) =>
+        job.eligibility.nigeria === "unclear" &&
+        job.eligibility.africa === "unclear",
+    ).length;
     const catalogCount = await storeCatalog(
       snapshot.jobs,
       signal,
@@ -109,10 +163,18 @@ export async function runJobSourceSync(
       });
     }
     const importId = await callRpc(
-      "worker_record_source_import",
+      "worker_record_source_import_v2",
       {
         p_adapter_key: REMOTIVE_ADAPTER_KEY,
+        p_started_at: startedAt,
+        p_source_checked_at: sourceCheckedAt,
         p_fetched_count: fetchedCount,
+        p_accepted_count: acceptedCount,
+        p_duplicate_count: duplicateCount,
+        p_rejected_count: 0,
+        p_nigeria_local_count: nigeriaLocalCount,
+        p_explicit_eligible_count: explicitEligibleCount,
+        p_unclear_eligibility_count: unclearEligibilityCount,
         p_status: "succeeded",
         p_error_code: null,
       },
@@ -123,7 +185,18 @@ export async function runJobSourceSync(
     }
     return workerSucceeded({
       source: REMOTIVE_ADAPTER_KEY,
+      source_checked_at: sourceCheckedAt,
       fetched_count: fetchedCount,
+      accepted_count: acceptedCount,
+      new_canonical_jobs: 0,
+      updated_count: 0,
+      duplicate_count: duplicateCount,
+      rejected_count: 0,
+      closed_count: 0,
+      nigeria_local_count: nigeriaLocalCount,
+      explicit_nigeria_africa_eligible_count: explicitEligibleCount,
+      unclear_eligibility_count: unclearEligibilityCount,
+      error_count: 0,
       alert_catalog_count: catalogCount,
       persisted_descriptions: 0,
       import_recorded: true,
@@ -132,10 +205,18 @@ export async function runJobSourceSync(
     const code =
       reason instanceof OperationalError ? reason.code : "source_sync_failed";
     await callRpc(
-      "worker_record_source_import",
+      "worker_record_source_import_v2",
       {
         p_adapter_key: REMOTIVE_ADAPTER_KEY,
+        p_started_at: startedAt,
+        p_source_checked_at: sourceCheckedAt,
         p_fetched_count: fetchedCount,
+        p_accepted_count: acceptedCount,
+        p_duplicate_count: duplicateCount,
+        p_rejected_count: 0,
+        p_nigeria_local_count: nigeriaLocalCount,
+        p_explicit_eligible_count: explicitEligibleCount,
+        p_unclear_eligibility_count: unclearEligibilityCount,
         p_status: "failed",
         p_error_code: code,
       },
@@ -144,6 +225,12 @@ export async function runJobSourceSync(
     throw new OperationalError(code, {
       source: REMOTIVE_ADAPTER_KEY,
       fetched_count: fetchedCount,
+      accepted_count: acceptedCount,
+      duplicate_count: duplicateCount,
+      rejected_count: 0,
+      nigeria_local_count: nigeriaLocalCount,
+      explicit_nigeria_africa_eligible_count: explicitEligibleCount,
+      unclear_eligibility_count: unclearEligibilityCount,
     });
   }
 }
@@ -156,5 +243,5 @@ const handler = async (
 export default handler;
 
 export const config: Config = {
-  schedule: "5 1,13 * * *",
+  schedule: "5 1,7,13,19 * * *",
 };

@@ -4,7 +4,7 @@ import type { CompanySummary } from "@/lib/companies/repository";
 import type { Job } from "@/lib/jobs/types";
 import type { PublicSalaryAggregate } from "@/lib/salaries/repository";
 
-import { buildSitemapEntries } from "./sitemap";
+import { buildSitemapEntries, renderSitemapXml } from "./sitemap";
 
 function job({
   slug,
@@ -92,6 +92,10 @@ function company(
     sizeBand: null,
     description: null,
     headquartersCountry: null,
+    legalEntities: [],
+    aliases: [],
+    officialDomains: [],
+    citations: [],
     activeJobs,
     categories: [],
     remoteLocations: [],
@@ -100,16 +104,19 @@ function company(
   };
 }
 
-function aggregate(calculatedAt: string): PublicSalaryAggregate {
+function aggregate(
+  calculatedAt: string,
+  countryCode = "NG",
+): PublicSalaryAggregate {
   return {
     id: calculatedAt,
     companySlug: null,
     roleSlug: "product-manager",
     roleFamily: "Product Manager",
-    countryCode: "NG",
+    countryCode,
     seniority: "all",
     arrangement: "all",
-    currency: "NGN",
+    currency: countryCode === "GH" ? "GHS" : "NGN",
     grossNet: "gross",
     medianAnnual: 12_000_000,
     percentile25Annual: 10_000_000,
@@ -175,6 +182,7 @@ describe("dynamic sitemap generation", () => {
         data: [
           aggregate("2026-07-11T00:00:00.000Z"),
           aggregate("2026-07-12T00:00:00.000Z"),
+          aggregate("2026-07-13T00:00:00.000Z", "GH"),
         ],
         issues: [],
       },
@@ -199,10 +207,13 @@ describe("dynamic sitemap generation", () => {
     expect(result).toContainEqual(
       expect.objectContaining({
         url: "https://salarypadi.com/jobs/platform-engineer-padi",
-        lastModified: "2026-07-12T09:00:00.000Z",
+        lastModified: "2026-07-13T00:00:00.000Z",
       }),
     );
     expect(result.some((entry) => entry.url.includes("remotive"))).toBe(false);
+    expect(result.some((entry) => entry.url.includes("/salaries/gh/"))).toBe(
+      false,
+    );
     expect(result).toContainEqual(
       expect.objectContaining({
         url: "https://salarypadi.com/salaries/ng/product-manager",
@@ -232,6 +243,20 @@ describe("dynamic sitemap generation", () => {
         "https://salarypadi.com/contribute",
       ]),
     );
+    expect(result.every((entry) => Boolean(entry.lastModified))).toBe(true);
+    expect(
+      result.every(
+        (entry) =>
+          !Object.values(entry.alternates?.languages ?? {}).some(
+            (href) => typeof href === "string" && href.includes("/gh/"),
+          ),
+      ),
+    ).toBe(true);
+    const xml = renderSitemapXml(result);
+    expect(xml).toContain('xmlns:xhtml="http://www.w3.org/1999/xhtml"');
+    expect(xml).toContain('hreflang="en-NG"');
+    expect(xml).toContain('hreflang="x-default"');
+    expect(xml).not.toContain("/gh/");
   });
 
   it("keeps hubs and salary details out when their repositories are unavailable", () => {

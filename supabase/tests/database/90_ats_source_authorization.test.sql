@@ -361,14 +361,54 @@ set authorization_basis = 'written_permission',
     authorization_evidence_ref = 'vault:salarypadi/ats/authorized-employer/v1',
     authorization_grantor = 'Authorized Employer Legal Team',
     authorization_reviewed_at = now(),
-    authorization_expires_at = now() + interval '90 days'
+    authorization_expires_at = now() + interval '90 days',
+    policy_state = 'enabled',
+    authority = 'employer_ats',
+    allowed_fields = array[
+      'external_id', 'title', 'description', 'source_url',
+      'application_url', 'location', 'eligibility', 'work_arrangement',
+      'employment_type', 'engagement_type', 'experience_level', 'posted_at',
+      'deadline'
+    ],
+    policy_review_due_at = now() + interval '31 days',
+    raw_retention = interval '30 days',
+    minimum_poll_interval = interval '2 hours',
+    maximum_requests_per_day = 12,
+    required_dependencies = array['written_employer_permission'],
+    missing_dependencies = '{}'::text[]
 where id = 'ac000000-0000-4000-8000-000000000002';
+
+insert into private.job_source_dependencies (
+  source_id, dependency_key, state, evidence_reference, reviewed_at
+) values (
+  'ac000000-0000-4000-8000-000000000002',
+  'written_employer_permission', 'verified',
+  'vault:salarypadi/ats/authorized-employer/v1', now()
+);
 
 select lives_ok(
   $$ update app.job_sources set status = 'active'
      where id = 'ac000000-0000-4000-8000-000000000002' $$,
   'reviewed terms and authorization can activate a configured ATS source'
 );
+
+insert into app.source_country_rights (
+  source_id, country_code, policy_state, permission_basis,
+  evidence_reference, terms_url, reviewed_at, review_due_at,
+  allowed_fields, may_store_full_description, attribution_required,
+  attribution_text, minimum_poll_interval, retention_period,
+  allow_public_display, allow_search_index, allow_google_jobposting
+)
+select source.id, 'NG', 'enabled', source.authorization_basis,
+  source.authorization_evidence_ref, source.terms_url,
+  source.authorization_reviewed_at, source.policy_review_due_at,
+  source.allowed_fields, source.may_store_full_description,
+  source.attribution_required, source.attribution_text,
+  source.minimum_poll_interval, source.raw_retention,
+  source.allow_public_listing, source.may_index_jobs,
+  source.may_emit_jobposting_schema
+from app.job_sources source
+where source.id = 'ac000000-0000-4000-8000-000000000002';
 
 select set_config(
   'request.jwt.claims',
@@ -613,8 +653,30 @@ update app.job_sources
 set authorization_basis = 'written_permission',
     authorization_evidence_ref = 'evidence:automatic-test',
     authorization_grantor = 'Automatic Employer Legal Team',
-    authorization_reviewed_at = now()
+    authorization_reviewed_at = now(),
+    policy_state = 'enabled',
+    authority = 'employer_ats',
+    allowed_fields = array[
+      'external_id', 'title', 'description', 'source_url',
+      'application_url', 'location', 'eligibility', 'work_arrangement',
+      'employment_type', 'engagement_type', 'experience_level', 'posted_at',
+      'deadline'
+    ],
+    policy_review_due_at = now() + interval '31 days',
+    raw_retention = interval '30 days',
+    minimum_poll_interval = interval '2 hours',
+    maximum_requests_per_day = 12,
+    required_dependencies = array['written_employer_permission'],
+    missing_dependencies = '{}'::text[]
 where id = 'ac000000-0000-4000-8000-000000000031';
+
+insert into private.job_source_dependencies (
+  source_id, dependency_key, state, evidence_reference, reviewed_at
+) values (
+  'ac000000-0000-4000-8000-000000000031',
+  'written_employer_permission', 'verified',
+  'evidence:automatic-test', now()
+);
 
 select throws_ok(
   $$ update app.job_sources set status = 'active'
@@ -632,6 +694,24 @@ select lives_ok(
      where id = 'ac000000-0000-4000-8000-000000000031' $$,
   'automatic mode activates only after company publication and verification'
 );
+
+insert into app.source_country_rights (
+  source_id, country_code, policy_state, permission_basis,
+  evidence_reference, terms_url, reviewed_at, review_due_at,
+  allowed_fields, may_store_full_description, attribution_required,
+  attribution_text, minimum_poll_interval, retention_period,
+  allow_public_display, allow_search_index, allow_google_jobposting
+)
+select source.id, 'NG', 'enabled', source.authorization_basis,
+  source.authorization_evidence_ref, source.terms_url,
+  source.authorization_reviewed_at, source.policy_review_due_at,
+  source.allowed_fields, source.may_store_full_description,
+  source.attribution_required, source.attribution_text,
+  source.minimum_poll_interval, source.raw_retention,
+  source.allow_public_listing, source.may_index_jobs,
+  source.may_emit_jobposting_schema
+from app.job_sources source
+where source.id = 'ac000000-0000-4000-8000-000000000031';
 
 set local role service_role;
 select ok(

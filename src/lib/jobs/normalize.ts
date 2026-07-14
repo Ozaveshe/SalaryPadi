@@ -5,6 +5,7 @@ import { classifyEligibility } from "./eligibility";
 import { buildJobFingerprint } from "./fingerprint";
 import { remotiveJobSchema, type RemotiveJob } from "./remotive-schema";
 import { REMOTIVE_SOURCE_POLICY } from "./source-policy";
+import { extractCompleteEligibilityEvidence } from "./supply/eligibility-evidence";
 import type {
   EmploymentArrangement,
   EmploymentType,
@@ -193,9 +194,13 @@ function parseAmount(rawValue: string): number | null {
   // A multiplier may be attached or separated by whitespace, but it must not
   // start a longer word. This accepts "$120 k" while ensuring "60000 Kč" and
   // "6,000 monthly" never read as 60000×1000 or 6000×1000000.
-  const match = rawValue
-    .replace(/,/g, "")
-    .match(/(\d+(?:\.\d+)?)(?:\s*([kKmM])(?!\p{L}))?/u);
+  // Treat a comma followed by one or two digits before k/m as a decimal
+  // separator. Three-digit comma groups remain thousands separators.
+  const decimalComma = /\d,\d{1,2}\s*[kKmM](?!\p{L})/u.test(rawValue);
+  const numericValue = decimalComma
+    ? rawValue.replace(/(\d),(?=\d{1,2}\s*[kKmM](?!\p{L}))/gu, "$1.")
+    : rawValue.replace(/,/g, "");
+  const match = numericValue.match(/(\d+(?:\.\d+)?)(?:\s*([kKmM])(?!\p{L}))?/u);
   if (!match?.[1]) return null;
   const amount = Number(match[1]);
   const multiplier =
@@ -281,7 +286,17 @@ export function normalizeRemotiveJob(
   const arrangement = inferArrangement(employmentType);
   const location =
     source.candidate_required_location || "Not stated by the source";
-  const eligibility = classifyEligibility(location, checkedAt);
+  const description = htmlToPlainText(source.description);
+  const completeEligibility = extractCompleteEligibilityEvidence(
+    `${location}. ${description}`,
+    checkedAt,
+  );
+  const eligibility = {
+    ...classifyEligibility(location, checkedAt),
+    requiredTimezone: completeEligibility.timezone,
+    workAuthorization: completeEligibility.workAuthorization,
+    visaSponsorship: completeEligibility.visaSponsorship,
+  };
   const companySlug = slugify(source.company_name);
   const titleSlug = slugify(source.title);
   const sourceUrl = new URL(source.url);
@@ -326,7 +341,7 @@ export function normalizeRemotiveJob(
     skills: [...new Set(source.tags)].slice(0, 20),
     salary: parseSalary(source.salary),
     eligibility,
-    description: htmlToPlainText(source.description),
+    description,
     requirements: null,
     benefits: null,
     postedAt: source.publication_date,

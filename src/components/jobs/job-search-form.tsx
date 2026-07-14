@@ -16,6 +16,9 @@ export function JobSearchForm({
       method="get"
       role="search"
     >
+      {search.path !== "all" ? (
+        <input type="hidden" name="path" value={search.path} />
+      ) : null}
       <div className="job-search-primary">
         <div className="field">
           <label htmlFor="job-keyword">Role, skill or keyword</label>
@@ -220,7 +223,7 @@ export function JobSearchForm({
           </div>
         </div>
         <fieldset className="checkbox-grid">
-          <legend>Additional evidence</legend>
+          <legend>Eligibility, qualifications and career stage</legend>
           {[
             ["salaryDisclosed", "Salary disclosed", search.salaryDisclosed],
             ["visaSponsorship", "Visa sponsorship", search.visaSponsorship],
@@ -232,8 +235,54 @@ export function JobSearchForm({
             ["graduateTrainee", "Graduate trainee", search.graduateTrainee],
             ["internship", "Internship", search.internship],
             ["nyscRequired", "NYSC mentioned", search.nyscRequired],
-            ["hndAccepted", "HND mentioned", search.hndAccepted],
-            ["bscRequired", "BSc / bachelor mentioned", search.bscRequired],
+            ["hndAccepted", "HND explicitly accepted", search.hndAccepted],
+            ["bscRequired", "BSc explicitly required", search.bscRequired],
+            [
+              "professionalCertification",
+              "Professional certification mentioned",
+              search.professionalCertification,
+            ],
+            ["localLanguage", "Local language mentioned", search.localLanguage],
+          ].map(([name, label, checked]) => (
+            <label className="checkbox" key={String(name)}>
+              <input
+                type="checkbox"
+                name={String(name)}
+                defaultChecked={Boolean(checked)}
+              />
+              {String(label)}
+            </label>
+          ))}
+          <p className="field-help filter-help">
+            These filters match only explicit wording retained from the job
+            source. A missing badge means not stated, not necessarily absent.
+          </p>
+        </fieldset>
+        <fieldset className="checkbox-grid">
+          <legend>Benefits and working conditions</legend>
+          {[
+            ["pension", "Pension mentioned", search.pension],
+            ["hmo", "HMO / health cover mentioned", search.hmo],
+            ["transport", "Transport support mentioned", search.transport],
+            ["housing", "Housing support mentioned", search.housing],
+            [
+              "dataPowerAllowance",
+              "Data or power allowance mentioned",
+              search.dataPowerAllowance,
+            ],
+            ["thirteenthMonth", "13th month mentioned", search.thirteenthMonth],
+            ["bonus", "Bonus mentioned", search.bonus],
+            [
+              "overtimeWeekend",
+              "Overtime or weekend expectations",
+              search.overtimeWeekend,
+            ],
+            ["fxPolicy", "FX policy mentioned", search.fxPolicy],
+            [
+              "payReliability",
+              "Pay reliability evidence",
+              search.payReliability,
+            ],
           ].map(([name, label, checked]) => (
             <label className="checkbox" key={String(name)}>
               <input

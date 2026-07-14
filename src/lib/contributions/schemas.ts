@@ -12,12 +12,27 @@ const optionalMoney = z.preprocess(
   z.coerce.number().nonnegative().max(10_000_000_000).optional(),
 );
 const rating = z.coerce.number().int().min(1).max(5);
+const yesNoUnknown = z.enum(["yes", "no", "unclear", "not_applicable"]);
 
 export function containsLikelyPrivateContact(value: string) {
   return (
     /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(value) ||
     /(?:\+?\d[\s().-]*){8,}/.test(value)
   );
+}
+
+export function containsProhibitedDocumentField(formData: FormData) {
+  for (const [key, value] of formData.entries()) {
+    if (
+      (typeof File !== "undefined" && value instanceof File) ||
+      /(?:payslip|pay_slip|document|attachment|verification_evidence|work_email)/i.test(
+        key,
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function noPrivateContact<T extends z.ZodTypeAny>(schema: T, fields: string[]) {
@@ -155,10 +170,75 @@ export const interviewContributionSchema = noPrivateContact(interviewBase, [
   "general_experience",
 ]);
 
+export const benefitsContributionSchema = noPrivateContact(
+  z.object({
+    company: requiredText("Company", 180),
+    country: z
+      .string()
+      .length(2)
+      .transform((value) => value.toUpperCase()),
+    employment_status: z.enum(["current", "former"]),
+    pension: yesNoUnknown,
+    hmo: yesNoUnknown,
+    transport: yesNoUnknown,
+    housing: yesNoUnknown,
+    data_power: yesNoUnknown,
+    thirteenth_month: yesNoUnknown,
+    bonus: yesNoUnknown,
+    overtime_expectation: z.enum(["rare", "sometimes", "frequent", "unclear"]),
+    weekend_work: z.enum(["never", "sometimes", "frequent", "unclear"]),
+    context: optionalText(700),
+    accuracy_attestation: z.literal("on"),
+  }),
+  ["context"],
+);
+
+export const payReliabilityContributionSchema = noPrivateContact(
+  z.object({
+    company: requiredText("Company", 180),
+    country: z
+      .string()
+      .length(2)
+      .transform((value) => value.toUpperCase()),
+    employment_status: z.enum(["current", "former"]),
+    observation_window: z.enum([
+      "under_3_months",
+      "3_to_6_months",
+      "6_to_12_months",
+      "over_12_months",
+    ]),
+    on_time_frequency: z.enum([
+      "always_on_time",
+      "usually_on_time",
+      "sometimes_late",
+      "often_late",
+    ]),
+    longest_delay: z.enum([
+      "none",
+      "under_1_week",
+      "1_to_4_weeks",
+      "over_1_month",
+    ]),
+    arrears_resolved: z.enum([
+      "not_applicable",
+      "yes",
+      "partly",
+      "no",
+      "unclear",
+    ]),
+    fx_policy: optionalText(500),
+    context: optionalText(700),
+    accuracy_attestation: z.literal("on"),
+  }),
+  ["fx_policy", "context"],
+);
+
 export const contributionSchemas = {
   salary: salaryContributionSchema,
   review: reviewContributionSchema,
   interview: interviewContributionSchema,
+  benefits: benefitsContributionSchema,
+  pay_reliability: payReliabilityContributionSchema,
 } as const;
 
 export type ContributionKind = keyof typeof contributionSchemas;

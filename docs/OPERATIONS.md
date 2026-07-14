@@ -95,18 +95,18 @@ Employer submissions are pending by default. A matching corporate email domain i
 
 ## Source operations
 
-- Keep the Remotive pilot within the contract in [Data sources](DATA_SOURCES.md).
+- Keep Remotive disabled until the conflicting API/general-terms language has written clarification recorded in the source-policy dependency ledger.
 - On a provider policy change, set `REMOTIVE_SOURCE_ENABLED=false` immediately; code deployment is not required for that toggle.
 - Database-backed sources can be paused/disabled independently. Do not use a source failure as permission to invent or reuse stale jobs.
 - Monitor last successful import, error count, schema failures, stale/expired ratios, duplicate rate, and outbound destination changes.
 
-The production `job-source-sync` worker first reads the service-role-only database policy. If it is active and matches the reviewed no-storage/noindex contract, the worker calls the protected internal snapshot route. That route invalidates and warms the same twelve-hour tagged cache used by public pages, applies the bounded shared adapter, and returns a description-free projection. The worker replaces the current alert Blob and records import evidence. Normal operation performs two provider reads per day, not one read from the website plus another from the worker. A worker success proves policy validation, source validation, shared-cache refresh, Blob publication, and operational freshness; it does not create a durable description copy.
+The inactive `job-source-sync` worker first reads the service-role-only database policy and claims the database-backed rolling provider budget. Only if the policy is runnable and matches the reviewed no-storage/noindex contract may it call the protected internal snapshot route. That route invalidates and warms the same six-hour tagged cache used by public pages, applies the bounded shared adapter, and returns a description-free projection. A permitted run would replace the current alert Blob and record import evidence. The configured ceiling is four provider reads per rolling day, but the current disabled policy authorizes zero. A worker success would prove policy validation, source validation, shared-cache refresh, Blob publication, and operational freshness; it would not create a durable description copy.
 
 Admin source pause/disable is an acquisition boundary. The worker and public repository both fail closed before the provider call. The environment flag remains an independent emergency stop. Import runs are immutable evidence: the console exposes no retry action and the database rejects direct retry requests until a real rate-aware queue consumer exists.
 
 ### Employer ATS activation and runbook
 
-The Greenhouse, Lever, and Ashby adapter, worker, and lifecycle code is implemented infrastructure. The `ats_source_sync` operational registration expects a six-hour run and becomes stale after fourteen hours, but provider acquisition must remain disabled with `ATS_SOURCE_SYNC_ENABLED=false` until the source owner has written permission. No employer source or private ATS configuration is seeded. The first recommended outreach candidates are Moniepoint Greenhouse and M-KOPA Ashby; neither has granted permission. Use the checklist and templates in [Source permission outreach](SOURCE_PERMISSION_OUTREACH.md), sending from `sources@salarypadi.com`, not a personal mailbox.
+The Greenhouse, Lever, and Ashby adapter, worker, and lifecycle code is implemented infrastructure. The `ats_source_sync` operational registration expects a two-hour run and becomes stale after five hours, but provider acquisition must remain disabled with `ATS_SOURCE_SYNC_ENABLED=false` until the source owner has written permission. No employer source or private ATS configuration is seeded. The first recommended outreach candidates are Moniepoint Greenhouse and M-KOPA Ashby; neither has granted permission. Use the checklist and templates in [Source permission outreach](SOURCE_PERMISSION_OUTREACH.md), sending from `sources@salarypadi.com`, not a personal mailbox.
 
 Activation is an explicit change with separate evidence:
 
@@ -159,19 +159,19 @@ The automated path runs only from a Netlify Function with a Functions-only produ
 
 ## Worker and email operations
 
-| Task key                 | Netlify function         | UTC schedule               | Success evidence                                                              | Failure action                                                                |
-| ------------------------ | ------------------------ | -------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `job_source_sync`        | `job-source-sync`        | Daily at 01:05 and 13:05   | Source import row, description-free catalog count, and successful tracked run | Disable source on terms/schema failure; never substitute fabricated jobs      |
-| `ats_source_sync`        | `ats-source-sync`        | 02:35, 08:35, 14:35, 20:35 | Safe disabled skip, or claimed source plus append-only snapshot counts        | Set the environment gate false; pause any affected source/configuration       |
-| `alert_delivery`         | `alert-delivery`         | Every ten minutes          | Claimed/sent/skipped/failed counts; provider message ID only                  | Retry with idempotency; terminal failures move to `dead` for operator review  |
-| `currency_rates`         | `currency-rates`         | Daily at 02:25             | Reviewed InforEuro rate set, data month, source URL, and 42 cross-rates       | Keep the last disclosed set; UI must label it stale and allow manual override |
-| `operations_maintenance` | `operations-maintenance` | Daily at 02:45             | Expiry, retention, delivery recovery, and aggregate counts                    | Run the focused RPC only after diagnosing the failed step                     |
+| Task key                 | Netlify function         | UTC schedule               | Success evidence                                                           | Failure action                                                                |
+| ------------------------ | ------------------------ | -------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `job_source_sync`        | `job-source-sync`        | 01:05, 07:05, 13:05, 19:05 | Safe disabled skip, or claimed source plus description-free count evidence | Disable source on terms/schema failure; never substitute fabricated jobs      |
+| `ats_source_sync`        | `ats-source-sync`        | Every two hours at :17     | Safe disabled skip, or claimed source plus append-only snapshot counts     | Set the environment gate false; pause any affected source/configuration       |
+| `alert_delivery`         | `alert-delivery`         | Every fifteen minutes      | Claimed/sent/skipped/failed counts; provider message ID only               | Retry with idempotency; terminal failures move to `dead` for operator review  |
+| `currency_rates`         | `currency-rates`         | Daily at 02:25             | Reviewed InforEuro rate set, data month, source URL, and 42 cross-rates    | Keep the last disclosed set; UI must label it stale and allow manual override |
+| `operations_maintenance` | `operations-maintenance` | Daily at 02:45             | Expiry, retention, delivery recovery, and aggregate counts                 | Run the focused RPC only after diagnosing the failed step                     |
 
 Every function first creates an idempotent `private.worker_runs` row. Scheduled invocation keys prevent a duplicate Netlify delivery from running the same interval twice. Normal logs contain task keys, counts, provider-safe IDs, and error codes only—never recipient addresses, alert queries, contribution text, salary amounts, or secrets.
 
 Each ATS invocation processes at most two due authorized sources. Do not increase that cap or the per-source deadline without load evidence and a reviewed Netlify runtime budget. A recent disabled skip proves the kill switch and schedule are alive; it does not prove employer authorization or provider availability.
 
-Alert delivery currently claims at most one recipient every ten minutes, for a hard ceiling of 144 claims per day before retries. Monitor pending count and oldest due delivery; move to a queue/background dispatcher before expected due volume reaches 100 per day or an item waits more than 20 minutes. Do not raise the per-invocation claim cap while the function remains under the 30-second scheduled-function deadline.
+Alert delivery currently claims at most one recipient every fifteen minutes, for a hard ceiling of 96 claims per day before retries. Monitor pending count and oldest due delivery; move to a queue/background dispatcher before expected due volume reaches 70 per day or an item waits more than 30 minutes. Do not raise the per-invocation claim cap while the function remains under the 30-second scheduled-function deadline.
 
 Authentication and alert email uses the verified `mail.salarypadi.com` Resend domain. Supabase Auth and the alert worker use separate restricted credentials. Auth templates use one-time token hashes verified by `/auth/confirm`, allowing a link to be opened safely in a different browser from the request. Open/click tracking is disabled. When testing delivery, send to an operational mailbox, confirm the visible sender and reply-to, and remove any synthetic alert after proof.
 
@@ -183,7 +183,7 @@ Assign every correction, export, account-deletion, and contribution-deletion req
 
 - `/api/health` responds, reports the expected provider configuration, and shows every registered worker inside its stale threshold. While ATS acquisition is disabled, `ats_source_sync` should have recent safe-skip evidence and zero provider requests. Source-provider availability still needs its own run evidence.
 - The scheduled `Production freshness` GitHub workflow runs every six hours at 03:43, 09:43, 15:43, and 21:43 UTC. A failed health, worker, or route check fails the workflow and uses GitHub's repository-owner workflow-failure email as the baseline alert.
-- The scheduled GitHub production canary runs at 01:20 and 13:20 UTC and proves a populated Remotive-backed listing, stable detail route, attribution, noindex/structured-data policy, and HTTPS source destination without calling Remotive itself.
+- The scheduled GitHub production canary runs at 01:20, 07:20, 13:20 and 19:20 UTC without calling a provider. A recent safe skip proves schedule/kill-switch liveness and requires no Remotive records to be public. A separately authorized successful run additionally proves attribution, a stable detail route, noindex/structured-data policy, and an HTTPS source destination.
 - Public pages, sign-in, save/apply/alert flows, and admin gates behave as expected.
 - Source freshness and outbound application links are within policy.
 - If any ATS source is ever enabled, its authorization/terms have not expired, its latest append-only snapshot evidence matches the worker result, quarantine is zero for a complete run, and its request count remains inside the configured budget.

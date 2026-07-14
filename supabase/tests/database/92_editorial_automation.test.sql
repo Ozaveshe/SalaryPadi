@@ -23,7 +23,7 @@ select is(
 );
 select is(
   (select count(*)::integer from private.worker_schedules where task_key like 'editorial_%'),
-  9,
+  11,
   'all editorial schedules are registered'
 );
 

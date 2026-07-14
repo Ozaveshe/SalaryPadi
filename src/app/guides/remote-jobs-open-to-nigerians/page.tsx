@@ -8,14 +8,35 @@ import { PageHeading } from "@/components/page-heading";
 import { REMOTE_JOBS_GUIDE } from "@/lib/editorial/repository";
 import { getAppOrigin } from "@/lib/env";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
+import { buildSocialImageMetadata } from "@/lib/seo/open-graph";
+import { buildBreadcrumbStructuredData } from "@/lib/seo/structured-data";
 
 export const dynamic = "force-dynamic";
+
+const socialImage = buildSocialImageMetadata(
+  "/guides/remote-jobs-open-to-nigerians/opengraph-image",
+  "Remote jobs open to Nigerians on SalaryPadi",
+);
 
 export const metadata: Metadata = {
   title: "Remote jobs open to Nigerians",
   description: REMOTE_JOBS_GUIDE.description,
   alternates: { canonical: "/guides/remote-jobs-open-to-nigerians" },
   robots: { index: true, follow: true },
+  openGraph: {
+    title: REMOTE_JOBS_GUIDE.title,
+    description: REMOTE_JOBS_GUIDE.description,
+    type: "article",
+    publishedTime: REMOTE_JOBS_GUIDE.published_at,
+    modifiedTime: REMOTE_JOBS_GUIDE.updated_at,
+    images: socialImage.openGraphImages,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: REMOTE_JOBS_GUIDE.title,
+    description: REMOTE_JOBS_GUIDE.description,
+    images: socialImage.twitterImages,
+  },
 };
 
 export default async function RemoteJobsOpenToNigeriansGuide() {
@@ -39,6 +60,14 @@ export default async function RemoteJobsOpenToNigeriansGuide() {
 
   return (
     <div className="site-shell stack-lg">
+      <JsonLd
+        nonce={requestHeaders.get("x-nonce")}
+        data={buildBreadcrumbStructuredData([
+          { name: "Home", url: getAppOrigin() },
+          { name: "Jobs", url: new URL("/jobs", getAppOrigin()).toString() },
+          { name: REMOTE_JOBS_GUIDE.title, url },
+        ])}
+      />
       <JsonLd
         nonce={requestHeaders.get("x-nonce")}
         data={{

@@ -98,6 +98,7 @@ const validReview = {
   cons: "Busy periods",
   advice_to_management: null,
   published_at: "2026-07-11T00:00:00.000Z",
+  provenance_label: "First-party, moderated; identity withheld",
 };
 
 const validInterview = {
@@ -115,6 +116,8 @@ const validInterview = {
   question_themes: "System design",
   general_experience: "Structured",
   published_at: "2026-07-11T00:00:00.000Z",
+  provenance_label:
+    "First-party, moderated; identity and rare attributes withheld",
 };
 
 const validRating = {

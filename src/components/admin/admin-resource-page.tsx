@@ -93,7 +93,8 @@ export async function AdminResourcePage({
                           placeholder="Required reason"
                           required
                         />
-                        {resource === "moderation" ? (
+                        {resource === "moderation" ||
+                        resource === "employer_responses" ? (
                           <>
                             <label htmlFor={`payload-${row.id}`}>
                               Redacted public fields (JSON; for redact only)
@@ -103,17 +104,25 @@ export async function AdminResourcePage({
                               id={`payload-${row.id}`}
                               name="public_payload"
                               maxLength={60000}
-                              placeholder='{"pros":"Redacted public text"}'
+                              placeholder={
+                                resource === "employer_responses"
+                                  ? '{"statement":"Redacted employer response"}'
+                                  : '{"pros":"Redacted public text"}'
+                              }
                             />
-                            <label htmlFor={`linked-case-${row.id}`}>
-                              Destination case ID (for merge duplicate only)
-                            </label>
-                            <input
-                              className="input"
-                              id={`linked-case-${row.id}`}
-                              name="linked_case_id"
-                              placeholder="UUID"
-                            />
+                            {resource === "moderation" ? (
+                              <>
+                                <label htmlFor={`linked-case-${row.id}`}>
+                                  Destination case ID (for merge duplicate only)
+                                </label>
+                                <input
+                                  className="input"
+                                  id={`linked-case-${row.id}`}
+                                  name="linked_case_id"
+                                  placeholder="UUID"
+                                />
+                              </>
+                            ) : null}
                           </>
                         ) : null}
                         <button

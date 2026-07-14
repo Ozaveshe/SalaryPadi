@@ -7,9 +7,12 @@ import { SiteHeader } from "@/components/site-header";
 import { JsonLd } from "@/components/json-ld";
 import { getViewer } from "@/lib/auth/dal";
 import { ANALYTICS_CONSENT_COOKIE } from "@/lib/analytics/consent";
+import { getDefaultCountryPack } from "@/lib/country-packs/registry";
 import { getAppOrigin, getGoogleAnalyticsId } from "@/lib/env";
 
 import "./globals.css";
+
+const defaultCountryPack = getDefaultCountryPack();
 
 export const metadata: Metadata = {
   metadataBase: new URL(getAppOrigin()),
@@ -26,7 +29,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    locale: "en_NG",
+    locale: defaultCountryPack.defaultLocale.replace("-", "_"),
     siteName: "SalaryPadi",
     title: "SalaryPadi — Jobs and salary truth for Africans",
     description:
@@ -61,7 +64,7 @@ export default async function RootLayout({
       : null;
 
   return (
-    <html lang="en-NG" data-scroll-behavior="smooth">
+    <html lang={defaultCountryPack.defaultLocale} data-scroll-behavior="smooth">
       <body className="flex min-h-screen flex-col">
         <a className="skip-link" href="#main-content">
           Skip to main content
@@ -76,7 +79,10 @@ export default async function RootLayout({
             url: getAppOrigin(),
             description:
               "Source-attributed job discovery and privacy-thresholded career intelligence for Africans.",
-            areaServed: { "@type": "Country", name: "Nigeria" },
+            areaServed: {
+              "@type": "Country",
+              name: defaultCountryPack.name,
+            },
           }}
         />
         <main className="site-main" id="main-content">

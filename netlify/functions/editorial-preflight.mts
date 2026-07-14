@@ -9,4 +9,4 @@ const handler = (
     runEditorialOperation("editorial_preflight", execution),
   );
 export default handler;
-export const config: Config = { schedule: "0 5 * * *" };
+export const config: Config = { schedule: "30 5 * * *" };

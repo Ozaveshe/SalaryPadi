@@ -19,6 +19,7 @@ test.describe("production job source canary", () => {
           task_key?: unknown;
           freshness?: unknown;
           last_status?: unknown;
+          last_started_at?: unknown;
           last_success_at?: unknown;
         }>;
       };
@@ -28,23 +29,34 @@ test.describe("production job source canary", () => {
       expect.objectContaining({
         task_key: "job_source_sync",
         freshness: "healthy",
-        last_status: "succeeded",
       }),
     );
     const sourceWorker = health.checks?.workers?.find(
       (worker) => worker.task_key === "job_source_sync",
     );
-    expect(typeof sourceWorker?.last_success_at).toBe("string");
-    const sourceSuccessAgeMs =
-      Date.now() - Date.parse(String(sourceWorker?.last_success_at));
-    expect(sourceSuccessAgeMs).toBeGreaterThanOrEqual(0);
-    expect(sourceSuccessAgeMs).toBeLessThanOrEqual(2 * 60 * 60 * 1_000);
+    expect(["succeeded", "skipped"]).toContain(sourceWorker?.last_status);
+    expect(typeof sourceWorker?.last_started_at).toBe("string");
+    const sourceRunAgeMs =
+      Date.now() - Date.parse(String(sourceWorker?.last_started_at));
+    expect(sourceRunAgeMs).toBeGreaterThanOrEqual(0);
+    expect(sourceRunAgeMs).toBeLessThanOrEqual(14 * 60 * 60 * 1_000);
 
     await page.goto("/jobs");
     const remotiveCard = page
       .locator(".job-card")
       .filter({ hasText: "Source: Remotive" })
       .first();
+    if (sourceWorker?.last_status === "skipped") {
+      await expect(remotiveCard).toHaveCount(0);
+      await expect(page.getByLabel("Can apply from")).toBeVisible();
+      return;
+    }
+
+    expect(typeof sourceWorker?.last_success_at).toBe("string");
+    const sourceSuccessAgeMs =
+      Date.now() - Date.parse(String(sourceWorker?.last_success_at));
+    expect(sourceSuccessAgeMs).toBeGreaterThanOrEqual(0);
+    expect(sourceSuccessAgeMs).toBeLessThanOrEqual(14 * 60 * 60 * 1_000);
     await expect(remotiveCard).toBeVisible();
     const detailLink = remotiveCard.locator(".job-title a");
     const href = await detailLink.getAttribute("href");

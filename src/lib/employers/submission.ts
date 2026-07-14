@@ -52,6 +52,7 @@ export const employerJobSubmissionSchema = z
     timezone_overlap: optional(300),
     work_authorization: optional(500),
     visa_sponsorship: z.enum(["yes", "no", "unclear"]),
+    relocation_support: z.enum(["yes", "no", "unclear"]).default("unclear"),
     salary_minimum: optionalMoney,
     salary_maximum: optionalMoney,
     currency: z.preprocess(

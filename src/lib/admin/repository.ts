@@ -9,6 +9,8 @@ export type AdminResource =
   | "imports"
   | "sources"
   | "companies"
+  | "company_claims"
+  | "employer_responses"
   | "moderation"
   | "reports"
   | "users"

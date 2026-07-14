@@ -19,24 +19,31 @@ export default function PrivacyPage() {
       description="SalaryPadi uses data minimisation, private ownership controls and moderated publication. This notice describes the current production service; it is not a claim of legal compliance or a substitute for jurisdiction-specific advice."
     >
       <p>
-        <strong>Last updated:</strong> 12 July 2026.
+        <strong>Last updated:</strong> 14 July 2026.
       </p>
       <h2>Data we need</h2>
       <p>
         Account identity and session data support sign-in, ownership and abuse
         prevention. Saved jobs, application notes, alert settings and
-        contribution drafts are private. Submitted reviews, salary information
-        and interview experiences are retained for moderation and, only after
-        approval, used in redacted publications or aggregates.
+        contribution drafts are private and expire within 90 days. Submitted
+        reviews, salary information, benefit and pay-reliability evidence, and
+        interview experiences are retained for moderation and, only after
+        approval, used in redacted publications or privacy-cohort aggregates.
       </p>
       <h2>Public anonymity</h2>
       <p>
-        Feed posts, forum discussions and other community contributions use a
-        public name and random SalaryPadi handle, but remain privately linked to
-        an account for ownership, moderation, deletion and manipulation
-        controls. Employers and other users do not receive that identity link.
-        Feed and forum text is public immediately after submission; do not put
-        contact details, private people or confidential information in it.
+        Workplace contributions remain privately linked to an account for
+        ownership, moderation, deletion and manipulation controls. Employers and
+        other users do not receive that identity link, work email, verification
+        evidence or abuse signal. A submission is never public by submission
+        alone. Public records are moderated, redacted where needed, and subject
+        to the relevant cohort rule.
+      </p>
+      <p>
+        Payslips, identity documents and verification attachments are not
+        accepted. Document verification remains disabled until secure redaction,
+        encryption, retention, deletion, access-control and incident response
+        handling is implemented and independently reviewed.
       </p>
       <h2>Analytics boundaries</h2>
       <p>

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "htmlRoutes": [
+    { "path": "/", "canonicalPath": "/", "robots": "index" },
+    { "path": "/jobs", "canonicalPath": "/jobs", "robots": "noindex" },
+    {
+      "path": "/jobs/remote",
+      "canonicalPath": "/jobs/remote",
+      "robots": "gate"
+    },
+    {
+      "path": "/jobs/nigeria",
+      "canonicalPath": "/jobs/nigeria",
+      "robots": "gate"
+    },
+    {
+      "path": "/jobs/graduate",
+      "canonicalPath": "/jobs/graduate",
+      "robots": "gate"
+    },
+    {
+      "path": "/jobs/visa-sponsorship",
+      "canonicalPath": "/jobs/visa-sponsorship",
+      "robots": "gate"
+    },
+    {
+      "path": "/jobs/software",
+      "canonicalPath": "/jobs/software",
+      "robots": "gate"
+    },
+    { "path": "/jobs/ngo", "canonicalPath": "/jobs/ngo", "robots": "gate" },
+    {
+      "path": "/jobs/roles/software-engineering",
+      "canonicalPath": "/jobs/roles/software-engineering",
+      "robots": "gate"
+    },
+    {
+      "path": "/jobs/cities/lagos",
+      "canonicalPath": "/jobs/cities/lagos",
+      "robots": "gate"
+    },
+    {
+      "path": "/guides/remote-jobs-open-to-nigerians",
+      "canonicalPath": "/guides/remote-jobs-open-to-nigerians",
+      "robots": "index"
+    }
+  ],
+  "xmlRoutes": [
+    "/sitemap.xml",
+    "/sitemaps/jobs.xml",
+    "/sitemaps/companies.xml",
+    "/sitemaps/salaries.xml",
+    "/sitemaps/tools.xml",
+    "/sitemaps/guides.xml",
+    "/sitemaps/insights.xml"
+  ]
+}

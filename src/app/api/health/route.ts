@@ -12,6 +12,7 @@ const expectedWorkerKeys = [
   "alert_delivery",
   "currency_rates",
   "job_source_sync",
+  "ats_source_sync",
   "operations_maintenance",
   "editorial_job_snapshot",
   "editorial_topic_candidates",
@@ -23,6 +24,12 @@ const expectedWorkerKeys = [
   "editorial_nightly_audit",
   "editorial_weekly_audit",
   "afrotools_catalog_sync",
+  "job_supply_dispatcher",
+  "job_lifecycle",
+  "apply_link_check",
+  "job_dedupe_review",
+  "source_health_digest",
+  "source_rights_review",
 ] as const;
 
 const workerHealthSchema = z
@@ -38,7 +45,7 @@ const workerHealthSchema = z
       freshness: z.enum(["disabled", "never", "stale", "degraded", "healthy"]),
     }),
   )
-  .max(20);
+  .max(30);
 
 export async function GET() {
   const environment = getServerEnvironment();
@@ -58,8 +65,8 @@ export async function GET() {
       environment.TRANSACTIONAL_EMAIL_FROM &&
       environment.TRANSACTIONAL_EMAIL_REPLY_TO,
     ),
-    remotive: environment.REMOTIVE_SOURCE_ENABLED,
     editorial: environment.EDITORIAL_AUTOMATION_ENABLED,
+    source_policy_fail_closed: true,
   };
   const operationsConfigured =
     workerBackendConfigured &&

@@ -3,6 +3,21 @@ import "server-only";
 import { z } from "zod";
 
 import {
+  benefitSchema,
+  companyEvidenceRowSchema,
+  companyLocationSchema,
+  companyRatingThresholdSchema,
+  companyRowSchema,
+  employerResponseSchema,
+  interviewSchema,
+  ratingSchema,
+  reviewSchema,
+  type CompanyAlias,
+  type CompanyCitation,
+  type CompanyLegalEntity,
+  type CompanyOfficialDomain,
+} from "@/lib/companies/contracts";
+import {
   mapRepositoryResult,
   repositoryDegraded,
   repositoryFailure,
@@ -15,102 +30,13 @@ import { getLiveJobFeed } from "@/lib/jobs/repository";
 import type { Job, JobFeedResult } from "@/lib/jobs/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-const companyLocationSchema = z.object({
-  country_code: z.string(),
-  city: z.string().nullable().optional(),
-  region: z.string().nullable().optional(),
-  location_type: z.string().optional(),
-  is_primary: z.boolean().optional(),
-});
-
-const companyRowSchema = z.object({
-  id: z.string().uuid(),
-  slug: z.string(),
-  display_name: z.string(),
-  website_url: z.string().nullable(),
-  industry: z.string().nullable(),
-  size_band: z.string().nullable(),
-  description: z.string().nullable(),
-  headquarters_country: z.string().nullable(),
-  verification_status: z.string(),
-  updated_at: z.string(),
-  locations: z.array(companyLocationSchema).catch([]),
-});
-
-const reviewSchema = z.object({
-  id: z.string().uuid(),
-  company_slug: z.string(),
-  role_family: z.string().nullable(),
-  country_code: z.string(),
-  employment_status: z.string().nullable(),
-  employment_period_label: z.string().nullable(),
-  compensation_rating: z.coerce.number().nullable(),
-  pay_reliability_rating: z.coerce.number().nullable(),
-  management_rating: z.coerce.number().nullable(),
-  work_life_rating: z.coerce.number().nullable(),
-  career_growth_rating: z.coerce.number().nullable(),
-  overall_rating: z.coerce.number().nullable(),
-  pros: z.string().nullable(),
-  cons: z.string().nullable(),
-  advice_to_management: z.string().nullable(),
-  published_at: z.string(),
-});
-
-const interviewSchema = z.object({
-  id: z.string().uuid(),
-  company_slug: z.string(),
-  role_family: z.string().nullable(),
-  seniority: z.string().nullable(),
-  country_code: z.string(),
-  application_source: z.string().nullable(),
-  stages: z.array(z.string()).catch([]),
-  approximate_duration_label: z.string().nullable(),
-  difficulty: z.coerce.number().nullable(),
-  feedback_received: z.boolean().nullable(),
-  outcome: z.string().nullable(),
-  question_themes: z.string().nullable(),
-  general_experience: z.string().nullable(),
-  published_at: z.string(),
-});
-
-const ratingSchema = z.object({
-  company_slug: z.string(),
-  sample_size: z.coerce.number().int().nonnegative(),
-  overall_rating: z.coerce.number(),
-  confidence_label: z.string(),
-  computed_at: z.string(),
-});
-
-const benefitSchema = z.object({
-  id: z.string().uuid(),
-  company_slug: z.string(),
-  benefit_code: z.string(),
-  label: z.string(),
-  description: z.string().nullable(),
-  source_kind: z.string(),
-  sample_size: z.coerce.number().int().nonnegative().nullable(),
-  confidence_label: z.string().nullable(),
-  last_verified_at: z.string().nullable(),
-});
-
-const companyRatingThresholdSchema = z.object({
-  metric: z.literal("company_overall_rating"),
-  min_distinct_contributors: z.coerce.number().int().min(3),
-});
-
-const companyEvidenceRowSchema = z.object({
-  company_slug: z.string().nullable(),
-  published_at: z.string().nullable().optional(),
-  computed_at: z.string().nullable().optional(),
-  calculated_at: z.string().nullable().optional(),
-  last_verified_at: z.string().nullable().optional(),
-  source_kind: z.string().optional(),
-});
-
-export type CompanyReview = z.infer<typeof reviewSchema>;
-export type InterviewExperience = z.infer<typeof interviewSchema>;
-export type CompanyRating = z.infer<typeof ratingSchema>;
-export type CompanyBenefit = z.infer<typeof benefitSchema>;
+export type {
+  CompanyBenefit,
+  CompanyRating,
+  CompanyReview,
+  EmployerResponse,
+  InterviewExperience,
+} from "@/lib/companies/contracts";
 
 export interface CompanyPublishedEvidence {
   companySlug: string;
@@ -126,6 +52,10 @@ export interface CompanySummary {
   sizeBand: string | null;
   description: string | null;
   headquartersCountry: string | null;
+  legalEntities: CompanyLegalEntity[];
+  aliases: CompanyAlias[];
+  officialDomains: CompanyOfficialDomain[];
+  citations: CompanyCitation[];
   activeJobs: Job[];
   categories: string[];
   remoteLocations: string[];
@@ -194,6 +124,10 @@ async function getDatabaseCompaniesResult(): Promise<
         sizeBand: company.size_band,
         description: company.description,
         headquartersCountry: company.headquarters_country,
+        legalEntities: company.legal_entities,
+        aliases: company.aliases,
+        officialDomains: company.official_domains,
+        citations: company.citations,
         activeJobs: [],
         categories: [],
         remoteLocations: company.locations
@@ -252,6 +186,10 @@ export async function getCompaniesResult(
       sizeBand: null,
       description: null,
       headquartersCountry: null,
+      legalEntities: [],
+      aliases: [],
+      officialDomains: [],
+      citations: [],
       activeJobs: [job],
       categories: job.category ? [job.category] : [],
       remoteLocations: [job.locationDisplay],
@@ -308,7 +246,8 @@ async function readCompanyRowsResult<T>(
     | "company_reviews"
     | "interview_experiences"
     | "company_ratings"
-    | "company_benefits",
+    | "company_benefits"
+    | "employer_responses",
   slug: string,
   schema: z.ZodType<T>,
 ): Promise<RepositoryResult<T[]>> {
@@ -327,7 +266,7 @@ async function readCompanyRowsResult<T>(
   }
   const { data, error } = await supabase
     .schema("api")
-    .from(table)
+    .from(table as never)
     .select("*")
     .eq("company_slug", slug)
     .limit(100);
@@ -457,12 +396,31 @@ export async function getCompanyBenefits(slug: string) {
   return (await getCompanyBenefitsResult(slug)).data;
 }
 
+export async function getEmployerResponsesResult(slug: string) {
+  return mapRepositoryResult(
+    await readCompanyRowsResult(
+      "employer_responses",
+      slug,
+      employerResponseSchema,
+    ),
+    (rows) =>
+      rows.toSorted(
+        (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
+      ),
+  );
+}
+
+export async function getEmployerResponses(slug: string) {
+  return (await getEmployerResponsesResult(slug)).data;
+}
+
 type CompanyEvidenceTable =
   | "company_reviews"
   | "interview_experiences"
   | "company_ratings"
   | "company_benefits"
-  | "salary_aggregates";
+  | "salary_aggregates"
+  | "employer_responses";
 
 type ServerSupabaseClient = NonNullable<
   Awaited<ReturnType<typeof createServerSupabaseClient>>
@@ -508,6 +466,12 @@ async function readCompanyEvidencePage(
         .not("company_slug", "is", null)
         .order("id", { ascending: true })
         .range(from, to);
+    case "employer_responses":
+      return api
+        .from("employer_responses" as never)
+        .select("id,company_slug,published_at")
+        .order("id", { ascending: true })
+        .range(from, to) as never;
   }
 }
 
@@ -584,6 +548,7 @@ export async function getPublishedCompanyEvidenceResult(): Promise<
       "company_ratings",
       "company_benefits",
       "salary_aggregates",
+      "employer_responses",
     ].map((table) =>
       readAllCompanyEvidenceRows(supabase, table as CompanyEvidenceTable),
     ),

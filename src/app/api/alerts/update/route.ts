@@ -15,6 +15,7 @@ const schema = z.discriminatedUnion("intent", [
     location: z.string().trim().max(160).default(""),
     eligibility: z.enum(["nigeria", "africa", "worldwide", "unclear", "all"]),
     cadence: z.enum(["daily", "weekly"]),
+    search_query: z.string().max(10_000).optional(),
   }),
   z.object({
     intent: z.literal("set-active"),
@@ -22,6 +23,16 @@ const schema = z.discriminatedUnion("intent", [
     active: z.enum(["true", "false"]),
   }),
 ]);
+
+function storedSearch(value: string | undefined) {
+  if (!value) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return typeof parsed === "object" && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
@@ -43,6 +54,7 @@ export async function POST(request: Request) {
       ? {
           alert_id: parsed.data.id,
           alert_query: parseJobSearch({
+            ...storedSearch(parsed.data.search_query),
             q: parsed.data.keyword,
             location: parsed.data.location,
             eligibility: parsed.data.eligibility,

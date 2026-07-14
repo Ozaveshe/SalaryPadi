@@ -133,3 +133,47 @@ test("keeps audited public surface shells responsive", async ({ page }) => {
     await expectNoHorizontalOverflow(page);
   }
 });
+
+test("captures the public decision path at each configured viewport", async ({
+  page,
+}, testInfo) => {
+  for (const [name, route] of [
+    ["home", "/"],
+    ["jobs", "/jobs"],
+    ["companies", "/companies"],
+    ["salaries", "/salaries"],
+    ["tools", "/tools"],
+    ["contribute", "/contribute"],
+  ] as const) {
+    await page.goto(route);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({
+      path: testInfo.outputPath(`${name}-surface.png`),
+      fullPage: true,
+    });
+  }
+});
+
+test("keeps the core path usable at the 320px lower bound", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop-chromium",
+    "The explicit 320px lower-bound pass only needs one browser project.",
+  );
+  await page.setViewportSize({ width: 320, height: 800 });
+  for (const [name, route] of [
+    ["home", "/"],
+    ["jobs", "/jobs"],
+    ["tools", "/tools"],
+  ] as const) {
+    await page.goto(route);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({
+      path: testInfo.outputPath(`${name}-320.png`),
+      fullPage: true,
+    });
+  }
+});

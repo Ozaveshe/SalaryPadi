@@ -50,6 +50,7 @@ const healthyWorkers: WorkerRow[] = [
   "alert_delivery",
   "currency_rates",
   "job_source_sync",
+  "ats_source_sync",
   "operations_maintenance",
   "editorial_job_snapshot",
   "editorial_topic_candidates",
@@ -61,6 +62,12 @@ const healthyWorkers: WorkerRow[] = [
   "editorial_nightly_audit",
   "editorial_weekly_audit",
   "afrotools_catalog_sync",
+  "job_supply_dispatcher",
+  "job_lifecycle",
+  "apply_link_check",
+  "job_dedupe_review",
+  "source_health_digest",
+  "source_rights_review",
 ].map((taskKey) => ({
   task_key: taskKey,
   owner_label: "Test operations owner",
@@ -125,6 +132,25 @@ describe("operational health", () => {
       checks: {
         operations_configured: false,
         providers_ready: { email: false },
+      },
+    });
+  });
+
+  it("treats an intentionally disabled Remotive gate as a safe source state", async () => {
+    vi.mocked(getServerEnvironment).mockReturnValue({
+      ...environment,
+      REMOTIVE_SOURCE_ENABLED: false,
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      status: "ok",
+      checks: {
+        remotive_source_enabled: false,
+        providers_ready: { source_policy_fail_closed: true },
       },
     });
   });

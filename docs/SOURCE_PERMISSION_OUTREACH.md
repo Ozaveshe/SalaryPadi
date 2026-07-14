@@ -55,7 +55,7 @@ Hello Remotive team,
 
 SalaryPadi is an Africa-focused job and salary information product. We are using the public API only as a constrained pilot: low-frequency access, visible “Source: Remotive” attribution, direct Remotive links, no durable full-description archive, no search indexing or `JobPosting` markup, and no Remotive jobs in email alerts.
 
-Could you confirm whether that public, unauthenticated display is permitted at up to four API requests per rolling 24 hours with a twelve-hour cache? We would also like to know whether your private API can license any of these separately: normalized description storage, search indexing/`JobPosting`, and user-requested email alerts.
+Could you confirm whether that public, unauthenticated display is permitted at up to four API requests per rolling 24 hours with a six-hour cache? We would also like to know whether your private API can license any of these separately: normalized description storage, search indexing/`JobPosting`, and user-requested email alerts.
 
 Please specify the required attribution/link, retention or takedown rules, permitted fields, rate limit, and whether written permission has an expiry. We can share our exact implementation summary if useful.
 

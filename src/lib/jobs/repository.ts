@@ -26,6 +26,8 @@ import {
   REMOTIVE_SOURCE_POLICY,
   REMOTIVE_TERMS_VERSION,
 } from "./source-policy";
+import { openSupplyAdapter } from "./supply/adapters";
+import { AdapterPolicyError } from "./supply/policy";
 import type { Job, JobFeedResult, JobFeedSourceStatus } from "./types";
 
 type ServerSupabaseClient = NonNullable<
@@ -94,6 +96,24 @@ export async function getRemotiveJobFeed(
   suppliedClient?: ServerSupabaseClient | null,
 ): Promise<SourceFeed> {
   const attemptedAt = new Date().toISOString();
+  try {
+    openSupplyAdapter("remotive", new Date(attemptedAt));
+  } catch (reason) {
+    const code =
+      reason instanceof AdapterPolicyError
+        ? `remotive_${reason.code}`
+        : "remotive_policy_invalid";
+    return {
+      key: "remotive",
+      jobs: [],
+      state: "disabled",
+      checkedAt: attemptedAt,
+      count: 0,
+      code,
+      message:
+        "The reviewed Remotive source is disabled by the application source-policy registry.",
+    };
+  }
   if (!getServerEnvironment().REMOTIVE_SOURCE_ENABLED) {
     return {
       key: "remotive",

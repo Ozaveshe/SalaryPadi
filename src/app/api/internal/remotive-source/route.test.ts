@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   environment: vi.fn(),
   claimBudget: vi.fn(),
   fetchPayload: vi.fn(),
+  openSupplyAdapter: vi.fn(),
 }));
 
 vi.mock("@/lib/env", () => ({ getServerEnvironment: mocks.environment }));
@@ -19,6 +20,11 @@ vi.mock("@/lib/jobs/remotive-adapter", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/lib/jobs/remotive-adapter")>();
   return { ...actual, fetchRemotivePayload: mocks.fetchPayload };
+});
+vi.mock("@/lib/jobs/supply/adapters", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/jobs/supply/adapters")>();
+  return { ...actual, openSupplyAdapter: mocks.openSupplyAdapter };
 });
 
 import { GET } from "./route";
@@ -57,6 +63,11 @@ beforeEach(() => {
   });
   mocks.claimBudget.mockReset();
   mocks.fetchPayload.mockReset();
+  mocks.openSupplyAdapter.mockReset();
+  mocks.openSupplyAdapter.mockReturnValue({
+    policy: { adapterKey: "remotive" },
+    endpoint: "https://remotive.com/api/remote-jobs",
+  });
 });
 
 describe("budgeted Remotive source proxy", () => {
@@ -77,6 +88,22 @@ describe("budgeted Remotive source proxy", () => {
     await expect(response.json()).resolves.toEqual({
       error: "remotive_fetch_budget_exhausted",
     });
+    expect(mocks.fetchPayload).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before budget or provider access when the application policy is disabled", async () => {
+    const { AdapterPolicyError } = await import("@/lib/jobs/supply/policy");
+    mocks.openSupplyAdapter.mockImplementationOnce(() => {
+      throw new AdapterPolicyError("policy_disabled", "remotive");
+    });
+
+    const response = await GET(request());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: "remotive_policy_disabled",
+    });
+    expect(mocks.claimBudget).not.toHaveBeenCalled();
     expect(mocks.fetchPayload).not.toHaveBeenCalled();
   });
 

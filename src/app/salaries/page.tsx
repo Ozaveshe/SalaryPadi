@@ -8,13 +8,23 @@ import { SalaryAggregateCard } from "@/components/salaries/salary-aggregate-card
 import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { SalaryProgress } from "@/components/salaries/salary-progress";
 import {
+  COUNTRY_PACKS,
+  getCountryPack,
+  isCountryPackPublic,
+} from "@/lib/country-packs/registry";
+import { countryAlternates } from "@/lib/country-packs/routing";
+import { repositoryReady } from "@/lib/data/repository-result";
+import { getAppOrigin } from "@/lib/env";
+import {
   getSalaryCellProgressResult,
   searchSalaryAggregatesResult,
 } from "@/lib/salaries/repository";
 import { sliceSearchParam } from "@/lib/search-params";
 import { canIndexSalaryHub } from "@/lib/seo/indexability";
 
-const getSalaryHubResult = cache(() => searchSalaryAggregatesResult({}));
+const getSalaryHubResult = cache(() =>
+  searchSalaryAggregatesResult({ country: "NG" }),
+);
 
 export async function generateMetadata(): Promise<Metadata> {
   const result = await getSalaryHubResult();
@@ -22,7 +32,10 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "Salary intelligence",
     description:
       "Search privacy-thresholded, confidence-labelled salary evidence by role, company and country.",
-    alternates: { canonical: "/salaries" },
+    alternates: {
+      canonical: "/salaries",
+      languages: countryAlternates(getAppOrigin(), "/salaries").languages,
+    },
     robots: { index: canIndexSalaryHub(result), follow: true },
   };
 }
@@ -37,9 +50,17 @@ export default async function SalariesPage({
   const country = sliceSearchParam(input.country, 2, "NG");
   const company = sliceSearchParam(input.company, 120);
   const hasSearch = Boolean(role || company);
-  const result = hasSearch
-    ? await searchSalaryAggregatesResult({ role, country, company })
-    : await getSalaryHubResult();
+  const countryPack = getCountryPack(country);
+  const countryAvailable = Boolean(
+    countryPack && isCountryPackPublic(countryPack),
+  );
+  const result = !countryAvailable
+    ? repositoryReady<
+        Awaited<ReturnType<typeof searchSalaryAggregatesResult>>["data"]
+      >([])
+    : hasSearch
+      ? await searchSalaryAggregatesResult({ role, country, company })
+      : await getSalaryHubResult();
   const results = result.data;
   const progressResult =
     result.state === "ready" &&
@@ -88,10 +109,19 @@ export default async function SalariesPage({
             name="country"
             defaultValue={country}
           >
-            <option value="NG">Nigeria</option>
-            <option value="GH">Ghana</option>
-            <option value="KE">Kenya</option>
-            <option value="ZA">South Africa</option>
+            {COUNTRY_PACKS.map((pack) => {
+              const available = isCountryPackPublic(pack);
+              return (
+                <option
+                  disabled={!available}
+                  key={pack.countryCode}
+                  value={pack.countryCode}
+                >
+                  {pack.name}
+                  {available ? "" : " (not live)"}
+                </option>
+              );
+            })}
           </select>
         </div>
         <button className="button" type="submit">
@@ -113,14 +143,18 @@ export default async function SalariesPage({
       ) : result.state === "ready" ? (
         <section className="empty-state">
           <h2 className="section-title">
-            {hasSearch
-              ? "No safe aggregate matches yet"
-              : "No safe aggregate is published yet"}
+            {!countryAvailable
+              ? `${countryPack?.name ?? "This country"} is not live yet`
+              : hasSearch
+                ? "No safe aggregate matches yet"
+                : "No safe aggregate is published yet"}
           </h2>
           <p>
-            {hasSearch
-              ? "The data may be too sparse, still pending moderation, or absent. SalaryPadi does not invent a market number."
-              : "Employer-role-country cells require at least three sufficiently similar approved contributions from distinct accounts. SalaryPadi does not invent a market number."}
+            {!countryAvailable
+              ? "This country pack remains private until authorized supply, reviewed rules, unique local content, moderation readiness, and first-party evidence pass the activation gates."
+              : hasSearch
+                ? "The data may be too sparse, still pending moderation, or absent. SalaryPadi does not invent a market number."
+                : "Employer-role-country cells require at least three sufficiently similar approved contributions from distinct accounts. SalaryPadi does not invent a market number."}
           </p>
           {progressResult?.state === "ready" && progressResult.data ? (
             <SalaryProgress progress={progressResult.data} />

@@ -10,7 +10,7 @@ import {
 const migration = readFileSync(
   resolve(
     process.cwd(),
-    "supabase/migrations/20260713090000_analytics_consent_abuse_protection.sql",
+    "supabase/migrations/20260713172319_analytics_consent_abuse_protection.sql",
   ),
   "utf8",
 );

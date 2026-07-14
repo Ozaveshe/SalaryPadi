@@ -3,7 +3,7 @@ name: Jobs production canary
 on:
   workflow_dispatch:
   schedule:
-    - cron: "20 1,13 * * *"
+    - cron: "20 1,7,13,19 * * *"
 
 permissions:
   contents: read

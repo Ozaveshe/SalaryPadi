@@ -70,13 +70,13 @@ select ok(
 );
 select is(
   (select refresh_interval from app.job_sources where adapter_key = 'remotive'),
-  interval '12 hours',
-  'Remotive source policy matches the twice-daily runtime cadence'
+  interval '6 hours',
+  'Remotive source policy matches the four-times-daily runtime ceiling'
 );
 select is(
   (select expected_interval from private.worker_schedules where task_key = 'job_source_sync'),
-  interval '12 hours',
-  'job-source worker expectation matches the twice-daily runtime cadence'
+  interval '6 hours',
+  'job-source worker expectation matches the four-times-daily runtime cadence'
 );
 select is(
   (select stale_after from private.worker_schedules where task_key = 'job_source_sync'),

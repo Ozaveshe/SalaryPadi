@@ -9,6 +9,11 @@ import { RepositoryNotice } from "@/components/repository-notice";
 import { SalaryAggregateCard } from "@/components/salaries/salary-aggregate-card";
 import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { SalaryProgress } from "@/components/salaries/salary-progress";
+import {
+  getCountryPack,
+  isCountryPackPublic,
+} from "@/lib/country-packs/registry";
+import { countryAlternates } from "@/lib/country-packs/routing";
 import { getAppOrigin } from "@/lib/env";
 import {
   getSalaryCellProgressResult,
@@ -24,6 +29,13 @@ export async function generateMetadata({
   params: Promise<{ country: string; role: string }>;
 }): Promise<Metadata> {
   const { country, role } = await params;
+  const countryPack = getCountryPack(country);
+  if (!countryPack || !isCountryPackPublic(countryPack)) {
+    return {
+      title: "Salary page unavailable",
+      robots: { index: false, follow: true },
+    };
+  }
   const result = await searchSalaryAggregatesResult({
     country,
     role: role.replace(/-/g, " "),
@@ -40,6 +52,10 @@ export async function generateMetadata({
     description,
     alternates: {
       canonical: `/salaries/${country.toLowerCase()}/${role.toLowerCase()}`,
+      languages: countryAlternates(
+        getAppOrigin(),
+        `/salaries/${country.toLowerCase()}/${role.toLowerCase()}`,
+      ).languages,
     },
     robots: {
       index: canIndexSalaryDetail(result),
@@ -66,6 +82,8 @@ export default async function SalaryRolePage({
   params: Promise<{ country: string; role: string }>;
 }) {
   const { country, role } = await params;
+  const countryPack = getCountryPack(country);
+  if (!countryPack || !isCountryPackPublic(countryPack)) notFound();
   if (!/^[a-z]{2}$/i.test(country) || !/^[a-z0-9-]{2,100}$/i.test(role))
     notFound();
   const roleName = role.replace(/-/g, " ");

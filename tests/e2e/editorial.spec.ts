@@ -32,9 +32,10 @@ test("publishes the evergreen guide with live data and valid Article metadata", 
 test("exposes editorial RSS, sitemap and robots discovery", async ({
   request,
 }) => {
-  const [feed, sitemap, robots] = await Promise.all([
+  const [feed, sitemap, guideSitemap, robots] = await Promise.all([
     request.get("/feed.xml"),
     request.get("/sitemap.xml"),
+    request.get("/sitemaps/guides.xml"),
     request.get("/robots.txt"),
   ]);
   expect(feed.ok()).toBe(true);
@@ -44,6 +45,10 @@ test("exposes editorial RSS, sitemap and robots discovery", async ({
   );
   expect(sitemap.ok()).toBe(true);
   expect(await sitemap.text()).toContain(
+    `${expectedOrigin}/sitemaps/guides.xml`,
+  );
+  expect(guideSitemap.ok()).toBe(true);
+  expect(await guideSitemap.text()).toContain(
     `${expectedOrigin}/guides/remote-jobs-open-to-nigerians`,
   );
   expect(robots.ok()).toBe(true);

@@ -6,12 +6,10 @@ import { MobileNavigation } from "@/components/mobile-navigation";
 
 const navigation = [
   { href: "/jobs", label: "Jobs" },
-  { href: "/salaries", label: "Salaries" },
   { href: "/companies", label: "Companies" },
-  { href: "/insights", label: "Insights" },
-  { href: "/feed", label: "Feed" },
-  { href: "/forums", label: "Forums" },
+  { href: "/salaries", label: "Salaries" },
   { href: "/tools", label: "Tools" },
+  { href: "/insights", label: "Insights" },
   { href: "/contribute", label: "Contribute" },
 ] as const;
 
@@ -61,6 +59,12 @@ export function SiteHeader({ viewer }: { viewer: Viewer }) {
               {item.label}
             </Link>
           ))}
+          <Link
+            className="button button-secondary header-employer-cta"
+            href="/post-a-job"
+          >
+            Post a job
+          </Link>
           <AccountLinks viewer={viewer} />
         </nav>
         <MobileNavigation>
@@ -69,6 +73,9 @@ export function SiteHeader({ viewer }: { viewer: Viewer }) {
               {item.label}
             </Link>
           ))}
+          <Link className="button button-secondary" href="/post-a-job">
+            Post a job
+          </Link>
           <AccountLinks viewer={viewer} />
         </MobileNavigation>
       </div>

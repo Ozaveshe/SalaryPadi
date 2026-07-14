@@ -33,9 +33,26 @@ describe("JobPosting structured data", () => {
     ).toBeNull();
   });
 
+  it("refuses markup for a source occurrence that is not canonical data", () => {
+    expect(
+      buildJobPostingStructuredData(
+        {
+          ...sourceJob,
+          source: {
+            ...sourceJob.source,
+            canIndex: true,
+            canUseJobPostingStructuredData: true,
+          },
+        },
+        "https://salarypadi.example/jobs/platform-engineer",
+      ),
+    ).toBeNull();
+  });
+
   it("emits source-permitted remote eligibility and compensation evidence", () => {
     const job = {
       ...sourceJob,
+      databaseId: "canonical-job-id",
       source: {
         ...sourceJob.source,
         type: "employer" as const,
@@ -78,7 +95,28 @@ describe("JobPosting structured data", () => {
   it("refuses markup for expired jobs", () => {
     const job = {
       ...sourceJob,
+      databaseId: "canonical-job-id",
       status: "expired" as const,
+      source: {
+        ...sourceJob.source,
+        canIndex: true,
+        canUseJobPostingStructuredData: true,
+      },
+    };
+
+    expect(
+      buildJobPostingStructuredData(
+        job,
+        "https://salarypadi.example/jobs/platform-engineer",
+      ),
+    ).toBeNull();
+  });
+
+  it("refuses markup when an otherwise-open job has passed validThrough", () => {
+    const job = {
+      ...sourceJob,
+      databaseId: "canonical-job-id",
+      validThrough: "2000-01-01T00:00:00.000Z",
       source: {
         ...sourceJob.source,
         canIndex: true,

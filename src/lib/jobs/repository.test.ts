@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   fetchRemotiveJobs: vi.fn(),
   decodeDatabaseJobRow: vi.fn(),
+  openSupplyAdapter: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -29,6 +30,10 @@ vi.mock("./remotive-adapter", async (importOriginal) => {
 vi.mock("./database", () => ({
   decodeDatabaseJobRow: mocks.decodeDatabaseJobRow,
 }));
+vi.mock("./supply/adapters", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./supply/adapters")>();
+  return { ...actual, openSupplyAdapter: mocks.openSupplyAdapter };
+});
 
 import {
   getDatabaseJobBySlugResult,
@@ -68,16 +73,16 @@ function client({
   policy = {
     adapter_key: "remotive",
     source_type: "permitted_api",
-    terms_url: "https://github.com/remotive-com/remote-jobs-api",
-    terms_reviewed_at: "2026-07-10T00:00:00+00:00",
-    terms_version: "remotive-public-api-repository-reviewed-2026-07-10",
+    terms_url: "https://remotive.com/terms-of-use",
+    terms_reviewed_at: "2026-07-14T00:00:00+00:00",
+    terms_version: "remotive-terms-conflict-reviewed-2026-07-14",
     attribution_required: true,
     may_store_full_description: false,
     may_index_jobs: false,
     may_emit_jobposting_schema: false,
     allow_public_listing: true,
     required_destination_kind: "source_url",
-    refresh_interval_seconds: 43_200,
+    refresh_interval_seconds: 21_600,
   },
   policyError = false,
 }: ClientOptions = {}) {
@@ -139,6 +144,11 @@ beforeEach(() => {
     }),
   );
   mocks.fetchRemotiveJobs.mockReset();
+  mocks.openSupplyAdapter.mockReset();
+  mocks.openSupplyAdapter.mockReturnValue({
+    policy: { adapterKey: "remotive" },
+    endpoint: "https://remotive.com/api/remote-jobs",
+  });
   mocks.decodeDatabaseJobRow.mockReset();
   mocks.decodeDatabaseJobRow.mockImplementation((row) => ({
     ok: true,
@@ -157,6 +167,24 @@ afterEach(() => {
 });
 
 describe("job feed source orchestration", () => {
+  it("does not read the live registry or contact Remotive when the application policy is disabled", async () => {
+    const { AdapterPolicyError } = await import("./supply/policy");
+    mocks.openSupplyAdapter.mockImplementationOnce(() => {
+      throw new AdapterPolicyError("policy_disabled", "remotive");
+    });
+    const liveClient = client();
+
+    const result = await getRemotiveJobFeed(liveClient as never);
+
+    expect(result).toMatchObject({
+      state: "disabled",
+      code: "remotive_policy_disabled",
+      jobs: [],
+    });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.fetchRemotiveJobs).not.toHaveBeenCalled();
+  });
+
   it("does not contact Remotive when the authoritative public policy is paused", async () => {
     const result = await getRemotiveJobFeed(client({ policy: null }) as never);
 
@@ -174,9 +202,9 @@ describe("job feed source orchestration", () => {
         policy: {
           adapter_key: "remotive",
           source_type: "permitted_api",
-          terms_url: "https://github.com/remotive-com/remote-jobs-api",
-          terms_reviewed_at: "2026-07-10T00:00:00+00:00",
-          terms_version: "remotive-public-api-repository-reviewed-2026-07-10",
+          terms_url: "https://remotive.com/terms-of-use",
+          terms_reviewed_at: "2026-07-14T00:00:00+00:00",
+          terms_version: "remotive-terms-conflict-reviewed-2026-07-14",
           attribution_required: true,
           may_store_full_description: false,
           may_index_jobs: false,

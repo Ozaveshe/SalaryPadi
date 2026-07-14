@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { annualizedSalaryMinimum } from "./normalize";
+import { hasJobEvidence, type AfricaEvidenceKey } from "./evidence";
 import type { Job } from "./types";
 
 const stringValue = z.preprocess(
@@ -9,7 +10,8 @@ const stringValue = z.preprocess(
 );
 const booleanValue = z.preprocess((value) => {
   const scalar = Array.isArray(value) ? value[0] : value;
-  return scalar === "true" || scalar === "1" || scalar === "on";
+  if (typeof scalar === "boolean") return scalar;
+  return scalar === "true" || scalar === "1" || scalar === 1 || scalar === "on";
 }, z.boolean());
 
 export const jobSearchSchema = z.object({
@@ -23,6 +25,12 @@ export const jobSearchSchema = z.object({
   eligibility: z.preprocess(
     (value) => (Array.isArray(value) ? value[0] : value),
     z.enum(["nigeria", "africa", "worldwide", "unclear", "all"]).default("all"),
+  ),
+  path: z.preprocess(
+    (value) => (Array.isArray(value) ? value[0] : value),
+    z
+      .enum(["local_nigeria", "remote_nigeria", "remote_africa", "all"])
+      .default("all"),
   ),
   employmentType: stringValue.default("all"),
   arrangement: stringValue.default("all"),
@@ -45,6 +53,18 @@ export const jobSearchSchema = z.object({
   nyscRequired: booleanValue.default(false),
   hndAccepted: booleanValue.default(false),
   bscRequired: booleanValue.default(false),
+  professionalCertification: booleanValue.default(false),
+  localLanguage: booleanValue.default(false),
+  pension: booleanValue.default(false),
+  hmo: booleanValue.default(false),
+  transport: booleanValue.default(false),
+  housing: booleanValue.default(false),
+  dataPowerAllowance: booleanValue.default(false),
+  thirteenthMonth: booleanValue.default(false),
+  bonus: booleanValue.default(false),
+  overtimeWeekend: booleanValue.default(false),
+  fxPolicy: booleanValue.default(false),
+  payReliability: booleanValue.default(false),
   timezone: stringValue.default(""),
   sort: z.preprocess(
     (value) => (Array.isArray(value) ? value[0] : value),
@@ -101,6 +121,22 @@ export function filterAndSortJobs(jobs: Job[], search: JobSearch): Job[] {
     if (search.workMode !== "all" && job.workMode !== search.workMode)
       return false;
     if (
+      search.path === "local_nigeria" &&
+      (job.workMode === "remote" ||
+        !includesValue(job.locationDisplay, "nigeria"))
+    )
+      return false;
+    if (
+      search.path === "remote_nigeria" &&
+      (job.workMode !== "remote" || job.eligibility.nigeria !== "eligible")
+    )
+      return false;
+    if (
+      search.path === "remote_africa" &&
+      (job.workMode !== "remote" || job.eligibility.africa !== "eligible")
+    )
+      return false;
+    if (
       search.eligibility === "nigeria" &&
       job.eligibility.nigeria !== "eligible"
     )
@@ -150,17 +186,29 @@ export function filterAndSortJobs(jobs: Job[], search: JobSearch): Job[] {
       return false;
     if (search.relocationSupport && job.eligibility.relocationSupport !== "yes")
       return false;
+    const evidenceFilters: Array<[boolean, AfricaEvidenceKey]> = [
+      [search.graduateTrainee, "graduateTrainee"],
+      [search.internship, "internship"],
+      [search.nyscRequired, "nyscRequired"],
+      [search.hndAccepted, "hndAccepted"],
+      [search.bscRequired, "bscRequired"],
+      [search.professionalCertification, "professionalCertification"],
+      [search.localLanguage, "localLanguage"],
+      [search.pension, "pension"],
+      [search.hmo, "hmo"],
+      [search.transport, "transport"],
+      [search.housing, "housing"],
+      [search.dataPowerAllowance, "dataPowerAllowance"],
+      [search.thirteenthMonth, "thirteenthMonth"],
+      [search.bonus, "bonus"],
+      [search.overtimeWeekend, "overtimeWeekend"],
+      [search.fxPolicy, "fxPolicy"],
+      [search.payReliability, "payReliability"],
+    ];
     if (
-      search.graduateTrainee &&
-      !/graduate|trainee/i.test(`${job.title} ${job.description}`)
-    )
-      return false;
-    if (search.internship && job.employmentType !== "internship") return false;
-    if (search.nyscRequired && !/\bnysc\b/i.test(job.description)) return false;
-    if (search.hndAccepted && !/\bhnd\b/i.test(job.description)) return false;
-    if (
-      search.bscRequired &&
-      !/\b(?:bsc|b\.sc|bachelor)\b/i.test(job.description)
+      evidenceFilters.some(
+        ([enabled, key]) => enabled && !hasJobEvidence(job, key),
+      )
     )
       return false;
     if (
@@ -187,6 +235,57 @@ export function filterAndSortJobs(jobs: Job[], search: JobSearch): Job[] {
   });
 }
 
+function locationCluster(job: Job) {
+  return (
+    job.locationDisplay
+      .toLowerCase()
+      .replace(/\b(?:remote|hybrid|onsite|on-site)\b/g, "")
+      .split(/[;,|/]/)[0]
+      ?.replace(/[^a-z0-9]+/g, " ")
+      .trim() || "unstated"
+  );
+}
+
+/**
+ * Reorders a sorted result set without dropping jobs. Earlier source order is
+ * retained as the tie-breaker, while repeated employers and location variants
+ * receive a soft penalty so the first page exposes more genuine choice.
+ */
+export function diversifyJobResults(jobs: Job[]) {
+  const remaining = jobs.map((job, index) => ({ job, index }));
+  const selected: Job[] = [];
+  const companyCounts = new Map<string, number>();
+  const locationCounts = new Map<string, number>();
+
+  while (remaining.length > 0) {
+    let bestIndex = 0;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < remaining.length; index += 1) {
+      const candidate = remaining[index]!;
+      const companyKey =
+        candidate.job.company.slug || candidate.job.company.name;
+      const locationKey = locationCluster(candidate.job);
+      const score =
+        (companyCounts.get(companyKey) ?? 0) * 10_000 +
+        (locationCounts.get(locationKey) ?? 0) * 2_000 +
+        candidate.index;
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    }
+
+    const job = remaining.splice(bestIndex, 1)[0]!.job;
+    selected.push(job);
+    const companyKey = job.company.slug || job.company.name;
+    const locationKey = locationCluster(job);
+    companyCounts.set(companyKey, (companyCounts.get(companyKey) ?? 0) + 1);
+    locationCounts.set(locationKey, (locationCounts.get(locationKey) ?? 0) + 1);
+  }
+
+  return selected;
+}
+
 export function paginateJobs(jobs: Job[], page: number, pageSize = 10) {
   const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
   const safePage = Math.min(Math.max(page, 1), totalPages);
@@ -207,6 +306,7 @@ export function serializeJobSearch(search: JobSearch) {
     location: search.location || undefined,
     workMode: search.workMode !== "all" ? search.workMode : undefined,
     eligibility: search.eligibility !== "all" ? search.eligibility : undefined,
+    path: search.path !== "all" ? search.path : undefined,
     employmentType:
       search.employmentType !== "all" ? search.employmentType : undefined,
     arrangement: search.arrangement !== "all" ? search.arrangement : undefined,
@@ -224,6 +324,18 @@ export function serializeJobSearch(search: JobSearch) {
     nyscRequired: search.nyscRequired || undefined,
     hndAccepted: search.hndAccepted || undefined,
     bscRequired: search.bscRequired || undefined,
+    professionalCertification: search.professionalCertification || undefined,
+    localLanguage: search.localLanguage || undefined,
+    pension: search.pension || undefined,
+    hmo: search.hmo || undefined,
+    transport: search.transport || undefined,
+    housing: search.housing || undefined,
+    dataPowerAllowance: search.dataPowerAllowance || undefined,
+    thirteenthMonth: search.thirteenthMonth || undefined,
+    bonus: search.bonus || undefined,
+    overtimeWeekend: search.overtimeWeekend || undefined,
+    fxPolicy: search.fxPolicy || undefined,
+    payReliability: search.payReliability || undefined,
     timezone: search.timezone || undefined,
     sort: search.sort !== "relevance" ? search.sort : undefined,
   };

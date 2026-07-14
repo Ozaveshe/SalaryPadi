@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-07-13T23:37:27.399Z",
+  "validator": "Vitest contract tests plus rendered JSON-LD crawl checks",
+  "deploymentPerformed": false,
+  "results": [
+    {
+      "scenario": "authorized open canonical job",
+      "expectedJobPostingCount": 1,
+      "result": "pass"
+    },
+    {
+      "scenario": "source policy prohibits JobPosting",
+      "expectedJobPostingCount": 0,
+      "result": "pass"
+    },
+    {
+      "scenario": "authorized source occurrence without a canonical database job",
+      "expectedJobPostingCount": 0,
+      "result": "pass"
+    },
+    {
+      "scenario": "closed job",
+      "expectedJobPostingCount": 0,
+      "result": "pass"
+    },
+    {
+      "scenario": "expired validThrough",
+      "expectedJobPostingCount": 0,
+      "result": "pass"
+    },
+    {
+      "scenario": "job directory and landing pages",
+      "expectedJobPostingCount": 0,
+      "result": "pass"
+    },
+    {
+      "scenario": "cornerstone guide",
+      "requiredTypes": ["Article", "BreadcrumbList"],
+      "result": "pass"
+    },
+    { "scenario": "sitemap index", "requiredChildren": 6, "result": "pass" }
+  ],
+  "eligibleJobRequiredProperties": [
+    "@context",
+    "@type",
+    "title",
+    "description",
+    "datePosted",
+    "hiringOrganization",
+    "applicantLocationRequirements"
+  ],
+  "conditionalPreservation": [
+    "validThrough",
+    "jobLocationType",
+    "baseSalary.currency",
+    "baseSalary.value.unitText"
+  ]
+}

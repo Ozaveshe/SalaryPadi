@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-14T00:00:00.000Z",
+  "reviewIntervalDays": 31,
+  "sources": [
+    {
+      "adapterKey": "salarypadi_employer_submissions",
+      "name": "Direct employer submissions",
+      "authority": "direct_employer",
+      "state": "enabled",
+      "permissionBasis": "first_party_employer_consent",
+      "evidenceReference": "salarypadi:employer-submission-terms:2026-07-10",
+      "termsUrl": "/terms",
+      "reviewedAt": "2026-07-10T00:00:00.000Z",
+      "reviewDueAt": "2026-08-10T00:00:00.000Z",
+      "allowedFields": [
+        "title",
+        "company",
+        "description",
+        "application_url",
+        "source_url",
+        "location",
+        "work_arrangement",
+        "eligibility",
+        "salary",
+        "deadline",
+        "valid_through",
+        "employment_type",
+        "engagement_type"
+      ],
+      "fullDescriptionPermission": true,
+      "attribution": "Submitted by the employer and reviewed by SalaryPadi",
+      "minimumPollingSeconds": null,
+      "maximumRequestsPerDay": null,
+      "rawRetentionDays": 2555,
+      "publicDisplayPermission": true,
+      "searchIndexPermission": true,
+      "googleJobPostingPermission": true,
+      "requiredDependencies": [
+        "moderated_employer_submission",
+        "authorization_attestation"
+      ],
+      "missingDependencies": []
+    },
+    {
+      "adapterKey": "licensed_africa_partner",
+      "name": "Licensed Nigeria or Africa partner feed",
+      "authority": "licensed_partner",
+      "state": "disabled",
+      "permissionBasis": "commercial_contract_required",
+      "evidenceReference": null,
+      "termsUrl": null,
+      "reviewedAt": null,
+      "reviewDueAt": null,
+      "allowedFields": [],
+      "fullDescriptionPermission": false,
+      "attribution": null,
+      "minimumPollingSeconds": 3600,
+      "maximumRequestsPerDay": 24,
+      "rawRetentionDays": 0,
+      "publicDisplayPermission": false,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": [
+        "signed_data_licence",
+        "feed_credentials",
+        "field_and_retention_schedule"
+      ],
+      "missingDependencies": [
+        "signed_data_licence",
+        "feed_credentials",
+        "field_and_retention_schedule"
+      ]
+    },
+    {
+      "adapterKey": "greenhouse_employer_allowlist",
+      "name": "Employer-authorized Greenhouse boards",
+      "authority": "employer_ats",
+      "state": "disabled",
+      "permissionBasis": "written_employer_permission_per_board",
+      "evidenceReference": null,
+      "termsUrl": "https://developers.greenhouse.io/job-board.html",
+      "reviewedAt": null,
+      "reviewDueAt": null,
+      "allowedFields": [],
+      "fullDescriptionPermission": false,
+      "attribution": null,
+      "minimumPollingSeconds": 7200,
+      "maximumRequestsPerDay": 12,
+      "rawRetentionDays": 0,
+      "publicDisplayPermission": false,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": [
+        "employer_allowlist",
+        "written_employer_permission"
+      ],
+      "missingDependencies": [
+        "employer_allowlist",
+        "written_employer_permission"
+      ]
+    },
+    {
+      "adapterKey": "lever_employer_allowlist",
+      "name": "Employer-authorized Lever boards",
+      "authority": "employer_ats",
+      "state": "disabled",
+      "permissionBasis": "written_employer_permission_per_board",
+      "evidenceReference": null,
+      "termsUrl": "https://github.com/lever/postings-api",
+      "reviewedAt": null,
+      "reviewDueAt": null,
+      "allowedFields": [],
+      "fullDescriptionPermission": false,
+      "attribution": null,
+      "minimumPollingSeconds": 7200,
+      "maximumRequestsPerDay": 12,
+      "rawRetentionDays": 0,
+      "publicDisplayPermission": false,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": [
+        "employer_allowlist",
+        "written_employer_permission"
+      ],
+      "missingDependencies": [
+        "employer_allowlist",
+        "written_employer_permission"
+      ]
+    },
+    {
+      "adapterKey": "ashby_employer_allowlist",
+      "name": "Employer-authorized Ashby boards",
+      "authority": "employer_ats",
+      "state": "disabled",
+      "permissionBasis": "written_employer_permission_per_board",
+      "evidenceReference": null,
+      "termsUrl": "https://developers.ashbyhq.com/docs/public-job-posting-api",
+      "reviewedAt": null,
+      "reviewDueAt": null,
+      "allowedFields": [],
+      "fullDescriptionPermission": false,
+      "attribution": null,
+      "minimumPollingSeconds": 7200,
+      "maximumRequestsPerDay": 12,
+      "rawRetentionDays": 0,
+      "publicDisplayPermission": false,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": [
+        "employer_allowlist",
+        "written_employer_permission"
+      ],
+      "missingDependencies": [
+        "employer_allowlist",
+        "written_employer_permission"
+      ]
+    },
+    {
+      "adapterKey": "reliefweb",
+      "name": "ReliefWeb jobs API",
+      "authority": "secondary_feed",
+      "state": "disabled",
+      "permissionBasis": "documented_public_api_subject_to_original_rights",
+      "evidenceReference": "https://apidoc.reliefweb.int/",
+      "termsUrl": "https://apidoc.reliefweb.int/",
+      "reviewedAt": "2026-07-14T00:00:00.000Z",
+      "reviewDueAt": "2026-08-14T00:00:00.000Z",
+      "allowedFields": [
+        "id",
+        "url",
+        "title",
+        "source",
+        "country",
+        "closing_date",
+        "job_type",
+        "career_category"
+      ],
+      "fullDescriptionPermission": false,
+      "attribution": "Source: ReliefWeb and the named information partner",
+      "minimumPollingSeconds": 7200,
+      "maximumRequestsPerDay": 1000,
+      "rawRetentionDays": 30,
+      "publicDisplayPermission": false,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": [
+        "preapproved_reliefweb_app_name",
+        "original_content_field_review"
+      ],
+      "missingDependencies": [
+        "preapproved_reliefweb_app_name",
+        "original_content_field_review"
+      ]
+    },
+    {
+      "adapterKey": "remotive",
+      "name": "Remotive public API",
+      "authority": "secondary_feed",
+      "state": "disabled",
+      "permissionBasis": "public_api_terms_conflict_requires_written_confirmation",
+      "evidenceReference": "https://remotive.com/remote-jobs/api",
+      "termsUrl": "https://remotive.com/terms-of-use",
+      "reviewedAt": "2026-07-14T00:00:00.000Z",
+      "reviewDueAt": "2026-08-14T00:00:00.000Z",
+      "allowedFields": [
+        "id",
+        "url",
+        "title",
+        "company_name",
+        "category",
+        "tags",
+        "job_type",
+        "publication_date",
+        "candidate_required_location",
+        "salary"
+      ],
+      "fullDescriptionPermission": false,
+      "attribution": "Source: Remotive; link to the Remotive URL returned by the API",
+      "minimumPollingSeconds": 21600,
+      "maximumRequestsPerDay": 4,
+      "rawRetentionDays": 1,
+      "publicDisplayPermission": false,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": ["written_republication_confirmation"],
+      "missingDependencies": ["written_republication_confirmation"]
+    },
+    {
+      "adapterKey": "jobicy",
+      "name": "Jobicy public API",
+      "authority": "secondary_feed",
+      "state": "disabled",
+      "permissionBasis": "documented_public_feed_requires_storage_and_index_review",
+      "evidenceReference": "https://jobicy.com/jobs-rss-feed",
+      "termsUrl": "https://jobicy.com/jobs-rss-feed",
+      "reviewedAt": "2026-07-14T00:00:00.000Z",
+      "reviewDueAt": "2026-08-14T00:00:00.000Z",
+      "allowedFields": [
+        "id",
+        "url",
+        "jobTitle",
+        "companyName",
+        "jobIndustry",
+        "jobType",
+        "jobGeo",
+        "jobLevel",
+        "jobExcerpt",
+        "pubDate",
+        "salaryMin",
+        "salaryMax",
+        "salaryCurrency",
+        "salaryPeriod"
+      ],
+      "fullDescriptionPermission": false,
+      "attribution": "Source: Jobicy; preserve the Jobicy job URL",
+      "minimumPollingSeconds": 21600,
+      "maximumRequestsPerDay": 4,
+      "rawRetentionDays": 1,
+      "publicDisplayPermission": true,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": [
+        "storage_retention_review",
+        "search_index_review"
+      ],
+      "missingDependencies": ["storage_retention_review", "search_index_review"]
+    }
+  ]
+}

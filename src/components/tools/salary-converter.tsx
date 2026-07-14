@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 
 import { trackEvent } from "@/lib/analytics/events";
+import { CompanyEvidenceInvitation } from "@/components/companies/company-evidence-invitation";
 import { formatSalaryAmount } from "@/lib/format";
 
 import {
@@ -159,6 +160,7 @@ export function SalaryConverter() {
               </p>
             ) : null}
           </div>
+          <CompanyEvidenceInvitation kind="calculator" />
         </section>
       ) : null}
     </div>

@@ -1,0 +1,53 @@
+{
+  "testOnly": true,
+  "schemaVersion": 1,
+  "countries": [
+    {
+      "countryCode": "NG",
+      "subdivision": { "fixtureId": "test-ng-1", "name": "Lagos" },
+      "city": { "fixtureId": "test-ng-lagos", "name": "Lagos" }
+    },
+    {
+      "countryCode": "GH",
+      "subdivision": { "fixtureId": "test-gh-1", "name": "Greater Accra" },
+      "city": { "fixtureId": "test-gh-accra", "name": "Accra" }
+    },
+    {
+      "countryCode": "KE",
+      "subdivision": { "fixtureId": "test-ke-1", "name": "Nairobi" },
+      "city": { "fixtureId": "test-ke-nairobi", "name": "Nairobi" }
+    },
+    {
+      "countryCode": "ZA",
+      "subdivision": { "fixtureId": "test-za-1", "name": "Gauteng" },
+      "city": { "fixtureId": "test-za-johannesburg", "name": "Johannesburg" }
+    }
+  ],
+  "readinessEvidence": {
+    "ready": {
+      "authorizedActiveJobs": 120,
+      "authorizedSources": 4,
+      "explicitEligibilityRatio": 0.98,
+      "uniqueContentPages": 24,
+      "firstPartyContributions": 15,
+      "reviewedTaxRules": 1,
+      "reviewedEmploymentRules": 1,
+      "reviewGates": {
+        "local_eligibility_accuracy": true,
+        "localized_content_quality": true,
+        "moderation_privacy_takedown": true,
+        "seo_canonical_hreflang": true
+      }
+    },
+    "blocked": {
+      "authorizedActiveJobs": 0,
+      "authorizedSources": 0,
+      "explicitEligibilityRatio": 0,
+      "uniqueContentPages": 0,
+      "firstPartyContributions": 0,
+      "reviewedTaxRules": 0,
+      "reviewedEmploymentRules": 0,
+      "reviewGates": {}
+    }
+  }
+}

@@ -7,11 +7,14 @@ import {
   AtsAdapterError,
   fetchAtsSourceRecords,
   type AtsFetchResult,
+  type AtsFetchOptions,
+  type AtsSourceConfig,
 } from "../../src/lib/jobs/ats";
 import {
   normalizeAtsImportRecords,
   type AtsImportJob,
 } from "../../src/lib/jobs/ats-import";
+import { fullJitterDelayMs } from "../../src/lib/jobs/supply/schedules";
 
 import {
   parseAuthorizedAtsRuntimePolicies,
@@ -46,6 +49,8 @@ type AtsSourceSyncDependencies = {
   fetchSource?: typeof fetchAtsSourceRecords;
   now?: () => Date;
   randomUuid?: () => string;
+  random?: () => number;
+  sleep?: (milliseconds: number) => Promise<void>;
 };
 
 const uuidSchema = z.string().uuid();
@@ -129,6 +134,44 @@ function providerSnapshotIsComplete(result: AtsFetchResult): boolean {
     (reportedTotal === null ||
       reportedTotal === result.snapshot.providerRecordCount)
   );
+}
+
+function retryableAtsFailure(reason: unknown) {
+  return (
+    reason instanceof AtsAdapterError &&
+    (reason.code === "ats_request_failed" ||
+      (reason.code === "ats_http_error" &&
+        reason.status !== null &&
+        ([408, 425, 429].includes(reason.status) || reason.status >= 500)))
+  );
+}
+
+export async function fetchAtsWithRetry(
+  fetchSource: typeof fetchAtsSourceRecords,
+  source: AtsSourceConfig,
+  options: AtsFetchOptions,
+  dependencies: Pick<AtsSourceSyncDependencies, "random" | "sleep"> = {},
+) {
+  const random = dependencies.random ?? Math.random;
+  const sleep =
+    dependencies.sleep ??
+    ((milliseconds: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await fetchSource(source, options);
+    } catch (reason) {
+      if (
+        attempt === 2 ||
+        options.signal.aborted ||
+        !retryableAtsFailure(reason)
+      ) {
+        throw reason;
+      }
+      await sleep(fullJitterDelayMs(attempt, 200, 1_000, random));
+    }
+  }
+  throw new OperationalError("ats_retry_unreachable");
 }
 
 async function recordPreImportFailure(
@@ -224,10 +267,15 @@ export async function runAtsSourceSync(
           Math.max(1_000, execution.remainingMs() - 4_000),
         ),
       );
-      const result = await fetchSource(policy.source, {
-        signal: sourceSignal,
-        requestedAt: now(),
-      });
+      const result = await fetchAtsWithRetry(
+        fetchSource,
+        policy.source,
+        {
+          signal: sourceSignal,
+          requestedAt: now(),
+        },
+        dependencies,
+      );
       fetchedCount = result.snapshot.providerRecordCount;
       providerRecords += fetchedCount;
       if (
@@ -367,5 +415,7 @@ const handler = async (
 export default handler;
 
 export const config: Config = {
-  schedule: "35 2,8,14,20 * * *",
+  // Seventeen minutes is a deterministic per-worker jitter inside the allowed
+  // 0-20 minute window. Per-source database claims still enforce stricter terms.
+  schedule: "17 */2 * * *",
 };

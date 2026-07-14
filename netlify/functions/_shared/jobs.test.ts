@@ -316,16 +316,16 @@ describe("alert source publication gate", () => {
   const activePolicy = {
     adapter_key: "remotive",
     source_type: "permitted_api",
-    terms_url: "https://github.com/remotive-com/remote-jobs-api",
-    terms_reviewed_at: "2026-07-10T00:00:00+00:00",
-    terms_version: "remotive-public-api-repository-reviewed-2026-07-10",
+    terms_url: "https://remotive.com/terms-of-use",
+    terms_reviewed_at: "2026-07-14T00:00:00+00:00",
+    terms_version: "remotive-terms-conflict-reviewed-2026-07-14",
     attribution_required: true,
     may_store_full_description: false,
     may_index_jobs: false,
     may_emit_jobposting_schema: false,
     allow_public_listing: true,
     required_destination_kind: "source_url",
-    refresh_interval_seconds: 43_200,
+    refresh_interval_seconds: 21_600,
   };
 
   it("enables the Blob only for the exact reviewed public source contract", () => {

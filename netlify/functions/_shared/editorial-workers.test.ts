@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import editorialDraft from "../editorial-draft.mjs";
+import editorialEvidencePacks from "../editorial-evidence-packs.mjs";
 import editorialJobSnapshot from "../editorial-job-snapshot.mjs";
 import editorialLiveBlocks from "../editorial-live-blocks.mjs";
+import editorialMonthlyAudit from "../editorial-monthly-audit.mjs";
 import editorialNightlyAudit from "../editorial-nightly-audit.mjs";
 import editorialPreflight from "../editorial-preflight.mjs";
 import editorialPublish from "../editorial-publish.mjs";
@@ -54,6 +56,12 @@ const workers: EditorialWorkerCase[] = [
     expectedSummary: { generated: 2 },
   },
   {
+    task: "editorial_evidence_packs",
+    handler: editorialEvidencePacks,
+    operationRpc: "editorial_prepare_evidence_pack",
+    expectedSummary: { prepared: 1 },
+  },
+  {
     task: "editorial_draft",
     handler: editorialDraft,
     operationRpc: "editorial_prepare_one_draft",
@@ -93,6 +101,12 @@ const workers: EditorialWorkerCase[] = [
     task: "editorial_weekly_audit",
     handler: editorialWeeklyAudit,
     operationRpc: "editorial_run_weekly_audit",
+    expectedSummary: { audited: 1 },
+  },
+  {
+    task: "editorial_monthly_audit",
+    handler: editorialMonthlyAudit,
+    operationRpc: "editorial_run_monthly_audit",
     expectedSummary: { audited: 1 },
   },
 ];

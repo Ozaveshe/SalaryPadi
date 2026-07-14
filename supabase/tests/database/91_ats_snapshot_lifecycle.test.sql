@@ -27,14 +27,14 @@ select is(
 select is(
   (select expected_interval from private.worker_schedules
    where task_key = 'ats_source_sync'),
-  interval '6 hours',
+  interval '2 hours',
   'ATS worker expected interval matches its source cadence'
 );
 
 select is(
   (select stale_after from private.worker_schedules
    where task_key = 'ats_source_sync'),
-  interval '14 hours',
+  interval '5 hours',
   'ATS worker stale threshold tolerates one delayed run'
 );
 
@@ -129,6 +129,20 @@ on conflict (source_id) do nothing;
 -- matching the production activation flow.
 update app.job_sources
 set status = 'active',
+    policy_state = 'enabled',
+    authority = 'employer_ats',
+    allowed_fields = array[
+      'external_id', 'title', 'description', 'source_url',
+      'application_url', 'location', 'eligibility', 'work_arrangement',
+      'employment_type', 'engagement_type', 'experience_level', 'posted_at',
+      'deadline'
+    ],
+    policy_review_due_at = clock_timestamp() + interval '31 days',
+    raw_retention = interval '30 days',
+    minimum_poll_interval = interval '2 hours',
+    maximum_requests_per_day = 12,
+    required_dependencies = array['written_employer_permission'],
+    missing_dependencies = '{}'::text[],
     authorization_basis = case id
       when 'd1000000-0000-0000-0000-000000000001'::uuid
         then 'written_permission'
@@ -152,6 +166,20 @@ where id in (
   'd1000000-0000-0000-0000-000000000001',
   'd1000000-0000-0000-0000-000000000002'
 );
+
+insert into private.job_source_dependencies (
+  source_id, dependency_key, state, evidence_reference, reviewed_at
+) values
+  (
+    'd1000000-0000-0000-0000-000000000001',
+    'written_employer_permission', 'verified',
+    'test-evidence:ats-review:2026-07-11', clock_timestamp()
+  ),
+  (
+    'd1000000-0000-0000-0000-000000000002',
+    'written_employer_permission', 'verified',
+    'test-evidence:ats-automatic:2026-07-11', clock_timestamp()
+  );
 
 create temporary table ats_test_runs (
   name text primary key,
@@ -831,6 +859,12 @@ select is(
   'first complete omission records one strike'
 );
 
+-- The supply lifecycle requires the second successful absence to be at least
+-- 30 minutes after the first; age the fixture evidence without waiting.
+update ingest.raw_job_records
+set first_successful_absence_at = clock_timestamp() - interval '31 minutes'
+where source_id = 'd1000000-0000-0000-0000-000000000002';
+
 select is(
   (select filtered_count from audit.ats_import_evidence
    where import_run_id = (
@@ -941,6 +975,11 @@ from api.worker_begin_ats_snapshot(
   'ats_lifecycle_review', now() + interval '8 seconds', 0, 0
 ) begun
 where begun.should_run;
+
+update ingest.raw_job_records
+set first_successful_absence_at = clock_timestamp() - interval '31 minutes'
+where source_id = 'd1000000-0000-0000-0000-000000000001'
+  and successful_omission_count = 1;
 
 select is(
   (select count(*)::integer from ats_test_runs

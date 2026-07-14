@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AtsFetchResult } from "../../../src/lib/jobs/ats";
+import {
+  AtsAdapterError,
+  type AtsFetchResult,
+} from "../../../src/lib/jobs/ats";
 import type { AtsImportJob } from "../../../src/lib/jobs/ats-import";
 import {
   chunkAtsImportRecords,
+  fetchAtsWithRetry,
   runAtsSourceSync,
 } from "../ats-source-sync.mjs";
 import type { WorkerExecution } from "./runtime";
@@ -111,6 +115,40 @@ afterEach(() => {
 });
 
 describe("ATS source sync worker", () => {
+  it("retries transient provider failures with bounded full jitter", async () => {
+    const fetchSource = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new AtsAdapterError("ats_http_error", "greenhouse", 503),
+      )
+      .mockResolvedValueOnce(fetched());
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const result = await fetchAtsWithRetry(
+      fetchSource,
+      {
+        state: "authorized",
+        key: "employer_ats_example",
+        provider: "greenhouse",
+        tenant: "example",
+        employerName: "Example Nigeria",
+        authorization: {
+          kind: "employer",
+          authorizedBy: "Example Recruiting Operations",
+          reviewedAt: "2026-07-11T10:00:00.000Z",
+          evidenceReference: "test:example-permission",
+          allowedDestinations: [
+            { host: "boards.greenhouse.io", pathPrefixes: ["/example"] },
+          ],
+        },
+      },
+      { signal: execution().signal, requestedAt: now },
+      { sleep, random: () => 0.5 },
+    );
+    expect(result.snapshot.status).toBe("complete");
+    expect(fetchSource).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledWith(100);
+  });
+
   it("skips before any RPC or network call when the emergency gate is off", async () => {
     setEnvironment("false");
     const callRpc = vi.fn();

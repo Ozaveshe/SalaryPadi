@@ -18,6 +18,15 @@ export function EligibilityStatus({
     );
   }
 
+  if (eligibility.africa === "eligible") {
+    return (
+      <span className="status status-success">
+        <CircleCheck aria-hidden="true" size={14} strokeWidth={2.5} />
+        {compact ? "Africa eligible" : "Eligible from named African locations"}
+      </span>
+    );
+  }
+
   if (eligibility.nigeria === "not_eligible") {
     return (
       <span className="status status-danger">

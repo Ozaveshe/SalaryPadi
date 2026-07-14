@@ -1,0 +1,143 @@
+import { describe, expect, it } from "vitest";
+
+import { openSupplyAdapter, SUPPLY_ADAPTERS } from "./adapters";
+import {
+  AdapterPolicyError,
+  assertRunnableSourcePolicy,
+  jobSourcePolicyRegistry,
+} from "./policy";
+import {
+  effectivePollingSeconds,
+  fullJitterDelayMs,
+  JOB_SUPPLY_SCHEDULES,
+} from "./schedules";
+
+describe("job source policy registry", () => {
+  it("contains only explicitly supported adapters and no forbidden source", () => {
+    const forbidden = new Set([
+      "linkedin",
+      "indeed",
+      "glassdoor",
+      "jobberman",
+      "myjobmag",
+      "brightermonday",
+      "google_jobs",
+      "workday",
+    ]);
+    expect(jobSourcePolicyRegistry.sources).toHaveLength(
+      Object.keys(SUPPLY_ADAPTERS).length,
+    );
+    expect(
+      jobSourcePolicyRegistry.sources.some((policy) =>
+        forbidden.has(policy.adapterKey),
+      ),
+    ).toBe(false);
+  });
+
+  it("fails closed for missing, disabled, and overdue policies", () => {
+    expect(() =>
+      assertRunnableSourcePolicy("not_registered", [], new Date("2026-07-14")),
+    ).toThrow(
+      expect.objectContaining<Partial<AdapterPolicyError>>({
+        code: "policy_missing",
+      }),
+    );
+    for (const adapterKey of ["remotive", "jobicy"] as const) {
+      expect(() =>
+        openSupplyAdapter(adapterKey, new Date("2026-07-14")),
+      ).toThrow(
+        expect.objectContaining<Partial<AdapterPolicyError>>({
+          code: "policy_disabled",
+          adapterKey,
+        }),
+      );
+    }
+    expect(() =>
+      openSupplyAdapter(
+        "salarypadi_employer_submissions",
+        new Date("2026-08-10T00:00:00.000Z"),
+      ),
+    ).toThrow(
+      expect.objectContaining<Partial<AdapterPolicyError>>({
+        code: "policy_review_overdue",
+      }),
+    );
+  });
+
+  it("opens the existing consented direct-submission lane only within policy", () => {
+    expect(
+      openSupplyAdapter(
+        "salarypadi_employer_submissions",
+        new Date("2026-07-14T00:00:00.000Z"),
+      ).policy,
+    ).toMatchObject({
+      state: "enabled",
+      authority: "direct_employer",
+      publicDisplayPermission: true,
+      searchIndexPermission: true,
+      googleJobPostingPermission: true,
+      missingDependencies: [],
+    });
+  });
+
+  it("keeps Remotive and Jobicy out of search and Google Jobs", () => {
+    for (const key of ["remotive", "jobicy"] as const) {
+      const policy = jobSourcePolicyRegistry.sources.find(
+        (candidate) => candidate.adapterKey === key,
+      );
+      expect(policy).toMatchObject({
+        state: "disabled",
+        searchIndexPermission: false,
+        googleJobPostingPermission: false,
+        fullDescriptionPermission: false,
+      });
+    }
+  });
+
+  it("lists exact external dependencies instead of fabricating access", () => {
+    expect(
+      jobSourcePolicyRegistry.sources.find(
+        (policy) => policy.adapterKey === "licensed_africa_partner",
+      )?.missingDependencies,
+    ).toEqual([
+      "signed_data_licence",
+      "feed_credentials",
+      "field_and_retention_schedule",
+    ]);
+    expect(
+      jobSourcePolicyRegistry.sources.find(
+        (policy) => policy.adapterKey === "reliefweb",
+      )?.missingDependencies,
+    ).toContain("preapproved_reliefweb_app_name");
+  });
+});
+
+describe("supply schedules and retry bounds", () => {
+  it("registers every requested default schedule", () => {
+    expect(JOB_SUPPLY_SCHEDULES).toMatchObject({
+      dispatcher: { intervalMinutes: 15 },
+      licensed_incremental: { intervalMinutes: 60 },
+      employer_ats: { intervalMinutes: 120, jitterMinutes: 20 },
+      reliefweb_incremental: { intervalMinutes: 120 },
+      remotive: { intervalMinutes: 360 },
+      jobicy: { intervalMinutes: 360 },
+      deadline_and_alerts: { intervalMinutes: 15 },
+      apply_link_full: { intervalMinutes: 1_440 },
+      fuzzy_review: { intervalMinutes: 1_440 },
+      health_digest: { intervalMinutes: 1_440 },
+      rights_review: { intervalMinutes: 43_200 },
+    });
+  });
+
+  it("lets a stricter contract slow a default but never accelerate it", () => {
+    expect(effectivePollingSeconds(3_600, 21_600)).toBe(21_600);
+    expect(effectivePollingSeconds(21_600, 3_600)).toBe(21_600);
+  });
+
+  it("uses bounded full jitter", () => {
+    expect(fullJitterDelayMs(3, 100, 10_000, () => 0.5)).toBe(400);
+    expect(fullJitterDelayMs(20, 100, 10_000, () => 0.999)).toBeLessThan(
+      10_000,
+    );
+  });
+});

@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "routeStrategy": "launch-market-unprefixed",
+  "defaultCountryCode": "NG",
+  "packs": [
+    {
+      "countryCode": "NG",
+      "iso3": "NGA",
+      "slug": "nigeria",
+      "name": "Nigeria",
+      "routePrefix": "",
+      "currencyCode": "NGN",
+      "defaultLocale": "en-NG",
+      "defaultTimeZone": "Africa/Lagos",
+      "locales": [
+        {
+          "tag": "en-NG",
+          "language": "en",
+          "direction": "ltr",
+          "contentStatus": "reviewed"
+        }
+      ],
+      "terminology": {
+        "subdivisionSingular": "state",
+        "subdivisionPlural": "states",
+        "resume": "CV",
+        "postalCode": "postcode"
+      },
+      "activation": {
+        "state": "launch",
+        "publicRoutesEnabled": true,
+        "searchIndexEnabled": true,
+        "autoTranslate": false,
+        "thresholds": {
+          "authorizedActiveJobs": 100,
+          "authorizedSources": 3,
+          "explicitEligibilityRatio": 0.95,
+          "uniqueContentPages": 20,
+          "firstPartyContributions": 10
+        }
+      }
+    },
+    {
+      "countryCode": "GH",
+      "iso3": "GHA",
+      "slug": "ghana",
+      "name": "Ghana",
+      "routePrefix": "/gh",
+      "currencyCode": "GHS",
+      "defaultLocale": "en-GH",
+      "defaultTimeZone": "Africa/Accra",
+      "locales": [
+        {
+          "tag": "en-GH",
+          "language": "en",
+          "direction": "ltr",
+          "contentStatus": "configured"
+        }
+      ],
+      "terminology": {
+        "subdivisionSingular": "region",
+        "subdivisionPlural": "regions",
+        "resume": "CV",
+        "postalCode": "digital address"
+      },
+      "activation": {
+        "state": "candidate",
+        "publicRoutesEnabled": false,
+        "searchIndexEnabled": false,
+        "autoTranslate": false,
+        "thresholds": {
+          "authorizedActiveJobs": 100,
+          "authorizedSources": 3,
+          "explicitEligibilityRatio": 0.95,
+          "uniqueContentPages": 20,
+          "firstPartyContributions": 10
+        }
+      }
+    },
+    {
+      "countryCode": "KE",
+      "iso3": "KEN",
+      "slug": "kenya",
+      "name": "Kenya",
+      "routePrefix": "/ke",
+      "currencyCode": "KES",
+      "defaultLocale": "en-KE",
+      "defaultTimeZone": "Africa/Nairobi",
+      "locales": [
+        {
+          "tag": "en-KE",
+          "language": "en",
+          "direction": "ltr",
+          "contentStatus": "configured"
+        }
+      ],
+      "terminology": {
+        "subdivisionSingular": "county",
+        "subdivisionPlural": "counties",
+        "resume": "CV",
+        "postalCode": "postal code"
+      },
+      "activation": {
+        "state": "candidate",
+        "publicRoutesEnabled": false,
+        "searchIndexEnabled": false,
+        "autoTranslate": false,
+        "thresholds": {
+          "authorizedActiveJobs": 100,
+          "authorizedSources": 3,
+          "explicitEligibilityRatio": 0.95,
+          "uniqueContentPages": 20,
+          "firstPartyContributions": 10
+        }
+      }
+    },
+    {
+      "countryCode": "ZA",
+      "iso3": "ZAF",
+      "slug": "south-africa",
+      "name": "South Africa",
+      "routePrefix": "/za",
+      "currencyCode": "ZAR",
+      "defaultLocale": "en-ZA",
+      "defaultTimeZone": "Africa/Johannesburg",
+      "locales": [
+        {
+          "tag": "en-ZA",
+          "language": "en",
+          "direction": "ltr",
+          "contentStatus": "configured"
+        }
+      ],
+      "terminology": {
+        "subdivisionSingular": "province",
+        "subdivisionPlural": "provinces",
+        "resume": "CV",
+        "postalCode": "postal code"
+      },
+      "activation": {
+        "state": "candidate",
+        "publicRoutesEnabled": false,
+        "searchIndexEnabled": false,
+        "autoTranslate": false,
+        "thresholds": {
+          "authorizedActiveJobs": 100,
+          "authorizedSources": 3,
+          "explicitEligibilityRatio": 0.95,
+          "uniqueContentPages": 20,
+          "firstPartyContributions": 10
+        }
+      }
+    }
+  ]
+}

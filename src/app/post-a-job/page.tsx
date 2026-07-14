@@ -169,24 +169,40 @@ export default async function PostAJobPage({
               />
             </div>
             <div className="field">
-              <label htmlFor="requirements">Requirements</label>
+              <label htmlFor="requirements">
+                Qualifications and requirements
+              </label>
               <textarea
                 className="textarea"
                 id="requirements"
                 name="requirements"
                 minLength={20}
                 maxLength={10000}
+                aria-describedby="requirements-help"
                 required
               />
+              <p className="field-help" id="requirements-help">
+                State HND acceptance, BSc requirements, NYSC, graduate or
+                internship status, professional certification and local-language
+                requirements only when they genuinely apply.
+              </p>
             </div>
             <div className="field">
-              <label htmlFor="benefits">Benefits</label>
+              <label htmlFor="benefits">
+                Benefits, allowances and pay practices
+              </label>
               <textarea
                 className="textarea"
                 id="benefits"
                 name="benefits"
                 maxLength={5000}
+                aria-describedby="benefits-help"
               />
+              <p className="field-help" id="benefits-help">
+                State pension, HMO, transport, housing, data or power allowance,
+                13th month, bonus, overtime or weekend expectations, FX policy
+                and pay timing only when evidenced.
+              </p>
             </div>
           </div>
         </fieldset>
@@ -257,6 +273,19 @@ export default async function PostAJobPage({
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
                 <option value="unclear">Unclear</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="relocation_support">Relocation support</label>
+              <select
+                className="select"
+                id="relocation_support"
+                name="relocation_support"
+                defaultValue="unclear"
+              >
+                <option value="unclear">Not stated</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
               </select>
             </div>
           </div>

@@ -8,24 +8,54 @@ import Link from "next/link";
 
 import { EligibilityStatus } from "@/components/jobs/eligibility-status";
 import { formatDate, formatEnum } from "@/lib/format";
+import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { Job } from "@/lib/jobs/types";
 
+function jobPathLabel(job: Job) {
+  if (job.workMode !== "remote" && /\bnigeria\b/i.test(job.locationDisplay)) {
+    return "Nigeria local";
+  }
+  if (job.workMode === "remote" && job.eligibility.nigeria === "eligible") {
+    return "Remote · Nigeria eligible";
+  }
+  if (job.workMode === "remote" && job.eligibility.africa === "eligible") {
+    return "Remote · Africa eligible";
+  }
+  return job.workMode === "remote"
+    ? "Remote · eligibility unclear"
+    : formatEnum(job.workMode);
+}
+
 export function JobCard({ job }: { job: Job }) {
+  const evidence = getJobEvidenceLabels(job).slice(0, 5);
+
   return (
     <article className="job-card" data-job-id={job.id}>
-      <div className="stack">
-        <div className="split">
-          <div>
-            <p className="job-company">
-              <Link href={`/companies/${job.company.slug}`}>
-                {job.company.name}
-              </Link>
-            </p>
-            <h2 className="job-title">
-              <Link href={`/jobs/${job.slug}`}>{job.title}</Link>
-            </h2>
-          </div>
+      <div className="job-card-main">
+        <div className="job-card-title">
+          <p className="job-company">
+            <Link href={`/companies/${job.company.slug}`}>
+              {job.company.name}
+            </Link>
+          </p>
+          <h2 className="job-title">
+            <Link href={`/jobs/${job.slug}`}>{job.title}</Link>
+          </h2>
+        </div>
+        <div className="job-badges" aria-label="Eligibility and arrangement">
           <EligibilityStatus eligibility={job.eligibility} compact />
+          <span className="status status-neutral">{jobPathLabel(job)}</span>
+          <span className="status status-neutral">
+            {formatEnum(job.arrangement)}
+          </span>
+          <span className="status status-neutral">
+            {formatEnum(job.experienceLevel)}
+          </span>
+          <span
+            className={`status ${job.salary ? "status-success" : "status-neutral"}`}
+          >
+            {job.salary ? "Salary disclosed" : "Salary not stated"}
+          </span>
         </div>
         <div className="job-facts" aria-label="Job summary">
           <span>
@@ -45,19 +75,27 @@ export function JobCard({ job }: { job: Job }) {
             {job.salary?.originalText ?? "Salary not disclosed"}
           </span>
         </div>
-        {job.skills.length > 0 ? (
-          <ul className="tag-list" aria-label="Skills and tags">
-            {job.skills.slice(0, 5).map((skill) => (
-              <li key={skill}>{skill}</li>
+        {evidence.length > 0 ? (
+          <ul
+            className="tag-list evidence-tag-list"
+            aria-label="Source evidence"
+          >
+            {evidence.map(({ key, label }) => (
+              <li key={key}>{label}</li>
             ))}
           </ul>
         ) : null}
-        <div className="split job-card-footer">
-          <span className="source-note">
-            Source: {job.source.name} · checked {formatDate(job.lastCheckedAt)}
-          </span>
+        <div className="job-card-footer">
+          <div className="job-source-badges" aria-label="Source and freshness">
+            <span className="status status-neutral">
+              Source: {job.source.name}
+            </span>
+            <span className="status status-neutral">
+              Checked {formatDate(job.lastCheckedAt)}
+            </span>
+          </div>
           <Link className="text-link" href={`/jobs/${job.slug}`}>
-            Check the job truth
+            Check eligibility, pay and source
           </Link>
         </div>
       </div>

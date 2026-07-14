@@ -1,7 +1,20 @@
 import type { Job, PayPeriod } from "@/lib/jobs/types";
 
-export function canIndexJobDetail(job: Job): boolean {
-  return job.source.canIndex;
+export function canIndexJobDetail(job: Job, now = new Date()): boolean {
+  const validThrough = job.validThrough ? Date.parse(job.validThrough) : null;
+  return (
+    Boolean(job.databaseId) &&
+    job.source.canIndex &&
+    job.status === "open" &&
+    (validThrough === null ||
+      (Number.isFinite(validThrough) && validThrough > now.valueOf()))
+  );
+}
+
+export function canNotifyGoogleIndexing(job: Job, now = new Date()): boolean {
+  return (
+    canIndexJobDetail(job, now) && job.source.canUseJobPostingStructuredData
+  );
 }
 
 const employmentTypes: Record<Job["employmentType"], string | null> = {

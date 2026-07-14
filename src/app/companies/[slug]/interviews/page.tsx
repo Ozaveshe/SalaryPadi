@@ -122,6 +122,7 @@ export default async function CompanyInterviewsPage({
                     <p>{interview.general_experience}</p>
                   </div>
                 ) : null}
+                <p className="source-note m-0">{interview.provenance_label}</p>
               </article>
             ))}
           </div>

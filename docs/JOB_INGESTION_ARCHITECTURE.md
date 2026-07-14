@@ -2,24 +2,23 @@
 
 ## Current answer
 
-SalaryPadi does not currently scrape job boards. Production jobs come from two bounded lanes:
+SalaryPadi does not scrape job boards. The only currently enabled supply lane is:
 
-1. The documented Remotive public API, operated as an attributed, noindex pilot.
-2. Structured employer submissions in SalaryPadi, which remain private until an administrator approves them.
+1. Structured direct-employer submissions in SalaryPadi, which remain private until an administrator approves them and records the authorization attestation.
 
-Remotive is global remote-job data. It is not sufficient evidence for a nationwide Nigeria jobs catalogue, and SalaryPadi must not describe it as one. Nationwide coverage requires explicit employer/partner feed permissions and reviewed ATS adapters.
+The Remotive adapter is implemented but disabled because its API page and current general terms conflict on automated extraction and republication. It cannot make a provider request until written clarification is recorded. Remotive is global remote-job data in any case; it is not evidence for a nationwide Nigeria jobs catalogue.
 
-Greenhouse, Lever, and Ashby adapter, worker, and lifecycle infrastructure is implemented in the repository but remains inactive. Moniepoint Greenhouse and M-KOPA Ashby are the first recommended permission conversations, not active sources. No production endpoint call, persistence, publication, indexing, structured data, or email distribution is authorized until written permission is recorded and the production database/worker path is separately verified.
+Greenhouse, Lever, Ashby, ReliefWeb, Jobicy, and licensed-partner adapter boundaries are also implemented but inactive. No production endpoint call, persistence, publication, indexing, structured data, or email distribution is authorized until the source-policy registry, required external evidence, database authorization, and independent environment gate all permit it.
 
-## Production flow
+## Prepared external-source flow (inactive)
 
 ```text
-Netlify schedule (01:05 and 13:05 UTC)
+Netlify schedule (01:05, 07:05, 13:05 and 19:05 UTC)
   -> emergency environment gate
   -> service-role source-policy RPC
+  -> distributed provider-budget claim
   -> protected SalaryPadi snapshot route
-  -> read or revalidate the shared twelve-hour Next cache
-  -> on a cache miss, claim the database-backed provider budget
+  -> read or revalidate the shared six-hour Next cache
   -> fixed Remotive adapter
        -> HTTPS fixed endpoint, no redirects or credentials
        -> 10-second deadline
@@ -27,19 +26,19 @@ Netlify schedule (01:05 and 13:05 UTC)
        -> streamed 2 MiB maximum
        -> Zod contract and non-empty feed
        -> safe destination, HTML-to-text and eligibility normalization
-  -> shared twelve-hour public cache
+  -> shared six-hour public cache
   -> description-free current Netlify Blob
   -> immutable import and worker-run evidence
 
 Public /jobs and /jobs/{id-or-slug}
-  -> active-only public source-policy view
-  -> same tagged Remotive cache
+  -> currently runnable public-display source policy
+  -> complete occurrence-to-canonical provenance
   + published, non-expired employer jobs from Supabase
   -> destination-aware identity fingerprint
   -> employer/partner/manual/API precedence
   -> search, eligibility filters and pagination
 
-Alert delivery (every ten minutes)
+Alert delivery (every fifteen minutes)
   -> current validated Blob snapshot
   + published employer jobs
   -> suppress Remotive until written email-redistribution permission exists
@@ -47,13 +46,13 @@ Alert delivery (every ten minutes)
   -> stable SalaryPadi job ID link
 ```
 
-Both source gates must permit acquisition. `REMOTIVE_SOURCE_ENABLED=false` stops the source immediately. A paused, disabled, missing, unreviewed, or contract-mismatched database policy also stops acquisition before any provider request. Neither gate can override the other.
+All source gates must permit acquisition. `REMOTIVE_SOURCE_ENABLED=false` stops the source immediately. A paused, disabled, missing, overdue, dependency-incomplete, unreviewed, or contract-mismatched database policy also stops acquisition before any provider request. Neither gate can override the other. The current Remotive policy is disabled.
 
 The alert Blob has one strong-consistency `current` key and no history. It rejects malformed nested jobs, leaked descriptions, insecure URLs, timestamps over five minutes in the future, and snapshots older than fourteen hours.
 
 ## Prepared ATS flow
 
-The ATS lane is a separate, fail-closed scheduled path. Its database registration expects a run every six hours and marks it stale after fourteen hours. The Netlify worker must still pass `ATS_SOURCE_SYNC_ENABLED=true`, and the database must return at least one currently authorized employer source. The environment value remains `false` and no employer source/configuration is seeded, so a deployed schedule records a safe skip without making a provider request.
+The ATS lane is a separate, fail-closed scheduled path. Its database registration expects a run every two hours and marks it stale after five hours. The Netlify worker must still pass `ATS_SOURCE_SYNC_ENABLED=true`, and the database must return at least one currently authorized employer source. The environment value remains `false` and no employer source/configuration is seeded, so a deployed schedule records a safe skip without making a provider request.
 
 ```text
 Activation prerequisite
@@ -67,7 +66,7 @@ Activation prerequisite
   -> controlled claimed dry run, then return the environment gate to false
   -> named approval may leave scheduled acquisition enabled
 
-Netlify ATS schedule (02:35, 08:35, 14:35 and 20:35 UTC)
+Netlify ATS schedule (00:17, 02:17, 04:17, 06:17, 08:17, 10:17, 12:17, 14:17, 16:17, 18:17, 20:17 and 22:17 UTC)
   -> independent ATS_SOURCE_SYNC_ENABLED environment gate
   -> if false, record a safe skip with no source/provider call
   -> service-role worker lists currently authorized sources
@@ -149,7 +148,7 @@ Pull-request gates are deterministic and never consume provider quota:
 - pgTAP authorization-expiry, configuration-drift, destination-path, generic-budget, snapshot idempotency, partial-run, and two-complete-omission tests;
 - build, lint, typecheck and ordinary browser journeys.
 
-The production canary is scheduled for 01:20 and 13:20 UTC, fifteen minutes after the expected source runs. It requires a source success within the preceding two hours, then reads only SalaryPadi endpoints and proves a populated Remotive-backed list, a stable detail route, visible source evidence, noindex/no-`JobPosting` policy, and an HTTPS outbound source URL. It normally reuses the shared cache; if the cache is cold, the same database-backed limit of one request per minute and four requests per rolling 24 hours still applies before any provider call.
+The production canary is scheduled for 01:20, 07:20, 13:20 and 19:20 UTC, fifteen minutes after the source-worker schedule. It reads only SalaryPadi endpoints. A safe skip proves the schedule and kill switch are alive and requires no Remotive records to be public; it does not prove source success. If the worker succeeds under a separately authorized policy, the canary additionally proves a populated attributed listing, stable detail route, noindex/no-`JobPosting` policy, and HTTPS source destination. The database-backed ceiling remains one request per minute and four requests per rolling 24 hours.
 
 ## Known scale boundary
 

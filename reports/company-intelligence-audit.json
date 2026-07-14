@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "audited_at": "2026-07-14T00:00:00Z",
+  "production_project_ref": "bxelrhklsznmpksgrqep",
+  "production": {
+    "companies": 0,
+    "company_locations": 0,
+    "company_benefits": 0,
+    "public_review_publications": 0,
+    "public_interview_publications": 0,
+    "salary_aggregate_snapshots": 0,
+    "company_rating_snapshots": 0,
+    "raw_contributions": 0,
+    "moderation_actions": 0,
+    "community_feed_posts": 0,
+    "community_forum_threads": 0,
+    "community_forum_replies": 0,
+    "community_forum_topics_taxonomy": 5,
+    "source_derived_public_company_shells": 17,
+    "review_leaf_routes_returning_200": 17,
+    "salary_leaf_routes_returning_200": 17,
+    "interview_leaf_routes_returning_200": 17,
+    "company_urls_in_main_sitemap": 0,
+    "external_review_text_rows_observed": 0
+  },
+  "fixture_audit": {
+    "runtime_company_opinion_fixtures": 0,
+    "test_only_synthetic_opinion_fixtures": true,
+    "public_fixture_ingress": false
+  },
+  "quarantine": {
+    "live_rows_changed": 0,
+    "migration_prepared": "supabase/migrations/20260714030100_company_fact_provenance.sql",
+    "stores_raw_text": false
+  },
+  "official_fact_seed": {
+    "applied_to_production": false,
+    "profiles": ["coalition-technologies", "telus-digital", "lawnstarter"],
+    "fact_types": ["brand_name", "website", "official_domain"],
+    "opinion_or_aggregate_rows": 0
+  },
+  "proof": {
+    "external_review_sources_allowed": false,
+    "document_verification_enabled": false,
+    "rating_minimum_independent_reviews": 5,
+    "salary_privacy_threshold_configured": true,
+    "public_author_identity_columns": 0,
+    "employer_can_mutate_community_ratings": false
+  },
+  "unknowns": [
+    "No production contribution-acquisition conversion baseline exists.",
+    "The prepared migrations and official fact seeds have not been applied.",
+    "No Search Console or authenticated employer-claim journey was used in this read-only audit."
+  ]
+}

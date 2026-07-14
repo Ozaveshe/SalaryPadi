@@ -205,7 +205,14 @@ test.describe("launch-quality public surfaces", () => {
     ).toBeVisible();
   });
 
-  for (const path of ["/", "/jobs", "/tools"] as const) {
+  for (const path of [
+    "/",
+    "/jobs",
+    "/companies",
+    "/salaries",
+    "/tools",
+    "/contribute",
+  ] as const) {
     test(`${path} has no automatically detectable WCAG A/AA violations`, async ({
       page,
     }) => {

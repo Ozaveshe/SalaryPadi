@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { Job } from "../../../src/lib/jobs/types";
 
 import { fetchAlertJobCatalog } from "./jobs";
+import { readSearchConsoleTopicSignals } from "./google-search-console";
 import {
   OperationalError,
   getRuntimeBoolean,
@@ -15,13 +16,15 @@ import {
 export type EditorialTaskKey =
   | "editorial_job_snapshot"
   | "editorial_topic_candidates"
+  | "editorial_evidence_packs"
   | "editorial_draft"
   | "editorial_preflight"
   | "editorial_queue"
   | "editorial_publish"
   | "editorial_live_blocks"
   | "editorial_nightly_audit"
-  | "editorial_weekly_audit";
+  | "editorial_weekly_audit"
+  | "editorial_monthly_audit";
 
 type SnapshotMetrics = {
   active_jobs: number;
@@ -230,9 +233,30 @@ async function operation(
       const snapshot = await captureSnapshot(execution.signal);
       return { snapshot_id: snapshot.id, ...snapshot.metrics };
     }
-    case "editorial_topic_candidates":
-      return rpc<Record<string, unknown>>(
+    case "editorial_topic_candidates": {
+      const searchConsole = await readSearchConsoleTopicSignals(execution);
+      const recorded =
+        searchConsole.signals.length > 0
+          ? await rpc<number>(
+              "editorial_record_topic_signals",
+              { p_signals: searchConsole.signals },
+              { signal: execution.signal },
+            )
+          : 0;
+      const selection = await rpc<Record<string, unknown>>(
         "editorial_generate_topic_candidates",
+        {},
+        { signal: execution.signal },
+      );
+      return {
+        ...selection,
+        search_console_state: searchConsole.state,
+        search_console_signals_recorded: recorded,
+      };
+    }
+    case "editorial_evidence_packs":
+      return rpc<Record<string, unknown>>(
+        "editorial_prepare_evidence_pack",
         {},
         { signal: execution.signal },
       );
@@ -277,6 +301,12 @@ async function operation(
     case "editorial_weekly_audit":
       return rpc<Record<string, unknown>>(
         "editorial_run_weekly_audit",
+        {},
+        { signal: execution.signal },
+      );
+    case "editorial_monthly_audit":
+      return rpc<Record<string, unknown>>(
+        "editorial_run_monthly_audit",
         {},
         { signal: execution.signal },
       );

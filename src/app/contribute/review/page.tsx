@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { ContributionShell } from "@/components/contributions/contribution-shell";
+import { DraftControls } from "@/components/contributions/draft-controls";
 import { requireViewer } from "@/lib/auth/dal";
 
 export const metadata: Metadata = {
@@ -28,6 +29,7 @@ export default async function ReviewContributionPage() {
       description="Focus on your own experience and workplace conditions. Do not name ordinary managers, coworkers or other private people."
     >
       <form
+        id="review-contribution-form"
         className="contribution-form"
         action="/api/contributions/review"
         method="post"
@@ -223,6 +225,7 @@ export default async function ReviewContributionPage() {
         <button className="button w-fit" type="submit">
           Submit for moderation
         </button>
+        <DraftControls formId="review-contribution-form" kind="review" />
       </form>
     </ContributionShell>
   );

@@ -1,32 +1,29 @@
 import type { Metadata } from "next";
-import { ArrowUpRight, Wrench } from "lucide-react";
+import { ArrowUpRight, ShieldCheck, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeading } from "@/components/page-heading";
 import { getCareerToolCatalog } from "@/lib/afrotools/catalog-repository";
+import { groupCareerTools } from "@/lib/afrotools/tool-presentation";
 
 export const metadata: Metadata = {
   title: "Career decision tools",
   description:
-    "A synchronized directory of AfroTools-powered salary, payroll and career tools with visible freshness and provenance.",
+    "Use practical salary, payroll and career tools, with clear boundaries between in-product calculations and AfroTools destinations.",
   alternates: { canonical: "/tools" },
-};
-
-const integratedRoutes: Record<string, string> = {
-  "ng-paye": "/tools/take-home-pay",
-  "currency-converter": "/tools/salary-converter",
-  "job-offer-evaluator": "/tools/offer-compare",
 };
 
 export default async function ToolsPage() {
   const catalog = await getCareerToolCatalog();
   const snapshot = catalog.snapshot;
+  const grouped = snapshot ? groupCareerTools(snapshot.tools) : null;
+
   return (
     <div className="site-shell stack-lg">
       <PageHeading
         eyebrow="Practical career tools"
-        title="Move from a number to a decision"
-        description="SalaryPadi synchronizes this directory from the deployed AfroTools catalog. Integrated tools show their API evidence; other tools open on AfroTools."
+        title="Start with the decision you need to make"
+        description="Use two calculation experiences inside SalaryPadi or continue to thirteen reviewed AfroTools destinations. Each card describes the outcome, not the plumbing."
       />
       {snapshot ? (
         <div
@@ -37,70 +34,100 @@ export default async function ToolsPage() {
         >
           <strong>
             {catalog.state === "live"
-              ? "Catalog verified"
-              : "Last-known-good catalog"}
-          </strong>
-          <p>
-            Source checked {new Date(snapshot.checkedAt).toLocaleString()}.
-            Catalog updated {snapshot.catalogLastUpdated}.{" "}
-            {catalog.cache === "bundled_lkg"
-              ? "Using the bundled last-known-good snapshot."
-              : "Using the synchronized cache."}
-          </p>
-          <a href={snapshot.documentationUrl ?? snapshot.sourceUrl}>
-            View catalog documentation
-          </a>
+              ? "The reviewed tool list is available."
+              : "Using the reviewed fallback tool list."}
+          </strong>{" "}
+          Links and in-product calculations remain separated below.
         </div>
       ) : (
         <div className="notice notice-danger" role="alert">
-          <strong>Tools catalog unavailable</strong>
-          <p>
-            The catalog is missing or older than 30 days, so SalaryPadi will not
-            present unverified tools as live.
-          </p>
+          <strong>Career tools are temporarily unavailable.</strong> SalaryPadi
+          will not present an unreviewed destination as current.
         </div>
       )}
-      {snapshot ? (
-        <div className="tool-index-grid">
-          {snapshot.tools.map((tool) => {
-            const localRoute = integratedRoutes[tool.id];
-            const href =
-              localRoute ??
-              tool.canonical_url ??
-              new URL(tool.url, "https://afrotools.com").toString();
-            return (
-              <article className="surface surface-pad stack" key={tool.id}>
-                <Wrench aria-hidden="true" size={26} />
-                <h2 className="section-title">{tool.name}</h2>
-                <p className="text-muted m-0">{tool.description}</p>
-                <p className="field-help">
-                  Source: AfroTools · Updated {tool.last_updated} ·{" "}
-                  {tool.countries.includes("ALL")
-                    ? "Africa-wide"
-                    : tool.countries.join(", ")}
-                  {tool.integration_mode
-                    ? ` · Integration: ${tool.integration_mode}`
-                    : null}
-                </p>
-                {localRoute ? (
-                  <Link className="button button-secondary w-fit" href={href}>
-                    Open integrated tool
+
+      {grouped ? (
+        <>
+          <section className="stack" aria-labelledby="inside-tools-heading">
+            <div className="section-intro">
+              <p className="eyebrow">Use inside SalaryPadi · 2</p>
+              <h2 className="section-title" id="inside-tools-heading">
+                Keep the calculation in this decision path
+              </h2>
+              <p className="text-muted m-0">
+                SalaryPadi asks for consent before sending the necessary inputs
+                to AfroTools and shows the returned evidence or fails closed.
+              </p>
+            </div>
+            <div className="tool-index-grid tool-index-featured">
+              {grouped.inside.map((tool) => (
+                <article className="surface surface-pad stack" key={tool.id}>
+                  <Wrench aria-hidden="true" size={26} />
+                  <h3 className="section-title">{tool.title}</h3>
+                  <p className="text-muted m-0">{tool.description}</p>
+                  <Link className="button w-fit" href={tool.href}>
+                    Use in SalaryPadi
                   </Link>
-                ) : (
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="stack" aria-labelledby="external-tools-heading">
+            <div className="section-intro">
+              <p className="eyebrow">Continue on AfroTools · 13</p>
+              <h2 className="section-title" id="external-tools-heading">
+                Open a focused tool for the next task
+              </h2>
+              <p className="text-muted m-0">
+                These links leave SalaryPadi. Review the destination’s sources
+                and assumptions before relying on a result.
+              </p>
+            </div>
+            <div className="tool-index-grid tool-index-compact">
+              {grouped.external.map((tool) => (
+                <article className="surface surface-pad stack" key={tool.id}>
+                  <h3 className="m-0 text-lg font-bold">{tool.title}</h3>
+                  <p className="text-muted m-0">{tool.description}</p>
                   <a
-                    className="button button-secondary w-fit"
-                    href={href}
+                    className="text-link w-fit"
+                    href={tool.href}
+                    target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Open on AfroTools{" "}
+                    Continue on AfroTools
                     <ArrowUpRight aria-hidden="true" size={16} />
                   </a>
-                )}
-              </article>
-            );
-          })}
-        </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        </>
       ) : null}
+
+      <section
+        className="native-tool-callout"
+        aria-labelledby="scam-tool-heading"
+      >
+        <ShieldCheck aria-hidden="true" size={26} />
+        <div>
+          <p className="eyebrow">SalaryPadi safety tool</p>
+          <h2 className="section-title" id="scam-tool-heading">
+            Check a vacancy for scam warning signs
+          </h2>
+          <p className="text-muted m-0">
+            The approved local checker analyses only the text and answers you
+            enter. It does not fetch the vacancy and it does not verify an
+            employer as legitimate.
+          </p>
+        </div>
+        <Link
+          className="button button-secondary"
+          href="/tools/job-scam-checker"
+        >
+          Check warning signs
+        </Link>
+      </section>
     </div>
   );
 }

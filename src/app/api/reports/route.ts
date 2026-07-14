@@ -12,6 +12,11 @@ const schema = z.object({
     "company",
     "review",
     "interview",
+    "salary",
+    "benefit",
+    "pay_reliability",
+    "employer_response",
+    "contribution",
     "feed_post",
     "forum_thread",
     "forum_reply",
@@ -27,8 +32,14 @@ const schema = z.object({
     "spam",
     "harassment",
     "misinformation",
+    "correction",
+    "appeal",
+    "takedown",
+    "deletion",
+    "serious_allegation",
     "other",
   ]),
+  narrative: z.string().trim().max(2_000).default(""),
   return_to: z.string().optional(),
 });
 
@@ -42,10 +53,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid report." }, { status: 400 });
   const context = await getAuthenticatedApiContext();
   if (!context.ok) return context.response;
-  const { error } = await context.supabase.schema("api").rpc("report_content", {
-    reported_type: parsed.data.target_type,
-    reported_id: parsed.data.target_id,
-    report_category: parsed.data.category,
+  const { error } = await context.supabase.schema("api").rpc("submit_report", {
+    p_target_kind: parsed.data.target_type,
+    p_target_id: parsed.data.target_id,
+    p_category: parsed.data.category,
+    p_narrative: parsed.data.narrative || undefined,
   });
   const destination = safeRelativePath(
     parsed.data.return_to,

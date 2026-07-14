@@ -160,7 +160,10 @@ function excludedAt(value: string, start: number, end: number) {
   return (
     /(?:except|excluding|exclude|not in|outside|without|other than)\s*$/.test(
       before,
-    ) || /^\s*(?:excluded|not eligible|not accepted)/.test(after)
+    ) ||
+    /^\s*(?:(?:is|are)\s+)?(?:explicitly\s+)?(?:excluded|not eligible|not accepted)/.test(
+      after,
+    )
   );
 }
 

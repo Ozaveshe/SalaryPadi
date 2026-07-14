@@ -3,6 +3,7 @@ import {
   ArrowRight,
   BadgeDollarSign,
   BriefcaseBusiness,
+  Building2,
   Clock3,
   DatabaseZap,
   Globe2,
@@ -19,20 +20,20 @@ export const metadata: Metadata = { alternates: { canonical: "/" } };
 const toolLinks = [
   {
     href: "/tools/take-home-pay",
-    label: "Nigeria take-home pay",
+    label: "Understand your Nigeria take-home pay",
     description: "See tax and deductions with effective-dated rules.",
     icon: BadgeDollarSign,
   },
   {
     href: "/tools/offer-compare",
-    label: "Compare two offers",
-    description: "Normalize pay, benefits, work costs and trade-offs.",
+    label: "Compare the practical value of two offers",
+    description: "Keep benefits, work costs and assumptions visible.",
     icon: BriefcaseBusiness,
   },
   {
     href: "/tools/job-scam-checker",
-    label: "Check job warning signs",
-    description: "Get explainable flags and safer next steps.",
+    label: "Check a vacancy for warning signs",
+    description: "Get explainable flags without uploading the vacancy.",
     icon: ShieldCheck,
   },
 ] as const;
@@ -70,7 +71,12 @@ export default async function HomePage() {
       })}, ${checkedAt.toLocaleTimeString("en-NG", {
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: "UTC",
+        timeZoneName: "short",
       })}`;
+  const healthySources = feed.sources.filter(
+    (source) => source.state === "live",
+  );
 
   return (
     <div className="site-shell stack-lg">
@@ -79,31 +85,65 @@ export default async function HomePage() {
           <p className="home-kicker">
             <span className={`live-dot live-dot-${feed.state}`} />
             {feed.state === "live"
-              ? "Live, source-checked data"
-              : "Data status visible"}
+              ? "Source checks are current"
+              : "Job availability is shown honestly"}
           </p>
-          <p className="eyebrow">Career intelligence built for Africans</p>
+          <p className="eyebrow">Career decisions built for Africans</p>
           <h1 className="page-title" id="home-heading">
-            Know the job. Know the pay. Make the move.
+            Fresh jobs Africans can actually apply for.
           </h1>
           <p className="lede">
-            Search roles, compare offers and verify salary evidence with clear
-            eligibility and freshness—not a wall of recycled listings.
+            Find the role, check the pay and eligibility evidence, inspect the
+            company, then use practical decision tools in one continuous path.
           </p>
-          <div className="home-hero-actions">
-            <Link className="button" href="/jobs/remote?eligibility=nigeria">
-              Explore eligible jobs <ArrowRight aria-hidden="true" size={18} />
-            </Link>
-            <Link className="button button-secondary" href="/tools">
-              Open career tools
-            </Link>
-          </div>
         </div>
+
+        <form
+          className="home-search home-search-dominant"
+          action="/jobs"
+          method="get"
+          role="search"
+          aria-label="Search jobs"
+        >
+          <div className="field home-search-keyword">
+            <label htmlFor="home-keyword">Role, skill or company</label>
+            <input
+              className="input"
+              id="home-keyword"
+              name="q"
+              placeholder="e.g. data analyst"
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="home-eligibility">Open to</label>
+            <select
+              className="select"
+              id="home-eligibility"
+              name="eligibility"
+              defaultValue="nigeria"
+            >
+              <option value="nigeria">Nigeria explicitly eligible</option>
+              <option value="africa">Africa explicitly eligible</option>
+              <option value="worldwide">Worldwide</option>
+              <option value="unclear">Include unclear evidence</option>
+              <option value="all">Any evidence</option>
+            </select>
+          </div>
+          <button className="button" type="submit">
+            Search jobs <ArrowRight aria-hidden="true" size={18} />
+          </button>
+          <p className="home-search-trust">
+            <ShieldCheck aria-hidden="true" size={16} />
+            Generic “remote” stays unclear. Every visible role must retain its
+            source and last-check date.
+          </p>
+        </form>
+
         <aside className="home-proof" aria-label="Current SalaryPadi coverage">
           <div className="home-proof-heading">
             <div>
-              <p className="eyebrow">What is live now</p>
-              <h2>Useful signal, not listing volume</h2>
+              <p className="eyebrow">What is available now</p>
+              <h2>Freshness and source state, not volume theatre</h2>
             </div>
             <DatabaseZap aria-hidden="true" size={25} />
           </div>
@@ -124,60 +164,66 @@ export default async function HomePage() {
             </span>
             <span>
               <Globe2 aria-hidden="true" size={16} />
-              API and employer sources
+              {healthySources.length > 0
+                ? `${healthySources.length} permitted source check${healthySources.length === 1 ? "" : "s"} healthy`
+                : "No permitted source check is currently healthy"}
             </span>
           </div>
           <Link className="text-link" href="/methodology">
-            See how evidence is verified{" "}
+            See what SalaryPadi verifies{" "}
             <ArrowRight aria-hidden="true" size={15} />
           </Link>
         </aside>
-        <form className="home-search" action="/jobs" method="get" role="search">
-          <div className="field">
-            <label htmlFor="home-keyword">Role, skill or company</label>
-            <input
-              className="input"
-              id="home-keyword"
-              name="q"
-              placeholder="e.g. data analyst"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="home-location">Location</label>
-            <input
-              className="input"
-              id="home-location"
-              name="location"
-              placeholder="Nigeria, Africa or Worldwide"
-            />
-          </div>
-          <button className="button" type="submit">
-            Search jobs
-          </button>
-        </form>
-        <div className="home-entry-grid">
-          <Link href="/jobs/remote?eligibility=nigeria">
+
+        <div className="home-entry-grid home-job-paths">
+          <Link href="/jobs?path=remote_nigeria">
             <strong>Remote jobs open to Nigerians</strong>
-            <span>Only explicit source evidence counts.</span>
+            <span>Requires explicit applicant-location evidence.</span>
             <ArrowRight aria-hidden="true" size={18} />
           </Link>
           <Link href="/jobs/nigeria">
             <strong>Local jobs in Nigeria</strong>
-            <span>No fabricated listings while a local source is pending.</span>
-            <ArrowRight aria-hidden="true" size={18} />
-          </Link>
-          <Link href="/salaries">
-            <strong>Search salary evidence</strong>
-            <span>Thresholded aggregates, never individual submissions.</span>
-            <ArrowRight aria-hidden="true" size={18} />
-          </Link>
-          <Link href="/insights">
-            <strong>Read fresh job insights</strong>
-            <span>Automated briefs backed by timestamped snapshots.</span>
+            <span>Onsite and hybrid roles physically based in Nigeria.</span>
             <ArrowRight aria-hidden="true" size={18} />
           </Link>
         </div>
       </section>
+
+      <section className="rule-section stack" aria-labelledby="explore-heading">
+        <div className="split">
+          <div>
+            <p className="eyebrow">One decision path</p>
+            <h2 className="section-title" id="explore-heading">
+              Continue beyond the listing
+            </h2>
+          </div>
+        </div>
+        <div className="home-entry-grid">
+          <Link href="/salaries">
+            <strong>Search salary evidence</strong>
+            <span>
+              Original currency, period, sample and confidence stay visible.
+            </span>
+            <ArrowRight aria-hidden="true" size={18} />
+          </Link>
+          <Link href="/companies">
+            <strong>Inspect company truth</strong>
+            <span>Separate official facts, jobs and community evidence.</span>
+            <Building2 aria-hidden="true" size={18} />
+          </Link>
+          <Link href="/tools">
+            <strong>Use career decision tools</strong>
+            <span>Take-home pay, currency and practical comparisons.</span>
+            <ArrowRight aria-hidden="true" size={18} />
+          </Link>
+          <Link href="/contribute">
+            <strong>Add evidence or post a job</strong>
+            <span>Salary, review, interview and employer paths.</span>
+            <Sparkles aria-hidden="true" size={18} />
+          </Link>
+        </div>
+      </section>
+
       <section className="rule-section stack" aria-labelledby="tools-heading">
         <div className="split">
           <div>
@@ -200,12 +246,13 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
       <section className="rule-section stack" aria-labelledby="recent-heading">
         <div className="split">
           <div>
             <p className="eyebrow">Recently source-checked</p>
             <h2 className="section-title" id="recent-heading">
-              Current remote vacancies
+              Current vacancies
             </h2>
           </div>
           <Link className="text-link" href="/jobs">
@@ -220,26 +267,28 @@ export default async function HomePage() {
           </div>
         ) : (
           <div className="notice notice-warning" role="status">
-            The live source is unavailable right now. Search controls and tools
-            remain available; no placeholder vacancies were substituted.
+            No permitted source is supplying a current vacancy right now. Search
+            controls, company evidence and tools remain available; no
+            placeholder vacancy was substituted.
           </div>
         )}
       </section>
+
       <section className="contribution-cta">
         <Sparkles aria-hidden="true" size={28} />
         <div>
           <p className="eyebrow">Build better evidence</p>
           <h2 className="section-title">
-            Your experience can help the next person decide.
+            Add salary, workplace, interview or employer evidence.
           </h2>
           <p>
-            Submit salary, workplace or interview information privately. It is
-            moderated before any anonymous aggregate or redacted publication
-            appears.
+            Contributions are moderated before an anonymous aggregate or
+            redacted publication appears. Employers can submit jobs and request
+            a company claim or right of reply.
           </p>
         </div>
         <Link className="button" href="/contribute">
-          Contribute safely
+          See contribution paths
         </Link>
       </section>
     </div>

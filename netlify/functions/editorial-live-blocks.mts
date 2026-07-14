@@ -9,4 +9,4 @@ const handler = (
     runEditorialOperation("editorial_live_blocks", execution),
   );
 export default handler;
-export const config: Config = { schedule: "10 */6 * * *" };
+export const config: Config = { schedule: "0 5,11,17,23 * * *" };

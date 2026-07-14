@@ -1,5 +1,14 @@
 import type { Metadata } from "next";
-import { ExternalLink, Flag, Heart, MessageCircle, Route } from "lucide-react";
+import {
+  BadgeDollarSign,
+  Building2,
+  ExternalLink,
+  Flag,
+  Heart,
+  MessageCircle,
+  MessagesSquare,
+  Route,
+} from "lucide-react";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -11,6 +20,7 @@ import { JsonLd } from "@/components/json-ld";
 import { CombinedRepositoryNotice } from "@/components/repository-notice";
 import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { getViewer } from "@/lib/auth/dal";
+import { countryAlternates } from "@/lib/country-packs/routing";
 import {
   getCompanyBenefitsResult,
   getCompanyRatingResult,
@@ -47,7 +57,11 @@ export async function generateMetadata({
   return {
     title,
     description,
-    alternates: { canonical: `/jobs/${job.slug}` },
+    alternates: {
+      canonical: `/jobs/${job.slug}`,
+      languages: countryAlternates(getAppOrigin(), `/jobs/${job.slug}`)
+        .languages,
+    },
     robots: { index: canIndexJobDetail(job), follow: true },
     openGraph: {
       title,
@@ -200,6 +214,35 @@ export default async function JobDetailPage({
         </div>
       ) : null}
       <JobTruthCard job={job} />
+      <nav className="decision-path" aria-label="Continue this job decision">
+        <div>
+          <p className="eyebrow">Continue your decision</p>
+          <h2 className="section-title">Move from the vacancy to the offer</h2>
+        </div>
+        <Link href="/tools/take-home-pay">
+          <BadgeDollarSign aria-hidden="true" size={20} />
+          <span>
+            <strong>Estimate take-home pay</strong>
+            <small>
+              Use the stated currency and period; do not assume tax basis.
+            </small>
+          </span>
+        </Link>
+        <Link href={`/companies/${job.company.slug}`}>
+          <Building2 aria-hidden="true" size={20} />
+          <span>
+            <strong>Inspect company evidence</strong>
+            <small>Official facts, current jobs and honest gaps.</small>
+          </span>
+        </Link>
+        <Link href={`/companies/${job.company.slug}/interviews`}>
+          <MessagesSquare aria-hidden="true" size={20} />
+          <span>
+            <strong>Check interview evidence</strong>
+            <small>Only moderated experiences are published.</small>
+          </span>
+        </Link>
+      </nav>
       {salaryResult.state === "ready" &&
       (salaryResult.data.length === 0 || saved === "true") ? (
         <SalaryContributionCta
@@ -368,6 +411,7 @@ export default async function JobDetailPage({
           </section>
           {viewer.state === "authenticated" ? (
             <form
+              id="report-job"
               className="surface surface-pad stack"
               action="/api/reports"
               method="post"
@@ -404,7 +448,28 @@ export default async function JobDetailPage({
                 Send report
               </button>
             </form>
-          ) : null}
+          ) : (
+            <section
+              className="surface surface-pad stack"
+              id="report-job"
+              aria-labelledby="report-job-heading"
+            >
+              <h2 className="text-lg font-bold" id="report-job-heading">
+                Report this job
+              </h2>
+              <p className="text-muted m-0 text-sm">
+                Sign in to report an expired role, application fee,
+                impersonation, or incorrect eligibility evidence.
+              </p>
+              <Link
+                className="button button-secondary w-fit"
+                href={`/auth/sign-in?next=${encodeURIComponent(`/jobs/${job.slug}#report-job`)}`}
+              >
+                <Flag aria-hidden="true" size={17} />
+                Sign in to report
+              </Link>
+            </section>
+          )}
         </aside>
       </div>
       {similar.length > 0 ? (

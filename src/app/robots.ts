@@ -30,10 +30,12 @@ export default function robots(): MetadataRoute.Robots {
         "/post-a-job",
         "/contribute/salary",
         "/contribute/review",
+        "/contribute/benefits",
+        "/contribute/pay-reliability",
         "/contribute/interview",
       ],
     },
-    sitemap: [`${origin}/sitemap.xml`, `${origin}/tools/sitemap.xml`],
+    sitemap: `${origin}/sitemap.xml`,
     host: origin,
   };
 }

@@ -80,6 +80,13 @@ describe("alert update route", () => {
         location: "Nigeria",
         eligibility: "nigeria",
         cadence: "weekly",
+        search_query: JSON.stringify({
+          q: "old role",
+          eligibility: "all",
+          hndAccepted: true,
+          hmo: true,
+          fxPolicy: true,
+        }),
       }),
     );
 
@@ -92,6 +99,9 @@ describe("alert update route", () => {
           q: "platform engineer",
           location: "Nigeria",
           eligibility: "nigeria",
+          hndAccepted: true,
+          hmo: true,
+          fxPolicy: true,
         }),
       }),
     );

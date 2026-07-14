@@ -128,6 +128,7 @@ export default async function CompanyReviewsPage({
                       <p>{review.advice_to_management}</p>
                     </div>
                   ) : null}
+                  <p className="source-note m-0">{review.provenance_label}</p>
                 </article>
               ))}
             </div>

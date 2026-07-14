@@ -38,7 +38,7 @@ export const REMOTE_JOBS_GUIDE: EditorialArticle = {
   body_markdown: "",
   author_name: "SalaryPadi Editorial",
   published_at: "2026-07-11T00:00:00.000Z",
-  updated_at: "2026-07-11T00:00:00.000Z",
+  updated_at: "2026-07-13T23:37:27.399Z",
   internal_link_targets: [
     "/jobs/remote",
     "/methodology",
