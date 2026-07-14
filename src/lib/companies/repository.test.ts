@@ -163,6 +163,30 @@ describe("companies repository", () => {
     });
   });
 
+  it("labels cited factual shells as source listed without implying employer verification", async () => {
+    const citedCompany = {
+      ...validCompany,
+      verification_status: "unverified",
+      citations: [
+        {
+          id: "a8bb25d5-9be0-4532-881c-6e833e6f0c44",
+          fact_key: "official_domain",
+          source_kind: "official_site",
+          source_url: "https://example.com/",
+          source_title: "Acme official website",
+          source_published_at: null,
+          retrieved_at: "2026-07-14T00:00:00.000Z",
+          fact_checked_at: "2026-07-14T00:00:00.000Z",
+          review_due_at: "2027-01-14T00:00:00.000Z",
+          status: "current",
+        },
+      ],
+    };
+    mockedCreateClient.mockResolvedValue(clientReturning([citedCompany]));
+    const result = await getCompaniesResult();
+    expect(result.data[0]?.verification).toBe("source_listed");
+  });
+
   it("quarantines malformed companies without discarding valid records", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockedCreateClient.mockResolvedValue(

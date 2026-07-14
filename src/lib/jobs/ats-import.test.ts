@@ -12,8 +12,8 @@ function record(overrides: Partial<AtsSourceRecord> = {}): AtsSourceRecord {
     employerName: "Example Nigeria",
     externalId: "123",
     title: "Senior Platform Engineer",
-    location: "Lagos, Nigeria",
-    workplaceType: "Hybrid",
+    location: "Worldwide",
+    workplaceType: "Remote",
     employmentType: "FullTime",
     department: "Engineering",
     team: "Platform",
@@ -36,7 +36,7 @@ const noDescriptionPolicy = {
 };
 
 describe("ATS import normalization", () => {
-  it("builds a stable, conservative Nigeria job contract", () => {
+  it("builds a stable, remote-only worldwide job contract", () => {
     const first = normalizeAtsImportRecords([record()], noDescriptionPolicy);
     const second = normalizeAtsImportRecords([record()], noDescriptionPolicy);
 
@@ -44,23 +44,16 @@ describe("ATS import normalization", () => {
     expect(first.jobs).toHaveLength(1);
     expect(first.jobs[0]).toMatchObject({
       external_id: "123",
-      work_arrangement: "hybrid",
+      work_arrangement: "remote",
       employment_type: "full_time",
       engagement_type: "employee",
       eligibility: {
-        scope: "nigeria",
-        evidence_text: "Lagos, Nigeria",
+        scope: "worldwide",
+        evidence_text: "Worldwide",
         provenance: "source_provided",
-        countries: [{ country_code: "NG", rule: "include" }],
+        countries: [],
       },
-      locations: [
-        {
-          country_code: "NG",
-          city: "Lagos",
-          region: null,
-          is_primary: true,
-        },
-      ],
+      locations: [],
       raw_payload: null,
       description_text: null,
     });
@@ -86,20 +79,21 @@ describe("ATS import normalization", () => {
     );
   });
 
-  it.each([
-    ["Remote", "remote"],
-    ["OnSite", "onsite"],
-    ["on-site", "onsite"],
-    ["Hybrid", "hybrid"],
-  ])("maps %s workplace values to %s", (value, expected) => {
+  it("keeps only explicitly remote arrangements", () => {
     const result = normalizeAtsImportRecords(
-      [record({ workplaceType: value })],
+      [
+        record({ externalId: "remote", workplaceType: "Remote" }),
+        record({ externalId: "onsite", workplaceType: "OnSite" }),
+        record({ externalId: "hybrid", workplaceType: "Hybrid" }),
+      ],
       noDescriptionPolicy,
     );
-    expect(result.jobs[0]?.work_arrangement).toBe(expected);
+    expect(result.jobs.map((job) => job.external_id)).toEqual(["remote"]);
+    expect(result.filteredCount).toBe(2);
+    expect(result.filterCodes).toEqual({ not_remote: 2 });
   });
 
-  it("does not overstate EMEA or an unclear location", () => {
+  it("accepts EMEA but rejects an unclear remote location", () => {
     const result = normalizeAtsImportRecords(
       [
         record({ externalId: "emea", location: "EMEA" }),
@@ -107,17 +101,14 @@ describe("ATS import normalization", () => {
       ],
       noDescriptionPolicy,
     );
-    expect(result.jobs.map((job) => job.eligibility.scope)).toEqual([
-      "emea",
-      "unclear",
-    ]);
+    expect(result.jobs.map((job) => job.eligibility.scope)).toEqual(["emea"]);
     expect(
       result.jobs.every((job) => job.eligibility.countries.length === 0),
     ).toBe(true);
+    expect(result.filterCodes).toEqual({ eligibility_unclear: 1 });
   });
 
   it.each([
-    ["Remote", "unclear", []],
     ["Remote (Nigeria preferred)", "nigeria", ["NG"]],
     ["Africa & EMEA", "africa", []],
     ["LATAM/Africa", "africa", []],
@@ -200,8 +191,28 @@ describe("ATS import normalization", () => {
   it("accepts a complete empty input as an empty normalized snapshot", () => {
     expect(normalizeAtsImportRecords([], noDescriptionPolicy)).toEqual({
       jobs: [],
+      filteredCount: 0,
+      filterCodes: {},
       quarantinedCount: 0,
       quarantineCodes: {},
     });
+  });
+
+  it("filters remote roles whose geography excludes African applicants", () => {
+    const result = normalizeAtsImportRecords(
+      [
+        record({ externalId: "us", location: "Remote - United States" }),
+        record({ externalId: "unknown", location: "Remote" }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(result.jobs).toEqual([]);
+    expect(result.filteredCount).toBe(2);
+    expect(result.filterCodes).toEqual({
+      geography_restricted: 1,
+      eligibility_unclear: 1,
+    });
+    expect(result.quarantinedCount).toBe(0);
   });
 });

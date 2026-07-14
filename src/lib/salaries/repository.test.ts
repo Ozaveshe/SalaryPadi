@@ -51,6 +51,14 @@ const validAggregate = {
   submission_month_end: "2026-06-01",
   confidence: "medium",
   calculated_at: "2026-07-11T00:00:00.000Z",
+  evidence_lane: "first_party_contributions",
+  source_name: "SalaryPadi community",
+  source_url: null,
+  methodology_url: null,
+  source_role_label: null,
+  source_pay_period: null,
+  source_median_amount: null,
+  provenance_label: "Privacy-thresholded approved contributions",
 };
 
 describe("salary repository", () => {
@@ -61,6 +69,53 @@ describe("salary repository", () => {
     const result = await searchSalaryAggregatesResult({ role: "product" });
     expect(result.state).toBe("ready");
     expect(result.data[0]?.sampleSize).toBe(5);
+    expect(result.data[0]?.evidenceLane).toBe("first_party_contributions");
+  });
+
+  it("keeps a reviewed online benchmark separate from contribution evidence", async () => {
+    mockedCreateClient.mockResolvedValue(
+      clientReturning([
+        {
+          ...validAggregate,
+          id: "benchmark-1",
+          company_slug: null,
+          sample_size: null,
+          evidence_lane: "verified_online_benchmark",
+          source_name: "Official statistics publisher",
+          source_url: "https://example.gov/wages",
+          methodology_url: "https://example.gov/wages/methodology",
+          source_role_label: "Software developers",
+          source_pay_period: "annual",
+          source_median_amount: 120000,
+          provenance_label: "Reviewed official statistics",
+        },
+      ]),
+    );
+
+    const result = await searchSalaryAggregatesResult({ role: "software" });
+
+    expect(result.state).toBe("ready");
+    expect(result.data[0]).toMatchObject({
+      evidenceLane: "verified_online_benchmark",
+      sampleSize: null,
+      sourceName: "Official statistics publisher",
+      sourceRoleLabel: "Software developers",
+    });
+  });
+
+  it("rejects an online benchmark without HTTPS source evidence", async () => {
+    mockedCreateClient.mockResolvedValue(
+      clientReturning([
+        {
+          ...validAggregate,
+          evidence_lane: "verified_online_benchmark",
+          source_name: "Unknown source",
+          source_url: "http://example.test/wages",
+        },
+      ]),
+    );
+
+    expect((await searchSalaryAggregatesResult({})).state).toBe("degraded");
   });
 
   it("quarantines malformed rows while preserving valid aggregates", async () => {

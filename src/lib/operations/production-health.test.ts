@@ -84,7 +84,7 @@ describe("job supply health DTO", () => {
     const health = jobSupplyHealthSchema.parse({
       generated_at: "2026-07-14T00:00:00.000Z",
       window_start: "2026-07-07T00:00:00.000Z",
-      target_daily_new_canonical: 200,
+      target_daily_new_canonical: 500,
       authorized_daily_capacity: 0,
       seven_day_new_canonical: 21,
       seven_day_raw_occurrences: 63,
@@ -118,7 +118,7 @@ describe("job supply health DTO", () => {
         },
       ],
     });
-    expect(health.target_daily_new_canonical).toBe(200);
+    expect(health.target_daily_new_canonical).toBe(500);
     expect(health.authorized_daily_capacity).toBe(0);
     expect(health.seven_day_new_canonical).not.toBe(
       health.seven_day_raw_occurrences,

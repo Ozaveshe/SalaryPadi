@@ -374,6 +374,33 @@ describe("job feed source orchestration", () => {
     expect(result.jobs.map(({ id }) => id)).toContain(distinctEmployer.id);
   });
 
+  it("never publishes remote roles restricted to non-African applicants", async () => {
+    const restricted: Job = {
+      ...remotiveJob(),
+      locationDisplay: "Remote - United States",
+      eligibility: {
+        ...remotiveJob().eligibility,
+        scope: "named_countries",
+        nigeria: "not_eligible",
+        africa: "not_eligible",
+        includedCountries: ["United States"],
+        evidenceText: "Remote - United States",
+      },
+    };
+    mocks.fetchRemotiveJobs.mockResolvedValueOnce({
+      jobs: [restricted],
+      checkedAt,
+    });
+    mocks.createClient.mockResolvedValue(client() as never);
+
+    const result = await getLiveJobFeed();
+
+    expect(result.jobs).toEqual([]);
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({ key: "remotive", state: "live", count: 0 }),
+    );
+  });
+
   it("resolves a stable alert ID as well as a display slug", async () => {
     mocks.createClient.mockResolvedValue(client() as never);
 

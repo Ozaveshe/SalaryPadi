@@ -47,6 +47,17 @@ const workerHealthSchema = z
   )
   .max(30);
 
+const jobSupplyCanarySchema = z
+  .object({
+    generated_at: z.string().datetime({ offset: true }),
+    visible_remote_jobs: z.number().int().nonnegative(),
+    target_daily_new_canonical: z.number().int().positive(),
+    authorized_daily_capacity: z.number().int().nonnegative(),
+    last_canonical_created_at: z.string().datetime({ offset: true }).nullable(),
+    state: z.enum(["unavailable", "capacity_unproven", "stale", "ready"]),
+  })
+  .strict();
+
 export async function GET() {
   const environment = getServerEnvironment();
   const backendConfigured = Boolean(getSupabasePublicConfig());
@@ -73,10 +84,17 @@ export async function GET() {
     sourceRefreshConfigured &&
     Object.values(providersReady).every(Boolean);
   const supabase = await createServerSupabaseClient();
-  const workerResult = supabase
-    ? await supabase.schema("api").rpc("get_worker_health")
-    : { data: null, error: new Error("Backend unavailable") };
+  const [workerResult, supplyResult] = supabase
+    ? await Promise.all([
+        supabase.schema("api").rpc("get_worker_health"),
+        supabase.schema("api").rpc("get_job_supply_canary" as never),
+      ])
+    : [
+        { data: null, error: new Error("Backend unavailable") },
+        { data: null, error: new Error("Backend unavailable") },
+      ];
   const parsedWorkers = workerHealthSchema.safeParse(workerResult.data);
+  const parsedSupply = jobSupplyCanarySchema.safeParse(supplyResult.data);
   const workers = parsedWorkers.success ? parsedWorkers.data : [];
   const workerKeys = new Set(workers.map((worker) => worker.task_key));
   const workerHealthComplete =
@@ -88,6 +106,9 @@ export async function GET() {
   );
   const status =
     workerResult.error ||
+    supplyResult.error ||
+    !parsedSupply.success ||
+    parsedSupply.data.state !== "ready" ||
     !workerHealthComplete ||
     unhealthyWorkers.length > 0 ||
     !backendConfigured ||
@@ -107,6 +128,11 @@ export async function GET() {
         afrotools_configured: afroToolsConfigured,
         operations_configured: operationsConfigured,
         worker_health_complete: workerHealthComplete,
+        job_supply_ready:
+          parsedSupply.success && parsedSupply.data.state === "ready",
+        job_supply: parsedSupply.success
+          ? parsedSupply.data
+          : { state: "unavailable" as const },
         remotive_source_enabled: environment.REMOTIVE_SOURCE_ENABLED,
         providers: {
           analytics: environment.ANALYTICS_PROVIDER,

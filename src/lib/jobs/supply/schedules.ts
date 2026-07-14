@@ -6,9 +6,10 @@ export const JOB_SUPPLY_SCHEDULES = {
     jitterMinutes: 0,
   },
   employer_ats: {
-    cron: "17 */2 * * *",
-    intervalMinutes: 120,
-    jitterMinutes: 20,
+    cron: "2,17,32,47 * * * *",
+    intervalMinutes: 15,
+    jitterMinutes: 2,
+    sourcePollMinutes: 120,
   },
   reliefweb_incremental: {
     cron: "29 */2 * * *",

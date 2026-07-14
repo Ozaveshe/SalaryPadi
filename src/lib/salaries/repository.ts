@@ -25,11 +25,19 @@ export interface PublicSalaryAggregate {
   medianAnnual: number;
   percentile25Annual: number | null;
   percentile75Annual: number | null;
-  sampleSize: number;
+  sampleSize: number | null;
   submissionMonthStart: string;
   submissionMonthEnd: string;
   confidence: "low" | "medium" | "high";
   calculatedAt: string;
+  evidenceLane: "first_party_contributions" | "verified_online_benchmark";
+  sourceName: string;
+  sourceUrl: string | null;
+  methodologyUrl: string | null;
+  sourceRoleLabel: string | null;
+  sourcePayPeriod: string | null;
+  sourceMedianAmount: number | null;
+  provenanceLabel: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -37,6 +45,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function mapAggregate(row: unknown): PublicSalaryAggregate | null {
+  const evidenceLane =
+    isRecord(row) && row.evidence_lane === "verified_online_benchmark"
+      ? "verified_online_benchmark"
+      : "first_party_contributions";
+  const sampleSize =
+    isRecord(row) && typeof row.sample_size === "number"
+      ? row.sample_size
+      : null;
   if (
     !isRecord(row) ||
     typeof row.id !== "string" ||
@@ -45,8 +61,12 @@ function mapAggregate(row: unknown): PublicSalaryAggregate | null {
     typeof row.country_code !== "string" ||
     typeof row.currency !== "string" ||
     typeof row.median_annual !== "number" ||
-    typeof row.sample_size !== "number" ||
-    row.sample_size < 3
+    (evidenceLane === "first_party_contributions" &&
+      (sampleSize === null || sampleSize < 3)) ||
+    (evidenceLane === "verified_online_benchmark" &&
+      (typeof row.source_name !== "string" ||
+        typeof row.source_url !== "string" ||
+        !row.source_url.startsWith("https://")))
   )
     return null;
 
@@ -72,7 +92,7 @@ function mapAggregate(row: unknown): PublicSalaryAggregate | null {
       typeof row.percentile_75_annual === "number"
         ? row.percentile_75_annual
         : null,
-    sampleSize: row.sample_size,
+    sampleSize,
     submissionMonthStart:
       typeof row.submission_month_start === "string"
         ? row.submission_month_start
@@ -89,6 +109,26 @@ function mapAggregate(row: unknown): PublicSalaryAggregate | null {
       typeof row.calculated_at === "string"
         ? row.calculated_at
         : new Date(0).toISOString(),
+    evidenceLane,
+    sourceName:
+      typeof row.source_name === "string"
+        ? row.source_name
+        : "SalaryPadi community",
+    sourceUrl: typeof row.source_url === "string" ? row.source_url : null,
+    methodologyUrl:
+      typeof row.methodology_url === "string" ? row.methodology_url : null,
+    sourceRoleLabel:
+      typeof row.source_role_label === "string" ? row.source_role_label : null,
+    sourcePayPeriod:
+      typeof row.source_pay_period === "string" ? row.source_pay_period : null,
+    sourceMedianAmount:
+      typeof row.source_median_amount === "number"
+        ? row.source_median_amount
+        : null,
+    provenanceLabel:
+      typeof row.provenance_label === "string"
+        ? row.provenance_label
+        : "Privacy-thresholded approved contributions",
   };
 }
 

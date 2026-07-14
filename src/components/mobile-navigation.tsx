@@ -34,7 +34,10 @@ export function MobileNavigation({ children }: { children: React.ReactNode }) {
   if (!enhanced) {
     return (
       <details className="mobile-nav mobile-nav-fallback">
-        <summary className="mobile-nav-trigger">Menu</summary>
+        <summary className="mobile-nav-trigger">
+          <span className="mobile-nav-icon" aria-hidden="true" />
+          <span className="visually-hidden">Menu</span>
+        </summary>
         <nav className="mobile-nav-panel" aria-label="Mobile navigation">
           {children}
         </nav>
@@ -53,7 +56,8 @@ export function MobileNavigation({ children }: { children: React.ReactNode }) {
         aria-label={open ? "Close navigation" : "Open navigation"}
         onClick={() => setMenu({ open: !open, pathname })}
       >
-        Menu
+        <span className="mobile-nav-icon" aria-hidden="true" />
+        <span className="visually-hidden">{open ? "Close" : "Menu"}</span>
       </button>
       <nav
         className="mobile-nav-panel"

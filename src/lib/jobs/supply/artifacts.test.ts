@@ -38,7 +38,7 @@ const pilotSchema = z.object({
   pilot_state: z.enum(["not_started", "running", "complete"]),
   deployment_state: z.string(),
   source_activation_state: z.string(),
-  target_daily_new_canonical: z.literal(200),
+  target_daily_new_canonical: z.literal(500),
   pre_pilot_evidence: z.object({
     visible_jobs: z.number().int().nonnegative(),
     durable_raw_records: z.number().int().nonnegative(),

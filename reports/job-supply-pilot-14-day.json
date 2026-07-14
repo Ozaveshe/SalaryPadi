@@ -5,7 +5,7 @@
   "pilot_state": "not_started",
   "deployment_state": "not_deployed",
   "source_activation_state": "no_new_sources_activated",
-  "target_daily_new_canonical": 200,
+  "target_daily_new_canonical": 500,
   "target_definition": "Distinct canonical_created events after validation, policy enforcement and exact deduplication; raw occurrences and fuzzy candidates do not count.",
   "pre_pilot_evidence": {
     "observed_at": "2026-07-13T19:14:26.886Z",
@@ -346,5 +346,5 @@
     "Written Remotive republication confirmation resolving the API/general-terms conflict",
     "Jobicy storage/retention and search-index review"
   ],
-  "conclusion": "The system is ready for a controlled pilot after explicit approval and external rights resolution. The 200/day outcome is not yet demonstrated and authorized external capacity is currently zero."
+  "conclusion": "The system is ready for a controlled pilot after explicit approval and external rights resolution. The 500/day outcome is not yet demonstrated and authorized external capacity is currently zero."
 }

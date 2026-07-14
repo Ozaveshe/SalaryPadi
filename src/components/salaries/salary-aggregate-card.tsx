@@ -13,6 +13,7 @@ export function SalaryAggregateCard({
 }: {
   aggregate: PublicSalaryAggregate;
 }) {
+  const isOnline = aggregate.evidenceLane === "verified_online_benchmark";
   return (
     <article className="surface surface-pad stack salary-evidence-card">
       <div className="split">
@@ -28,6 +29,11 @@ export function SalaryAggregateCard({
           {aggregate.confidence} confidence
         </span>
       </div>
+      <p className="m-0">
+        <span className={`status ${isOnline ? "" : "status-success"}`}>
+          {isOnline ? "Verified online benchmark" : "Community evidence"}
+        </span>
+      </p>
       <div>
         <span className="text-faint block text-sm">
           Approximate median · annualised · {aggregate.grossNet}
@@ -45,8 +51,9 @@ export function SalaryAggregateCard({
         </p>
       ) : (
         <p className="text-muted m-0 text-sm">
-          Range withheld until at least five distinct approved contributors are
-          available.
+          {isOnline
+            ? "The source does not publish a comparable percentile range."
+            : "Range withheld until at least five distinct approved contributors are available."}
         </p>
       )}
       <dl className="data-list">
@@ -72,7 +79,13 @@ export function SalaryAggregateCard({
         </div>
         <div>
           <dt>Original periods</dt>
-          <dd>Retained per contribution; not exposed in this aggregate</dd>
+          <dd>
+            {isOnline
+              ? aggregate.sourcePayPeriod
+                ? formatEnum(aggregate.sourcePayPeriod)
+                : "Not specified by the source"
+              : "Retained per contribution; not exposed in this aggregate"}
+          </dd>
         </div>
         <div>
           <dt>Gross or net</dt>
@@ -84,7 +97,13 @@ export function SalaryAggregateCard({
         </div>
         <div>
           <dt>Sample size</dt>
-          <dd>{aggregate.sampleSize} approved distinct contributors</dd>
+          <dd>
+            {aggregate.sampleSize === null
+              ? "Not published by the source"
+              : isOnline
+                ? `${aggregate.sampleSize} source-reported observations`
+                : `${aggregate.sampleSize} approved distinct contributors`}
+          </dd>
         </div>
         <div>
           <dt>Evidence date range</dt>
@@ -100,14 +119,68 @@ export function SalaryAggregateCard({
           <dt>Confidence</dt>
           <dd>{formatEnum(aggregate.confidence)}</dd>
         </div>
+        <div>
+          <dt>Evidence lane</dt>
+          <dd>
+            {isOnline
+              ? "Reviewed online benchmark"
+              : "First-party contributions"}
+          </dd>
+        </div>
+        <div>
+          <dt>Source</dt>
+          <dd>{aggregate.sourceName}</dd>
+        </div>
+        {isOnline && aggregate.sourceRoleLabel ? (
+          <div>
+            <dt>Source occupation</dt>
+            <dd>{aggregate.sourceRoleLabel}</dd>
+          </div>
+        ) : null}
+        {isOnline && aggregate.sourceMedianAmount !== null ? (
+          <div>
+            <dt>Original source median</dt>
+            <dd>
+              {formatSalaryAmount(
+                aggregate.sourceMedianAmount,
+                aggregate.currency,
+              )}
+              {aggregate.sourcePayPeriod
+                ? ` / ${formatEnum(aggregate.sourcePayPeriod)}`
+                : ""}
+            </dd>
+          </div>
+        ) : null}
       </dl>
       <p className="field-help m-0">
-        Rounded for display so a small sample does not imply false precision.
-        This is contributor evidence, not a guaranteed market rate.
+        {aggregate.provenanceLabel}. Values are rounded for display and are not
+        a guaranteed offer or individual salary.
       </p>
-      <Link className="text-link" href="/methodology">
-        How this aggregate is protected
-      </Link>
+      <div className="cluster">
+        {aggregate.sourceUrl ? (
+          <a
+            className="text-link"
+            href={aggregate.sourceUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            Open source data
+          </a>
+        ) : null}
+        {aggregate.methodologyUrl ? (
+          <a
+            className="text-link"
+            href={aggregate.methodologyUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            Source methodology
+          </a>
+        ) : null}
+        <Link className="text-link" href="/methodology">
+          SalaryPadi methodology
+        </Link>
+      </div>
     </article>
   );
 }

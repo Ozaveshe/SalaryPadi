@@ -15,6 +15,8 @@
     "ops:verify-freshness": "node scripts/verify-production-freshness.mjs",
     "audit:production-truth": "vitest run src/lib/production-truth/audit.test.ts",
     "audit:company-intelligence": "node scripts/audit-company-intelligence-ingress.mjs --check",
+    "companies:catalog:build": "node scripts/build-african-company-catalog.mjs",
+    "companies:catalog:check": "node scripts/build-african-company-catalog.mjs --check",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "next typegen && tsc --noEmit",

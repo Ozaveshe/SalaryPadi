@@ -34,7 +34,7 @@ export function extractCompleteEligibilityEvidence(
   );
   const workAuthorization = evidenceMatch(
     sourceText,
-    /\b(?:must|requires?|required to)\b[^.;\n]{0,160}\b(?:work authori[sz]ation|right to work|authorized to work)\b[^.;\n]*/i,
+    /\b(?:must|requires?|required to)\b[^.;\n]{0,160}\b(?:work authori[sz]ation|authori[sz]ation to work|right to work|authorized to work)\b[^.;\n]*/i,
   );
   const noVisa =
     /\b(?:no|without|not offer(?:ing)?)\b[^.;\n]{0,80}\bvisa sponsorship\b/i.test(

@@ -7,6 +7,7 @@ import {
 import type { AtsImportJob } from "../../../src/lib/jobs/ats-import";
 import {
   chunkAtsImportRecords,
+  config as atsSourceSyncConfig,
   fetchAtsWithRetry,
   runAtsSourceSync,
 } from "../ats-source-sync.mjs";
@@ -81,8 +82,8 @@ function fetched(overrides: Partial<AtsFetchResult> = {}): AtsFetchResult {
         employerName: "Example Nigeria",
         externalId: "123",
         title: "Platform Engineer",
-        location: "Lagos, Nigeria",
-        workplaceType: null,
+        location: "Worldwide",
+        workplaceType: "remote",
         employmentType: null,
         department: "Engineering",
         team: null,
@@ -115,6 +116,10 @@ afterEach(() => {
 });
 
 describe("ATS source sync worker", () => {
+  it("offers ninety-six bounded source-claim opportunities per day", () => {
+    expect(atsSourceSyncConfig.schedule).toBe("2,17,32,47 * * * *");
+  });
+
   it("retries transient provider failures with bounded full jitter", async () => {
     const fetchSource = vi
       .fn()
@@ -207,7 +212,7 @@ describe("ATS source sync worker", () => {
             expect.objectContaining({
               external_id: "123",
               raw_payload: null,
-              eligibility: expect.objectContaining({ scope: "nigeria" }),
+              eligibility: expect.objectContaining({ scope: "worldwide" }),
             }),
           ]);
           return { created_count: 1 };
@@ -237,6 +242,7 @@ describe("ATS source sync worker", () => {
         completed_sources: 1,
         provider_records: 1,
         stored_records: 1,
+        filtered_records: 0,
         quarantined_records: 0,
       },
     });
@@ -356,6 +362,63 @@ describe("ATS source sync worker", () => {
         randomUuid: () => "40000000-0000-4000-8000-000000000001",
       }),
     ).resolves.toMatchObject({ status: "succeeded" });
+    expect(callRpc).not.toHaveBeenCalledWith(
+      "worker_store_ats_snapshot_batch",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("treats remote-policy exclusions as a complete filtered snapshot", async () => {
+    setEnvironment("true");
+    const callRpc = vi.fn(
+      async (name: string, parameters?: Record<string, unknown>) => {
+        if (name === "worker_list_authorized_ats_sources") return [policyRow()];
+        if (name === "worker_claim_authorized_ats_source") {
+          return claimedPolicy();
+        }
+        if (name === "worker_begin_ats_snapshot") {
+          expect(parameters).toMatchObject({ p_expected_record_count: 0 });
+          return [
+            {
+              import_run_id: "30000000-0000-4000-8000-000000000001",
+              should_run: true,
+            },
+          ];
+        }
+        if (name === "worker_finalize_ats_snapshot") {
+          expect(parameters).toMatchObject({
+            p_complete: true,
+            p_quarantined_count: 0,
+            p_error_codes: [],
+          });
+          return { outcome: "complete" };
+        }
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+    );
+    const restricted = fetched();
+    restricted.records = restricted.records.map((candidate) => ({
+      ...candidate,
+      location: "Remote - United States",
+    }));
+
+    await expect(
+      runAtsSourceSync(execution(), {
+        rpc: callRpc,
+        fetchSource: vi.fn().mockResolvedValue(restricted),
+        now: () => now,
+        randomUuid: () => "40000000-0000-4000-8000-000000000001",
+      }),
+    ).resolves.toMatchObject({
+      status: "succeeded",
+      summary: {
+        completed_sources: 1,
+        stored_records: 0,
+        filtered_records: 1,
+        quarantined_records: 0,
+      },
+    });
     expect(callRpc).not.toHaveBeenCalledWith(
       "worker_store_ats_snapshot_batch",
       expect.anything(),

@@ -152,13 +152,28 @@ export async function JobsExperience({
         ) : (
           <div className="empty-state">
             <h3 className="m-0 text-xl font-bold">
-              No matching jobs right now
+              {feed.jobs.length === 0
+                ? "No current jobs have passed the publication checks"
+                : "No jobs match these filters"}
             </h3>
             <p className="text-muted mt-2 mb-0 max-w-2xl">
-              Try fewer filters or include unclear eligibility. SalaryPadi will
-              not relabel a generic remote vacancy as Nigeria-eligible just to
-              fill this list.
+              {feed.jobs.length === 0
+                ? "The source status above is the current state of the feed, not confirmation that suitable jobs do not exist elsewhere. SalaryPadi will not publish placeholder vacancies."
+                : "Try fewer filters or include unclear eligibility. SalaryPadi will not relabel a generic remote vacancy as Nigeria-eligible just to fill this list."}
             </p>
+            <div className="cluster mt-4">
+              <Link
+                className="button button-secondary"
+                href={feed.jobs.length === 0 ? "/methodology" : "/jobs"}
+              >
+                {feed.jobs.length === 0
+                  ? "How jobs are verified"
+                  : "Clear all filters"}
+              </Link>
+              <Link className="button button-quiet" href="/post-a-job">
+                Post a verified job
+              </Link>
+            </div>
           </div>
         )}
         <Pagination

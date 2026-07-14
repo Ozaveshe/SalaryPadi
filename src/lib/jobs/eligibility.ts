@@ -207,6 +207,10 @@ export function countryNameFromCode(code: string) {
   return countryByCode.get(code.toUpperCase())?.name ?? code.toUpperCase();
 }
 
+export function isAfricanCountryCode(code: string) {
+  return countryByCode.get(code.toUpperCase())?.african === true;
+}
+
 export function eligibilityDecisionForNigeria(
   scope: RemoteEligibilityScope,
   includedCodes: ReadonlySet<string>,

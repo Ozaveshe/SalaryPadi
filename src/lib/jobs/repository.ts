@@ -28,6 +28,7 @@ import {
 } from "./source-policy";
 import { openSupplyAdapter } from "./supply/adapters";
 import { AdapterPolicyError } from "./supply/policy";
+import { evaluateRemotePublication } from "./supply/remote-publication";
 import type { Job, JobFeedResult, JobFeedSourceStatus } from "./types";
 
 type ServerSupabaseClient = NonNullable<
@@ -537,8 +538,20 @@ function overallCheckedAt(sources: SourceFeed[]): string {
 }
 
 function combineJobSources(sources: SourceFeed[]): JobFeedResult {
+  const publicationSources = sources.map((source) => {
+    const jobs = source.jobs.filter(
+      (job) =>
+        evaluateRemotePublication({
+          arrangement: job.workMode,
+          evidenceText: job.eligibility.evidenceText,
+          verifiedAt: job.eligibility.lastVerifiedAt,
+          workAuthorization: job.eligibility.workAuthorization,
+        }).eligible,
+    );
+    return { ...source, jobs, count: jobs.length };
+  });
   const jobsByFingerprint = new Map<string, Job>();
-  for (const source of sources) {
+  for (const source of publicationSources) {
     for (const job of source.jobs) {
       const current = jobsByFingerprint.get(job.fingerprint);
       if (!current || sourcePriority(job) > sourcePriority(current)) {
@@ -547,10 +560,10 @@ function combineJobSources(sources: SourceFeed[]): JobFeedResult {
     }
   }
   const jobs = [...jobsByFingerprint.values()];
-  const sourceProblems = sources.filter(
+  const sourceProblems = publicationSources.filter(
     ({ state }) => state === "unavailable" || state === "degraded",
   );
-  const remotive = sources.find(({ key }) => key === "remotive");
+  const remotive = publicationSources.find(({ key }) => key === "remotive");
   const state: JobFeedResult["state"] =
     jobs.length > 0
       ? sourceProblems.length > 0
@@ -563,7 +576,9 @@ function combineJobSources(sources: SourceFeed[]): JobFeedResult {
           : "live";
   const messageSources =
     state === "disabled"
-      ? sources.filter(({ state: sourceState }) => sourceState !== "live")
+      ? publicationSources.filter(
+          ({ state: sourceState }) => sourceState !== "live",
+        )
       : sourceProblems;
   const messages = messageSources
     .map(({ message }) => message)
@@ -572,9 +587,9 @@ function combineJobSources(sources: SourceFeed[]): JobFeedResult {
   return {
     jobs,
     state,
-    checkedAt: overallCheckedAt(sources),
+    checkedAt: overallCheckedAt(publicationSources),
     ...(messages.length > 0 ? { message: messages.join(" ") } : {}),
-    sources: sources.map(
+    sources: publicationSources.map(
       ({ key, state: sourceState, checkedAt, count, code, message }) => ({
         key,
         state: sourceState,

@@ -1,4 +1,5 @@
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { CompanyLogo } from "@/components/companies/company-logo";
 import { CompanyTabs } from "@/components/companies/company-tabs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHeading } from "@/components/page-heading";
@@ -51,11 +52,14 @@ export async function CompanyHeading({
         data={buildBreadcrumbStructuredData(structuredBreadcrumbs)}
       />
       <Breadcrumbs items={visibleBreadcrumbs} />
-      <PageHeading
-        eyebrow="Company evidence"
-        title={company.name}
-        description="Employer facts, current jobs and community intelligence are kept separate so you can see who supplied each claim."
-      />
+      <div className="cluster items-start">
+        <CompanyLogo name={company.name} size={72} slug={company.slug} />
+        <PageHeading
+          eyebrow="Company evidence"
+          title={company.name}
+          description="Employer facts, current jobs and community intelligence are kept separate so you can see who supplied each claim."
+        />
+      </div>
       <div className="cluster">
         <span className="status status-warning">
           {formatEnum(company.verification)}

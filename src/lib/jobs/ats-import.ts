@@ -3,6 +3,12 @@ import { createHash } from "node:crypto";
 import { classifyEligibilityEvidence } from "./eligibility";
 import { buildJobFingerprint } from "./fingerprint";
 import { htmlToPlainText, slugify } from "./normalize";
+import {
+  evaluateRemotePublication,
+  inferRemoteArrangement,
+  remoteEligibilityEvidence,
+  type RemotePublicationRejection,
+} from "./supply/remote-publication";
 import type { AtsSourceRecord } from "./ats";
 
 const MAX_DESCRIPTION_LENGTH = 100_000;
@@ -74,20 +80,14 @@ export type AtsImportQuarantineCode =
 
 export interface AtsImportNormalizationResult {
   jobs: AtsImportJob[];
+  filteredCount: number;
+  filterCodes: Partial<Record<RemotePublicationRejection, number>>;
   quarantinedCount: number;
   quarantineCodes: Partial<Record<AtsImportQuarantineCode, number>>;
 }
 
 function normalizedPlainText(value: string): string {
   return htmlToPlainText(value).trim();
-}
-
-function mapWorkArrangement(value: string | null): AtsWorkArrangement {
-  const normalized = value?.toLowerCase().replace(/[\s_-]+/g, "") ?? "";
-  if (normalized === "remote") return "remote";
-  if (normalized === "hybrid") return "hybrid";
-  if (normalized === "onsite") return "onsite";
-  return "unspecified";
 }
 
 function mapEmploymentType(value: string | null): AtsEmploymentType {
@@ -153,22 +153,27 @@ function stableJobSlug(record: AtsSourceRecord): string {
   return `${prefix}-${identity}`;
 }
 
-function incrementCode(
-  codes: AtsImportNormalizationResult["quarantineCodes"],
-  code: AtsImportQuarantineCode,
+function incrementCode<T extends string>(
+  codes: Partial<Record<T, number>>,
+  code: T,
 ) {
   codes[code] = (codes[code] ?? 0) + 1;
 }
 
+type AtsRecordNormalizationResult =
+  | { kind: "accepted"; job: AtsImportJob }
+  | { kind: "quarantined"; code: AtsImportQuarantineCode }
+  | { kind: "filtered"; code: RemotePublicationRejection };
+
 function normalizeRecord(
   record: AtsSourceRecord,
   policy: AtsImportPolicy,
-): AtsImportJob | AtsImportQuarantineCode {
+): AtsRecordNormalizationResult {
   if (
     record.sourceKey !== policy.sourceKey ||
     record.employerName !== policy.employerName
   ) {
-    return "source_identity_mismatch";
+    return { kind: "quarantined", code: "source_identity_mismatch" };
   }
 
   const title = normalizedPlainText(record.title);
@@ -179,7 +184,7 @@ function normalizeRecord(
       ? normalizedPlainText(record.descriptionText)
       : "";
   if (description.length > MAX_DESCRIPTION_LENGTH) {
-    return "description_too_large";
+    return { kind: "quarantined", code: "description_too_large" };
   }
 
   let sourceUrl: URL;
@@ -188,7 +193,7 @@ function normalizeRecord(
     sourceUrl = new URL(record.sourceUrl);
     applicationUrl = new URL(record.applicationUrl);
   } catch {
-    return "invalid_record";
+    return { kind: "quarantined", code: "invalid_record" };
   }
   if (
     !record.externalId.trim() ||
@@ -199,14 +204,25 @@ function normalizeRecord(
     applicationUrl.protocol !== "https:" ||
     record.checkedAt.length > 40
   ) {
-    return "invalid_record";
+    return { kind: "quarantined", code: "invalid_record" };
   }
 
-  const workArrangement = mapWorkArrangement(record.workplaceType);
+  const workArrangement = inferRemoteArrangement(
+    record.workplaceType,
+    location,
+    description,
+  );
   const employmentType = mapEmploymentType(record.employmentType);
   const engagementType = mapEngagementType(employmentType);
-  const eligibilityEvidence =
-    location?.slice(0, 2_000) ?? "Location not stated by the employer ATS.";
+  const eligibilityEvidence = remoteEligibilityEvidence(location, description);
+  const publication = evaluateRemotePublication({
+    arrangement: workArrangement,
+    evidenceText: eligibilityEvidence,
+    verifiedAt: record.checkedAt,
+  });
+  if (!publication.eligible) {
+    return { kind: "filtered", code: publication.reason };
+  }
   const eligibility = classifyEligibilityEvidence(
     eligibilityEvidence,
     record.checkedAt,
@@ -237,43 +253,46 @@ function normalizeRecord(
     .digest("hex");
 
   return {
-    external_id: record.externalId.trim(),
-    slug: stableJobSlug(record),
-    title,
-    description_text: storedDescription,
-    raw_payload: policy.mayStoreFullDescription ? contentFacts : null,
-    work_arrangement: workArrangement,
-    employment_type: employmentType,
-    engagement_type: engagementType,
-    application_url: applicationUrl.toString(),
-    source_url: sourceUrl.toString(),
-    posted_at: record.publishedAt,
-    last_checked_at: record.checkedAt,
-    content_hash: contentHash,
-    dedup_fingerprint: buildJobFingerprint({
+    kind: "accepted",
+    job: {
+      external_id: record.externalId.trim(),
+      slug: stableJobSlug(record),
       title,
-      company: record.employerName,
-      location: location ?? "Location not stated",
-      arrangement:
-        engagementType === "unspecified" ? "unknown" : engagementType,
-      destination: applicationUrl.toString(),
-    }),
-    eligibility: {
-      scope: eligibility.eligibility.scope,
-      evidence_text: eligibilityEvidence,
-      provenance: "source_provided",
-      countries: [
-        ...countryCodes.map((countryCode) => ({
-          country_code: countryCode,
-          rule: "include" as const,
-        })),
-        ...eligibility.excludedCountryCodes.map((countryCode) => ({
-          country_code: countryCode,
-          rule: "exclude" as const,
-        })),
-      ],
+      description_text: storedDescription,
+      raw_payload: policy.mayStoreFullDescription ? contentFacts : null,
+      work_arrangement: workArrangement,
+      employment_type: employmentType,
+      engagement_type: engagementType,
+      application_url: applicationUrl.toString(),
+      source_url: sourceUrl.toString(),
+      posted_at: record.publishedAt,
+      last_checked_at: record.checkedAt,
+      content_hash: contentHash,
+      dedup_fingerprint: buildJobFingerprint({
+        title,
+        company: record.employerName,
+        location: location ?? "Location not stated",
+        arrangement:
+          engagementType === "unspecified" ? "unknown" : engagementType,
+        destination: applicationUrl.toString(),
+      }),
+      eligibility: {
+        scope: eligibility.eligibility.scope,
+        evidence_text: eligibilityEvidence,
+        provenance: "source_provided",
+        countries: [
+          ...countryCodes.map((countryCode) => ({
+            country_code: countryCode,
+            rule: "include" as const,
+          })),
+          ...eligibility.excludedCountryCodes.map((countryCode) => ({
+            country_code: countryCode,
+            rule: "exclude" as const,
+          })),
+        ],
+      },
+      locations: mapLocations(location, countryCodes, record.checkedAt),
     },
-    locations: mapLocations(location, countryCodes, record.checkedAt),
   };
 }
 
@@ -287,6 +306,7 @@ export function normalizeAtsImportRecords(
   policy: AtsImportPolicy,
 ): AtsImportNormalizationResult {
   const jobs: AtsImportJob[] = [];
+  const filterCodes: AtsImportNormalizationResult["filterCodes"] = {};
   const quarantineCodes: AtsImportNormalizationResult["quarantineCodes"] = {};
   const seenExternalIds = new Set<string>();
 
@@ -299,15 +319,24 @@ export function normalizeAtsImportRecords(
     seenExternalIds.add(externalId);
 
     const normalized = normalizeRecord(record, policy);
-    if (typeof normalized === "string") {
-      incrementCode(quarantineCodes, normalized);
+    if (normalized.kind === "quarantined") {
+      incrementCode(quarantineCodes, normalized.code);
       continue;
     }
-    jobs.push(normalized);
+    if (normalized.kind === "filtered") {
+      incrementCode(filterCodes, normalized.code);
+      continue;
+    }
+    jobs.push(normalized.job);
   }
 
   return {
     jobs,
+    filteredCount: Object.values(filterCodes).reduce(
+      (total, count) => total + (count ?? 0),
+      0,
+    ),
+    filterCodes,
     quarantinedCount: Object.values(quarantineCodes).reduce(
       (total, count) => total + (count ?? 0),
       0,

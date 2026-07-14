@@ -117,7 +117,11 @@ describe("supply schedules and retry bounds", () => {
     expect(JOB_SUPPLY_SCHEDULES).toMatchObject({
       dispatcher: { intervalMinutes: 15 },
       licensed_incremental: { intervalMinutes: 60 },
-      employer_ats: { intervalMinutes: 120, jitterMinutes: 20 },
+      employer_ats: {
+        intervalMinutes: 15,
+        jitterMinutes: 2,
+        sourcePollMinutes: 120,
+      },
       reliefweb_incremental: { intervalMinutes: 120 },
       remotive: { intervalMinutes: 360 },
       jobicy: { intervalMinutes: 360 },

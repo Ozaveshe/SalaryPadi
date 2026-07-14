@@ -69,12 +69,21 @@ export default async function CompaniesPage() {
       ) : result.state === "ready" ? (
         <div className="empty-state">
           <h2 className="section-title">
-            No source-listed companies available
+            No company profiles are published yet
           </h2>
           <p>
-            The live feed is unavailable or disabled. SalaryPadi does not create
-            fake company profiles to fill the directory.
+            The connected directory returned no approved records. This is a
+            confirmed empty state; it is not being filled with invented company
+            facts.
           </p>
+          <div className="cluster">
+            <Link className="button button-secondary" href="/contribute">
+              Add company evidence
+            </Link>
+            <Link className="button button-quiet" href="/methodology">
+              Read the evidence policy
+            </Link>
+          </div>
         </div>
       ) : null}
     </div>

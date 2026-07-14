@@ -23,7 +23,7 @@ function AccountLinks({ viewer }: { viewer: Viewer }) {
   }
   if (viewer.state !== "authenticated") {
     return (
-      <Link className="button button-secondary" href="/auth/sign-in">
+      <Link className="nav-link header-sign-in" href="/auth/sign-in">
         Sign in
       </Link>
     );
@@ -54,29 +54,32 @@ export function SiteHeader({ viewer }: { viewer: Viewer }) {
       <div className="site-shell site-nav-row">
         <Brand />
         <nav className="desktop-nav" aria-label="Primary navigation">
-          {navigation.map((item) => (
-            <Link className="nav-link" href={item.href} key={item.href}>
-              {item.label}
+          <div className="desktop-nav-main">
+            {navigation.map((item) => (
+              <Link className="nav-link" href={item.href} key={item.href}>
+                {item.label}
+              </Link>
+            ))}
+          </div>
+          <div className="desktop-nav-actions">
+            <AccountLinks viewer={viewer} />
+            <Link className="button header-employer-cta" href="/post-a-job">
+              Post a job
             </Link>
-          ))}
-          <Link
-            className="button button-secondary header-employer-cta"
-            href="/post-a-job"
-          >
-            Post a job
-          </Link>
-          <AccountLinks viewer={viewer} />
+          </div>
         </nav>
+        <Link className="mobile-employer-cta" href="/post-a-job">
+          Post job
+        </Link>
         <MobileNavigation>
           {navigation.map((item) => (
             <Link className="nav-link" href={item.href} key={item.href}>
               {item.label}
             </Link>
           ))}
-          <Link className="button button-secondary" href="/post-a-job">
-            Post a job
-          </Link>
-          <AccountLinks viewer={viewer} />
+          <div className="mobile-nav-account">
+            <AccountLinks viewer={viewer} />
+          </div>
         </MobileNavigation>
       </div>
     </header>

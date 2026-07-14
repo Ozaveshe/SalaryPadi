@@ -77,9 +77,29 @@ const healthyWorkers: WorkerRow[] = [
   freshness: "healthy",
 }));
 
-function mockWorkerResult(data: WorkerRow[], error: Error | null = null) {
+const readyJobSupply = {
+  generated_at: "2026-07-10T12:00:02.000Z",
+  visible_remote_jobs: 1_200,
+  target_daily_new_canonical: 500,
+  authorized_daily_capacity: 650,
+  last_canonical_created_at: "2026-07-10T11:59:00.000Z",
+  state: "ready",
+} as const;
+
+function mockWorkerResult(
+  data: WorkerRow[],
+  error: Error | null = null,
+  supply: unknown = readyJobSupply,
+  supplyError: Error | null = null,
+) {
   vi.mocked(createServerSupabaseClient).mockResolvedValue({
-    schema: () => ({ rpc: vi.fn().mockResolvedValue({ data, error }) }),
+    schema: () => ({
+      rpc: vi.fn(async (name: string) =>
+        name === "get_job_supply_canary"
+          ? { data: supply, error: supplyError }
+          : { data, error },
+      ),
+    }),
   } as never);
 }
 
@@ -111,6 +131,13 @@ describe("operational health", () => {
         afrotools_configured: true,
         operations_configured: true,
         worker_health_complete: true,
+        job_supply_ready: true,
+        job_supply: {
+          visible_remote_jobs: 1_200,
+          target_daily_new_canonical: 500,
+          authorized_daily_capacity: 650,
+          state: "ready",
+        },
       },
     });
     expect(JSON.stringify(body)).not.toContain("test-service-role-key");
@@ -185,6 +212,54 @@ describe("operational health", () => {
     expect(body).toMatchObject({
       status: "degraded",
       checks: { worker_health_complete: false },
+    });
+  });
+
+  it("returns 503 when workers are healthy but users have zero eligible jobs", async () => {
+    mockWorkerResult(healthyWorkers, null, {
+      ...readyJobSupply,
+      visible_remote_jobs: 0,
+      authorized_daily_capacity: 0,
+      last_canonical_created_at: null,
+      state: "unavailable",
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({
+      status: "degraded",
+      checks: {
+        worker_health_complete: true,
+        job_supply_ready: false,
+        job_supply: {
+          visible_remote_jobs: 0,
+          target_daily_new_canonical: 500,
+          authorized_daily_capacity: 0,
+          state: "unavailable",
+        },
+      },
+    });
+  });
+
+  it("returns 503 when supply evidence is absent or below capacity", async () => {
+    mockWorkerResult(healthyWorkers, null, {
+      ...readyJobSupply,
+      authorized_daily_capacity: 100,
+      state: "capacity_unproven",
+    });
+    const belowTarget = await GET();
+    expect(belowTarget.status).toBe(503);
+
+    mockWorkerResult(healthyWorkers, null, null, new Error("missing RPC"));
+    const missingEvidence = await GET();
+    expect(missingEvidence.status).toBe(503);
+    expect(await missingEvidence.json()).toMatchObject({
+      checks: {
+        job_supply_ready: false,
+        job_supply: { state: "unavailable" },
+      },
     });
   });
 });

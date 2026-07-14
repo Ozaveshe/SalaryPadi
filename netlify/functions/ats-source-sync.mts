@@ -224,6 +224,7 @@ export async function runAtsSourceSync(
   let failedSources = 0;
   let providerRecords = 0;
   let storedRecords = 0;
+  let filteredRecords = 0;
   let quarantinedRecords = 0;
 
   for (const listedPolicy of listedPolicies) {
@@ -295,6 +296,8 @@ export async function runAtsSourceSync(
       });
       const adapterQuarantines = result.invalidRecords.length;
       const totalQuarantines = adapterQuarantines + normalized.quarantinedCount;
+      filteredRecords +=
+        result.snapshot.filteredRecordCount + normalized.filteredCount;
       quarantinedRecords += totalQuarantines;
 
       const totalMatches =
@@ -398,6 +401,7 @@ export async function runAtsSourceSync(
     failed_sources: failedSources,
     provider_records: providerRecords,
     stored_records: storedRecords,
+    filtered_records: filteredRecords,
     quarantined_records: quarantinedRecords,
   };
   if (claimedSources === 0) return workerSkipped("ats_sources_not_due");
@@ -415,7 +419,8 @@ const handler = async (
 export default handler;
 
 export const config: Config = {
-  // Seventeen minutes is a deterministic per-worker jitter inside the allowed
-  // 0-20 minute window. Per-source database claims still enforce stricter terms.
-  schedule: "17 */2 * * *",
+  // One bounded source is claimed every fifteen minutes. Per-source database
+  // claims still enforce the reviewed two-hour (or stricter) source cadence.
+  // This removes the old twelve-source-claims/day global throughput ceiling.
+  schedule: "2,17,32,47 * * * *",
 };

@@ -126,6 +126,14 @@ function aggregate(
     submissionMonthEnd: "2026-06-01",
     confidence: "medium",
     calculatedAt,
+    evidenceLane: "first_party_contributions",
+    sourceName: "SalaryPadi community",
+    sourceUrl: null,
+    methodologyUrl: null,
+    sourceRoleLabel: null,
+    sourcePayPeriod: null,
+    sourceMedianAmount: null,
+    provenanceLabel: "Privacy-thresholded approved contributions",
   };
 }
 

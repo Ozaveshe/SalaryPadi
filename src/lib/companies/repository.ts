@@ -18,6 +18,11 @@ import {
   type CompanyOfficialDomain,
 } from "@/lib/companies/contracts";
 import {
+  getAfricanCompanyCatalogEntry,
+  getAfricanCompanySelection,
+  type AfricanCompanyCatalogEntry,
+} from "@/lib/companies/catalog";
+import {
   mapRepositoryResult,
   repositoryDegraded,
   repositoryFailure,
@@ -56,6 +61,16 @@ export interface CompanySummary {
   aliases: CompanyAlias[];
   officialDomains: CompanyOfficialDomain[];
   citations: CompanyCitation[];
+  catalog?:
+    | (Pick<
+        AfricanCompanyCatalogEntry,
+        "rank" | "marketCountryCode" | "marketCountry" | "region"
+      > & {
+        selectionTitle: string;
+        selectionUrl: string;
+        dataAsOf: string;
+      })
+    | null;
   activeJobs: Job[];
   categories: string[];
   remoteLocations: string[];
@@ -63,10 +78,14 @@ export interface CompanySummary {
   lastCheckedAt: string;
 }
 
-function mapVerification(value: string): CompanySummary["verification"] {
-  return value === "domain_verified" || value === "organization_verified"
-    ? "employer_verified"
-    : "unverified";
+function mapVerification(
+  value: string,
+  citations: CompanyCitation[],
+): CompanySummary["verification"] {
+  if (value === "domain_verified" || value === "organization_verified") {
+    return "employer_verified";
+  }
+  return citations.length > 0 ? "source_listed" : "unverified";
 }
 
 function formatCompanyLocation(
@@ -75,6 +94,21 @@ function formatCompanyLocation(
   return [location.city, location.region, location.country_code]
     .filter(Boolean)
     .join(", ");
+}
+
+function getCatalogMetadata(slug: string): CompanySummary["catalog"] {
+  const entry = getAfricanCompanyCatalogEntry(slug);
+  if (!entry) return null;
+  const selection = getAfricanCompanySelection();
+  return {
+    rank: entry.rank,
+    marketCountryCode: entry.marketCountryCode,
+    marketCountry: entry.marketCountry,
+    region: entry.region,
+    selectionTitle: selection.title,
+    selectionUrl: selection.url,
+    dataAsOf: selection.dataAsOf,
+  };
 }
 
 async function getDatabaseCompaniesResult(): Promise<
@@ -128,12 +162,16 @@ async function getDatabaseCompaniesResult(): Promise<
         aliases: company.aliases,
         officialDomains: company.official_domains,
         citations: company.citations,
+        catalog: getCatalogMetadata(company.slug),
         activeJobs: [],
         categories: [],
         remoteLocations: company.locations
           .map(formatCompanyLocation)
           .filter(Boolean),
-        verification: mapVerification(company.verification_status),
+        verification: mapVerification(
+          company.verification_status,
+          company.citations,
+        ),
         lastCheckedAt: company.updated_at,
       } satisfies CompanySummary,
     ];
@@ -190,6 +228,7 @@ export async function getCompaniesResult(
       aliases: [],
       officialDomains: [],
       citations: [],
+      catalog: getCatalogMetadata(job.company.slug),
       activeJobs: [job],
       categories: job.category ? [job.category] : [],
       remoteLocations: [job.locationDisplay],

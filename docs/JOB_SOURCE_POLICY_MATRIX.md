@@ -2,7 +2,7 @@
 
 ## Decision
 
-SalaryPadi has a production-grade, fail-closed supply boundary in this repository, but it does **not** yet have authorized external capacity sufficient to demonstrate 200 new canonical jobs per day. The daily target is a measurement target, not permission to acquire data.
+SalaryPadi has a production-grade, fail-closed supply boundary in this repository, but it does **not** yet have authorized external capacity sufficient to demonstrate 500 new canonical jobs per day. The daily target is a measurement target, not permission to acquire data.
 
 The machine source of truth is [`config/job-source-policy-registry.json`](../config/job-source-policy-registry.json). Database enforcement is in migrations `20260714030605_job_supply_system.sql` and `20260714030620_job_supply_operations.sql`. A source adapter is runnable only when its policy is enabled, its review deadline is in the future, all required dependencies are evidenced, its requested fields are allowlisted, and its database authorization is current. Missing, disabled, expired, or overdue policies fail before a provider request.
 
@@ -61,25 +61,25 @@ Exact fingerprint matches reconcile automatically. The nightly fuzzy worker requ
 
 Decimal-comma magnitude parsing now distinguishes `31,2k` from `31,200`; the former normalizes to 31,200 rather than 312,000. A source period of `unknown` produces no derived annual or monthly value.
 
-Eligibility storage includes included and excluded countries, literal region wording, required timezone overlap, work authorization, visa sponsorship, physical-location requirement and employee/contractor/freelance arrangement evidence. The word “Remote” alone stays `unclear`.
+Eligibility storage includes included and excluded countries, literal region wording, required timezone overlap, work authorization, visa sponsorship, physical-location requirement and employee/contractor/freelance arrangement evidence. The word “Remote” alone stays `unclear`. Public supply is stricter: a role must be remote and explicitly say worldwide, Africa, EMEA, Nigeria, or name at least one African country. Onsite, hybrid, non-African-only, ambiguous, and disqualifying work-authorization records are counted as policy filters rather than silently published.
 
 ## Operational schedules
 
-| Worker                     | Local cron                                      | Contract                                                                                       |
-| -------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Job supply dispatcher      | `*/15 * * * *`                                  | Measures due authorized sources; never activates a source                                      |
-| Licensed incremental       | `7 * * * *` registry default                    | Disabled until licence and credentials exist                                                   |
-| Authorized ATS             | `17 */2 * * *`                                  | Two hours with 17-minute deterministic jitter; database claim enforces stricter source terms   |
-| ReliefWeb incremental/full | Registry defaults `29 */2 * * *` / `11 1 * * *` | Disabled until approved app name and rights review                                             |
-| Remotive                   | `5 1,7,13,19 * * *`                             | Disabled by current policy conflict; four/day maximum                                          |
-| Jobicy                     | Registry default `35 1,7,13,19 * * *`           | Disabled; four/day and never more than hourly                                                  |
-| Direct submissions         | Event-driven                                    | Existing moderated intake                                                                      |
-| Deadline expiry            | `*/15 * * * *`                                  | Deadline and 30-day manual expiry                                                              |
-| User alerts                | `*/15 * * * *`                                  | Existing alert claims; source email permission remains independent                             |
-| Apply-link checks          | `8,23,38,53 * * * *`                            | New jobs are eligible immediately; all canonical links become due every 24 hours               |
-| Fuzzy review               | `13 3 * * *`                                    | Review queue only, no automatic merge                                                          |
-| Health digest              | `7 5 * * *`                                     | Durable count-only digest; no external message is sent                                         |
-| Rights review              | `19 6 1 * *`                                    | Marks overdue enabled policies expired/paused; runtime gates enforce the deadline continuously |
+| Worker                     | Local cron                                      | Contract                                                                                                                  |
+| -------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Job supply dispatcher      | `*/15 * * * *`                                  | Measures due authorized sources; never activates a source                                                                 |
+| Licensed incremental       | `7 * * * *` registry default                    | Disabled until licence and credentials exist                                                                              |
+| Authorized ATS             | `2,17,32,47 * * * *`                            | One bounded claim opportunity every 15 minutes; each source remains limited to two hours or its stricter reviewed cadence |
+| ReliefWeb incremental/full | Registry defaults `29 */2 * * *` / `11 1 * * *` | Disabled until approved app name and rights review                                                                        |
+| Remotive                   | `5 1,7,13,19 * * *`                             | Disabled by current policy conflict; four/day maximum                                                                     |
+| Jobicy                     | Registry default `35 1,7,13,19 * * *`           | Disabled; four/day and never more than hourly                                                                             |
+| Direct submissions         | Event-driven                                    | Existing moderated intake                                                                                                 |
+| Deadline expiry            | `*/15 * * * *`                                  | Deadline and 30-day manual expiry                                                                                         |
+| User alerts                | `*/15 * * * *`                                  | Existing alert claims; source email permission remains independent                                                        |
+| Apply-link checks          | `8,23,38,53 * * * *`                            | New jobs are eligible immediately; all canonical links become due every 24 hours                                          |
+| Fuzzy review               | `13 3 * * *`                                    | Review queue only, no automatic merge                                                                                     |
+| Health digest              | `7 5 * * *`                                     | Durable count-only digest; no external message is sent                                                                    |
+| Rights review              | `19 6 1 * *`                                    | Marks overdue enabled policies expired/paused; runtime gates enforce the deadline continuously                            |
 
 Every Netlify worker uses `private.worker_runs` run-key idempotency. ATS/source claims use advisory locks and durable request budgets. Apply checks use row locks with `SKIP LOCKED`. Retry code uses bounded full jitter. HTTP 403/429 checks are indeterminate rather than broken. Apply destinations are HTTPS-only and redirect-free; every resolved address must be public, and the request is pinned to a validated address while retaining the original TLS server name to prevent DNS rebinding.
 
@@ -97,4 +97,4 @@ Activation is a separate, explicitly approved operation. For one source, an oper
 
 Database-history reconciliation completed locally during launch review: repository filenames now use the four already-applied production versions (20260713172319, 20260713172330, 20260713172341, 20260713172351), and each SQL body was verified byte-equivalent after normalizing the production ledger's CRLF line endings. No `migration repair`, production SQL, or production write was used. The remaining blocker is execution of the repository migration and pgTAP suites in an isolated database; the review environment did not have a Supabase CLI or Docker runtime.
 
-The 200/day goal is achieved only by seven-day dashboard evidence of distinct `canonical_created` events, not by raw fetch counts, projected partner volume or duplicate occurrences.
+The 500/day goal is achieved only by seven-day dashboard evidence of distinct `canonical_created` events, not by raw fetch counts, projected partner volume or duplicate occurrences.

@@ -73,9 +73,35 @@ export default async function SalariesPage({
     <div className="site-shell stack-lg">
       <PageHeading
         eyebrow="Salary intelligence"
-        title="Compare pay without exposing a person"
-        description="Search approved aggregates. Original currency, pay period, location, sample size, date range and confidence stay visible."
+        title="Compare pay with the evidence attached"
+        description="Community contributions and verified online benchmarks stay in separate, clearly labelled lanes. Original currency, period, geography, source, date range and confidence remain visible."
       />
+      <section className="feature-grid" aria-label="Salary evidence methods">
+        <article className="surface surface-pad stack-sm">
+          <p className="eyebrow">Method 1</p>
+          <h2 className="m-0 text-lg font-bold">Community salary evidence</h2>
+          <p className="text-muted m-0 text-sm">
+            People submit their own pay privately. Only moderated,
+            privacy-thresholded cohorts become public; individual records never
+            do.
+          </p>
+          <Link className="text-link" href="/contribute/salary">
+            Add your salary
+          </Link>
+        </article>
+        <article className="surface surface-pad stack-sm">
+          <p className="eyebrow">Method 2</p>
+          <h2 className="m-0 text-lg font-bold">Verified online benchmarks</h2>
+          <p className="text-muted m-0 text-sm">
+            Official or licensed datasets retain their publisher, methodology,
+            source period and normalization assumptions. They are never
+            relabelled as company submissions.
+          </p>
+          <Link className="text-link" href="/methodology">
+            See the evidence rules
+          </Link>
+        </article>
+      </section>
       <form
         className="home-search"
         action="/salaries"

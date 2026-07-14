@@ -66,7 +66,7 @@ Activation prerequisite
   -> controlled claimed dry run, then return the environment gate to false
   -> named approval may leave scheduled acquisition enabled
 
-Netlify ATS schedule (00:17, 02:17, 04:17, 06:17, 08:17, 10:17, 12:17, 14:17, 16:17, 18:17, 20:17 and 22:17 UTC)
+Netlify ATS schedule (minute 02, 17, 32 and 47 of every hour; 96 bounded claim opportunities/day)
   -> independent ATS_SOURCE_SYNC_ENABLED environment gate
   -> if false, record a safe skip with no source/provider call
   -> service-role worker lists currently authorized sources
@@ -77,6 +77,10 @@ Netlify ATS schedule (00:17, 02:17, 04:17, 06:17, 08:17, 10:17, 12:17, 14:17, 16
        -> provider payload validation and 2,000-record ceiling
        -> exact destination host + path-prefix validation
        -> invalid records quarantined; no arbitrary fetch URL
+       -> remote-only publication filter
+          -> explicit worldwide, Africa, EMEA, Nigeria or named African country
+          -> reject onsite, hybrid, non-African-only and unclear geography
+          -> reject disqualifying work-authorization requirements
   -> begin one durable snapshot for that source
   -> normalize and store bounded batches through service-role RPC
   -> finalize as complete, partial, failed or quarantined
@@ -84,7 +88,7 @@ Netlify ATS schedule (00:17, 02:17, 04:17, 06:17, 08:17, 10:17, 12:17, 14:17, 16
   -> review mode keeps new/changed jobs pending
 ```
 
-One invocation claims at most two sources and stops when the function deadline is too close. A skipped, partial, or failed invocation must not be reported as source freshness.
+One invocation claims at most one source and stops when the function deadline is too close. The database still enforces each source's two-hour or stricter reviewed polling interval, spacing and daily request budget. Policy-filtered records are fully accounted omissions, not malformed quarantines, so a complete snapshot may safely reconcile a previously eligible role that became geographically restricted. A skipped, partial, or failed invocation must not be reported as source freshness.
 
 The authorization migration keeps ATS tenant/network settings in `private.ats_source_configs`. It seeds no employer ATS source or configuration. Public and authenticated roles cannot read the employer grantor, authorization evidence, or private configuration. A shared internal predicate powers worker list, get, and claim operations and admits employer ATS rows only with `written_permission` or `commercial_contract`; it excludes paused, disabled, expired, revoked, removed-company, suspended-company, and configuration-mismatched sources. Changing source policy or ATS configuration pauses the source and invalidates the previous authorization review.
 
@@ -131,6 +135,14 @@ Use this order:
 5. Allowlisted HTML extraction only after written permission plus terms and robots review.
 
 Do not build a generic crawler. Do not scrape LinkedIn, Indeed, Glassdoor, authenticated pages, search-result pages, anti-bot challenges, or any source without explicit authorization. Public reachability is not republication permission.
+
+## 500-new-canonical-jobs/day operating target
+
+The target is 500 distinct, validated `canonical_created` events per UTC day after remote/eligibility filtering and exact deduplication. Provider rows, repeated occurrences, filtered geography, quarantines and updates do not count. The count-only supply canary reports `unavailable` when no eligible jobs are public, `capacity_unproven` when authorized evidence-backed capacity is below 500/day, `stale` when capacity exists but creation evidence is old, and `ready` only when all three conditions are satisfied.
+
+The 15-minute ATS dispatcher removes the previous twelve-claims/day global ceiling and permits up to 96 bounded source claims/day. This is scheduling capacity, not data capacity or permission. An adapter contributes to `authorized_daily_capacity` only after a current rights record and a source-specific evidence reference support its expected distinct canonical yield. The planned portfolio must exceed 500/day after measured duplicate and rejection rates; no placeholder projection is credited.
+
+Operational activation order is: direct employer submissions, licensed remote-job partner feeds, then individually authorized Greenhouse/Lever/Ashby boards, followed by reviewed humanitarian/public APIs. Add one source at a time, run a disabled dry run, inspect accepted/filtered/quarantined counts, then enable it only after current permission, retention, attribution, indexing and email rights are recorded. Remotive remains outside this capacity until its republication conflict is resolved in writing.
 
 An HTML adapter, if later approved, additionally requires a named SalaryPadi crawler user agent, DNS/private-network SSRF protection, one concurrent request per domain, `Retry-After` support, jittered backoff, robots caching/drift detection, extractor versioning, hostile-HTML tests, and automatic quarantine when terms/robots change. The same two-complete-omission rule applies; failed, partial, and quarantined runs never close jobs.
 

@@ -2,7 +2,7 @@
 
 Status: **not started; implementation not deployed; no new source activated**.
 
-The production-truth evidence captured on 13 July 2026 showed 38 visible in-memory Remotive jobs but zero durable raw records and zero durable canonical jobs. Those 38 are not counted as new canonical supply. Current evidenced external capacity is therefore **0/day**, against the target of **at least 200 new canonical jobs/day**.
+The production-truth evidence captured on 13 July 2026 showed 38 visible in-memory Remotive jobs but zero durable raw records and zero durable canonical jobs. Those 38 are not counted as new canonical supply. Current evidenced external capacity is therefore **0/day**, against the target of **at least 500 new canonical jobs/day**.
 
 This report intentionally contains no fabricated pilot results. The 14 daily rows in `job-supply-pilot-14-day.json` remain `not_run` with null metrics until a separately approved deployment and source activation creates real run evidence.
 

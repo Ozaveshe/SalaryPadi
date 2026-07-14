@@ -230,6 +230,15 @@ export default async function CompanyPage({
                 : "Permitted job-source facts"}
             </dd>
           </div>
+          {company.catalog ? (
+            <div>
+              <dt>2025 listed-company catalog</dt>
+              <dd>
+                Rank {company.catalog.rank} · {company.catalog.marketCountry}{" "}
+                market · data as of {company.catalog.dataAsOf}
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt>Legal entities</dt>
             <dd>
@@ -319,8 +328,25 @@ export default async function CompanyPage({
             Sources retained for this profile
           </h2>
         </div>
-        {company.citations.length > 0 || citedJobSources.length > 0 ? (
+        {company.citations.length > 0 ||
+        citedJobSources.length > 0 ||
+        company.catalog ? (
           <ul className="source-list">
+            {company.catalog ? (
+              <li>
+                <a
+                  href={company.catalog.selectionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                >
+                  {company.catalog.selectionTitle}
+                  <ExternalLink aria-hidden="true" size={14} />
+                </a>{" "}
+                <span className="source-note">
+                  Selection provenance only · not employer verification
+                </span>
+              </li>
+            ) : null}
             {company.citations.map((citation) => (
               <li key={citation.id}>
                 <a

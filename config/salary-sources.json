@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "1.0.0",
+  "policy": {
+    "defaultStatus": "draft",
+    "requiresHumanRightsReview": true,
+    "requiresMethodologyReview": true,
+    "allowGenericCrawler": false,
+    "blendWithFirstPartyContributions": false
+  },
+  "sources": [
+    {
+      "sourceKey": "us_bls_oews",
+      "displayName": "US Occupational Employment and Wage Statistics",
+      "publisherName": "U.S. Bureau of Labor Statistics",
+      "sourceKind": "official_statistics",
+      "adapterKey": "bls_oews",
+      "marketCountryCode": "US",
+      "datasetUrl": "https://www.bls.gov/oes/tables.htm",
+      "methodologyUrl": "https://www.bls.gov/oes/current/oes_tec.htm",
+      "termsUrl": "https://www.bls.gov/developers/termsOfService.htm",
+      "status": "draft",
+      "activationBlockers": [
+        "Confirm exact reusable fields and attribution text",
+        "Pin the release file and occupation-code mapping",
+        "Complete normalization and regression review"
+      ]
+    },
+    {
+      "sourceKey": "uk_ons_ashe",
+      "displayName": "UK Annual Survey of Hours and Earnings",
+      "publisherName": "Office for National Statistics",
+      "sourceKind": "official_statistics",
+      "adapterKey": "ons_ashe",
+      "marketCountryCode": "GB",
+      "datasetUrl": "https://www.ons.gov.uk/employmentandlabourmarket/peopleinwork/earningsandworkinghours/datasets/occupation4digitsoc2010ashetable14",
+      "methodologyUrl": "https://www.ons.gov.uk/employmentandlabourmarket/peopleinwork/earningsandworkinghours/methodologies/annualsurveyofhoursandearningsasheguidanceandmethodology",
+      "termsUrl": "https://www.ons.gov.uk/methodology/methodologytopicsandstatisticalconcepts/datapolicies/licensing",
+      "status": "draft",
+      "activationBlockers": [
+        "Confirm current table edition and licence attribution",
+        "Map SOC codes to SalaryPadi role families",
+        "Preserve suppression and quality markers"
+      ]
+    },
+    {
+      "sourceKey": "ca_statcan_employee_wages",
+      "displayName": "Canada employee wages by occupation",
+      "publisherName": "Statistics Canada",
+      "sourceKind": "official_statistics",
+      "adapterKey": "statcan_wages",
+      "marketCountryCode": "CA",
+      "datasetUrl": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410041701",
+      "methodologyUrl": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410041701",
+      "termsUrl": "https://www.statcan.gc.ca/en/reference/licence",
+      "status": "draft",
+      "activationBlockers": [
+        "Use the official machine-readable table service instead of page scraping",
+        "Map NOC codes to SalaryPadi role families",
+        "Retain quality symbols and reference periods"
+      ]
+    },
+    {
+      "sourceKey": "za_statssa_qes",
+      "displayName": "South Africa Quarterly Employment Statistics",
+      "publisherName": "Statistics South Africa",
+      "sourceKind": "official_statistics",
+      "adapterKey": "statssa_qes",
+      "marketCountryCode": "ZA",
+      "datasetUrl": "https://www.statssa.gov.za/?page_id=1854&PPN=P0277",
+      "methodologyUrl": "https://www.statssa.gov.za/?page_id=1861&PPN=P0277",
+      "termsUrl": null,
+      "status": "draft",
+      "activationBlockers": [
+        "Complete reuse and attribution review",
+        "Treat industry earnings as a market benchmark, not a role or company salary",
+        "Build a reviewed spreadsheet parser with release checksums"
+      ]
+    }
+  ]
+}

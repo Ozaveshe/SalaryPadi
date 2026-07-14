@@ -178,7 +178,7 @@ function primarySalaryAggregate(
   if (result.state !== "ready") return null;
   return (
     result.data.toSorted((a, b) => {
-      const sampleDifference = b.sampleSize - a.sampleSize;
+      const sampleDifference = (b.sampleSize ?? 0) - (a.sampleSize ?? 0);
       if (sampleDifference !== 0) return sampleDifference;
       return Date.parse(b.calculatedAt) - Date.parse(a.calculatedAt);
     })[0] ?? null

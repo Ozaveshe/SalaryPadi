@@ -6,9 +6,9 @@ import {
   Building2,
   Clock3,
   DatabaseZap,
+  FilePlus2,
   Globe2,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -143,7 +143,7 @@ export default async function HomePage() {
           <div className="home-proof-heading">
             <div>
               <p className="eyebrow">What is available now</p>
-              <h2>Freshness and source state, not volume theatre</h2>
+              <h2>Current job coverage</h2>
             </div>
             <DatabaseZap aria-hidden="true" size={25} />
           </div>
@@ -219,7 +219,7 @@ export default async function HomePage() {
           <Link href="/contribute">
             <strong>Add evidence or post a job</strong>
             <span>Salary, review, interview and employer paths.</span>
-            <Sparkles aria-hidden="true" size={18} />
+            <FilePlus2 aria-hidden="true" size={18} />
           </Link>
         </div>
       </section>
@@ -267,15 +267,18 @@ export default async function HomePage() {
           </div>
         ) : (
           <div className="notice notice-warning" role="status">
-            No permitted source is supplying a current vacancy right now. Search
-            controls, company evidence and tools remain available; no
-            placeholder vacancy was substituted.
+            <strong>
+              No current vacancy has passed the publication checks.
+            </strong>{" "}
+            Source status and freshness remain visible while the feed is empty.
+            Company research, salary evidence and decision tools are still
+            available.
           </div>
         )}
       </section>
 
       <section className="contribution-cta">
-        <Sparkles aria-hidden="true" size={28} />
+        <FilePlus2 aria-hidden="true" size={28} />
         <div>
           <p className="eyebrow">Build better evidence</p>
           <h2 className="section-title">
