@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(37);
+select plan(38);
 
 select has_table('ingest', 'job_source_occurrences', 'source occurrences exist');
 select has_table('ingest', 'job_occurrence_links', 'occurrence links exist');
@@ -270,6 +270,15 @@ select ok(
     '97000000-0000-4000-8000-000000000011'
   ) ->> 'latest_occurrence_at' is not null,
   'public job provenance includes freshness without exposing raw payloads'
+);
+update app.job_eligibility
+set work_authorization_requirement = 'Must be authorized to work in the United States'
+where job_id = '97000000-0000-4000-8000-000000000011';
+select ok(
+  not security.job_is_public_remote_eligible(
+    '97000000-0000-4000-8000-000000000011'
+  ),
+  'non-African work authorization overrides an otherwise remote listing'
 );
 
 insert into app.jobs (

@@ -72,10 +72,38 @@ export function inferRemoteArrangement(
   return "unspecified";
 }
 
-function hasDisqualifyingWorkAuthorization(value: string | null) {
+function hasDisqualifyingWorkAuthorization(
+  value: string | null,
+  verifiedAt: string,
+  publication: ReturnType<typeof classifyEligibilityEvidence>,
+) {
   if (!value) return false;
-  return !/\b(?:country (?:where|in which) you (?:live|reside)|your country of residence)\b/i.test(
-    value,
+  if (
+    /\b(?:country (?:where|in which) you (?:live|reside)|your country of residence)\b/i.test(
+      value,
+    )
+  ) {
+    return false;
+  }
+
+  const authorization = classifyEligibilityEvidence(value, verifiedAt);
+  if (authorization.includedCountryCodes.length > 0) {
+    const authorizedAfricanCodes =
+      authorization.includedCountryCodes.filter(isAfricanCountryCode);
+    if (authorizedAfricanCodes.length === 0) return true;
+    if (publication.eligibility.scope === "nigeria") {
+      return !authorizedAfricanCodes.includes("NG");
+    }
+    if (publication.eligibility.scope === "named_countries") {
+      return !authorizedAfricanCodes.some((code) =>
+        publication.includedCountryCodes.includes(code),
+      );
+    }
+    return false;
+  }
+
+  return !["worldwide", "africa", "emea", "nigeria"].includes(
+    authorization.eligibility.scope,
   );
 }
 
@@ -110,6 +138,8 @@ export function evaluateRemotePublication(input: {
   if (
     hasDisqualifyingWorkAuthorization(
       input.workAuthorization ?? complete.workAuthorization,
+      input.verifiedAt,
+      classification,
     )
   ) {
     return {

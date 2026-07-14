@@ -59,6 +59,31 @@ describe("remote job publication policy", () => {
     });
   });
 
+  it("accepts work authorization for an African country in the eligibility evidence", () => {
+    expect(
+      evaluateRemotePublication({
+        arrangement: "remote",
+        evidenceText: "Remote - Nigeria",
+        verifiedAt,
+        workAuthorization: "Must be eligible to work in Nigeria",
+      }),
+    ).toMatchObject({ eligible: true, reason: "nigeria" });
+  });
+
+  it("rejects a mismatched African-country work authorization", () => {
+    expect(
+      evaluateRemotePublication({
+        arrangement: "remote",
+        evidenceText: "Remote - Nigeria",
+        verifiedAt,
+        workAuthorization: "Must be eligible to work in Kenya",
+      }),
+    ).toMatchObject({
+      eligible: false,
+      reason: "work_authorization_restricted",
+    });
+  });
+
   it("does not confuse an African customer market with candidate eligibility", () => {
     const evidence = remoteEligibilityEvidence(
       "Remote",
