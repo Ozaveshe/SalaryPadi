@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, community, security, audit;
-select plan(31);
+select plan(34);
 
 select is(
   (select string_agg(e.enumlabel, ',' order by e.enumsortorder)
@@ -21,6 +21,32 @@ select ok(
   and position('citations' in pg_get_viewdef('api.companies'::regclass, true)) > 0,
   'the company public contract separates legal entities, official domains, and citations'
 );
+select ok(
+  (select relrowsecurity and relforcerowsecurity
+   from pg_class where oid = 'app.company_aliases'::regclass)
+  and exists (
+    select 1 from pg_policy
+    where polrelid = 'app.company_aliases'::regclass
+      and polname = 'company_aliases_public_read'
+  ),
+  'public company aliases remain behind an explicit published-company policy'
+);
+select ok(
+  has_column_privilege('anon', 'app.company_aliases', 'company_id', 'SELECT')
+  and has_column_privilege('anon', 'app.company_aliases', 'alias', 'SELECT')
+  and has_column_privilege('anon', 'app.company_aliases', 'alias_kind', 'SELECT')
+  and has_column_privilege('anon', 'app.company_aliases', 'citation_id', 'SELECT')
+  and not has_column_privilege('anon', 'app.company_aliases', 'source_note', 'SELECT')
+  and not has_column_privilege('anon', 'app.company_aliases', 'match_method', 'SELECT')
+  and not has_column_privilege('anon', 'app.company_aliases', 'confidence', 'SELECT'),
+  'anonymous alias access is limited to the columns used by the public view'
+);
+set local role anon;
+select lives_ok(
+  'select * from api.companies limit 1',
+  'anonymous callers can read the security-invoker company view'
+);
+reset role;
 select ok(
   not exists (
     select 1 from information_schema.columns
