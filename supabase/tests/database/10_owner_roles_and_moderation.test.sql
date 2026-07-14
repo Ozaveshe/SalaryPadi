@@ -521,11 +521,11 @@ select is(
 );
 select ok(
   exists (
-    select 1 from api.company_reviews
+    select 1 from app.review_publications
     where id <> '50000000-0000-0000-0000-000000000001'
       and pros = 'Good team' and cons = 'Long meetings'
   ),
-  'approval creates a separate redacted public review record'
+  'approval creates a separate redacted publication record'
 );
 select throws_ok(
   $$ select api.transition_moderation(
@@ -559,7 +559,11 @@ select set_config(
   true
 );
 set local role anon;
-select is((select count(*)::integer from api.company_reviews), 1, 'approved redacted review is publicly readable');
+select is(
+  (select count(*)::integer from api.company_reviews),
+  0,
+  'a single approved review remains withheld until the five-contributor privacy cohort is met'
+);
 
 select * from finish();
 rollback;
