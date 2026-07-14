@@ -200,15 +200,16 @@ select ok(
 );
 select ok(
   (select
-     status = 'active'
+     status = 'paused'
+     and policy_state = 'disabled'
      and authorization_basis = 'documented_public_api'
      and authorization_evidence_ref is not null
-     and authorization_reviewed_at is not null
-     and authorization_revoked_at is null
+     and authorization_reviewed_at is null
+     and authorization_revoked_at is not null
      and not may_email_jobs
    from app.job_sources
    where adapter_key = 'remotive'),
-  'Remotive is conservatively seeded as a documented public API without email permission'
+  'Remotive keeps documented API provenance but remains revoked and disabled without republication permission'
 );
 select is(
   (select count(*)::integer from private.ats_source_configs),

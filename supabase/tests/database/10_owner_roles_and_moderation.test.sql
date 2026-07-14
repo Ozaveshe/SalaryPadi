@@ -40,15 +40,18 @@ on conflict (id) do nothing;
 
 insert into app.job_sources (
   id, adapter_key, name, source_type, status, terms_url,
-  attribution_required, allow_public_listing, terms_reviewed_at,
+  attribution_required, attribution_text, allow_public_listing, terms_reviewed_at,
   terms_version, authorization_basis, authorization_evidence_ref,
-  authorization_reviewed_at
+  authorization_reviewed_at, policy_state, authority, allowed_fields,
+  policy_review_due_at, raw_retention
 )
 values (
   '30000000-0000-0000-0000-000000000001', 'test_source', 'Test Source',
-  'manual', 'active', 'https://example.test/terms', true, true, now(),
+  'manual', 'active', 'https://example.test/terms', true, 'Source: Test Source', true, now(),
   'test-source-terms-v1', 'first_party',
-  'test-fixture:owner-roles-and-moderation', now()
+  'test-fixture:owner-roles-and-moderation', now(), 'enabled',
+  'direct_employer', array['title', 'description', 'application_url', 'source_url'],
+  now() + interval '30 days', interval '30 days'
 )
 on conflict (id) do nothing;
 

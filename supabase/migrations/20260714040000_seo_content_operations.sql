@@ -1192,6 +1192,7 @@ on conflict (task_key) do update set
 revoke all on function api.editorial_prepare_evidence_pack() from public, anon, authenticated;
 revoke all on function api.editorial_record_topic_signals(jsonb) from public, anon, authenticated;
 revoke all on function api.editorial_run_monthly_audit() from public, anon, authenticated;
+revoke all on function security.require_editorial_evidence_pack() from public, anon, authenticated, service_role;
 grant execute on function api.editorial_prepare_evidence_pack() to service_role;
 grant execute on function api.editorial_record_topic_signals(jsonb) to service_role;
 grant execute on function api.editorial_run_monthly_audit() to service_role;

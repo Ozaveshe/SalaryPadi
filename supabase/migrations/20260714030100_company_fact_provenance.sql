@@ -430,4 +430,6 @@ comment on table app.company_fact_citations is
 comment on table audit.company_opinion_quarantine is
   'Append-only, text-free quarantine evidence. It keeps hashes and prior states without retaining copied opinion on public surfaces.';
 
+revoke all on function security.enforce_first_party_publication() from public, anon, authenticated, service_role;
+
 commit;

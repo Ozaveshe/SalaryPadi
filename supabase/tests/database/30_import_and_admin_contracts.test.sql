@@ -81,20 +81,27 @@ insert into app.job_sources (
   attribution_required, may_store_full_description, may_index_jobs,
   allow_public_listing, terms_reviewed_at, terms_version,
   authorization_basis, authorization_evidence_ref,
-  authorization_reviewed_at
+  authorization_reviewed_at, attribution_text, policy_state, authority,
+  allowed_fields, policy_review_due_at, raw_retention
 )
 values
   (
     'ab000000-0000-0000-0000-000000000001', 'import_contract', 'Import Contract',
     'permitted_api', 'active', 'https://source.example.test/terms', true,
     true, true, true, now(), 'import-contract-terms-v1',
-    'documented_public_api', 'test-fixture:import-contract', now()
+    'documented_public_api', 'test-fixture:import-contract', now(),
+    'Source: Import Contract', 'enabled', 'licensed_partner',
+    array['title', 'description', 'application_url', 'source_url'],
+    now() + interval '30 days', interval '30 days'
   ),
   (
     'ab000000-0000-0000-0000-000000000002', 'metadata_only', 'Metadata Only',
     'permitted_api', 'active', 'https://metadata.example.test/terms', true,
     false, true, true, now(), 'metadata-only-terms-v1',
-    'documented_public_api', 'test-fixture:metadata-only', now()
+    'documented_public_api', 'test-fixture:metadata-only', now(),
+    'Source: Metadata Only', 'enabled', 'licensed_partner',
+    array['title', 'application_url', 'source_url'],
+    now() + interval '30 days', interval '30 days'
   )
 on conflict (id) do nothing;
 

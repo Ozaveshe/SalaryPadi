@@ -568,6 +568,8 @@ revoke all on function security.submit_company_claim(text, text, text, text, tex
 revoke all on function security.submit_employer_response(text, text, text, text) from public, anon, authenticated;
 revoke all on function security.transition_company_claim(uuid, integer, text, text) from public, anon, authenticated;
 revoke all on function security.transition_employer_response(uuid, integer, text, text, jsonb) from public, anon, authenticated;
+revoke all on function security.queue_company_claim_case() from public, anon, authenticated, service_role;
+revoke all on function security.queue_employer_response_case() from public, anon, authenticated, service_role;
 revoke all on function api.submit_company_claim(text, text, text, text, text) from public, anon;
 revoke all on function api.submit_employer_response(text, text, text, text) from public, anon;
 revoke all on function api.admin_list_company_claims() from public, anon;

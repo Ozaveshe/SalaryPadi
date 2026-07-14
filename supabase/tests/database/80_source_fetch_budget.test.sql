@@ -41,7 +41,7 @@ where source_id = (
 )
   and dependency_key = 'written_republication_confirmation';
 update app.job_sources
-set status = 'active', policy_state = 'enabled', allow_public_listing = true,
+set policy_state = 'enabled', allow_public_listing = true,
     policy_review_due_at = clock_timestamp() + interval '1 day',
     minimum_poll_interval = interval '15 minutes',
     maximum_requests_per_day = 4
@@ -73,6 +73,18 @@ set policy_state = excluded.policy_state,
     minimum_poll_interval = excluded.minimum_poll_interval,
     retention_period = excluded.retention_period,
     allow_public_display = excluded.allow_public_display;
+
+-- Changing publication rights invalidates the prior review. Restore the
+-- hypothetical reviewed authorization only after the new policy and country
+-- rights have been persisted, then activate the source as a final step.
+update app.job_sources
+set terms_reviewed_at = clock_timestamp(),
+    authorization_reviewed_at = clock_timestamp(),
+    authorization_revoked_at = null,
+    authorization_revoked_by = null,
+    authorization_revocation_reason = null,
+    status = 'active'
+where adapter_key = 'remotive';
 
 set local role service_role;
 select is(

@@ -432,6 +432,10 @@ grant select on api.company_ratings, api.salary_aggregates,
   api.company_reviews, api.company_benefits,
   api.pay_reliability_aggregates to anon, authenticated;
 revoke all on function security.company_evidence_cohort_met(uuid, private.contribution_kind, uuid, text) from public;
+revoke all on function security.verification_mix_for_contributions(uuid[]) from public, anon, authenticated, service_role;
+revoke all on function security.decorate_company_rating_snapshot() from public, anon, authenticated, service_role;
+revoke all on function security.decorate_salary_snapshot() from public, anon, authenticated, service_role;
+revoke all on function security.refresh_company_workplace_aggregates() from public, anon, authenticated;
 grant execute on function security.company_evidence_cohort_met(uuid, private.contribution_kind, uuid, text) to anon, authenticated;
 grant execute on function security.refresh_company_workplace_aggregates() to service_role;
 

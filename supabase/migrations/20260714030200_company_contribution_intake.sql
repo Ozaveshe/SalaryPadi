@@ -684,6 +684,9 @@ revoke all on function security.save_contribution_draft(private.contribution_kin
 revoke all on function security.load_contribution_draft(private.contribution_kind) from public, anon, authenticated;
 revoke all on function security.delete_contribution_draft(private.contribution_kind) from public, anon, authenticated;
 revoke all on function security.contains_prohibited_company_evidence(jsonb) from public, anon, authenticated;
+revoke all on function security.reject_document_verification() from public, anon, authenticated, service_role;
+revoke all on function security.queue_company_aggregate_refresh() from public, anon, authenticated, service_role;
+revoke all on function security.enforce_contribution_deletion_ownership() from public, anon, authenticated, service_role;
 revoke all on function api.submit_contribution(text, jsonb) from public, anon;
 revoke all on function api.save_contribution_draft(text, jsonb) from public, anon;
 revoke all on function api.load_contribution_draft(text) from public, anon;

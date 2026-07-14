@@ -103,7 +103,7 @@ select throws_ok(
 select throws_ok(
   $$ update app.job_sources set status = 'active'
      where adapter_key = 'remotive' $$,
-  '23514', 'enabled source requires complete current rights policy',
+  '23514', 'active source requires reviewed authorization evidence',
   'disabled rights policy cannot be activated by changing source status'
 );
 select ok(

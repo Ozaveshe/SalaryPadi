@@ -1376,4 +1376,6 @@ comment on table private.country_pack_gate_reviews is
 comment on table app.job_timezone_requirements is
   'Normalized timezone overlap plus the exact source wording used as evidence.';
 
+revoke all on function security.enforce_country_pack_activation() from public, anon, authenticated, service_role;
+
 commit;

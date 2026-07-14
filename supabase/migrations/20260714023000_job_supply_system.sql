@@ -104,6 +104,13 @@ set status = 'paused',
     missing_dependencies = array['written_republication_confirmation']
 where adapter_key = 'remotive';
 
+-- The authorization guard deliberately clears review timestamps when source
+-- terms change. Record the completed conflict review only after that guarded
+-- policy mutation; authorization remains revoked and the source stays paused.
+update app.job_sources
+set terms_reviewed_at = timestamptz '2026-07-14 00:00:00+00'
+where adapter_key = 'remotive';
+
 update app.job_sources
 set status = 'paused'
 where status = 'active' and policy_state <> 'enabled';
@@ -1206,5 +1213,16 @@ after insert or update of scope, required_timezone_overlap,
   work_authorization_requirement, visa_sponsorship, evidence_text
 on app.job_eligibility
 for each row execute function security.record_direct_job_eligibility_evidence();
+
+revoke all on function security.enforce_job_source_supply_policy() from public, anon, authenticated, service_role;
+revoke all on function security.sync_job_source_dependencies() from public, anon, authenticated, service_role;
+revoke all on function security.protect_job_source_occurrence_mutation() from public, anon, authenticated, service_role;
+revoke all on function security.guard_raw_job_source_policy() from public, anon, authenticated, service_role;
+revoke all on function security.record_raw_job_occurrence() from public, anon, authenticated, service_role;
+revoke all on function security.record_direct_job_occurrence() from public, anon, authenticated, service_role;
+revoke all on function security.reconcile_exact_job_canonical() from public, anon, authenticated, service_role;
+revoke all on function security.track_successful_job_absence() from public, anon, authenticated, service_role;
+revoke all on function security.fill_job_salary_location_scope() from public, anon, authenticated, service_role;
+revoke all on function security.record_direct_job_eligibility_evidence() from public, anon, authenticated, service_role;
 
 commit;

@@ -230,13 +230,6 @@ select is(
   'every exact source occurrence links to the canonical job'
 );
 select ok(
-  security.public_job_provenance(
-    '97000000-0000-4000-8000-000000000011'
-  ) ->> 'latest_occurrence_at' is not null,
-  'public job provenance includes freshness without exposing raw payloads'
-);
-
-select ok(
   exists (
     select 1 from app.job_salary_evidence
     where job_id = '97000000-0000-4000-8000-000000000011'
@@ -269,6 +262,12 @@ select is(
    where job_id = '97000000-0000-4000-8000-000000000011'),
   'Nigeria|Must reside in Nigeria|employee',
   'eligibility evidence preserves region, location, and arrangement wording'
+);
+select ok(
+  security.public_job_provenance(
+    '97000000-0000-4000-8000-000000000011'
+  ) ->> 'latest_occurrence_at' is not null,
+  'public job provenance includes freshness without exposing raw payloads'
 );
 
 insert into app.jobs (

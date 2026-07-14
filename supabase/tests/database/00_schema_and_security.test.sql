@@ -126,10 +126,11 @@ select ok(
 );
 
 select ok(
-  pg_get_viewdef('api.jobs'::regclass, true) like '%allow_public_listing%'
+  pg_get_viewdef('api.jobs'::regclass, true) like '%is_public_job_source%'
+  and pg_get_viewdef('api.jobs'::regclass, true) like '%public_job_provenance%'
   and pg_get_viewdef('api.jobs'::regclass, true) like '%valid_through%'
   and pg_get_viewdef('api.jobs'::regclass, true) like '%is_fixture%',
-  'job projection enforces source permission, expiry, and fixture exclusion'
+  'job projection enforces current source and country permission, expiry, and fixture exclusion'
 );
 
 select ok(
