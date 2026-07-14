@@ -14,6 +14,8 @@ vi.mock("@/lib/env", () => ({ getAppOrigin: mocks.getAppOrigin }));
 vi.mock("@/lib/security/origin", () => ({
   rejectCrossOriginRequest: mocks.rejectCrossOriginRequest,
 }));
+vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 
 import { POST } from "./route";
 
@@ -61,5 +63,19 @@ describe("privacy request route", () => {
       p_target_id: target,
       p_details: { request_note: "Please remove my contribution." },
     });
+  });
+
+  it("returns an explicit unavailable response when persistence transport throws", async () => {
+    mocks.rpc.mockRejectedValue(new Error("transport unavailable"));
+
+    const response = await POST(
+      new Request("https://salarypadi.com/api/privacy-requests", {
+        method: "POST",
+        body: new URLSearchParams({ kind: "data_export" }),
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });

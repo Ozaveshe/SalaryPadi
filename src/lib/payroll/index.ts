@@ -7,6 +7,7 @@ export {
   NIGERIA_PAYROLL_RULE_SETS,
   NIGERIA_PAYROLL_RULES_2026,
   assertIsoDate,
+  assertNigeriaPayrollRuleSets,
   resolveNigeriaPayrollRules,
 } from "./rules";
 export type {

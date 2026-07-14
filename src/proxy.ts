@@ -1,9 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { authClaimSubjectSchema } from "@/lib/auth/claims";
 import { getSupabasePublicConfig } from "@/lib/env";
 import { safeRelativePath } from "@/lib/security/urls";
+import { createBoundedFetch } from "@/lib/supabase/bounded-fetch";
 import type { Database } from "@/lib/supabase/database.types";
+
+const SUPABASE_PROXY_TIMEOUT_MS = 4_000;
 
 const protectedPrefixes = [
   "/account",
@@ -15,22 +19,33 @@ const protectedPrefixes = [
   "/contribute/salary",
   "/contribute/review",
   "/contribute/interview",
+  "/contribute/benefits",
+  "/contribute/pay-reliability",
   "/privacy/requests",
+  "/company-intelligence/requests",
+  "/auth/mfa-required",
 ];
 
-function buildContentSecurityPolicy(nonce: string) {
+const protectedCompanyActionPattern =
+  /^\/companies\/[^/]+\/(?:claim|respond)\/?$/;
+
+export function isProtectedPagePath(pathname: string) {
+  return (
+    protectedPrefixes.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    ) || protectedCompanyActionPattern.test(pathname)
+  );
+}
+
+function buildContentSecurityPolicy(
+  nonce: string,
+  supabaseOrigin: string | undefined,
+) {
   const isDevelopment = process.env.NODE_ENV === "development";
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const connectSources = ["'self'"];
   const imageSources = ["'self'", "blob:", "data:"];
 
-  if (supabaseUrl) {
-    try {
-      connectSources.push(new URL(supabaseUrl).origin);
-    } catch {
-      // Invalid configuration is reported by the validated server environment.
-    }
-  }
+  if (supabaseOrigin) connectSources.push(supabaseOrigin);
 
   if (process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) {
     connectSources.push(
@@ -66,14 +81,16 @@ function applyCsp(response: NextResponse, policy: string) {
 
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const policy = buildContentSecurityPolicy(nonce);
+  const configuration = getSupabasePublicConfig();
+  const policy = buildContentSecurityPolicy(nonce, configuration?.url);
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", policy);
+  const isProtected = isProtectedPagePath(request.nextUrl.pathname);
 
-  const configuration = getSupabasePublicConfig();
   let response = NextResponse.next({ request: { headers: requestHeaders } });
-  let isAuthenticated = false;
+  let authenticationState: "anonymous" | "authenticated" | "unavailable" =
+    configuration || !isProtected ? "anonymous" : "unavailable";
 
   if (configuration) {
     const supabase = createServerClient<Database>(
@@ -94,26 +111,46 @@ export async function proxy(request: NextRequest) {
             );
           },
         },
+        global: {
+          fetch: createBoundedFetch(SUPABASE_PROXY_TIMEOUT_MS),
+        },
       },
     );
 
-    const { data } = await supabase.auth.getClaims();
-    isAuthenticated = typeof data?.claims?.sub === "string";
+    try {
+      const { data, error } = await supabase.auth.getClaims();
+      const subject = data?.claims?.sub;
+      authenticationState = error
+        ? "unavailable"
+        : subject === undefined || subject === null
+          ? "anonymous"
+          : authClaimSubjectSchema.safeParse(subject).success
+            ? "authenticated"
+            : "unavailable";
+    } catch {
+      authenticationState = "unavailable";
+    }
   }
 
-  const isProtected = protectedPrefixes.some(
-    (prefix) =>
-      request.nextUrl.pathname === prefix ||
-      request.nextUrl.pathname.startsWith(`${prefix}/`),
-  );
+  if (isProtected && authenticationState === "unavailable") {
+    return applyCsp(
+      new NextResponse("Authentication is temporarily unavailable.", {
+        status: 503,
+        headers: { "Cache-Control": "private, no-store" },
+      }),
+      policy,
+    );
+  }
 
-  if (isProtected && !isAuthenticated) {
+  if (isProtected && authenticationState === "anonymous") {
     const signInUrl = new URL("/auth/sign-in", request.url);
     signInUrl.searchParams.set(
       "next",
       safeRelativePath(`${request.nextUrl.pathname}${request.nextUrl.search}`),
     );
-    return applyCsp(NextResponse.redirect(signInUrl), policy);
+    const redirect = NextResponse.redirect(signInUrl);
+    redirect.headers.set("Cache-Control", "private, no-store");
+    return applyCsp(redirect, policy);
   }
 
   return applyCsp(response, policy);

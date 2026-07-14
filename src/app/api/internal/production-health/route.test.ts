@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/api", () => ({ getAdminApiContext: vi.fn() }));
 vi.mock("@/lib/operations/production-health", () => ({
-  getProductionHealth: vi.fn(),
+  getProductionHealthResult: vi.fn(),
 }));
 
 import { GET } from "@/app/api/internal/production-health/route";
 import { getAdminApiContext } from "@/lib/auth/api";
-import { getProductionHealth } from "@/lib/operations/production-health";
+import { getProductionHealthResult } from "@/lib/operations/production-health";
 
 const health = {
   generated_at: "2026-07-13T19:00:00.000Z",
@@ -32,7 +32,7 @@ describe("internal production health", () => {
     const response = await GET();
 
     expect(response.status).toBe(401);
-    expect(getProductionHealth).not.toHaveBeenCalled();
+    expect(getProductionHealthResult).not.toHaveBeenCalled();
   });
 
   it("returns only the validated, no-store operational DTO", async () => {
@@ -49,14 +49,18 @@ describe("internal production health", () => {
       },
       supabase,
     } as never);
-    vi.mocked(getProductionHealth).mockResolvedValue(health);
+    vi.mocked(getProductionHealthResult).mockResolvedValue({
+      state: "ready",
+      data: health,
+      issues: [],
+    });
 
     const response = await GET();
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual(health);
-    expect(getProductionHealth).toHaveBeenCalledWith(supabase);
+    expect(getProductionHealthResult).toHaveBeenCalledWith(supabase);
   });
 
   it("fails closed when operational evidence cannot be loaded", async () => {
@@ -64,11 +68,25 @@ describe("internal production health", () => {
       ok: true,
       supabase: {},
     } as never);
-    vi.mocked(getProductionHealth).mockRejectedValue(new Error("unavailable"));
+    vi.mocked(getProductionHealthResult).mockResolvedValue({
+      state: "invalid",
+      data: null,
+      issues: [
+        {
+          operation: "operations.production_health",
+          kind: "invalid_container",
+          code: "production_health_invalid",
+        },
+      ],
+    });
 
     const response = await GET();
 
     expect(response.status).toBe(503);
     expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toMatchObject({
+      state: "invalid",
+      code: "production_health_invalid",
+    });
   });
 });

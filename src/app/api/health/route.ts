@@ -3,47 +3,57 @@ import {
   getServerEnvironment,
   getSupabasePublicConfig,
 } from "@/lib/env";
+import { attemptRepositoryOperation } from "@/lib/data/repository-operation";
+import { repositoryIssue } from "@/lib/data/repository-result";
+import { EXPECTED_WORKER_KEYS } from "@/lib/operations/worker-registry";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
-const expectedWorkerKeys = [
-  "alert_delivery",
-  "currency_rates",
-  "job_source_sync",
-  "ats_source_sync",
-  "operations_maintenance",
-  "editorial_job_snapshot",
-  "editorial_topic_candidates",
-  "editorial_draft",
-  "editorial_preflight",
-  "editorial_queue",
-  "editorial_publish",
-  "editorial_live_blocks",
-  "editorial_nightly_audit",
-  "editorial_weekly_audit",
-  "afrotools_catalog_sync",
-  "job_supply_dispatcher",
-  "job_lifecycle",
-  "apply_link_check",
-  "job_dedupe_review",
-  "source_health_digest",
-  "source_rights_review",
-] as const;
-
 const workerHealthSchema = z
   .array(
-    z.object({
-      task_key: z.string().min(1).max(80),
-      owner_label: z.string().min(1).max(160),
-      last_status: z
-        .enum(["running", "succeeded", "failed", "skipped"])
-        .nullable(),
-      last_started_at: z.string().nullable(),
-      last_success_at: z.string().nullable(),
-      freshness: z.enum(["disabled", "never", "stale", "degraded", "healthy"]),
-    }),
+    z
+      .object({
+        task_key: z.enum(EXPECTED_WORKER_KEYS),
+        owner_label: z.string().trim().min(1).max(160),
+        last_status: z
+          .enum(["running", "succeeded", "failed", "skipped"])
+          .nullable(),
+        last_started_at: z.string().datetime({ offset: true }).nullable(),
+        last_success_at: z.string().datetime({ offset: true }).nullable(),
+        freshness: z.enum([
+          "disabled",
+          "never",
+          "stale",
+          "degraded",
+          "healthy",
+        ]),
+      })
+      .strict()
+      .superRefine((worker, context) => {
+        if (
+          worker.freshness === "healthy" &&
+          worker.last_status !== "succeeded" &&
+          worker.last_status !== "skipped"
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: ["freshness"],
+            message: "Healthy workers require a completed safe run.",
+          });
+        }
+        if (
+          worker.freshness === "degraded" &&
+          worker.last_status !== "failed"
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: ["freshness"],
+            message: "Degraded worker freshness requires a failed run.",
+          });
+        }
+      }),
   )
   .max(30);
 
@@ -56,7 +66,55 @@ const jobSupplyCanarySchema = z
     last_canonical_created_at: z.string().datetime({ offset: true }).nullable(),
     state: z.enum(["unavailable", "capacity_unproven", "stale", "ready"]),
   })
-  .strict();
+  .strict()
+  .superRefine((supply, context) => {
+    const generatedAt = Date.parse(supply.generated_at);
+    if (
+      supply.last_canonical_created_at !== null &&
+      Date.parse(supply.last_canonical_created_at) > generatedAt + 5 * 60_000
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["last_canonical_created_at"],
+        message: "Canonical creation evidence cannot postdate the canary.",
+      });
+    }
+    if (
+      supply.state === "ready" &&
+      (supply.visible_remote_jobs < 1 ||
+        supply.authorized_daily_capacity < supply.target_daily_new_canonical ||
+        supply.last_canonical_created_at === null)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["state"],
+        message: "Ready supply requires visible jobs and proven capacity.",
+      });
+    }
+  });
+
+type HealthSupabaseClient = NonNullable<
+  Awaited<ReturnType<typeof createServerSupabaseClient>>
+>;
+
+async function readHealthRpc(
+  supabase: HealthSupabaseClient,
+  rpc: string,
+  operation: string,
+) {
+  const attempt = await attemptRepositoryOperation(() =>
+    supabase.schema("api").rpc(rpc as never),
+  );
+  if (attempt.ok) return attempt.value;
+
+  repositoryIssue(
+    operation,
+    "query_failed",
+    `${operation.replaceAll(".", "_")}_failed`,
+    attempt.error,
+  );
+  return { data: null, error: new Error("Health evidence unavailable") };
+}
 
 export async function GET() {
   const environment = getServerEnvironment();
@@ -83,11 +141,22 @@ export async function GET() {
     workerBackendConfigured &&
     sourceRefreshConfigured &&
     Object.values(providersReady).every(Boolean);
-  const supabase = await createServerSupabaseClient();
+  const clientAttempt = await attemptRepositoryOperation(() =>
+    createServerSupabaseClient(),
+  );
+  if (!clientAttempt.ok) {
+    repositoryIssue(
+      "health.backend_client",
+      "query_failed",
+      "health_backend_client_failed",
+      clientAttempt.error,
+    );
+  }
+  const supabase = clientAttempt.ok ? clientAttempt.value : null;
   const [workerResult, supplyResult] = supabase
     ? await Promise.all([
-        supabase.schema("api").rpc("get_worker_health"),
-        supabase.schema("api").rpc("get_job_supply_canary" as never),
+        readHealthRpc(supabase, "get_worker_health", "health.worker_health"),
+        readHealthRpc(supabase, "get_job_supply_canary", "health.job_supply"),
       ])
     : [
         { data: null, error: new Error("Backend unavailable") },
@@ -99,8 +168,9 @@ export async function GET() {
   const workerKeys = new Set(workers.map((worker) => worker.task_key));
   const workerHealthComplete =
     parsedWorkers.success &&
+    workers.length === EXPECTED_WORKER_KEYS.length &&
     workerKeys.size === workers.length &&
-    expectedWorkerKeys.every((taskKey) => workerKeys.has(taskKey));
+    EXPECTED_WORKER_KEYS.every((taskKey) => workerKeys.has(taskKey));
   const unhealthyWorkers = workers.filter(
     (worker) => worker.freshness !== "healthy",
   );

@@ -1,9 +1,16 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { readApiForm } from "@/lib/api/form";
+import { attemptApiOperation } from "@/lib/api/operation";
+import { noStoreRedirect } from "@/lib/api/response";
+import {
+  apiRpcBooleanResultSchema,
+  decodeApiRpcResult,
+} from "@/lib/api/rpc-result";
 import { getAuthenticatedApiContext } from "@/lib/auth/api";
 import { getAppOrigin } from "@/lib/env";
-import { parseJobSearch } from "@/lib/jobs/search";
+import { noStoreJson } from "@/lib/http/json";
+import { parseJobSearch, parseStoredJobAlertSearch } from "@/lib/jobs/search";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
 
 const alertId = z.string().uuid();
@@ -24,24 +31,27 @@ const schema = z.discriminatedUnion("intent", [
   }),
 ]);
 
-function storedSearch(value: string | undefined) {
-  if (!value) return {};
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return typeof parsed === "object" && parsed !== null ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
   if (crossOrigin) return crossOrigin;
-  const parsed = schema.safeParse(
-    Object.fromEntries((await request.formData()).entries()),
-  );
+  const form = await readApiForm(request, 16_384, {
+    invalidMessage: "Invalid alert update form.",
+  });
+  if (!form.ok) return form.response;
+  const parsed = schema.safeParse(Object.fromEntries(form.data.entries()));
   if (!parsed.success) {
-    return Response.json({ error: "Invalid alert update." }, { status: 400 });
+    return noStoreJson({ error: "Invalid alert update." }, { status: 400 });
+  }
+
+  const storedSearch =
+    parsed.data.intent === "edit"
+      ? parseStoredJobAlertSearch(parsed.data.search_query)
+      : null;
+  if (parsed.data.intent === "edit" && !storedSearch) {
+    return noStoreJson(
+      { error: "Invalid alert search update." },
+      { status: 400 },
+    );
   }
 
   const context = await getAuthenticatedApiContext();
@@ -54,7 +64,7 @@ export async function POST(request: Request) {
       ? {
           alert_id: parsed.data.id,
           alert_query: parseJobSearch({
-            ...storedSearch(parsed.data.search_query),
+            ...storedSearch,
             q: parsed.data.keyword,
             location: parsed.data.location,
             eligibility: parsed.data.eligibility,
@@ -65,13 +75,23 @@ export async function POST(request: Request) {
           alert_id: parsed.data.id,
           alert_active: active ?? false,
         };
-  const { data, error } = await context.supabase
-    .schema("api")
-    .rpc("update_job_alert", rpcArgs);
+  const operation = await attemptApiOperation(
+    "alerts.update",
+    "alert_update_failed",
+    "Job-alert service is temporarily unavailable.",
+    () => context.supabase.schema("api").rpc("update_job_alert", rpcArgs),
+  );
+  if (!operation.ok) return operation.response;
+  const result = decodeApiRpcResult(
+    "alerts.update",
+    "alert_update_failed",
+    operation.value,
+    apiRpcBooleanResultSchema,
+  );
 
   const url = new URL("/alerts", getAppOrigin());
   const status =
-    error || !data
+    !result.ok || !result.data
       ? "error"
       : active === null
         ? "true"
@@ -79,5 +99,5 @@ export async function POST(request: Request) {
           ? "resumed"
           : "paused";
   url.searchParams.set("updated", status);
-  return NextResponse.redirect(url, 303);
+  return noStoreRedirect(url, 303);
 }

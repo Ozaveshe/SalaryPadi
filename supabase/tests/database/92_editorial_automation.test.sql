@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, editorial, security;
-select plan(17);
+select plan(23);
 
 select has_table('editorial', 'topic_candidates', 'editorial topic queue exists');
 select has_table('editorial', 'sources', 'editorial evidence sources exist');
@@ -15,6 +15,66 @@ select is(
   (select count(*)::integer from editorial.topic_candidates where topic_kind = 'cornerstone'),
   12,
   'launch queue contains exactly twelve cornerstone guides'
+);
+
+select ok(
+  pg_get_functiondef('api.editorial_link_targets()'::regprocedure)
+    ilike '%order by targets.last_checked nulls first%'
+  and pg_get_functiondef('api.editorial_link_targets()'::regprocedure)
+    ilike '%limit 50%',
+  'nightly editorial link checks rotate through a bounded least-recently-checked queue'
+);
+
+select ok(
+  pg_get_functiondef('api.editorial_link_targets()'::regprocedure)
+    ilike '%perform security.require_service_role();%',
+  'editorial link-target metadata is guarded inside the security definer boundary'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from pg_indexes
+    where schemaname = 'editorial'
+      and indexname in (
+        'editorial_link_checks_source_history',
+        'editorial_link_checks_article_history'
+      )
+  ),
+  2,
+  'link-check rotation has bounded source and article history indexes'
+);
+select ok(
+  exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'editorial.link_checks'::regclass
+      and conname = 'editorial_link_target_exactly_one'
+      and contype = 'c'
+  ),
+  'every new editorial link check belongs to exactly one target kind'
+);
+select ok(
+  not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'editorial.link_checks'::regclass
+      and conname = 'link_checks_url_checked_at_key'
+  ),
+  'shared URLs cannot collide across independent editorial targets'
+);
+select ok(
+  pg_get_functiondef('api.editorial_record_link_checks(jsonb)'::regprocedure)
+    ilike '%source.canonical_url = result.url%'
+  and pg_get_functiondef('api.editorial_record_link_checks(jsonb)'::regprocedure)
+    ilike '%result.url%any%article.internal_link_targets%'
+  and pg_get_functiondef('api.editorial_record_link_checks(jsonb)'::regprocedure)
+    ilike '%when ''timeout''%then ''stale''%'
+  and pg_get_functiondef('api.editorial_run_nightly_audit()'::regprocedure)
+    ilike '%broken_internal_link%'
+  and pg_get_functiondef('api.editorial_run_nightly_audit()'::regprocedure)
+    ilike '%internal_link_check_unavailable%',
+  'nightly audit binds results to targets and keeps broken and unavailable links distinct'
 );
 select is(
   (select count(*)::integer from editorial.topic_candidates where topic_kind = 'data_brief'),

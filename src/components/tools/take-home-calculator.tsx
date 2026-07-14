@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 
 import { trackEvent } from "@/lib/analytics/events";
+import { payeResultSchema, type PayeResult } from "@/lib/afrotools/schemas";
 import { formatSalaryAmount } from "@/lib/format";
 
 import {
@@ -10,29 +11,7 @@ import {
   toolResponseError,
   useToolRequest,
 } from "./use-tool-request";
-
-type PayeResult = {
-  grossAnnual: number;
-  grossMonthly: number;
-  netAnnual: number;
-  netMonthly: number;
-  incomeTaxAnnual: number;
-  taxableIncomeAnnual: number;
-  deductionsAnnual: number;
-  effectiveRate: string | null;
-  evidence: {
-    provider: string;
-    apiVersion: string;
-    rulesVersion: string;
-    rulesYear: string;
-    source: string;
-    taxAuthority: string;
-    lastVerifiedAt: string;
-    dataPolicy: string;
-    docsUrl: string;
-    sandbox: boolean;
-  };
-};
+import { ToolUserError } from "./tool-user-error";
 
 function money(value: number) {
   return formatSalaryAmount(value, "NGN");
@@ -64,12 +43,18 @@ export function TakeHomeCalculator() {
         const parsedResult = isToolResponseRecord(body)
           ? body.result
           : undefined;
-        if (!response.ok || !isToolResponseRecord(parsedResult)) {
-          throw new Error(
+        if (!response.ok) {
+          throw new ToolUserError(
             toolResponseError(body, "No verified PAYE result is available."),
           );
         }
-        return parsedResult as unknown as PayeResult;
+        const parsed = payeResultSchema.safeParse(parsedResult);
+        if (!parsed.success) {
+          throw new ToolUserError(
+            "The PAYE service returned an invalid result.",
+          );
+        }
+        return parsed.data;
       },
     });
     if (completed) {

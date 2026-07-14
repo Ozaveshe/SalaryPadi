@@ -20,6 +20,26 @@ describe("apply link checker", () => {
   });
 
   it.each([
+    "not a URL",
+    "http://jobs.example.test/1",
+    "https://user:secret@jobs.example.test/1",
+    "https://jobs.example.test:8443/1",
+    "https://localhost/1",
+    "https://recruiting.local/1",
+  ])("rejects structurally unsafe destination %s", async (url) => {
+    const fetcher = vi.fn();
+    const resolve = vi.fn().mockResolvedValue(["8.8.8.8"]);
+
+    await expect(
+      checkApplyLink(url, signal, { fetch: fetcher, resolve }),
+    ).resolves.toMatchObject({
+      result: "indeterminate",
+      errorCode: "unsafe_apply_destination",
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it.each([
     "100.64.0.1",
     "192.0.2.1",
     "198.51.100.2",
@@ -33,6 +53,45 @@ describe("apply link checker", () => {
         resolve: async () => [address],
       }),
     ).resolves.toMatchObject({ errorCode: "unsafe_apply_destination" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["an empty DNS answer", async () => [] as string[]],
+    ["a DNS error", async () => Promise.reject(new Error("dns unavailable"))],
+  ] as const)("reports resolution failure for %s", async (_label, resolve) => {
+    const fetcher = vi.fn();
+
+    await expect(
+      checkApplyLink("https://jobs.example.test/1", signal, {
+        fetch: fetcher,
+        resolve,
+      }),
+    ).resolves.toMatchObject({
+      result: "indeterminate",
+      errorCode: "apply_link_resolution_failed",
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("interrupts a pending DNS lookup at the worker deadline", async () => {
+    const controller = new AbortController();
+    const fetcher = vi.fn();
+    const pending = checkApplyLink(
+      "https://jobs.example.test/1",
+      controller.signal,
+      {
+        fetch: fetcher,
+        resolve: async () => new Promise<string[]>(() => undefined),
+      },
+    );
+
+    controller.abort(new Error("worker deadline"));
+
+    await expect(pending).resolves.toMatchObject({
+      result: "indeterminate",
+      errorCode: "apply_link_deadline_exceeded",
+    });
     expect(fetcher).not.toHaveBeenCalled();
   });
 
@@ -71,5 +130,51 @@ describe("apply link checker", () => {
     ).resolves.toMatchObject({ result: "healthy", httpStatus: 204 });
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(sleep).toHaveBeenCalledWith(50);
+  });
+
+  it.each([
+    [null, "apply_link_redirect_missing"],
+    ["http://jobs.example.test/insecure", "unsafe_apply_redirect"],
+    ["https://user:secret@jobs.example.test/1", "unsafe_apply_redirect"],
+  ] as const)(
+    "rejects an unverified application redirect: %s",
+    async (location, errorCode) => {
+      await expect(
+        checkApplyLink("https://jobs.example.test/1", signal, {
+          fetch: vi.fn().mockResolvedValue(
+            new Response(null, {
+              status: 302,
+              headers: location ? { Location: location } : undefined,
+            }),
+          ),
+          resolve: publicResolve,
+        }),
+      ).resolves.toMatchObject({
+        result: "broken",
+        httpStatus: 302,
+        errorCode,
+      });
+    },
+  );
+
+  it("accepts a relative redirect only after validating its destination", async () => {
+    const resolve = vi.fn().mockResolvedValue(["8.8.8.8"]);
+
+    await expect(
+      checkApplyLink("https://jobs.example.test/1", signal, {
+        fetch: vi.fn().mockResolvedValue(
+          new Response(null, {
+            status: 301,
+            headers: { Location: "/jobs/2" },
+          }),
+        ),
+        resolve,
+      }),
+    ).resolves.toMatchObject({
+      result: "healthy",
+      httpStatus: 301,
+      errorCode: null,
+    });
+    expect(resolve).toHaveBeenCalledTimes(2);
   });
 });

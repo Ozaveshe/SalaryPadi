@@ -11,6 +11,43 @@ const FAILED_GITHUB_CONCLUSIONS = new Set([
   "startup_failure",
   "timed_out",
 ]);
+const GITHUB_STATUS_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+
+async function readBoundedJson(response, maximumBytes) {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isSafeInteger(declaredLength) && declaredLength > maximumBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error("response exceeds the byte limit");
+  }
+  if (!response.body) throw new Error("response body is unavailable");
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      totalBytes += value.byteLength;
+      if (totalBytes > maximumBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error("response exceeds the byte limit");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+}
 
 function git(root, ...args) {
   return execFileSync("git", args, {
@@ -74,7 +111,20 @@ export async function verifyGitHubActionsStatus({
     );
   }
 
-  const endpoint = new URL(`/repos/${repository}/actions/runs`, apiBaseUrl);
+  let endpoint;
+  try {
+    const apiBase = new URL(apiBaseUrl);
+    if (apiBase.protocol !== "https:" || apiBase.username || apiBase.password) {
+      throw new Error("GitHub API base must be credential-free HTTPS");
+    }
+    endpoint = new URL(`/repos/${repository}/actions/runs`, apiBase);
+  } catch (error) {
+    return skippedGitHubStatus(
+      logger,
+      "invalid_endpoint",
+      `GitHub API endpoint is invalid: ${errorMessage(error)}`,
+    );
+  }
   endpoint.searchParams.set("head_sha", commit);
   endpoint.searchParams.set("per_page", "100");
 
@@ -87,6 +137,9 @@ export async function verifyGitHubActionsStatus({
         "User-Agent": "SalaryPadi-deploy-verifier",
         "X-GitHub-Api-Version": "2022-11-28",
       },
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
       signal: AbortSignal.timeout(10_000),
     });
   } catch (error) {
@@ -107,7 +160,7 @@ export async function verifyGitHubActionsStatus({
 
   let payload;
   try {
-    payload = await response.json();
+    payload = await readBoundedJson(response, GITHUB_STATUS_MAX_RESPONSE_BYTES);
   } catch (error) {
     return skippedGitHubStatus(
       logger,
@@ -202,6 +255,23 @@ function localSiteId(root) {
   }
 }
 
+export function formatDeployChannelSummary({
+  channel,
+  branch,
+  context,
+  githubStatus,
+}) {
+  return [
+    `Deploy channel configuration verified: ${channel.product}`,
+    `site=${channel.netlifySiteId}`,
+    `domain=${channel.productionUrl}`,
+    `supabase=${channel.supabaseProjectRef}`,
+    `branch=${branch}`,
+    `context=${context}`,
+    `github_ci=${githubStatus.outcome}:${githubStatus.reason}`,
+  ].join(" ");
+}
+
 async function main() {
   const root = process.cwd();
   const channel = JSON.parse(
@@ -275,14 +345,7 @@ async function main() {
   }
 
   console.log(
-    [
-      `Deploy channel verified: ${channel.product}`,
-      `site=${channel.netlifySiteId}`,
-      `domain=${channel.productionUrl}`,
-      `supabase=${channel.supabaseProjectRef}`,
-      `branch=${branch}`,
-      `context=${context}`,
-    ].join(" "),
+    formatDeployChannelSummary({ channel, branch, context, githubStatus }),
   );
 }
 

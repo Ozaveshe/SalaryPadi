@@ -15,8 +15,10 @@ import { notFound } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JobCard } from "@/components/jobs/job-card";
+import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { JobTruthCard } from "@/components/jobs/job-truth-card";
 import { JsonLd } from "@/components/json-ld";
+import { PageHeading } from "@/components/page-heading";
 import { CombinedRepositoryNotice } from "@/components/repository-notice";
 import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { getViewer } from "@/lib/auth/dal";
@@ -89,7 +91,19 @@ export default async function JobDetailPage({
   const savedInput = (await searchParams).saved;
   const saved = Array.isArray(savedInput) ? savedInput[0] : savedInput;
   const { feed, job } = await getJobBySlug(slug);
-  if (!job) notFound();
+  if (!job && feed.state === "live") notFound();
+  if (!job) {
+    return (
+      <div className="site-shell stack-lg">
+        <PageHeading
+          eyebrow="Job evidence unavailable"
+          title="This job could not be checked"
+          description="SalaryPadi could not verify every relevant job source, so this request is not being presented as a confirmed missing job."
+        />
+        <JobFeedNotice feed={feed} />
+      </div>
+    );
+  }
   const viewer = await getViewer();
   const [
     ratingResult,

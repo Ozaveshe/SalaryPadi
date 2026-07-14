@@ -1,8 +1,25 @@
 import { createSign } from "node:crypto";
+import { z } from "zod";
 
-import { OperationalError, getRuntimeEnvironment } from "./runtime";
+import { discardResponseBody } from "../../../src/lib/http/body";
+import {
+  OperationalError,
+  getRuntimeEnvironment,
+  readBoundedOperationalJson,
+} from "./runtime";
 
 const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
+const GOOGLE_OAUTH_MAX_RESPONSE_BYTES = 16 * 1024;
+const googleOAuthResponseSchema = z
+  .object({
+    access_token: z
+      .string()
+      .min(16)
+      .max(4_096)
+      .regex(/^[\x21-\x7E]+$/),
+    token_type: z.literal("Bearer"),
+  })
+  .passthrough();
 
 function base64Url(value: string | Buffer) {
   return Buffer.from(value)
@@ -65,19 +82,20 @@ export async function getGoogleAccessToken(scope: string, signal: AbortSignal) {
     signal: AbortSignal.any([signal, AbortSignal.timeout(8_000)]),
   });
   if (!response.ok) {
+    await discardResponseBody(response);
     throw new OperationalError(`google_oauth_${response.status}`, {
       provider_status: response.status,
     });
   }
-  const payloadJson = (await response.json()) as {
-    access_token?: unknown;
-    token_type?: unknown;
-  };
-  if (
-    typeof payloadJson.access_token !== "string" ||
-    payloadJson.token_type !== "Bearer"
-  ) {
+  const payloadJson = googleOAuthResponseSchema.safeParse(
+    await readBoundedOperationalJson(
+      response,
+      GOOGLE_OAUTH_MAX_RESPONSE_BYTES,
+      "google_oauth_invalid_response",
+    ),
+  );
+  if (!payloadJson.success) {
     throw new OperationalError("google_oauth_invalid_response");
   }
-  return payloadJson.access_token;
+  return payloadJson.data.access_token;
 }

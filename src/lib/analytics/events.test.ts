@@ -51,6 +51,15 @@ describe("Google Analytics consent handoff", () => {
     trackEvent("job_view");
 
     expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/analytics/events",
+      expect.objectContaining({
+        cache: "no-store",
+        credentials: "omit",
+        keepalive: true,
+        redirect: "error",
+      }),
+    );
     expect(sendGoogleAnalyticsEvent).not.toHaveBeenCalled();
   });
 

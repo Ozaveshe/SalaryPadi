@@ -302,6 +302,9 @@ export function normalizeRemotiveJob(
   const sourceUrl = new URL(source.url);
   if (
     sourceUrl.protocol !== "https:" ||
+    sourceUrl.username ||
+    sourceUrl.password ||
+    (sourceUrl.port && sourceUrl.port !== "443") ||
     (sourceUrl.hostname !== "remotive.com" &&
       !sourceUrl.hostname.endsWith(".remotive.com"))
   ) {

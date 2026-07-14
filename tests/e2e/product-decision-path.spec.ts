@@ -53,6 +53,9 @@ test.describe("continuous job decision path", () => {
     page,
   }) => {
     await page.goto("/tools");
+    await expect(
+      page.getByText("Using the reviewed bundled fallback catalog."),
+    ).toBeVisible();
     await expect(page.getByText("Use inside SalaryPadi · 2")).toBeVisible();
     await expect(page.getByText("Continue on AfroTools · 13")).toBeVisible();
     await expect(

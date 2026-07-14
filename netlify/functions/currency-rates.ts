@@ -4,6 +4,7 @@ import { fetchInforEuroRates } from "./_shared/currency";
 import {
   getRuntimeChoice,
   rpc,
+  rpcUuidResultSchema,
   runTrackedWorker,
   type WorkerExecution,
   workerSkipped,
@@ -19,8 +20,9 @@ export async function runCurrencyRates({ signal }: WorkerExecution) {
   if (provider === "none") return workerSkipped("currency_provider_disabled");
 
   const source = await fetchInforEuroRates(new Date(), signal);
-  const rateSetId = await rpc<string>(
+  const rateSetId = await rpc(
     "worker_store_inforeuro_rates",
+    rpcUuidResultSchema,
     {
       p_observed_at: source.observedAt,
       p_source_url: source.sourceUrl,

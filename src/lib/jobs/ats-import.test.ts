@@ -188,6 +188,41 @@ describe("ATS import normalization", () => {
     });
   });
 
+  it.each(["sourceUrl", "applicationUrl"] as const)(
+    "quarantines credentials embedded in %s",
+    (field) => {
+      const result = normalizeAtsImportRecords(
+        [
+          record({
+            [field]:
+              "https://user:secret@boards.greenhouse.io/example/jobs/123",
+          }),
+        ],
+        noDescriptionPolicy,
+      );
+
+      expect(result.jobs).toEqual([]);
+      expect(result.quarantineCodes).toEqual({ invalid_record: 1 });
+    },
+  );
+
+  it.each([
+    { checkedAt: "not-a-timestamp" },
+    { checkedAt: "2026-07-11T00:06:00.000Z" },
+    { publishedAt: "2026-07-11T00:06:00.000Z" },
+    { updatedAt: "2026-07-11T00:06:00.000Z" },
+    { publishedAt: "2026-02-30T00:00:00.000Z" },
+  ])("quarantines malformed or future-dated evidence: %o", (overrides) => {
+    const result = normalizeAtsImportRecords(
+      [record(overrides)],
+      noDescriptionPolicy,
+      new Date(checkedAt),
+    );
+
+    expect(result.jobs).toEqual([]);
+    expect(result.quarantineCodes).toEqual({ invalid_record: 1 });
+  });
+
   it("accepts a complete empty input as an empty normalized snapshot", () => {
     expect(normalizeAtsImportRecords([], noDescriptionPolicy)).toEqual({
       jobs: [],

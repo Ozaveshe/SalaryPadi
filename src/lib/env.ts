@@ -1,3 +1,5 @@
+import "server-only";
+
 import { z } from "zod";
 
 import {
@@ -11,9 +13,33 @@ const optionalUrl = z.preprocess(
   z.string().url().optional(),
 );
 
-const optionalString = z.preprocess(
+const optionalHttpOrigin = z.preprocess(
   (value) => (value === "" ? undefined : value),
-  z.string().min(1).optional(),
+  z
+    .string()
+    .url()
+    .refine((value) => {
+      const url = new URL(value);
+      return (
+        (url.protocol === "http:" || url.protocol === "https:") &&
+        !url.username &&
+        !url.password &&
+        !url.search &&
+        !url.hash &&
+        (url.pathname === "/" || url.pathname === "")
+      );
+    }, "must be a credential-free HTTP(S) origin without a path, query, or fragment")
+    .optional(),
+);
+
+const optionalCredential = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z
+    .string()
+    .min(1)
+    .max(4_096)
+    .regex(/^[^\s\u0000-\u001f\u007f]+$/, "must be a single bounded token")
+    .optional(),
 );
 
 const optionalGoogleAnalyticsId = z.preprocess(
@@ -38,20 +64,43 @@ const optionalInternalToken = z.preprocess(
     .optional(),
 );
 
+const emailAddressSchema = z.email().max(320);
+
+function optionalMailbox(allowDisplayName: boolean) {
+  return z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z
+      .string()
+      .max(422)
+      .refine((value) => {
+        if (emailAddressSchema.safeParse(value).success) return true;
+        if (!allowDisplayName) return false;
+        const displayMailbox =
+          /^([^<>\r\n]{1,100})\s+<([^<>\r\n]{3,320})>$/.exec(value);
+        return Boolean(
+          displayMailbox &&
+          displayMailbox[1] === displayMailbox[1]?.trim() &&
+          emailAddressSchema.safeParse(displayMailbox[2]).success,
+        );
+      }, "must be a valid email mailbox")
+      .optional(),
+  );
+}
+
 const serverEnvironmentSchema = z
   .object({
-    NEXT_PUBLIC_APP_URL: optionalUrl,
+    NEXT_PUBLIC_APP_URL: optionalHttpOrigin,
     NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: optionalString,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: optionalCredential,
     NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: optionalGoogleAnalyticsId,
-    SUPABASE_SERVICE_ROLE_KEY: optionalString,
+    SUPABASE_SERVICE_ROLE_KEY: optionalCredential,
     JOB_SOURCE_SYNC_TOKEN: optionalInternalToken,
     AFROTOOLS_API_BASE_URL: optionalUrl,
-    AFROTOOLS_API_KEY: optionalString,
-    LOGO_DEV_PUBLISHABLE_KEY: optionalString,
-    RESEND_API_KEY: optionalString,
-    TRANSACTIONAL_EMAIL_FROM: optionalString,
-    TRANSACTIONAL_EMAIL_REPLY_TO: optionalString,
+    AFROTOOLS_API_KEY: optionalCredential,
+    LOGO_DEV_PUBLISHABLE_KEY: optionalCredential,
+    RESEND_API_KEY: optionalCredential,
+    TRANSACTIONAL_EMAIL_FROM: optionalMailbox(true),
+    TRANSACTIONAL_EMAIL_REPLY_TO: optionalMailbox(false),
     REMOTIVE_SOURCE_ENABLED: z
       .enum(["true", "false"])
       .default("false")
@@ -71,6 +120,11 @@ const serverEnvironmentSchema = z
     CURRENCY_RATE_PROVIDER: z
       .enum(["none", "european_commission_inforeuro"])
       .default("none"),
+    CI: z.enum(["true", "false"]).optional(),
+    SALARYPADI_LOCAL_E2E: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -144,9 +198,13 @@ const serverEnvironmentSchema = z
           "::1",
           "[::1]",
         ]);
+        const localE2EOrigin =
+          value.CI === "true" &&
+          value.SALARYPADI_LOCAL_E2E &&
+          loopbackHosts.has(appUrl.hostname);
         if (
-          appUrl.protocol !== "https:" ||
-          loopbackHosts.has(appUrl.hostname)
+          !localE2EOrigin &&
+          (appUrl.protocol !== "https:" || loopbackHosts.has(appUrl.hostname))
         ) {
           context.addIssue({
             code: "custom",
@@ -158,10 +216,14 @@ const serverEnvironmentSchema = z
       }
     }
   })
-  .transform((value) => ({
-    ...value,
-    NEXT_PUBLIC_APP_URL: value.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-  }));
+  .transform(({ CI, SALARYPADI_LOCAL_E2E, ...value }) => {
+    void CI;
+    void SALARYPADI_LOCAL_E2E;
+    return {
+      ...value,
+      NEXT_PUBLIC_APP_URL: value.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+    };
+  });
 
 export type ServerEnvironment = z.infer<typeof serverEnvironmentSchema>;
 
@@ -191,6 +253,8 @@ export function parseServerEnvironment(
     ANALYTICS_PROVIDER: environment.ANALYTICS_PROVIDER,
     EMAIL_PROVIDER: environment.EMAIL_PROVIDER,
     CURRENCY_RATE_PROVIDER: environment.CURRENCY_RATE_PROVIDER,
+    CI: environment.CI,
+    SALARYPADI_LOCAL_E2E: environment.SALARYPADI_LOCAL_E2E,
     NODE_ENV: environment.NODE_ENV,
   });
 

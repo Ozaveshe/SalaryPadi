@@ -157,6 +157,166 @@ export function assertIsoDate(value: string): void {
   }
 }
 
+function assertBasisPoints(value: number, field: string) {
+  if (!Number.isInteger(value) || value < 0 || value > 10_000) {
+    throw new RangeError(`${field} must be an integer from 0 to 10000`);
+  }
+}
+
+function assertPositiveMoney(value: number, field: string) {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new RangeError(`${field} must be a positive safe integer`);
+  }
+}
+
+export function assertNigeriaPayrollRuleSets(
+  rules: readonly NigeriaPayrollRuleSet[],
+): void {
+  if (rules.length === 0) {
+    throw new RangeError("At least one Nigeria payroll rule set is required");
+  }
+
+  const ids = new Set<string>();
+  const versions = new Set<string>();
+  const ordered = [...rules].sort((left, right) =>
+    left.effectiveFrom.localeCompare(right.effectiveFrom),
+  );
+
+  for (const [ruleIndex, rule] of ordered.entries()) {
+    if (!/^[a-z0-9][a-z0-9-]{2,79}$/.test(rule.id)) {
+      throw new TypeError(`Payroll rule ${ruleIndex} has an invalid id`);
+    }
+    if (!/^\d+\.\d+\.\d+$/.test(rule.version)) {
+      throw new TypeError(`Payroll rule ${rule.id} has an invalid version`);
+    }
+    if (ids.has(rule.id) || versions.has(rule.version)) {
+      throw new RangeError("Payroll rule ids and versions must be unique");
+    }
+    ids.add(rule.id);
+    versions.add(rule.version);
+
+    assertIsoDate(rule.effectiveFrom);
+    assertIsoDate(rule.reviewedThrough);
+    if (rule.effectiveTo !== null) {
+      assertIsoDate(rule.effectiveTo);
+      if (rule.effectiveTo < rule.effectiveFrom) {
+        throw new RangeError(
+          `Payroll rule ${rule.id} ends before it becomes effective`,
+        );
+      }
+    }
+    if (rule.reviewedThrough < rule.effectiveFrom) {
+      throw new RangeError(
+        `Payroll rule ${rule.id} was reviewed before its effective date`,
+      );
+    }
+
+    const previous = ordered[ruleIndex - 1];
+    if (
+      previous &&
+      (previous.effectiveTo === null ||
+        previous.effectiveTo >= rule.effectiveFrom)
+    ) {
+      throw new RangeError(
+        `Payroll rules ${previous.id} and ${rule.id} have overlapping effective windows`,
+      );
+    }
+
+    assertPositiveMoney(rule.minimumWage.monthly, "minimumWage.monthly");
+    assertPositiveMoney(rule.minimumWage.annual, "minimumWage.annual");
+    if (rule.minimumWage.annual !== rule.minimumWage.monthly * 12) {
+      throw new RangeError(
+        `Payroll rule ${rule.id} has inconsistent monthly and annual minimum wages`,
+      );
+    }
+
+    if (rule.payeBands.length === 0) {
+      throw new RangeError(`Payroll rule ${rule.id} has no PAYE bands`);
+    }
+    let previousUpperBound = 0;
+    for (const [bandIndex, band] of rule.payeBands.entries()) {
+      assertBasisPoints(band.rateBps, `payeBands[${bandIndex}].rateBps`);
+      const isLast = bandIndex === rule.payeBands.length - 1;
+      if (band.upperBoundAnnual === null) {
+        if (!isLast) {
+          throw new RangeError(
+            `Payroll rule ${rule.id} has an unbounded PAYE band before the final band`,
+          );
+        }
+      } else {
+        assertPositiveMoney(
+          band.upperBoundAnnual,
+          `payeBands[${bandIndex}].upperBoundAnnual`,
+        );
+        if (band.upperBoundAnnual <= previousUpperBound) {
+          throw new RangeError(
+            `Payroll rule ${rule.id} PAYE bands must be strictly ordered`,
+          );
+        }
+        previousUpperBound = band.upperBoundAnnual;
+        if (isLast) {
+          throw new RangeError(
+            `Payroll rule ${rule.id} must end with an unbounded PAYE band`,
+          );
+        }
+      }
+    }
+
+    assertBasisPoints(rule.pension.employeeRateBps, "pension.employeeRateBps");
+    assertBasisPoints(rule.pension.employerRateBps, "pension.employerRateBps");
+    assertBasisPoints(rule.nhf.employeeRateBps, "nhf.employeeRateBps");
+    assertBasisPoints(rule.rentRelief.rateBps, "rentRelief.rateBps");
+    assertPositiveMoney(
+      rule.rentRelief.maximumAnnual,
+      "rentRelief.maximumAnnual",
+    );
+
+    if (
+      new Set(rule.eligibleDeductionCodes).size !==
+      rule.eligibleDeductionCodes.length
+    ) {
+      throw new RangeError(
+        `Payroll rule ${rule.id} has duplicate eligible deductions`,
+      );
+    }
+    if (rule.caveats.length === 0 || rule.sources.length === 0) {
+      throw new RangeError(
+        `Payroll rule ${rule.id} must retain caveats and source evidence`,
+      );
+    }
+
+    const sourceIds = new Set<string>();
+    for (const source of rule.sources) {
+      if (sourceIds.has(source.id)) {
+        throw new RangeError(
+          `Payroll rule ${rule.id} has duplicate source ids`,
+        );
+      }
+      sourceIds.add(source.id);
+      let url: URL;
+      try {
+        url = new URL(source.url);
+      } catch {
+        throw new TypeError(
+          `Payroll rule ${rule.id} has an invalid source URL`,
+        );
+      }
+      if (
+        url.protocol !== "https:" ||
+        url.username ||
+        url.password ||
+        source.supports.length === 0
+      ) {
+        throw new TypeError(
+          `Payroll rule ${rule.id} has invalid source evidence`,
+        );
+      }
+    }
+  }
+}
+
+assertNigeriaPayrollRuleSets(NIGERIA_PAYROLL_RULE_SETS);
+
 export function resolveNigeriaPayrollRules(
   calculationDate: string,
 ): NigeriaPayrollRuleSet {

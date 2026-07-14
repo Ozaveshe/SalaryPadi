@@ -1,10 +1,15 @@
 import { z } from "zod";
 
+import { discardResponseBody } from "../../../src/lib/http/body";
 import {
   boundedSignal,
   EXTERNAL_REQUEST_TIMEOUT_MS,
   OperationalError,
+  readBoundedOperationalJson,
 } from "./runtime";
+
+const CURRENCY_MAX_RESPONSE_BYTES = 512 * 1024;
+const MAX_PUBLISHED_CROSS_RATE = 1_000_000_000_000;
 
 const supportedCurrencies = [
   "EUR",
@@ -33,9 +38,10 @@ export function buildInforEuroCrossRates(payload: unknown): CurrencyRateRow[] {
   const rows = inforEuroResponse.parse(payload);
   const unitsPerEuro = new Map<string, number>();
   for (const row of rows) {
-    if (!unitsPerEuro.has(row.isoA3Code)) {
-      unitsPerEuro.set(row.isoA3Code, row.value);
+    if (unitsPerEuro.has(row.isoA3Code)) {
+      throw new OperationalError("currency_duplicate_currency");
     }
+    unitsPerEuro.set(row.isoA3Code, row.value);
   }
   const missing = supportedCurrencies.filter(
     (currency) => !unitsPerEuro.has(currency),
@@ -51,11 +57,19 @@ export function buildInforEuroCrossRates(payload: unknown): CurrencyRateRow[] {
       if (base === quote) return [];
       const basePerEuro = unitsPerEuro.get(base)!;
       const quotePerEuro = unitsPerEuro.get(quote)!;
+      const rate = Number((quotePerEuro / basePerEuro).toFixed(10));
+      if (
+        !Number.isFinite(rate) ||
+        rate <= 0 ||
+        rate > MAX_PUBLISHED_CROSS_RATE
+      ) {
+        throw new OperationalError("currency_rate_out_of_range");
+      }
       return [
         {
           base_currency: base,
           quote_currency: quote,
-          rate: Number((quotePerEuro / basePerEuro).toFixed(10)),
+          rate,
         },
       ];
     }),
@@ -78,11 +92,26 @@ export async function fetchInforEuroRates(
   const source = currentInforEuroSource(now);
   const response = await fetch(source.sourceUrl, {
     headers: { Accept: "application/json" },
+    cache: "no-store",
+    credentials: "omit",
+    redirect: "error",
     signal: boundedSignal(signal, EXTERNAL_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
+    await discardResponseBody(response);
     throw new OperationalError(`currency_source_${response.status}`);
   }
-  const rates = buildInforEuroCrossRates(await response.json());
+  const payload = await readBoundedOperationalJson(
+    response,
+    CURRENCY_MAX_RESPONSE_BYTES,
+    "currency_source_invalid_response",
+  );
+  let rates: CurrencyRateRow[];
+  try {
+    rates = buildInforEuroCrossRates(payload);
+  } catch (reason) {
+    if (reason instanceof OperationalError) throw reason;
+    throw new OperationalError("currency_source_invalid_response");
+  }
   return { ...source, rates };
 }

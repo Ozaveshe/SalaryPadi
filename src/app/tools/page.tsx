@@ -28,15 +28,20 @@ export default async function ToolsPage() {
       {snapshot ? (
         <div
           className={
-            catalog.state === "stale" ? "notice notice-warning" : "notice"
+            catalog.state === "live" ? "notice" : "notice notice-warning"
           }
           role="status"
         >
           <strong>
             {catalog.state === "live"
               ? "The reviewed tool list is available."
-              : "Using the reviewed fallback tool list."}
+              : catalog.state === "stale"
+                ? "Using the last-known reviewed catalog."
+                : "Using the reviewed bundled fallback catalog."}
           </strong>{" "}
+          {catalog.state === "degraded"
+            ? "The refreshed tool list is not currently usable. "
+            : null}
           Links and in-product calculations remain separated below.
         </div>
       ) : (

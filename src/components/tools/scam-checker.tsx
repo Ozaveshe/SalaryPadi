@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 import { CircleAlert, CircleCheck, ShieldAlert } from "lucide-react";
 
+import { scamCheckResultResponseSchema } from "@/lib/afrotools/schemas";
 import { type ScamCheckResult, type ScamStructuredAnswers } from "@/lib/scam";
 
 import {
@@ -10,6 +11,7 @@ import {
   toolResponseError,
   useToolRequest,
 } from "./use-tool-request";
+import { ToolUserError } from "./tool-user-error";
 
 function optional(form: FormData, name: string) {
   const value = String(form.get(name) ?? "").trim();
@@ -75,13 +77,19 @@ export function ScamChecker() {
         const parsedResult = isToolResponseRecord(body)
           ? body.result
           : undefined;
-        if (!response.ok || !isToolResponseRecord(parsedResult)) {
-          throw new Error(
+        if (!response.ok) {
+          throw new ToolUserError(
             toolResponseError(body, "The warning-sign check could not run."),
           );
         }
+        const parsed = scamCheckResultResponseSchema.safeParse(parsedResult);
+        if (!parsed.success) {
+          throw new ToolUserError(
+            "The warning-sign check returned an invalid result.",
+          );
+        }
         return {
-          check: parsedResult as unknown as ScamCheckResult,
+          check: parsed.data,
           providerNotice:
             isToolResponseRecord(body) && typeof body.notice === "string"
               ? body.notice

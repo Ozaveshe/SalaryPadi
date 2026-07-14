@@ -1,6 +1,11 @@
 import type { Config } from "@netlify/functions";
 
-import { rpc, runTrackedWorker, workerSucceeded } from "./_shared/runtime";
+import {
+  rpc,
+  rpcSummaryResultSchema,
+  runTrackedWorker,
+  workerSucceeded,
+} from "./_shared/runtime";
 
 const handler = async (
   request: Request,
@@ -8,8 +13,9 @@ const handler = async (
 ) =>
   runTrackedWorker("job_dedupe_review", request, context, async ({ signal }) =>
     workerSucceeded(
-      await rpc<Record<string, unknown>>(
+      await rpc(
         "worker_queue_fuzzy_job_duplicates",
+        rpcSummaryResultSchema,
         { p_limit: 500 },
         { signal },
       ),

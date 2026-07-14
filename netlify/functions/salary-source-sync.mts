@@ -1,7 +1,10 @@
 import type { Config } from "@netlify/functions";
 import { z } from "zod";
 
+import { externalHttpsUrlSchema } from "../../src/lib/security/url-schema";
+
 import {
+  decodeRpcResult,
   getRuntimeBoolean,
   OperationalError,
   rpc,
@@ -10,33 +13,93 @@ import {
   workerSkipped,
 } from "./_shared/runtime";
 
-const enabledSalarySourceSchema = z.array(
-  z.object({
-    source_key: z.string().regex(/^[a-z0-9][a-z0-9_]{2,79}$/),
-    display_name: z.string().min(2).max(160),
-    adapter_key: z.enum([
-      "bls_oews",
-      "ons_ashe",
-      "statcan_wages",
-      "statssa_qes",
-      "reviewed_snapshot",
-    ]),
-    market_country_code: z
-      .string()
-      .regex(/^[A-Z]{2}$/)
-      .nullable(),
-    dataset_url: z.string().url().startsWith("https://"),
-    methodology_url: z.string().url().startsWith("https://").nullable(),
-    terms_url: z.string().url().startsWith("https://"),
-    allowed_fields: z.array(z.string().min(1).max(80)).min(1),
-    refresh_interval_seconds: z.number().int().min(86_400),
-    last_success_at: z.string().datetime({ offset: true }).nullable(),
-  }),
-);
+const enabledSalarySourceSchema = z
+  .array(
+    z
+      .object({
+        source_key: z.string().regex(/^[a-z0-9][a-z0-9_]{2,79}$/),
+        display_name: z.string().min(2).max(160),
+        adapter_key: z.enum([
+          "bls_oews",
+          "ons_ashe",
+          "statcan_wages",
+          "statssa_qes",
+          "reviewed_snapshot",
+        ]),
+        market_country_code: z
+          .string()
+          .regex(/^[A-Z]{2}$/)
+          .nullable(),
+        dataset_url: externalHttpsUrlSchema,
+        methodology_url: externalHttpsUrlSchema.nullable(),
+        terms_url: externalHttpsUrlSchema,
+        allowed_fields: z.array(z.string().min(1).max(80)).min(1).max(100),
+        refresh_interval_seconds: z.number().int().min(86_400),
+        last_success_at: z.string().datetime({ offset: true }).nullable(),
+      })
+      .strict(),
+  )
+  .max(50)
+  .superRefine((sources, context) => {
+    const seen = new Set<string>();
+    for (const [index, source] of sources.entries()) {
+      if (seen.has(source.source_key)) {
+        context.addIssue({
+          code: "custom",
+          path: [index, "source_key"],
+          message: "Salary source keys must be unique.",
+        });
+      }
+      seen.add(source.source_key);
+      if (
+        new Set(source.allowed_fields).size !== source.allowed_fields.length
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: [index, "allowed_fields"],
+          message: "Salary source allowed fields must be unique.",
+        });
+      }
+    }
+  });
 
 type SalarySourceSyncDependencies = {
-  rpc?: typeof rpc;
+  rpc?: (
+    functionName: string,
+    parameters?: Record<string, unknown>,
+    options?: { signal?: AbortSignal; timeoutMs?: number },
+  ) => Promise<unknown>;
 };
+
+function validatedRpc(
+  dependency?: SalarySourceSyncDependencies["rpc"],
+): typeof rpc {
+  return async <T,>(
+    functionName: string,
+    resultSchema: z.ZodType<T>,
+    parameters: Record<string, unknown> = {},
+    options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  ) => {
+    try {
+      if (!dependency) {
+        return await rpc(functionName, resultSchema, parameters, options);
+      }
+      return decodeRpcResult(
+        functionName,
+        resultSchema,
+        await dependency(functionName, parameters, options),
+      );
+    } catch (reason) {
+      if (
+        reason instanceof OperationalError &&
+        reason.code === "supabase_rpc_invalid_shape"
+      ) {
+        throw new OperationalError("salary_source_registry_invalid");
+      }
+      throw reason;
+    }
+  };
+}
 
 export async function runSalarySourceSync(
   { signal }: WorkerExecution,
@@ -46,19 +109,14 @@ export async function runSalarySourceSync(
     return workerSkipped("salary_source_sync_disabled");
   }
 
-  const callRpc = dependencies.rpc ?? rpc;
-  const rawSources = await callRpc<unknown>(
+  const callRpc = validatedRpc(dependencies.rpc);
+  const sources = await callRpc(
     "worker_list_enabled_salary_sources",
+    enabledSalarySourceSchema,
     {},
     { signal },
   );
-  const parsed = enabledSalarySourceSchema.safeParse(rawSources);
-  if (!parsed.success) {
-    throw new OperationalError("salary_source_registry_invalid", {
-      issue_count: parsed.error.issues.length,
-    });
-  }
-  if (parsed.data.length === 0) {
+  if (sources.length === 0) {
     return workerSkipped("no_reviewed_salary_sources");
   }
 
@@ -66,9 +124,8 @@ export async function runSalarySourceSync(
   // cannot be activated merely by inserting a URL into the database; that
   // would turn this worker into an SSRF-capable generic crawler.
   throw new OperationalError("salary_source_adapters_not_activated", {
-    reviewed_source_count: parsed.data.length,
-    adapter_count: new Set(parsed.data.map((source) => source.adapter_key))
-      .size,
+    reviewed_source_count: sources.length,
+    adapter_count: new Set(sources.map((source) => source.adapter_key)).size,
   });
 }
 

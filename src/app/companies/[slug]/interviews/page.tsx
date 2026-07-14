@@ -57,8 +57,10 @@ export default async function CompanyInterviewsPage({
                 <div className="split">
                   <div>
                     <p className="eyebrow">
-                      {interview.country_code} ·{" "}
-                      {interview.role_family ?? "Role not published"}
+                      {interview.country_code === "WITHHELD"
+                        ? "Country withheld"
+                        : interview.country_code}{" "}
+                      · {interview.role_family ?? "Role not published"}
                     </p>
                     <h3 className="m-0 text-xl font-bold">
                       {interview.outcome

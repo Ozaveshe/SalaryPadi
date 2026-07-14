@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { getServerEnvironment } from "@/lib/env";
+import { discardResponseBody } from "@/lib/http/body";
 import { readBoundedJson } from "@/lib/http/json";
 import { getSalaryPadiSupabaseOrigin } from "@/lib/supabase/project";
 
@@ -58,6 +59,7 @@ export async function claimRemotiveFetchBudget(
     },
   );
   if (!response.ok) {
+    await discardResponseBody(response);
     throw new SourceFetchBudgetError(`source_fetch_claim_${response.status}`);
   }
   let payload: unknown;

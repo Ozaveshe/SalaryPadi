@@ -11,20 +11,50 @@ import {
   repositoryReady,
 } from "@/lib/data/repository-result";
 import { getSupabasePublicConfig } from "@/lib/env";
+import { discardResponseBody } from "@/lib/http/body";
 import { readBoundedJson } from "@/lib/http/json";
+import { safeRelativePath } from "@/lib/security/urls";
 
-const editorialArticleSchema = z.object({
-  id: z.string().uuid(),
-  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-  title: z.string().min(1).max(240),
-  description: z.string().min(1).max(500),
-  article_kind: z.enum(["cornerstone", "data_brief"]),
-  body_markdown: z.string().max(100_000),
-  author_name: z.string().min(1).max(160),
-  published_at: z.string(),
-  updated_at: z.string(),
-  internal_link_targets: z.array(z.string()).max(30),
-});
+const editorialTimestamp = z.string().datetime({ offset: true });
+const internalEditorialLinkSchema = z
+  .string()
+  .min(1)
+  .max(500)
+  .refine((value) => safeRelativePath(value, "") === value, {
+    message: "Editorial links must be canonical SalaryPadi-relative paths.",
+  });
+
+const editorialArticleSchema = z
+  .object({
+    id: z.uuid(),
+    slug: z
+      .string()
+      .max(200)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    title: z.string().trim().min(1).max(240),
+    description: z.string().trim().min(1).max(500),
+    article_kind: z.enum(["cornerstone", "data_brief"]),
+    body_markdown: z.string().max(100_000),
+    author_name: z.string().trim().min(2).max(160),
+    published_at: editorialTimestamp,
+    updated_at: editorialTimestamp,
+    internal_link_targets: z
+      .array(internalEditorialLinkSchema)
+      .max(30)
+      .refine((targets) => new Set(targets).size === targets.length, {
+        message: "Editorial links must be unique.",
+      }),
+  })
+  .strict()
+  .superRefine((article, context) => {
+    if (Date.parse(article.updated_at) < Date.parse(article.published_at)) {
+      context.addIssue({
+        code: "custom",
+        path: ["updated_at"],
+        message: "Editorial updates cannot predate publication.",
+      });
+    }
+  });
 
 export type EditorialArticle = z.infer<typeof editorialArticleSchema>;
 
@@ -101,6 +131,7 @@ async function readPublishedEditorialRowsResult(slug?: string) {
       signal: AbortSignal.timeout(4_000),
     });
     if (!response.ok) {
+      await discardResponseBody(response);
       return repositoryDegraded(
         [],
         [
@@ -119,6 +150,26 @@ async function readPublishedEditorialRowsResult(slug?: string) {
     const parsed = z
       .array(editorialArticleSchema)
       .max(slug === undefined ? 200 : 1)
+      .superRefine((articles, context) => {
+        const ids = new Set<string>();
+        const slugs = new Set<string>();
+        for (const [index, article] of articles.entries()) {
+          for (const [field, values] of [
+            ["id", ids],
+            ["slug", slugs],
+          ] as const) {
+            const value = article[field];
+            if (values.has(value)) {
+              context.addIssue({
+                code: "custom",
+                path: [index, field],
+                message: `Editorial ${field}s must be unique.`,
+              });
+            }
+            values.add(value);
+          }
+        }
+      })
       .safeParse(payload);
     if (!parsed.success) {
       return repositoryDegraded(

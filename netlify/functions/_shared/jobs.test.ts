@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { normalizeRemotiveJob } from "../../../src/lib/jobs/normalize";
+import { jobAlertSearchSpecSchema } from "../../../src/lib/jobs/search";
 import {
   buildJobFingerprint,
   buildLegacyJobFingerprint,
@@ -23,6 +24,7 @@ import {
   parseAlertCatalog,
   parseRemotivePublicationEnabled,
   renderAlertEmail,
+  sendAlertEmail,
 } from "./jobs";
 
 const sourceJob: RemotiveJob = {
@@ -96,6 +98,52 @@ describe("alert job catalog", () => {
         ...catalog,
         jobs: [{ ...validJob, applicationUrl: "http://example.test/apply" }],
       },
+      {
+        ...catalog,
+        jobs: [
+          {
+            ...validJob,
+            applicationUrl: "https://user:secret@example.test/apply",
+          },
+        ],
+      },
+      {
+        ...catalog,
+        jobs: [
+          {
+            ...validJob,
+            source: {
+              ...validJob.source,
+              canIndex: false,
+              canUseJobPostingStructuredData: true,
+            },
+          },
+        ],
+      },
+      {
+        ...catalog,
+        jobs: [
+          {
+            ...validJob,
+            salary: validJob.salary
+              ? { ...validJob.salary, minimum: 100, maximum: 50 }
+              : null,
+          },
+        ],
+      },
+      {
+        ...catalog,
+        jobs: [
+          {
+            ...validJob,
+            eligibility: {
+              ...validJob.eligibility,
+              includedCountries: ["Nigeria", "Nigeria"],
+            },
+          },
+        ],
+      },
+      { ...catalog, jobs: [validJob, validJob] },
     ];
 
     for (const invalid of invalidCatalogs) {
@@ -106,8 +154,8 @@ describe("alert job catalog", () => {
   });
 
   it("rejects a stale catalog instead of silently skipping alerts", () => {
-    const job = normalizeRemotiveJob(sourceJob, "2026-07-09T00:00:00Z");
-    const catalog = createAlertCatalog([job], "2026-07-09T00:00:00Z");
+    const job = normalizeRemotiveJob(sourceJob, "2026-07-09T10:00:00Z");
+    const catalog = createAlertCatalog([job], "2026-07-09T10:00:00Z");
 
     expect(() =>
       parseAlertCatalog(catalog, new Date("2026-07-10T00:00:01Z")),
@@ -115,14 +163,14 @@ describe("alert job catalog", () => {
   });
 
   it("uses the same fourteen-hour freshness boundary as worker health", () => {
-    const job = normalizedJob("2026-07-09T00:00:00Z");
-    const catalog = createAlertCatalog([job], "2026-07-09T00:00:00Z");
+    const job = normalizedJob("2026-07-09T09:00:00Z");
+    const catalog = createAlertCatalog([job], "2026-07-09T09:00:00Z");
 
     expect(
-      parseAlertCatalog(catalog, new Date("2026-07-09T14:00:00.000Z")),
+      parseAlertCatalog(catalog, new Date("2026-07-09T23:00:00.000Z")),
     ).toHaveLength(1);
     expect(() =>
-      parseAlertCatalog(catalog, new Date("2026-07-09T14:00:00.001Z")),
+      parseAlertCatalog(catalog, new Date("2026-07-09T23:00:00.001Z")),
     ).toThrow("alert_catalog_stale");
   });
 
@@ -204,6 +252,52 @@ describe("alert email links", () => {
     expect(email.text).not.toContain(job.slug);
     expect(email.html).not.toContain(job.slug);
   });
+
+  it("rejects a non-SalaryPadi origin before rendering trusted email links", () => {
+    vi.stubGlobal("Netlify", {
+      env: {
+        get: (name: string) =>
+          name === "NEXT_PUBLIC_APP_URL"
+            ? "https://attacker.example"
+            : undefined,
+      },
+    });
+
+    expect(() => renderAlertEmail([normalizedJob()])).toThrow(
+      "invalid_salarypadi_app_url",
+    );
+  });
+
+  it("rejects an invalid email-provider response contract", async () => {
+    vi.stubGlobal("Netlify", {
+      env: {
+        get: (name: string) =>
+          ({
+            RESEND_API_KEY: "re_test_resend_key_1234567890",
+            TRANSACTIONAL_EMAIL_FROM: "SalaryPadi <alerts@salarypadi.com>",
+            TRANSACTIONAL_EMAIL_REPLY_TO: "support@salarypadi.com",
+            NEXT_PUBLIC_APP_URL: "https://salarypadi.com",
+          })[name],
+      },
+    });
+    const fetchSpy = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ id: "not-a-provider-uuid" }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      sendAlertEmail(
+        "00000000-0000-4000-8000-000000000001",
+        "reader@example.test",
+        { subject: "Match", text: "Match", html: "<p>Match</p>" },
+      ),
+    ).rejects.toMatchObject({ code: "email_provider_shape" });
+    expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+    });
+  });
 });
 
 describe("alert source permissions", () => {
@@ -213,7 +307,7 @@ describe("alert source permissions", () => {
       claim_token: "claim-token",
       alert_id: "00000000-0000-4000-8000-000000000002",
       recipient_email: "private@example.test",
-      search_spec: {},
+      search_spec: jobAlertSearchSpecSchema.parse({ schema_version: 1 }),
       cadence: "daily" as const,
       last_sent_at: null,
     };
@@ -242,6 +336,25 @@ describe("alert source permissions", () => {
         new Date("2026-07-09T12:00:00Z"),
       ),
     ).toHaveLength(1);
+  });
+
+  it("rejects a future alert watermark instead of silently suppressing matches", () => {
+    const now = new Date("2026-07-09T12:00:00Z");
+    expect(() =>
+      matchAlertJobs(
+        {
+          delivery_id: "00000000-0000-4000-8000-000000000001",
+          claim_token: "claim-token",
+          alert_id: "00000000-0000-4000-8000-000000000002",
+          recipient_email: "private@example.test",
+          search_spec: jobAlertSearchSpecSchema.parse({ schema_version: 1 }),
+          cadence: "daily",
+          last_sent_at: "2026-07-09T12:05:00.001Z",
+        },
+        [],
+        now,
+      ),
+    ).toThrow("alert_claim_invalid_last_sent_at");
   });
 });
 
@@ -381,12 +494,24 @@ describe("alert source publication gate", () => {
         ),
     );
     blobGet.mockResolvedValue(
-      createAlertCatalog([normalizedJob()], "2000-01-01T00:00:00Z"),
+      createAlertCatalog(
+        [
+          normalizeRemotiveJob(
+            { ...sourceJob, publication_date: "1999-12-31T09:00:00Z" },
+            "2000-01-01T00:00:00Z",
+          ),
+        ],
+        "2000-01-01T00:00:00Z",
+      ),
     );
 
     await expect(
       fetchAlertJobCatalog(new AbortController().signal),
-    ).resolves.toEqual([]);
+    ).resolves.toEqual({
+      state: "degraded",
+      jobs: [],
+      issues: [{ code: "alert_catalog_stale" }],
+    });
     expect(blobGet).toHaveBeenCalledOnce();
   });
 
@@ -439,7 +564,7 @@ describe("alert source publication gate", () => {
 
     await expect(
       fetchAlertJobCatalog(new AbortController().signal),
-    ).resolves.toEqual([]);
+    ).resolves.toEqual({ state: "ready", jobs: [], issues: [] });
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     for (const [url, init] of fetchSpy.mock.calls) {
       expect(String(url)).toMatch(
@@ -454,5 +579,70 @@ describe("alert source publication gate", () => {
         "test-publishable-key",
       );
     }
+  });
+
+  it("quarantines malformed database jobs and exposes a degraded catalog", async () => {
+    vi.stubGlobal("Netlify", {
+      env: {
+        get: (name: string) =>
+          ({
+            NEXT_PUBLIC_SUPABASE_URL:
+              "https://bxelrhklsznmpksgrqep.supabase.co",
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+            REMOTIVE_SOURCE_ENABLED: "false",
+          })[name],
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(Response.json([{ title: 42 }])),
+    );
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(
+      fetchAlertJobCatalog(new AbortController().signal),
+    ).resolves.toEqual({
+      state: "degraded",
+      jobs: [],
+      issues: [{ code: "database_jobs_invalid_rows", count: 1 }],
+    });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning.mock.calls[0]?.[0]).toContain(
+      '"code":"database_jobs_invalid_rows"',
+    );
+    expect(warning.mock.calls[0]?.[0]).not.toContain('"title":42');
+  });
+
+  it("exposes alert-catalog capacity saturation instead of reporting ready", async () => {
+    vi.stubGlobal("Netlify", {
+      env: {
+        get: (name: string) =>
+          ({
+            NEXT_PUBLIC_SUPABASE_URL:
+              "https://bxelrhklsznmpksgrqep.supabase.co",
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+            REMOTIVE_SOURCE_ENABLED: "false",
+          })[name],
+      },
+    });
+    const fetchSpy = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json(Array.from({ length: 501 }, () => ({ title: 42 }))),
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(
+      fetchAlertJobCatalog(new AbortController().signal),
+    ).resolves.toEqual({
+      state: "degraded",
+      jobs: [],
+      issues: [
+        { code: "database_jobs_capacity_exceeded" },
+        { code: "database_jobs_invalid_rows", count: 500 },
+      ],
+    });
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toContain("limit=501");
   });
 });

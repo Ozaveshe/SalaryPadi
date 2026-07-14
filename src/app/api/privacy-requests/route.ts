@@ -1,6 +1,12 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { readApiForm } from "@/lib/api/form";
+import { attemptApiOperation } from "@/lib/api/operation";
+import { noStoreRedirect } from "@/lib/api/response";
+import {
+  apiRpcUuidResultSchema,
+  decodeApiRpcResult,
+} from "@/lib/api/rpc-result";
 import { getAuthenticatedApiContext } from "@/lib/auth/api";
 import { getAppOrigin } from "@/lib/env";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
@@ -40,34 +46,46 @@ const schema = z
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
   if (crossOrigin) return crossOrigin;
-  if (Number(request.headers.get("content-length") ?? "0") > 12_000) {
-    return Response.json({ error: "Request is too large." }, { status: 413 });
-  }
-  const parsed = schema.safeParse(
-    Object.fromEntries((await request.formData()).entries()),
-  );
+  const form = await readApiForm(request, 12_000, {
+    invalidMessage: "Invalid privacy request form.",
+  });
+  if (!form.ok) return form.response;
+  const parsed = schema.safeParse(Object.fromEntries(form.data.entries()));
   if (!parsed.success) {
-    return NextResponse.redirect(
+    return noStoreRedirect(
       new URL("/privacy/requests?created=error", getAppOrigin()),
       303,
     );
   }
   const context = await getAuthenticatedApiContext();
   if (!context.ok) return context.response;
-  const { error } = await context.supabase
-    .schema("api")
-    .rpc("request_privacy_action", {
-      p_kind: parsed.data.kind,
-      ...(parsed.data.target_id ? { p_target_id: parsed.data.target_id } : {}),
-      p_details: parsed.data.details
-        ? { request_note: parsed.data.details }
-        : {},
-    });
-  return NextResponse.redirect(
+  const operation = await attemptApiOperation(
+    "privacy.request.create",
+    "privacy_request_create_failed",
+    "Privacy request service is temporarily unavailable.",
+    () =>
+      context.supabase.schema("api").rpc("request_privacy_action", {
+        p_kind: parsed.data.kind,
+        ...(parsed.data.target_id
+          ? { p_target_id: parsed.data.target_id }
+          : {}),
+        p_details: parsed.data.details
+          ? { request_note: parsed.data.details }
+          : {},
+      }),
+  );
+  if (!operation.ok) return operation.response;
+  const result = decodeApiRpcResult(
+    "privacy.request.create",
+    "privacy_request_create_failed",
+    operation.value,
+    apiRpcUuidResultSchema,
+  );
+  return noStoreRedirect(
     new URL(
-      error
-        ? "/privacy/requests?created=error"
-        : "/privacy/requests?created=true",
+      result.ok
+        ? "/privacy/requests?created=true"
+        : "/privacy/requests?created=error",
       getAppOrigin(),
     ),
     303,

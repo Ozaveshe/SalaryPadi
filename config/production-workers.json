@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "workerKeys": [
+    "afrotools_catalog_sync",
+    "alert_delivery",
+    "apply_link_check",
+    "ats_source_sync",
+    "currency_rates",
+    "editorial_draft",
+    "editorial_evidence_packs",
+    "editorial_job_snapshot",
+    "editorial_live_blocks",
+    "editorial_monthly_audit",
+    "editorial_nightly_audit",
+    "editorial_preflight",
+    "editorial_publish",
+    "editorial_queue",
+    "editorial_topic_candidates",
+    "editorial_weekly_audit",
+    "google_indexing_notifications",
+    "job_dedupe_review",
+    "job_lifecycle",
+    "job_source_sync",
+    "job_supply_dispatcher",
+    "operations_maintenance",
+    "salary_source_sync",
+    "source_health_digest",
+    "source_rights_review"
+  ]
+}

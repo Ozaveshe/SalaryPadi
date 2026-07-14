@@ -75,7 +75,11 @@ describe("job supply schedules", () => {
       task: "source_rights_review",
       handler: sourceRightsReview,
       rpcName: "worker_run_source_rights_review",
-      response: { expired_sources: 0, enabled_sources: 0 },
+      response: {
+        expired_sources: 0,
+        enabled_sources: 1,
+        runnable_sources: 1,
+      },
     },
   ];
 

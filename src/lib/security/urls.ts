@@ -26,6 +26,19 @@ export function safeExternalUrl(value: string): URL | null {
     const url = new URL(value);
     if (url.protocol !== "https:") return null;
     if (url.username || url.password) return null;
+    const hostname = url.hostname
+      .toLowerCase()
+      .replace(/^\[|\]$/g, "")
+      .replace(/\.$/, "");
+    if (
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost") ||
+      hostname.endsWith(".local") ||
+      hostname.includes(":") ||
+      /^\d+(?:\.\d+){3}$/.test(hostname)
+    ) {
+      return null;
+    }
     return url;
   } catch {
     return null;

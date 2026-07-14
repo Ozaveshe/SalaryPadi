@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getAfricanCompanyCatalog,
   getAfricanCompanyCatalogEntry,
+  getAfricanCompanySelection,
 } from "@/lib/companies/catalog";
 
 describe("African company catalog", () => {
@@ -47,5 +48,14 @@ describe("African company catalog", () => {
       getAfricanCompanyCatalogEntry("https://169.254.169.254/latest/meta-data"),
     ).toBeNull();
     expect(getAfricanCompanyCatalogEntry("unknown-company")).toBeNull();
+  });
+
+  it("exposes only validated HTTPS provenance", () => {
+    const selection = getAfricanCompanySelection();
+    expect(new URL(selection.url).protocol).toBe("https:");
+    for (const company of getAfricanCompanyCatalog()) {
+      expect(new URL(company.website).protocol).toBe("https:");
+      expect(new URL(company.officialSourceUrl).protocol).toBe("https:");
+    }
   });
 });

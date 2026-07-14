@@ -2,8 +2,11 @@ import "server-only";
 
 import { cache } from "react";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 
+import { authClaimSubjectSchema } from "@/lib/auth/claims";
 import { repositoryIssue } from "@/lib/data/repository-result";
+import { attemptRepositoryOperation } from "@/lib/data/repository-operation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { safeRelativePath } from "@/lib/security/urls";
 
@@ -20,12 +23,37 @@ export type Viewer =
       aal: "aal1" | "aal2";
     };
 
+const emailSchema = z.string().trim().max(320).email();
+
 export const getViewer = cache(async (): Promise<Viewer> => {
-  const supabase = await createServerSupabaseClient();
+  const clientAttempt = await attemptRepositoryOperation(() =>
+    createServerSupabaseClient(),
+  );
+  if (!clientAttempt.ok) {
+    repositoryIssue(
+      "auth.claims",
+      "query_failed",
+      "auth_claims_unavailable",
+      clientAttempt.error,
+    );
+    return { state: "unavailable", code: "claims_unavailable" };
+  }
+  const supabase = clientAttempt.value;
   if (!supabase) return { state: "unconfigured" };
 
-  const { data, error } = await supabase.auth.getClaims();
-  const subject = data?.claims?.sub;
+  const claimsAttempt = await attemptRepositoryOperation(() =>
+    supabase.auth.getClaims(),
+  );
+  if (!claimsAttempt.ok) {
+    repositoryIssue(
+      "auth.claims",
+      "query_failed",
+      "auth_claims_unavailable",
+      claimsAttempt.error,
+    );
+    return { state: "unavailable", code: "claims_unavailable" };
+  }
+  const { data, error } = claimsAttempt.value;
   if (error) {
     repositoryIssue(
       "auth.claims",
@@ -35,29 +63,42 @@ export const getViewer = cache(async (): Promise<Viewer> => {
     );
     return { state: "unavailable", code: "claims_unavailable" };
   }
-  if (typeof subject !== "string") return { state: "anonymous" };
+  const subject = data?.claims?.sub;
+  if (subject === undefined || subject === null) return { state: "anonymous" };
+  const parsedSubject = authClaimSubjectSchema.safeParse(subject);
+  if (!parsedSubject.success) {
+    repositoryIssue("auth.claims", "invalid_rows", "auth_claims_invalid");
+    return { state: "unavailable", code: "claims_unavailable" };
+  }
 
-  const email =
-    typeof data?.claims?.email === "string" ? data.claims.email : null;
+  const parsedEmail = emailSchema.safeParse(data?.claims?.email);
+  const email = parsedEmail.success ? parsedEmail.data : null;
 
-  const { data: adminResult, error: adminError } = await supabase
-    .schema("api")
-    .rpc("has_staff_role", { required_role: "admin" });
-  if (adminError) {
+  const staffAttempt = await attemptRepositoryOperation(() =>
+    supabase.schema("api").rpc("has_staff_role", { required_role: "admin" }),
+  );
+  const staffResult = staffAttempt.ok ? staffAttempt.value : null;
+  const staffRoleReady = Boolean(
+    staffResult && !staffResult.error && typeof staffResult.data === "boolean",
+  );
+  if (!staffRoleReady) {
+    const staffFailure = !staffAttempt.ok || Boolean(staffResult?.error);
     repositoryIssue(
       "auth.staff_role",
-      "query_failed",
-      "auth_staff_role_unavailable",
-      adminError,
+      staffFailure ? "query_failed" : "invalid_rows",
+      staffFailure
+        ? "auth_staff_role_unavailable"
+        : "auth_staff_role_invalid_response",
+      staffAttempt.ok ? staffResult?.error : staffAttempt.error,
     );
   }
 
   return {
     state: "authenticated",
-    id: subject,
+    id: parsedSubject.data,
     email,
-    isAdmin: adminResult === true,
-    staffRoleState: adminError ? "unavailable" : "ready",
+    isAdmin: staffRoleReady && staffResult?.data === true,
+    staffRoleState: staffRoleReady ? "ready" : "unavailable",
     aal: data?.claims?.aal === "aal2" ? "aal2" : "aal1",
   };
 });
@@ -65,6 +106,9 @@ export const getViewer = cache(async (): Promise<Viewer> => {
 export async function requireViewer(nextPath: string) {
   const viewer = await getViewer();
   if (viewer.state === "authenticated") return viewer;
+  if (viewer.state === "unconfigured") {
+    throw new Error("Authentication backend is not configured.");
+  }
   if (viewer.state === "unavailable") {
     throw new Error("Authentication state could not be verified.");
   }

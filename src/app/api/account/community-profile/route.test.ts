@@ -15,6 +15,8 @@ vi.mock("@/lib/env", () => ({ getAppOrigin: mocks.getAppOrigin }));
 vi.mock("@/lib/security/origin", () => ({
   rejectCrossOriginRequest: mocks.rejectCrossOriginRequest,
 }));
+vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 
 import { POST } from "./route";
 
@@ -39,7 +41,7 @@ beforeEach(() => {
   mocks.getAppOrigin.mockReturnValue("https://salarypadi.com");
   mocks.rejectCrossOriginRequest.mockReturnValue(null);
   mocks.rpc.mockResolvedValue({
-    data: "ca000000-0000-0000-0000-000000000001",
+    data: "ca000000-0000-4000-8000-000000000001",
     error: null,
   });
   mocks.schema.mockReturnValue({ rpc: mocks.rpc });
@@ -101,5 +103,14 @@ describe("account community profile route", () => {
     expect(response.headers.get("location")).toBe(
       "https://salarypadi.com/account?profile=error",
     );
+  });
+
+  it("returns unavailable when profile persistence transport throws", async () => {
+    mocks.rpc.mockRejectedValue(new Error("transport unavailable"));
+
+    const response = await POST(profileRequest());
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });

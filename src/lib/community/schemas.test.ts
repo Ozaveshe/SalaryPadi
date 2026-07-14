@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  communityWriteStatus,
   communityProfileSchema,
   feedPostSchema,
   forumReplySchema,
@@ -73,5 +74,13 @@ describe("community form schemas", () => {
         content_id: "not-an-id",
       }).success,
     ).toBe(false);
+  });
+
+  it("does not label an invalid success payload as published", () => {
+    expect(communityWriteStatus(null, false)).toBe("error");
+    expect(communityWriteStatus(null, true)).toBe("published");
+    expect(
+      communityWriteStatus({ message: "Rate limit exceeded" }, false),
+    ).toBe("rate-limit");
   });
 });

@@ -29,6 +29,7 @@ export interface LifecycleDecision extends LifecycleEvidence {
     | "deadline_elapsed"
     | "manual_reconfirmation_overdue"
     | "non_authoritative_run"
+    | "stale_event"
     | "no_change";
 }
 
@@ -39,6 +40,18 @@ function parsed(value: string) {
   const result = Date.parse(value);
   if (!Number.isFinite(result)) throw new Error("invalid_lifecycle_timestamp");
   return result;
+}
+
+function latestObservedEvidenceAt(current: LifecycleEvidence) {
+  return Math.max(
+    parsed(current.lastConfirmedAt),
+    current.firstSuccessfulAbsenceAt
+      ? parsed(current.firstSuccessfulAbsenceAt)
+      : Number.NEGATIVE_INFINITY,
+    current.lastSuccessfulAbsenceAt
+      ? parsed(current.lastSuccessfulAbsenceAt)
+      : Number.NEGATIVE_INFINITY,
+  );
 }
 
 function result(
@@ -60,6 +73,9 @@ export function reconcileLifecycle(
 ): LifecycleDecision {
   const eventAt = parsed(event.at);
   if (current.state === "closed") return result(current, {}, "no_change");
+  if (eventAt < latestObservedEvidenceAt(current)) {
+    return result(current, {}, "stale_event");
+  }
 
   if (event.type === "confirmed_closed") {
     return result(current, { state: "closed" }, "confirmed_source_closure");

@@ -40,8 +40,12 @@ export const removeCommunityContentSchema = z.object({
   return_to: z.string().optional(),
 });
 
-export function communityWriteStatus(error: { message?: string } | null) {
-  if (!error) return "published";
+export function communityWriteStatus(
+  error: { message?: string } | null,
+  succeeded = !error,
+) {
+  if (succeeded) return "published";
+  if (!error) return "error";
   return error.message?.toLowerCase().includes("rate limit")
     ? "rate-limit"
     : "error";

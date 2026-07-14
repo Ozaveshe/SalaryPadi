@@ -6,6 +6,8 @@ import {
 } from "../../../src/lib/jobs/ats";
 import type { AtsImportJob } from "../../../src/lib/jobs/ats-import";
 import {
+  assertAtsBatchAcknowledgement,
+  assertAtsFinalizeAcknowledgement,
   chunkAtsImportRecords,
   config as atsSourceSyncConfig,
   fetchAtsWithRetry,
@@ -110,12 +112,63 @@ function fetched(overrides: Partial<AtsFetchResult> = {}): AtsFetchResult {
   };
 }
 
+type StoreAck = Parameters<typeof assertAtsBatchAcknowledgement>[0];
+type FinalizeAck = Parameters<typeof assertAtsFinalizeAcknowledgement>[0];
+
+function storeAck(overrides: Partial<StoreAck> = {}): StoreAck {
+  return {
+    accepted_count: 1,
+    created_count: 1,
+    updated_count: 0,
+    unchanged_count: 0,
+    ...overrides,
+  };
+}
+
+function finalizeAck(overrides: Partial<FinalizeAck> = {}): FinalizeAck {
+  return {
+    outcome: "complete",
+    fetched_count: 1,
+    expected_record_count: 1,
+    filtered_count: 0,
+    created_count: 1,
+    updated_count: 0,
+    unchanged_count: 0,
+    expired_count: 0,
+    error_count: 0,
+    ...overrides,
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("ATS source sync worker", () => {
+  it("rejects acknowledgements that do not match the ATS operation", () => {
+    expect(() =>
+      assertAtsBatchAcknowledgement(
+        {
+          accepted_count: 1,
+          created_count: 0,
+          updated_count: 0,
+          unchanged_count: 0,
+        },
+        1,
+      ),
+    ).toThrow("ats_import_batch_ack_mismatch");
+
+    expect(() =>
+      assertAtsFinalizeAcknowledgement(finalizeAck(), {
+        complete: true,
+        providerRecordCount: 2,
+        expectedRecordCount: 1,
+        errorCount: 0,
+      }),
+    ).toThrow("ats_import_finalize_ack_mismatch");
+  });
+
   it("offers ninety-six bounded source-claim opportunities per day", () => {
     expect(atsSourceSyncConfig.schedule).toBe("2,17,32,47 * * * *");
   });
@@ -140,6 +193,7 @@ describe("ATS source sync worker", () => {
           kind: "employer",
           authorizedBy: "Example Recruiting Operations",
           reviewedAt: "2026-07-11T10:00:00.000Z",
+          expiresAt: "2027-07-11T10:00:00.000Z",
           evidenceReference: "test:example-permission",
           allowedDestinations: [
             { host: "boards.greenhouse.io", pathPrefixes: ["/example"] },
@@ -185,6 +239,32 @@ describe("ATS source sync worker", () => {
     expect(fetchSource).not.toHaveBeenCalled();
   });
 
+  it("reports exhausted run time instead of claiming that sources were not due", async () => {
+    setEnvironment("true");
+    const callRpc = vi.fn().mockResolvedValue([policyRow()]);
+    const fetchSource = vi.fn();
+
+    await expect(
+      runAtsSourceSync(
+        {
+          signal: new AbortController().signal,
+          remainingMs: () => 5_999,
+        },
+        { rpc: callRpc, fetchSource, now: () => now },
+      ),
+    ).rejects.toMatchObject({
+      code: "ats_source_sync_time_budget_exhausted",
+      summary: {
+        configured_sources: 1,
+        inspected_sources: 0,
+        deferred_sources: 1,
+        inspection_stopped: "time_budget",
+      },
+    });
+    expect(callRpc).toHaveBeenCalledOnce();
+    expect(fetchSource).not.toHaveBeenCalled();
+  });
+
   it("claims, imports and finalizes a complete source snapshot", async () => {
     setEnvironment("true");
     const events: string[] = [];
@@ -215,7 +295,7 @@ describe("ATS source sync worker", () => {
               eligibility: expect.objectContaining({ scope: "worldwide" }),
             }),
           ]);
-          return { created_count: 1 };
+          return storeAck();
         }
         if (name === "worker_finalize_ats_snapshot") {
           expect(parameters).toMatchObject({
@@ -223,7 +303,7 @@ describe("ATS source sync worker", () => {
             p_quarantined_count: 0,
             p_error_codes: [],
           });
-          return { outcome: "complete", created_count: 1 };
+          return finalizeAck();
         }
         throw new Error(`Unexpected RPC ${name}`);
       },
@@ -281,10 +361,10 @@ describe("ATS source sync worker", () => {
         ];
       }
       if (name === "worker_store_ats_snapshot_batch") {
-        return { created_count: 1 };
+        return storeAck();
       }
       if (name === "worker_finalize_ats_snapshot") {
-        return { outcome: "complete" };
+        return finalizeAck();
       }
       throw new Error(`Unexpected RPC ${name}`);
     });
@@ -336,7 +416,11 @@ describe("ATS source sync worker", () => {
             p_complete: true,
             p_quarantined_count: 0,
           });
-          return { outcome: "complete", expired_count: 0 };
+          return finalizeAck({
+            fetched_count: 0,
+            expected_record_count: 0,
+            created_count: 0,
+          });
         }
         throw new Error(`Unexpected RPC ${name}`);
       },
@@ -392,7 +476,11 @@ describe("ATS source sync worker", () => {
             p_quarantined_count: 0,
             p_error_codes: [],
           });
-          return { outcome: "complete" };
+          return finalizeAck({
+            expected_record_count: 0,
+            filtered_count: 1,
+            created_count: 0,
+          });
         }
         throw new Error(`Unexpected RPC ${name}`);
       },
@@ -486,15 +574,19 @@ describe("ATS source sync worker", () => {
               should_run: true,
             },
           ];
-        if (name === "worker_store_ats_snapshot_batch")
-          return { created_count: 1 };
+        if (name === "worker_store_ats_snapshot_batch") return storeAck();
         if (name === "worker_finalize_ats_snapshot") {
           expect(parameters).toMatchObject({
             p_complete: false,
             p_quarantined_count: 1,
             p_error_codes: ["ats_invalid_records"],
           });
-          return { outcome: "partial" };
+          return finalizeAck({
+            outcome: "partial",
+            fetched_count: 2,
+            filtered_count: 1,
+            error_count: 2,
+          });
         }
         throw new Error(`Unexpected RPC ${name}`);
       },
@@ -570,7 +662,11 @@ describe("ATS source sync worker", () => {
       }),
     ).rejects.toMatchObject({
       code: "ats_source_sync_incomplete",
-      summary: { failed_sources: 1, provider_records: 401 },
+      summary: {
+        failed_sources: 1,
+        provider_records: 401,
+        failure_codes: ["ats_source_record_limit_exceeded"],
+      },
     });
     expect(callRpc).not.toHaveBeenCalledWith(
       "worker_begin_ats_snapshot",
@@ -609,7 +705,12 @@ describe("ATS source sync worker", () => {
         }
         if (name === "worker_finalize_ats_snapshot") {
           cleanupSignal = options?.signal;
-          return { outcome: "failed" };
+          return finalizeAck({
+            outcome: "failed",
+            expected_record_count: 0,
+            created_count: 0,
+            error_count: 1,
+          });
         }
         throw new Error(`Unexpected RPC ${name}`);
       },
@@ -633,6 +734,51 @@ describe("ATS source sync worker", () => {
     expect(cleanupSignal).toBeDefined();
     expect(cleanupSignal).not.toBe(operation.signal);
     expect(cleanupSignal?.aborted).toBe(false);
+  });
+
+  it("exposes an unavailable terminal snapshot write in the aggregate summary", async () => {
+    setEnvironment("true");
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const callRpc = vi.fn(async (name: string): Promise<unknown> => {
+      if (name === "worker_list_authorized_ats_sources") {
+        return [policyRow()];
+      }
+      if (name === "worker_claim_authorized_ats_source") {
+        return claimedPolicy();
+      }
+      if (name === "worker_begin_ats_snapshot") {
+        return [
+          {
+            import_run_id: "30000000-0000-4000-8000-000000000001",
+            should_run: true,
+          },
+        ];
+      }
+      if (name === "worker_store_ats_snapshot_batch") {
+        throw new Error("store failed");
+      }
+      if (name === "worker_finalize_ats_snapshot") {
+        throw new Error("terminal write failed");
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+
+    await expect(
+      runAtsSourceSync(execution(), {
+        rpc: callRpc,
+        fetchSource: vi.fn().mockResolvedValue(fetched()),
+        now: () => now,
+        randomUuid: () => "40000000-0000-4000-8000-000000000001",
+      }),
+    ).rejects.toMatchObject({
+      code: "ats_source_sync_incomplete",
+      summary: {
+        failed_sources: 1,
+        secondary_failure_count: 1,
+        secondary_failure_codes: ["worker_failed"],
+      },
+    });
+    expect(warning).toHaveBeenCalledOnce();
   });
 });
 

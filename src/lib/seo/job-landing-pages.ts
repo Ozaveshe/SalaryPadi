@@ -1,4 +1,5 @@
 import type { Job } from "@/lib/jobs/types";
+import { isJobCurrentlyPublishable } from "@/lib/jobs/publication";
 
 export type JobLandingKey =
   | "remote_nigeria"
@@ -176,8 +177,16 @@ function isNigeriaRelevant(job: Job) {
   );
 }
 
-export function matchesJobLanding(job: Job, key: JobLandingKey) {
-  if (job.status !== "open") return false;
+function isPhysicalWorkMode(job: Job) {
+  return job.workMode === "onsite" || job.workMode === "hybrid";
+}
+
+export function matchesJobLanding(
+  job: Job,
+  key: JobLandingKey,
+  now = new Date(),
+) {
+  if (!isJobCurrentlyPublishable(job, now)) return false;
   const text = searchableJobText(job);
   switch (key) {
     case "remote_nigeria":
@@ -186,7 +195,7 @@ export function matchesJobLanding(job: Job, key: JobLandingKey) {
       );
     case "nigeria_local":
       return (
-        job.workMode !== "remote" && /\bnigeria\b/i.test(job.locationDisplay)
+        isPhysicalWorkMode(job) && /\bnigeria\b/i.test(job.locationDisplay)
       );
     case "nigeria_graduate":
       return (
@@ -222,8 +231,6 @@ export function matchesJobLanding(job: Job, key: JobLandingKey) {
         )
       );
     case "city_lagos":
-      return (
-        job.workMode !== "remote" && /\blagos\b/i.test(job.locationDisplay)
-      );
+      return isPhysicalWorkMode(job) && /\blagos\b/i.test(job.locationDisplay);
   }
 }

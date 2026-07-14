@@ -1,8 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
-const localBaseURL = "http://127.0.0.1:3000";
+const localBaseURL = "http://127.0.0.1:3100";
 const requireLiveAfroTools = process.env.REQUIRE_LIVE_AFROTOOLS === "true";
+
+if (!externalBaseURL) process.env.PLAYWRIGHT_BASE_URL = localBaseURL;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -38,16 +40,17 @@ export default defineConfig({
     ? undefined
     : {
         command: process.env.CI
-          ? "npm run start -- --hostname 127.0.0.1"
-          : "npm run dev -- --hostname 127.0.0.1",
+          ? "npm run start -- --hostname 127.0.0.1 --port 3100"
+          : "npm run dev -- --hostname 127.0.0.1 --port 3100",
         url: localBaseURL,
-        reuseExistingServer: !process.env.CI,
+        // Reusing an arbitrary listener can run this suite against a different
+        // local Next app. A collision must fail visibly instead.
+        reuseExistingServer: false,
         env: {
           ...process.env,
           ...(requireLiveAfroTools ? {} : { AFROTOOLS_API_KEY: "" }),
-          NEXT_PUBLIC_APP_URL: process.env.CI
-            ? (process.env.NEXT_PUBLIC_APP_URL ?? "https://salarypadi.test")
-            : localBaseURL,
+          NEXT_PUBLIC_APP_URL: localBaseURL,
+          SALARYPADI_LOCAL_E2E: process.env.CI ? "true" : "false",
         },
       },
 });

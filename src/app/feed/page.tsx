@@ -5,6 +5,7 @@ import { CommunityActions } from "@/components/community/community-actions";
 import { CommunityIdentityFields } from "@/components/community/community-fields";
 import { CommunityStatus } from "@/components/community/community-status";
 import { PageHeading } from "@/components/page-heading";
+import { RepositoryNotice } from "@/components/repository-notice";
 import { getViewer } from "@/lib/auth/dal";
 import { feedCategories, getFeedPage } from "@/lib/community/repository";
 import { formatDate, formatEnum } from "@/lib/format";
@@ -27,11 +28,12 @@ export default async function FeedPage({
   const category = sliceSearchParam(input.category, 40);
   const state = sliceSearchParam(input.state, 4).toUpperCase();
   const viewer = await getViewer();
-  const data = await getFeedPage({
+  const result = await getFeedPage({
     category,
     state,
     includeProfile: viewer.state === "authenticated",
   });
+  const data = result.data;
 
   return (
     <div className="site-shell stack-lg">
@@ -44,13 +46,9 @@ export default async function FeedPage({
         reported={firstSearchParam(input.reported)}
         status={firstSearchParam(input.status)}
       />
-      {data.loadError ? (
-        <div className="notice notice-warning" role="status">
-          The feed could not be refreshed. Please try again shortly.
-        </div>
-      ) : null}
+      <RepositoryNotice resource="Community posts" result={result} />
 
-      {viewer.state === "authenticated" ? (
+      {viewer.state === "authenticated" && result.state === "ready" ? (
         <details
           className="surface community-composer"
           open={data.posts.length === 0}
@@ -102,7 +100,7 @@ export default async function FeedPage({
             </button>
           </form>
         </details>
-      ) : (
+      ) : viewer.state !== "authenticated" ? (
         <div className="surface surface-pad split">
           <div>
             <h2 className="m-0 text-xl font-bold">Join the conversation</h2>
@@ -114,7 +112,7 @@ export default async function FeedPage({
             Sign in to post
           </Link>
         </div>
-      )}
+      ) : null}
 
       <form
         className="surface surface-pad community-filters"
@@ -202,14 +200,14 @@ export default async function FeedPage({
               </article>
             ))}
           </div>
-        ) : (
+        ) : result.state === "ready" ? (
           <div className="empty-state">
             <h3 className="section-title">No posts match yet</h3>
             <p>
               Try the nationwide view or be the first to share something useful.
             </p>
           </div>
-        )}
+        ) : null}
       </section>
     </div>
   );

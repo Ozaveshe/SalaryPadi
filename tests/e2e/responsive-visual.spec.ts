@@ -74,6 +74,7 @@ test("captures responsive home and completed calculator surfaces", async ({
   await page.screenshot({
     path: testInfo.outputPath("homepage.png"),
     fullPage: true,
+    caret: "initial",
   });
   await expectResponsiveNavigation(page);
 
@@ -116,6 +117,7 @@ test("captures responsive home and completed calculator surfaces", async ({
         : "take-home-fail-closed.png",
     ),
     fullPage: true,
+    caret: "initial",
     mask: [page.getByLabel("Salary amount"), page.locator(".data-list dd")],
   });
 });
@@ -151,6 +153,7 @@ test("captures the public decision path at each configured viewport", async ({
     await page.screenshot({
       path: testInfo.outputPath(`${name}-surface.png`),
       fullPage: true,
+      caret: "initial",
     });
   }
 });
@@ -174,6 +177,7 @@ test("keeps the core path usable at the 320px lower bound", async ({
     await page.screenshot({
       path: testInfo.outputPath(`${name}-320.png`),
       fullPage: true,
+      caret: "initial",
     });
   }
 });

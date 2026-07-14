@@ -61,6 +61,7 @@ describe("authorized ATS runtime policy", () => {
         authorization: {
           kind: "employer",
           authorizedBy: "Example Recruiting Operations",
+          expiresAt: "2027-07-11T10:00:00.000Z",
           evidenceReference: "vault:source-permission/example/2026-07-11",
           allowedDestinations: [
             { host: "boards.greenhouse.io", pathPrefixes: ["/example"] },
@@ -87,9 +88,18 @@ describe("authorized ATS runtime policy", () => {
     { authorization_grantor: null },
     { authorization_expires_at: "2026-07-11T11:00:00.000Z" },
     { authorization_reviewed_at: "2026-07-11T13:00:00.000Z" },
+    {
+      authorization_reviewed_at: "2026-07-11T10:00:00.000Z",
+      authorization_expires_at: "2026-07-11T09:00:00.000Z",
+    },
     { allowed_destination_path_prefixes: ["/one"] },
     { provider: "ashby", provider_region: "eu" },
     { minimum_request_spacing_seconds: 50_000 },
+    { may_emit_jobposting_schema: true, may_index_jobs: false },
+    { attribution_required: true, attribution_text: null },
+    { attribution_required: true, attribution_text: "   " },
+    { homepage_url: "http://example.com/careers" },
+    { terms_url: "javascript:alert(1)" },
   ])("fails closed for invalid policy %#", (override) => {
     expect(() =>
       parseAuthorizedAtsRuntimePolicies([row(override)], currentTime),

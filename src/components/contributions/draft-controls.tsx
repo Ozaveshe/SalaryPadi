@@ -2,14 +2,23 @@
 
 import { useEffect, useState } from "react";
 
+import {
+  contributionDraftDeleteResponseSchema,
+  contributionDraftResponseSchema,
+  type ContributionDraft,
+} from "@/lib/contributions/draft-contract";
+
+const DRAFT_REQUEST_TIMEOUT_MS = 8_000;
 import type { ContributionKind } from "@/lib/contributions/schemas";
+import { discardResponseBody } from "@/lib/http/body";
+import { readBoundedJson } from "@/lib/http/json";
 
-type DraftEnvelope = {
-  payload?: Record<string, string | number | boolean | string[]>;
-};
+const DRAFT_RESPONSE_MAX_BYTES = 70_000;
 
-function applyDraft(form: HTMLFormElement, payload: DraftEnvelope["payload"]) {
-  if (!payload) return;
+function applyDraft(
+  form: HTMLFormElement,
+  payload: ContributionDraft["payload"],
+) {
   for (const [name, value] of Object.entries(payload)) {
     const controls = form.elements.namedItem(name);
     if (!controls) continue;
@@ -55,11 +64,19 @@ export function DraftControls({
     void fetch(`/api/contributions/drafts?kind=${kind}`, {
       cache: "no-store",
       credentials: "same-origin",
-      signal: controller.signal,
+      redirect: "error",
+      signal: AbortSignal.any([
+        controller.signal,
+        AbortSignal.timeout(DRAFT_REQUEST_TIMEOUT_MS),
+      ]),
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error("draft unavailable");
-        return (await response.json()) as { draft: DraftEnvelope | null };
+        if (!response.ok) {
+          await discardResponseBody(response);
+          throw new Error("draft unavailable");
+        }
+        const body = await readBoundedJson(response, DRAFT_RESPONSE_MAX_BYTES);
+        return contributionDraftResponseSchema.parse(body);
       })
       .then(({ draft }) => {
         const form = document.getElementById(formId);
@@ -82,27 +99,50 @@ export function DraftControls({
     const form = document.getElementById(formId);
     if (!(form instanceof HTMLFormElement)) return;
     setMessage("Saving private draft…");
-    const response = await fetch("/api/contributions/drafts", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, payload: serialiseForm(form) }),
-    });
-    setMessage(
-      response.ok
-        ? "Private draft saved for up to 90 days."
-        : "Draft was not saved; your form remains unchanged.",
-    );
+    try {
+      const response = await fetch("/api/contributions/drafts", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, payload: serialiseForm(form) }),
+        redirect: "error",
+        signal: AbortSignal.timeout(DRAFT_REQUEST_TIMEOUT_MS),
+      });
+      const saved = response.ok;
+      await discardResponseBody(response);
+      setMessage(
+        saved
+          ? "Private draft saved for up to 90 days."
+          : "Draft was not saved; your form remains unchanged.",
+      );
+    } catch {
+      setMessage("Draft storage is unavailable; your form remains unchanged.");
+    }
   }
 
   async function deleteDraft() {
-    const response = await fetch(`/api/contributions/drafts?kind=${kind}`, {
-      method: "DELETE",
-      credentials: "same-origin",
-    });
-    setMessage(
-      response.ok ? "Private draft deleted." : "Draft could not be deleted.",
-    );
+    try {
+      const response = await fetch(`/api/contributions/drafts?kind=${kind}`, {
+        method: "DELETE",
+        cache: "no-store",
+        credentials: "same-origin",
+        redirect: "error",
+        signal: AbortSignal.timeout(DRAFT_REQUEST_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        await discardResponseBody(response);
+        setMessage("Draft could not be deleted.");
+        return;
+      }
+      const body = await readBoundedJson(response, DRAFT_RESPONSE_MAX_BYTES);
+      const result = contributionDraftDeleteResponseSchema.parse(body);
+      setMessage(
+        result.deleted ? "Private draft deleted." : "No saved draft was found.",
+      );
+    } catch {
+      setMessage("Draft storage is unavailable; the draft was not deleted.");
+    }
   }
 
   return (

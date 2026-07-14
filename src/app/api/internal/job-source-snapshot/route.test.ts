@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
+
 import { normalizeRemotiveJob } from "@/lib/jobs/normalize";
 import type { RemotiveJob } from "@/lib/jobs/remotive-schema";
 

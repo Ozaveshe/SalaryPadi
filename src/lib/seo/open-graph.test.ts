@@ -108,7 +108,7 @@ describe("dynamic Open Graph image models", () => {
       company_slug: company.slug,
       sample_size: 4,
       overall_rating: 4.2,
-      confidence_label: "medium",
+      confidence_label: "medium" as const,
       computed_at: "2026-07-12T00:00:00.000Z",
     };
 

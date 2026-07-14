@@ -17,10 +17,10 @@ export const metadata: Metadata = {
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ profile?: string }>;
+  searchParams: Promise<{ profile?: string; auth?: string }>;
 }) {
   const viewer = await requireViewer("/account");
-  const { profile: profileStatus } = await searchParams;
+  const { profile: profileStatus, auth: authStatus } = await searchParams;
   const profileResult = await getCommunityAccountData();
   const { profile, states } = profileResult.data;
 
@@ -31,6 +31,13 @@ export default async function AccountPage({
         title="My account"
         description="Manage the identity, alerts and security controls attached to your SalaryPadi account. Your email and private career records are never shown on community posts."
       />
+
+      {authStatus === "sign-out-error" ? (
+        <div className="notice notice-danger" role="alert">
+          Sign-out could not be confirmed. Your session may still be active; try
+          again before leaving this device.
+        </div>
+      ) : null}
 
       {profileStatus === "updated" ? (
         <div className="notice" role="status">

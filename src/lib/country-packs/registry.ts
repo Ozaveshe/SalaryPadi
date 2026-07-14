@@ -5,12 +5,20 @@ import rawRegistry from "../../../config/country-packs.json";
 const countryCodeSchema = z.string().regex(/^[A-Z]{2}$/);
 const localeSchema = z
   .object({
-    tag: z.string().min(2).max(35),
+    tag: z
+      .string()
+      .min(2)
+      .max(35)
+      .regex(/^[a-z]{2,3}(?:-[A-Z]{2})?$/),
     language: z.string().regex(/^[a-z]{2,3}$/),
     direction: z.enum(["ltr", "rtl"]),
     contentStatus: z.enum(["configured", "reviewed"]),
   })
-  .strict();
+  .strict()
+  .refine((locale) => locale.tag.startsWith(locale.language), {
+    path: ["tag"],
+    message: "locale tag must match its language",
+  });
 
 const thresholdsSchema = z
   .object({
@@ -32,7 +40,15 @@ const countryPackSchema = z
     currencyCode: z.string().regex(/^[A-Z]{3}$/),
     defaultLocale: z.string().min(2).max(35),
     defaultTimeZone: z.string().min(3).max(100),
-    locales: z.array(localeSchema).min(1),
+    locales: z
+      .array(localeSchema)
+      .min(1)
+      .max(20)
+      .refine(
+        (locales) =>
+          new Set(locales.map((locale) => locale.tag)).size === locales.length,
+        { message: "locale tags must be unique" },
+      ),
     terminology: z
       .object({
         subdivisionSingular: z.string().min(2).max(40),
@@ -70,6 +86,15 @@ const countryPackSchema = z
         message: "search indexing requires public routes",
       });
     }
+    const launchState = ["launch", "active"].includes(pack.activation.state);
+    if (pack.activation.publicRoutesEnabled !== launchState) {
+      context.addIssue({
+        code: "custom",
+        path: ["activation", "publicRoutesEnabled"],
+        message:
+          "public routes must be enabled exactly for launch or active packs",
+      });
+    }
     if (
       (pack.activation.publicRoutesEnabled ||
         pack.activation.searchIndexEnabled) &&
@@ -87,34 +112,44 @@ const countryPackSchema = z
     }
   });
 
-const registrySchema = z
+export const countryPackRegistrySchema = z
   .object({
     schemaVersion: z.literal(1),
     routeStrategy: z.literal("launch-market-unprefixed"),
     defaultCountryCode: countryCodeSchema,
-    packs: z.array(countryPackSchema).min(1),
+    packs: z.array(countryPackSchema).min(1).max(60),
   })
   .strict()
   .superRefine((registry, context) => {
     const countryCodes = new Set<string>();
     const routePrefixes = new Set<string>();
-    for (const pack of registry.packs) {
-      if (countryCodes.has(pack.countryCode)) {
+    const iso3Codes = new Set<string>();
+    const slugs = new Set<string>();
+    for (const [index, pack] of registry.packs.entries()) {
+      for (const [field, values] of [
+        ["countryCode", countryCodes],
+        ["iso3", iso3Codes],
+        ["slug", slugs],
+        ["routePrefix", routePrefixes],
+      ] as const) {
+        const value = pack[field];
+        if (values.has(value)) {
+          context.addIssue({
+            code: "custom",
+            path: ["packs", index, field],
+            message: `duplicate country pack ${field} ${value}`,
+          });
+        }
+        values.add(value);
+      }
+      const isDefault = pack.countryCode === registry.defaultCountryCode;
+      if ((pack.routePrefix === "") !== isDefault) {
         context.addIssue({
           code: "custom",
-          path: ["packs"],
-          message: `duplicate country code ${pack.countryCode}`,
+          path: ["packs", index, "routePrefix"],
+          message: "only the default country may use the unprefixed route",
         });
       }
-      if (routePrefixes.has(pack.routePrefix)) {
-        context.addIssue({
-          code: "custom",
-          path: ["packs"],
-          message: `duplicate route prefix ${pack.routePrefix}`,
-        });
-      }
-      countryCodes.add(pack.countryCode);
-      routePrefixes.add(pack.routePrefix);
     }
     if (!countryCodes.has(registry.defaultCountryCode)) {
       context.addIssue({
@@ -129,7 +164,8 @@ export type CountryPack = z.infer<typeof countryPackSchema>;
 export type CountryPackCode = CountryPack["countryCode"];
 export type CountryPackThresholds = z.infer<typeof thresholdsSchema>;
 
-export const COUNTRY_PACK_REGISTRY = registrySchema.parse(rawRegistry);
+export const COUNTRY_PACK_REGISTRY =
+  countryPackRegistrySchema.parse(rawRegistry);
 export const COUNTRY_PACKS = COUNTRY_PACK_REGISTRY.packs;
 
 const packsByCode = new Map(

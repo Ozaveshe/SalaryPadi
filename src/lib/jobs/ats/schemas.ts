@@ -1,9 +1,11 @@
 import { z } from "zod";
 
+import { externalHttpsUrlSchema } from "@/lib/security/url-schema";
+
 const MAX_PROVIDER_RECORDS = 2_000;
 const shortText = z.string().trim().min(1).max(500);
 const longText = z.string().max(500_000);
-const httpsUrl = z.string().url().max(2_048);
+const httpsUrl = externalHttpsUrlSchema;
 const providerDate = z.string().datetime({ offset: true, local: true });
 
 /*

@@ -1,6 +1,15 @@
-import { z } from "zod";
-
+import { attemptApiOperation } from "@/lib/api/operation";
+import {
+  apiRpcBooleanResultSchema,
+  apiRpcUuidResultSchema,
+  decodeApiRpcResult,
+} from "@/lib/api/rpc-result";
 import { getAuthenticatedApiContext } from "@/lib/auth/api";
+import {
+  contributionDraftResponseSchema,
+  contributionDraftSaveRequestSchema,
+} from "@/lib/contributions/draft-contract";
+import { contributionKindSchema } from "@/lib/contributions/schemas";
 import { getServerEnvironment } from "@/lib/env";
 import {
   JsonBodyError,
@@ -8,24 +17,6 @@ import {
   readBoundedJson,
 } from "@/lib/http/json";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
-
-const kindSchema = z.enum([
-  "salary",
-  "review",
-  "interview",
-  "benefits",
-  "pay_reliability",
-]);
-const draftValueSchema = z.union([
-  z.string().max(5_000),
-  z.number().finite(),
-  z.boolean(),
-  z.array(z.string().max(500)).max(50),
-]);
-const requestSchema = z.object({
-  kind: kindSchema,
-  payload: z.record(z.string().max(120), draftValueSchema),
-});
 
 function hasProhibitedEvidence(payload: Record<string, unknown>) {
   return Object.keys(payload).some((key) =>
@@ -36,7 +27,7 @@ function hasProhibitedEvidence(payload: Record<string, unknown>) {
 }
 
 export async function GET(request: Request) {
-  const kind = kindSchema.safeParse(
+  const kind = contributionKindSchema.safeParse(
     new URL(request.url).searchParams.get("kind"),
   );
   if (!kind.success)
@@ -45,26 +36,41 @@ export async function GET(request: Request) {
     );
   const authenticated = await getAuthenticatedApiContext();
   if (!authenticated.ok) return noStoreResponse(authenticated.response);
-  const { data, error } = await authenticated.supabase
-    .schema("api")
-    .rpc("load_contribution_draft" as never, { p_kind: kind.data } as never);
-  return noStoreResponse(
-    error
-      ? Response.json(
-          { error: "Draft storage is unavailable." },
+  const operation = await attemptApiOperation(
+    "contributions.drafts.load",
+    "contribution_draft_load_failed",
+    "Draft storage is unavailable.",
+    () =>
+      authenticated.supabase.schema("api").rpc(
+        "load_contribution_draft" as never,
+        {
+          p_kind: kind.data,
+        } as never,
+      ),
+  );
+  if (!operation.ok) return operation.response;
+  const { data, error } = operation.value;
+  if (!error) {
+    const parsedDraft = contributionDraftResponseSchema.safeParse({
+      draft: data ?? null,
+    });
+    if (!parsedDraft.success)
+      return noStoreResponse(
+        Response.json(
+          { error: "Draft storage returned invalid data." },
           { status: 503 },
-        )
-      : Response.json({ draft: data ?? null }),
+        ),
+      );
+    return noStoreResponse(Response.json(parsedDraft.data));
+  }
+  return noStoreResponse(
+    Response.json({ error: "Draft storage is unavailable." }, { status: 503 }),
   );
 }
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
   if (crossOrigin) return crossOrigin;
-  if (Number(request.headers.get("content-length") ?? "0") > 70_000)
-    return noStoreResponse(
-      Response.json({ error: "Draft is too large." }, { status: 413 }),
-    );
   let body: unknown;
   try {
     body = await readBoundedJson(request, 70_000);
@@ -80,8 +86,12 @@ export async function POST(request: Request) {
       ),
     );
   }
-  const parsed = requestSchema.safeParse(body);
-  if (!parsed.success || hasProhibitedEvidence(parsed.data.payload))
+  const parsed = contributionDraftSaveRequestSchema.safeParse(body);
+  if (!parsed.success)
+    return noStoreResponse(
+      Response.json({ error: "Invalid draft fields." }, { status: 400 }),
+    );
+  if (hasProhibitedEvidence(parsed.data.payload))
     return noStoreResponse(
       Response.json(
         { error: "Documents and work-email evidence are not accepted." },
@@ -93,23 +103,36 @@ export async function POST(request: Request) {
   // Database-side checks are authoritative. This read prevents accidentally
   // accepting drafts in a production environment with the secure migration absent.
   getServerEnvironment();
-  const { data, error } = await authenticated.supabase
-    .schema("api")
-    .rpc(
-      "save_contribution_draft" as never,
-      { p_kind: parsed.data.kind, p_payload: parsed.data.payload } as never,
-    );
+  const operation = await attemptApiOperation(
+    "contributions.drafts.save",
+    "contribution_draft_save_failed",
+    "Draft was not saved.",
+    () =>
+      authenticated.supabase
+        .schema("api")
+        .rpc(
+          "save_contribution_draft" as never,
+          { p_kind: parsed.data.kind, p_payload: parsed.data.payload } as never,
+        ),
+  );
+  if (!operation.ok) return operation.response;
+  const result = decodeApiRpcResult(
+    "contributions.drafts.save",
+    "contribution_draft_save_failed",
+    operation.value,
+    apiRpcUuidResultSchema,
+  );
   return noStoreResponse(
-    error
+    !result.ok
       ? Response.json({ error: "Draft was not saved." }, { status: 503 })
-      : Response.json({ id: data, saved: true }),
+      : Response.json({ id: result.data, saved: true }),
   );
 }
 
 export async function DELETE(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
   if (crossOrigin) return crossOrigin;
-  const kind = kindSchema.safeParse(
+  const kind = contributionKindSchema.safeParse(
     new URL(request.url).searchParams.get("kind"),
   );
   if (!kind.success)
@@ -118,12 +141,28 @@ export async function DELETE(request: Request) {
     );
   const authenticated = await getAuthenticatedApiContext();
   if (!authenticated.ok) return noStoreResponse(authenticated.response);
-  const { error } = await authenticated.supabase
-    .schema("api")
-    .rpc("delete_contribution_draft" as never, { p_kind: kind.data } as never);
+  const operation = await attemptApiOperation(
+    "contributions.drafts.delete",
+    "contribution_draft_delete_failed",
+    "Draft was not deleted.",
+    () =>
+      authenticated.supabase
+        .schema("api")
+        .rpc(
+          "delete_contribution_draft" as never,
+          { p_kind: kind.data } as never,
+        ),
+  );
+  if (!operation.ok) return operation.response;
+  const result = decodeApiRpcResult(
+    "contributions.drafts.delete",
+    "contribution_draft_delete_failed",
+    operation.value,
+    apiRpcBooleanResultSchema,
+  );
   return noStoreResponse(
-    error
+    !result.ok
       ? Response.json({ error: "Draft was not deleted." }, { status: 503 })
-      : Response.json({ deleted: true }),
+      : Response.json({ deleted: result.data }),
   );
 }

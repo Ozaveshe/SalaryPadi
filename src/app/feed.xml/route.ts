@@ -1,4 +1,4 @@
-import { getPublishedEditorial } from "@/lib/editorial/repository";
+import { getPublishedEditorialResult } from "@/lib/editorial/repository";
 import { getAppOrigin } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +14,8 @@ function escapeXml(value: string) {
 
 export async function GET() {
   const origin = getAppOrigin();
-  const articles = await getPublishedEditorial();
-  const items = articles
+  const result = await getPublishedEditorialResult();
+  const items = result.data
     .map((article) => {
       const path =
         article.slug === "remote-jobs-open-to-nigerians"
@@ -29,8 +29,11 @@ export async function GET() {
   return new Response(xml, {
     headers: {
       "Content-Type": "application/rss+xml; charset=utf-8",
+      "X-SalaryPadi-Editorial-State": result.state,
       "Cache-Control":
-        "public, max-age=0, s-maxage=900, stale-while-revalidate=3600",
+        result.state === "ready"
+          ? "public, max-age=0, s-maxage=900, stale-while-revalidate=3600"
+          : "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
     },
   });
 }

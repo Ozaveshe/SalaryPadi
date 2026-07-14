@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { readApiForm } from "@/lib/api/form";
+import { attemptRepositoryOperation } from "@/lib/data/repository-operation";
+import { repositoryIssue } from "@/lib/data/repository-result";
 import { getAppOrigin } from "@/lib/env";
+import { noStoreResponse } from "@/lib/http/json";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
 import { safeRelativePath } from "@/lib/security/urls";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -15,29 +19,49 @@ export async function POST(request: Request) {
   const crossOriginResponse = rejectCrossOriginRequest(request);
   if (crossOriginResponse) return crossOriginResponse;
 
-  const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (contentLength > 10_000) {
-    return Response.json({ error: "Request is too large." }, { status: 413 });
-  }
-
-  const formData = await request.formData();
+  const form = await readApiForm(request, 10_000, {
+    invalidMessage: "Invalid sign-in form.",
+  });
+  if (!form.ok) return form.response;
+  const formData = form.data;
   const parsed = signInSchema.safeParse({
     email: formData.get("email"),
     next: formData.get("next"),
   });
 
   if (!parsed.success) {
-    return NextResponse.redirect(
-      new URL("/auth/sign-in?status=error", getAppOrigin()),
-      303,
+    return noStoreResponse(
+      NextResponse.redirect(
+        new URL("/auth/sign-in?status=error", getAppOrigin()),
+        303,
+      ),
     );
   }
 
-  const supabase = await createServerSupabaseClient();
+  const clientAttempt = await attemptRepositoryOperation(() =>
+    createServerSupabaseClient(),
+  );
+  if (!clientAttempt.ok) {
+    repositoryIssue(
+      "auth.sign_in.client",
+      "query_failed",
+      "auth_sign_in_client_failed",
+      clientAttempt.error,
+    );
+    return noStoreResponse(
+      NextResponse.redirect(
+        new URL("/auth/sign-in?status=unavailable", getAppOrigin()),
+        303,
+      ),
+    );
+  }
+  const supabase = clientAttempt.value;
   if (!supabase) {
-    return NextResponse.redirect(
-      new URL("/auth/sign-in?status=setup", getAppOrigin()),
-      303,
+    return noStoreResponse(
+      NextResponse.redirect(
+        new URL("/auth/sign-in?status=setup", getAppOrigin()),
+        303,
+      ),
     );
   }
 
@@ -45,12 +69,36 @@ export async function POST(request: Request) {
   const confirmation = new URL("/auth/confirm", getAppOrigin());
   confirmation.searchParams.set("next", next);
 
-  const { error } = await supabase.auth.signInWithOtp({
-    email: parsed.data.email,
-    options: { emailRedirectTo: confirmation.toString() },
-  });
+  const signInAttempt = await attemptRepositoryOperation(() =>
+    supabase.auth.signInWithOtp({
+      email: parsed.data.email,
+      options: { emailRedirectTo: confirmation.toString() },
+    }),
+  );
+  if (!signInAttempt.ok) {
+    repositoryIssue(
+      "auth.sign_in.otp",
+      "query_failed",
+      "auth_sign_in_otp_failed",
+      signInAttempt.error,
+    );
+  } else if (signInAttempt.value.error) {
+    repositoryIssue(
+      "auth.sign_in.otp",
+      "query_failed",
+      "auth_sign_in_otp_rejected",
+      signInAttempt.value.error,
+    );
+  }
 
   const resultUrl = new URL("/auth/sign-in", getAppOrigin());
-  resultUrl.searchParams.set("status", error ? "error" : "check-email");
-  return NextResponse.redirect(resultUrl, 303);
+  resultUrl.searchParams.set(
+    "status",
+    !signInAttempt.ok
+      ? "unavailable"
+      : signInAttempt.value.error
+        ? "error"
+        : "check-email",
+  );
+  return noStoreResponse(NextResponse.redirect(resultUrl, 303));
 }

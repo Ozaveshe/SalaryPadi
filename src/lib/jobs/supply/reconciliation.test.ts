@@ -36,6 +36,41 @@ describe("occurrence preservation and deduplication", () => {
     );
   });
 
+  it.each([
+    ["sourceId", ""],
+    ["externalSourceId", " job-42"],
+    ["runId", "run-1\nforged"],
+  ] as const)("rejects an invalid occurrence %s", (field, value) => {
+    expect(() =>
+      occurrenceIdempotencyKey({
+        sourceId: "source-1",
+        externalSourceId: "job-42",
+        runId: "run-1",
+        contentHash: "b".repeat(64),
+        [field]: value,
+      }),
+    ).toThrow(
+      `invalid_occurrence_${
+        field === "sourceId"
+          ? "source_id"
+          : field === "externalSourceId"
+            ? "external_source_id"
+            : "run_id"
+      }`,
+    );
+  });
+
+  it("rejects a malformed occurrence content hash", () => {
+    expect(() =>
+      occurrenceIdempotencyKey({
+        sourceId: "source-1",
+        externalSourceId: "job-42",
+        runId: "run-1",
+        contentHash: "not-a-sha256",
+      }),
+    ).toThrow("invalid_occurrence_content_hash");
+  });
+
   it("chooses canonical authority direct > ATS > licensed > secondary", () => {
     const candidates = [
       baseCandidate,
@@ -53,6 +88,20 @@ describe("occurrence preservation and deduplication", () => {
       canonicalId: "direct",
       duplicateId: "secondary",
     });
+  });
+
+  it.each([
+    { id: "", fingerprint: "a".repeat(64), firstSeenAt },
+    { id: "candidate", fingerprint: "not-a-sha256", firstSeenAt },
+    {
+      id: "candidate",
+      fingerprint: "a".repeat(64),
+      firstSeenAt: "not-a-timestamp",
+    },
+  ])("rejects an invalid canonical candidate", (invalid) => {
+    expect(() =>
+      chooseCanonicalAuthority([{ ...baseCandidate, ...invalid }]),
+    ).toThrow("invalid_canonical_candidate");
   });
 
   it("queues a conservative fuzzy candidate for review but never auto-merges it", () => {
@@ -147,6 +196,46 @@ describe("job lifecycle", () => {
         at: "2026-07-14T00:00:01.000Z",
       }),
     ).toMatchObject({ state: "closed", reason: "confirmed_source_closure" });
+  });
+
+  it.each(["seen", "confirmed_closed", "maintenance"] as const)(
+    "ignores a stale %s event after newer source evidence",
+    (type) => {
+      expect(
+        reconcileLifecycle(
+          {
+            ...open,
+            lastConfirmedAt: "2026-07-14T02:00:00.000Z",
+          },
+          { type, at: "2026-07-14T01:59:59.000Z" },
+        ),
+      ).toMatchObject({
+        state: "open",
+        changed: false,
+        reason: "stale_event",
+      });
+    },
+  );
+
+  it("does not let a late-arriving absence act on newer evidence", () => {
+    const checking = reconcileLifecycle(open, {
+      type: "absent",
+      outcome: "complete",
+      at: "2026-07-14T01:00:00.000Z",
+    });
+    expect(
+      reconcileLifecycle(checking, {
+        type: "absent",
+        outcome: "complete",
+        at: "2026-07-14T00:59:59.000Z",
+      }),
+    ).toMatchObject({
+      state: "checking",
+      successfulAbsenceCount: 1,
+      lastSuccessfulAbsenceAt: "2026-07-14T01:00:00.000Z",
+      changed: false,
+      reason: "stale_event",
+    });
   });
 
   it("closes elapsed deadlines and unreconfirmed 30-day manual jobs", () => {

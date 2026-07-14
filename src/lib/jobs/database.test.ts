@@ -20,7 +20,7 @@ function databaseRow() {
     salary_max: null,
     currency_code: null,
     pay_period: null,
-    gross_net: "unknown",
+    gross_net: "unspecified",
     bonus_text: null,
     application_url: "https://jobs.example.test/platform-engineer",
     source_url: "https://jobs.example.test/platform-engineer",
@@ -80,12 +80,40 @@ describe("database job normalization", () => {
     expect(job?.fingerprint).not.toBe("legacy-source-specific-fingerprint");
   });
 
+  it("renders salary ranges with a real en dash", () => {
+    const job = mapDatabaseJobRow({
+      ...databaseRow(),
+      salary_min: 1_000_000,
+      salary_max: 2_000_000,
+      currency_code: "NGN",
+      pay_period: "annual",
+    });
+
+    expect(job?.salary?.originalText).toBe(
+      "NGN 1,000,000–2,000,000 per annual",
+    );
+    expect(job?.salary?.originalText).not.toContain("â");
+  });
+
   it("rejects malformed nested public data instead of silently erasing it", () => {
     expect(
       mapDatabaseJobRow({
         ...databaseRow(),
         locations: [{ country_code: 123 }],
       }),
+    ).toBeNull();
+  });
+
+  it.each([
+    "posted_at",
+    "valid_through",
+    "last_checked_at",
+    "last_verified_at",
+    "terms_reviewed_at",
+    "eligibility_verified_at",
+  ] as const)("rejects malformed %s evidence", (field) => {
+    expect(
+      mapDatabaseJobRow({ ...databaseRow(), [field]: "not-a-timestamp" }),
     ).toBeNull();
   });
 
@@ -102,5 +130,32 @@ describe("database job normalization", () => {
       issuePaths: ["title", "locations.0.country_code"],
     });
     expect(JSON.stringify(decoded)).not.toContain("Platform Engineer");
+  });
+
+  it.each([
+    { application_url: "https://user:secret@jobs.example.test/apply" },
+    { source_url: "http://jobs.example.test/platform-engineer" },
+    { source_terms_url: "https://user:secret@example.test/terms" },
+    { salary_min: -1 },
+    { salary_min: 200, salary_max: 100 },
+    { valid_through: "2026-07-08T09:00:00+00:00" },
+    { last_verified_at: "2026-07-11T13:05:01+00:00" },
+    { may_index_jobs: false, may_emit_jobposting_schema: true },
+    { attribution_required: true, attribution_text: "   " },
+    {
+      eligibility_countries: [
+        { country_code: "NG", rule: "include" },
+        { country_code: "NG", rule: "exclude" },
+      ],
+    },
+    { skills: ["TypeScript", "TypeScript"] },
+    {
+      risk_indicators: [
+        { code: "payment_request", severity: 5 },
+        { code: "payment_request", severity: 4 },
+      ],
+    },
+  ])("rejects contradictory or unsafe public job evidence %#", (override) => {
+    expect(mapDatabaseJobRow({ ...databaseRow(), ...override })).toBeNull();
   });
 });

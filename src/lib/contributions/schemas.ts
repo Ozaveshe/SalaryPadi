@@ -14,6 +14,14 @@ const optionalMoney = z.preprocess(
 const rating = z.coerce.number().int().min(1).max(5);
 const yesNoUnknown = z.enum(["yes", "no", "unclear", "not_applicable"]);
 
+export const contributionKindSchema = z.enum([
+  "salary",
+  "review",
+  "interview",
+  "benefits",
+  "pay_reliability",
+]);
+
 export function containsLikelyPrivateContact(value: string) {
   return (
     /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(value) ||
@@ -241,4 +249,4 @@ export const contributionSchemas = {
   pay_reliability: payReliabilityContributionSchema,
 } as const;
 
-export type ContributionKind = keyof typeof contributionSchemas;
+export type ContributionKind = z.infer<typeof contributionKindSchema>;

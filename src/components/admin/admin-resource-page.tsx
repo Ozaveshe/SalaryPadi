@@ -1,7 +1,10 @@
+import { Suspense } from "react";
+
+import { AdminTransitionNotice } from "@/components/admin/admin-transition-notice";
 import { PageHeading } from "@/components/page-heading";
 import { requireAdmin } from "@/lib/auth/dal";
 import { formatDate, formatEnum } from "@/lib/format";
-import { getAdminRows, type AdminResource } from "@/lib/admin/repository";
+import { getAdminRowsResult, type AdminResource } from "@/lib/admin/repository";
 
 export async function AdminResourcePage({
   resource,
@@ -15,7 +18,8 @@ export async function AdminResourcePage({
   actions: string[];
 }) {
   await requireAdmin();
-  const rows = await getAdminRows(resource);
+  const result = await getAdminRowsResult(resource);
+  const rows = result.data;
   return (
     <div className="stack-lg">
       <PageHeading
@@ -23,6 +27,17 @@ export async function AdminResourcePage({
         title={title}
         description={description}
       />
+      <Suspense fallback={null}>
+        <AdminTransitionNotice />
+      </Suspense>
+      {result.state !== "ready" ? (
+        <div className="notice notice-warning" role="status">
+          <strong>Administration queue evidence is {result.state}.</strong>{" "}
+          {rows.length > 0
+            ? "Only validated rows are shown; do not treat this as the complete queue."
+            : "No queue contents can be confirmed right now. This is not a clear queue."}
+        </div>
+      ) : null}
       {rows.length > 0 ? (
         <div className="admin-table-wrap">
           <table className="admin-table">
@@ -141,7 +156,7 @@ export async function AdminResourcePage({
             </tbody>
           </table>
         </div>
-      ) : (
+      ) : result.state === "ready" ? (
         <div className="empty-state">
           <h2 className="section-title">Queue is clear</h2>
           <p>
@@ -149,7 +164,7 @@ export async function AdminResourcePage({
             This is a real empty state, not a fabricated metric.
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

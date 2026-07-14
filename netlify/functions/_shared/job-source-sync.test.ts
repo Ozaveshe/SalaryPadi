@@ -244,7 +244,13 @@ describe("job source sync orchestration", () => {
           throw new OperationalError("job_snapshot_503");
         },
       }),
-    ).rejects.toMatchObject({ code: "job_snapshot_503" });
+    ).rejects.toMatchObject({
+      code: "job_snapshot_503",
+      summary: {
+        failure_evidence_state: "unavailable",
+        secondary_failure_codes: ["source_import_evidence_invalid"],
+      },
+    });
     expect(callRpc).toHaveBeenLastCalledWith(
       "worker_record_source_import_v2",
       expect.objectContaining({

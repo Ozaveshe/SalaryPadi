@@ -2,11 +2,11 @@ import { z } from "zod";
 
 export const remotiveJobSchema = z.object({
   id: z.number().int().nonnegative(),
-  url: z.string().url(),
+  url: z.string().url().max(2_048),
   title: z.string().trim().min(1).max(300),
   company_name: z.string().trim().min(1).max(300),
-  company_logo: z.string().nullish(),
-  company_logo_url: z.string().nullish(),
+  company_logo: z.string().max(2_048).nullish(),
+  company_logo_url: z.string().max(2_048).nullish(),
   category: z.string().trim().max(160).nullish(),
   tags: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
   job_type: z.string().trim().max(100).nullish(),

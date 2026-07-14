@@ -54,6 +54,12 @@ export default async function SignInPage({
           We could not send that link. Check the address and try again.
         </div>
       ) : null}
+      {status === "unavailable" ? (
+        <div className="notice notice-danger" role="alert">
+          The sign-in service could not be reached. No link was requested. Try
+          again later.
+        </div>
+      ) : null}
       {status === "link-error" ? (
         <div className="notice notice-danger" role="alert">
           That sign-in link could not be verified. Request a fresh link and open

@@ -329,6 +329,125 @@ describe("scheduled worker successful runs", () => {
     });
   });
 
+  it("fails closed when an alert claim contains an unknown search field", async () => {
+    stubWorkerEnvironment({ EMAIL_PROVIDER: "resend" });
+    const fetchMock = installWorkerFetch({
+      rpc: {
+        worker_claim_alert_deliveries: [
+          {
+            delivery_id: "00000000-0000-4000-8000-000000000061",
+            claim_token: "00000000-0000-4000-8000-000000000062",
+            alert_id: "00000000-0000-4000-8000-000000000063",
+            recipient_email: "reader@example.test",
+            search_spec: { schema_version: 1, unreviewed_filter: true },
+            cadence: "daily",
+            last_sent_at: null,
+          },
+        ],
+      },
+    });
+
+    await expect(
+      alertDelivery(scheduledRequest("alert_delivery"), workerContext),
+    ).rejects.toMatchObject({ code: "alert_claim_contract_invalid" });
+    expect(finishBody(fetchMock)).toMatchObject({
+      p_status: "failed",
+      p_error_code: "alert_claim_contract_invalid",
+    });
+  });
+
+  it("records a future alert watermark as a failed claim", async () => {
+    stubWorkerEnvironment({
+      EMAIL_PROVIDER: "resend",
+      REMOTIVE_SOURCE_ENABLED: "false",
+    });
+    const fetchMock = installWorkerFetch({
+      rpc: {
+        worker_claim_alert_deliveries: [
+          {
+            delivery_id: "00000000-0000-4000-8000-000000000051",
+            claim_token: "00000000-0000-4000-8000-000000000052",
+            alert_id: "00000000-0000-4000-8000-000000000053",
+            recipient_email: "reader@example.test",
+            search_spec: { schema_version: 1 },
+            cadence: "daily",
+            last_sent_at: "2999-01-01T00:00:00.000Z",
+          },
+        ],
+        worker_complete_alert_delivery: true,
+      },
+      fallback: (url) => {
+        if (url.pathname === "/rest/v1/jobs") return Response.json([]);
+        throw new Error(`Unexpected alert delivery request: ${url}`);
+      },
+    });
+
+    await expect(
+      alertDelivery(scheduledRequest("alert_delivery"), workerContext),
+    ).rejects.toMatchObject({ code: "alert_delivery_partial_failure" });
+
+    expect(
+      rpcCallBodies(fetchMock, "worker_complete_alert_delivery"),
+    ).toContainEqual(
+      expect.objectContaining({
+        p_outcome: "failed",
+        p_error_code: "alert_claim_invalid_last_sent_at",
+      }),
+    );
+    expect(finishBody(fetchMock)).toMatchObject({
+      p_status: "failed",
+      p_summary: { claimed: 1, sent: 0, skipped: 0, failed: 1 },
+      p_error_code: "alert_delivery_partial_failure",
+    });
+  });
+
+  it("records a degraded alert catalog when database rows are quarantined", async () => {
+    stubWorkerEnvironment({
+      EMAIL_PROVIDER: "resend",
+      REMOTIVE_SOURCE_ENABLED: "false",
+    });
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = installWorkerFetch({
+      rpc: {
+        worker_claim_alert_deliveries: [
+          {
+            delivery_id: "00000000-0000-4000-8000-000000000021",
+            claim_token: "00000000-0000-4000-8000-000000000023",
+            alert_id: "00000000-0000-4000-8000-000000000022",
+            recipient_email: "reader@example.test",
+            search_spec: { schema_version: 1 },
+            cadence: "daily",
+            last_sent_at: null,
+          },
+        ],
+        worker_complete_alert_delivery: true,
+      },
+      fallback: (url) => {
+        if (url.pathname === "/rest/v1/jobs") {
+          return Response.json([{ title: 42 }]);
+        }
+        throw new Error(`Unexpected alert delivery request: ${url}`);
+      },
+    });
+
+    await alertDelivery(scheduledRequest("alert_delivery"), workerContext);
+
+    expect(finishBody(fetchMock)).toMatchObject({
+      p_status: "succeeded",
+      p_summary: {
+        claimed: 1,
+        sent: 0,
+        skipped: 1,
+        failed: 0,
+        catalog_state: "degraded",
+        catalog_issue_codes: ["database_jobs_invalid_rows"],
+        quarantined_job_count: 1,
+      },
+      p_error_code: null,
+    });
+    expect(warning).toHaveBeenCalledOnce();
+  });
+
   it("finishes an authorized empty ATS snapshot", async () => {
     stubWorkerEnvironment({ ATS_SOURCE_SYNC_ENABLED: "true" });
     const policy = atsPolicy();
@@ -342,7 +461,17 @@ describe("scheduled worker successful runs", () => {
             should_run: true,
           },
         ],
-        worker_finalize_ats_snapshot: { stored_count: 0 },
+        worker_finalize_ats_snapshot: {
+          outcome: "complete",
+          fetched_count: 0,
+          expected_record_count: 0,
+          filtered_count: 0,
+          created_count: 0,
+          updated_count: 0,
+          unchanged_count: 0,
+          expired_count: 0,
+          error_count: 0,
+        },
       },
       fallback: (url) => {
         if (url.hostname === "boards-api.greenhouse.io") {
@@ -415,7 +544,9 @@ describe("scheduled worker successful runs", () => {
       CURRENCY_RATE_PROVIDER: "european_commission_inforeuro",
     });
     const fetchMock = installWorkerFetch({
-      rpc: { worker_store_inforeuro_rates: "rate-set-id" },
+      rpc: {
+        worker_store_inforeuro_rates: "50000000-0000-4000-8000-000000000001",
+      },
       fallback: (url) => {
         if (url.hostname === "ec.europa.eu") {
           return Response.json(currencyPayload());
@@ -490,6 +621,247 @@ describe("scheduled worker failures", () => {
       p_status: "failed",
       p_error_code: "supabase_rpc_503",
     });
+  });
+
+  it("records a malformed alert claim as an unavailable RPC contract", async () => {
+    stubWorkerEnvironment({ EMAIL_PROVIDER: "resend" });
+    const fetchMock = installWorkerFetch({
+      rpc: {
+        worker_claim_alert_deliveries: [
+          {
+            delivery_id: "00000000-0000-4000-8000-000000000061",
+            claim_token: "00000000-0000-4000-8000-000000000062",
+            alert_id: "00000000-0000-4000-8000-000000000063",
+            recipient_email: "reader@example.test",
+            search_spec: {},
+            cadence: "daily",
+            last_sent_at: null,
+          },
+        ],
+      },
+    });
+
+    await expect(
+      alertDelivery(scheduledRequest("alert_delivery"), workerContext),
+    ).rejects.toMatchObject({
+      code: "alert_claim_contract_invalid",
+    });
+    expect(finishBody(fetchMock)).toMatchObject({
+      p_status: "failed",
+      p_error_code: "alert_claim_contract_invalid",
+    });
+  });
+
+  it("keeps catalog failure primary while exposing an unavailable claim completion", async () => {
+    stubWorkerEnvironment({
+      EMAIL_PROVIDER: "resend",
+      REMOTIVE_SOURCE_ENABLED: "false",
+    });
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = installWorkerFetch({
+      rpc: {
+        worker_claim_alert_deliveries: [
+          {
+            delivery_id: "00000000-0000-4000-8000-000000000031",
+            claim_token: "00000000-0000-4000-8000-000000000032",
+            alert_id: "00000000-0000-4000-8000-000000000033",
+            recipient_email: "reader@example.test",
+            search_spec: { schema_version: 1 },
+            cadence: "daily",
+            last_sent_at: null,
+          },
+        ],
+        worker_complete_alert_delivery: new Response(null, { status: 503 }),
+      },
+      fallback: (url) => {
+        if (url.pathname === "/rest/v1/jobs") {
+          return new Response(null, { status: 503 });
+        }
+        throw new Error(`Unexpected alert catalog request: ${url}`);
+      },
+    });
+
+    await expect(
+      alertDelivery(scheduledRequest("alert_delivery"), workerContext),
+    ).rejects.toMatchObject({
+      code: "database_jobs_503",
+      summary: {
+        claim_completion_state: "unavailable",
+        secondary_failure_codes: ["supabase_rpc_503"],
+      },
+    });
+    expect(finishBody(fetchMock)).toMatchObject({
+      p_status: "failed",
+      p_summary: {
+        claim_completion_state: "unavailable",
+        secondary_failure_codes: ["supabase_rpc_503"],
+      },
+      p_error_code: "database_jobs_503",
+    });
+    expect(warning).toHaveBeenCalledOnce();
+  });
+
+  it("does not relabel a sent email when success completion is unavailable", async () => {
+    stubWorkerEnvironment({
+      EMAIL_PROVIDER: "resend",
+      REMOTIVE_SOURCE_ENABLED: "true",
+      RESEND_API_KEY: "re_test_key_12345678901234567890",
+      TRANSACTIONAL_EMAIL_FROM: "SalaryPadi <alerts@salarypadi.com>",
+      TRANSACTIONAL_EMAIL_REPLY_TO: "support@salarypadi.com",
+    });
+    const checkedAt = new Date().toISOString();
+    const emailJob = normalizeRemotiveJob(
+      { ...sourceJob, publication_date: checkedAt },
+      checkedAt,
+    );
+    const catalog = createAlertCatalog(
+      [
+        {
+          ...emailJob,
+          source: { ...emailJob.source, canEmail: true },
+        },
+      ],
+      checkedAt,
+    );
+    blobMocks.get.mockResolvedValue(catalog);
+    const claim = {
+      delivery_id: "00000000-0000-4000-8000-000000000041",
+      claim_token: "00000000-0000-4000-8000-000000000042",
+      alert_id: "00000000-0000-4000-8000-000000000043",
+      recipient_email: "reader@example.test",
+      search_spec: { schema_version: 1 },
+      cadence: "daily",
+      last_sent_at: null,
+    };
+    const fetchMock = installWorkerFetch({
+      rpc: {
+        worker_claim_alert_deliveries: [claim],
+        worker_complete_alert_delivery: new Response(null, { status: 503 }),
+      },
+      fallback: (url) => {
+        if (url.pathname === "/rest/v1/jobs") return Response.json([]);
+        if (url.pathname === "/rest/v1/job_sources") {
+          const policy = remotivePolicy()[0]!;
+          const publicPolicy = Object.fromEntries(
+            Object.entries(policy).filter(([key]) => key !== "status"),
+          );
+          return Response.json([publicPolicy]);
+        }
+        if (url.hostname === "api.resend.com") {
+          return Response.json({
+            id: "90000000-0000-4000-8000-000000000001",
+          });
+        }
+        throw new Error(`Unexpected alert delivery request: ${url}`);
+      },
+    });
+
+    await expect(
+      alertDelivery(scheduledRequest("alert_delivery"), workerContext),
+    ).rejects.toMatchObject({ code: "supabase_rpc_503" });
+
+    expect(
+      nonBookkeepingUrls(fetchMock).filter(
+        (url) => new URL(url).hostname === "api.resend.com",
+      ),
+    ).toHaveLength(1);
+    expect(rpcCallBodies(fetchMock, "worker_complete_alert_delivery")).toEqual([
+      {
+        p_delivery_id: claim.delivery_id,
+        p_claim_token: claim.claim_token,
+        p_outcome: "sent",
+        p_matched_job_count: 1,
+        p_provider_message_id: "90000000-0000-4000-8000-000000000001",
+        p_error_code: null,
+      },
+    ]);
+    expect(finishBody(fetchMock)).toMatchObject({
+      p_status: "failed",
+      p_error_code: "supabase_rpc_503",
+    });
+  });
+
+  it("records a provider-rejected email as a retryable failed delivery", async () => {
+    stubWorkerEnvironment({
+      EMAIL_PROVIDER: "resend",
+      REMOTIVE_SOURCE_ENABLED: "true",
+      RESEND_API_KEY: "re_test_key_12345678901234567890",
+      TRANSACTIONAL_EMAIL_FROM: "SalaryPadi <alerts@salarypadi.com>",
+      TRANSACTIONAL_EMAIL_REPLY_TO: "support@salarypadi.com",
+    });
+    const checkedAt = new Date().toISOString();
+    const emailJob = normalizeRemotiveJob(
+      { ...sourceJob, publication_date: checkedAt },
+      checkedAt,
+    );
+    blobMocks.get.mockResolvedValue(
+      createAlertCatalog(
+        [
+          {
+            ...emailJob,
+            source: { ...emailJob.source, canEmail: true },
+          },
+        ],
+        checkedAt,
+      ),
+    );
+    const claim = {
+      delivery_id: "00000000-0000-4000-8000-000000000051",
+      claim_token: "00000000-0000-4000-8000-000000000052",
+      alert_id: "00000000-0000-4000-8000-000000000053",
+      recipient_email: "reader@example.test",
+      search_spec: { schema_version: 1 },
+      cadence: "daily",
+      last_sent_at: null,
+    };
+    const fetchMock = installWorkerFetch({
+      rpc: {
+        worker_claim_alert_deliveries: [claim],
+        worker_complete_alert_delivery: true,
+      },
+      fallback: (url) => {
+        if (url.pathname === "/rest/v1/jobs") return Response.json([]);
+        if (url.pathname === "/rest/v1/job_sources") {
+          const policy = remotivePolicy()[0]!;
+          return Response.json([
+            Object.fromEntries(
+              Object.entries(policy).filter(([key]) => key !== "status"),
+            ),
+          ]);
+        }
+        if (url.hostname === "api.resend.com") {
+          return Response.json(
+            { error: "provider unavailable" },
+            { status: 503 },
+          );
+        }
+        throw new Error(`Unexpected alert delivery request: ${url}`);
+      },
+    });
+
+    await expect(
+      alertDelivery(scheduledRequest("alert_delivery"), workerContext),
+    ).rejects.toMatchObject({
+      code: "alert_delivery_partial_failure",
+      summary: {
+        claimed: 1,
+        sent: 0,
+        skipped: 0,
+        failed: 1,
+        claim_completion_state: "recorded",
+        secondary_failure_codes: [],
+      },
+    });
+    expect(rpcCallBodies(fetchMock, "worker_complete_alert_delivery")).toEqual([
+      {
+        p_delivery_id: claim.delivery_id,
+        p_claim_token: claim.claim_token,
+        p_outcome: "failed",
+        p_matched_job_count: 1,
+        p_provider_message_id: null,
+        p_error_code: "email_provider_503",
+      },
+    ]);
   });
 
   it("records an ATS policy-list RPC failure", async () => {

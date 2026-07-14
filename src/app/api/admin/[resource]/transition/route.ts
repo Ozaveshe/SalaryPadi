@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { z } from "zod";
 
+import { readApiForm } from "@/lib/api/form";
+import { attemptApiOperation } from "@/lib/api/operation";
+import { decodeApiRpcResult } from "@/lib/api/rpc-result";
+import { noStoreRedirect } from "@/lib/api/response";
 import { getAdminApiContext } from "@/lib/auth/api";
 import type { AdminResource } from "@/lib/admin/repository";
 import { getAppOrigin } from "@/lib/env";
+import { noStoreJson } from "@/lib/http/json";
 import {
   REMOTIVE_ADAPTER_KEY,
   REMOTIVE_CACHE_TAG,
@@ -78,13 +82,29 @@ const schema = z.object({
     .max(60)
     .regex(/^[a-z_]+$/),
   reason: z.string().trim().min(3).max(500),
-  expected_version: z.coerce.number().int().nonnegative(),
+  expected_version: z.preprocess(
+    (value) =>
+      typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value,
+    z.number().int().nonnegative().max(2_147_483_647),
+  ),
   public_payload: z.string().max(60_000).optional().default(""),
   linked_case_id: z.preprocess(
     (value) => (value === "" ? undefined : value),
     z.string().uuid().optional(),
   ),
 });
+const acknowledgedTransitionSchema = z.literal(true);
+const moderationTransitionStateSchema = z.enum([
+  "draft",
+  "pending",
+  "in_review",
+  "revision_requested",
+  "escalated",
+  "approved",
+  "rejected",
+  "merged",
+  "removed",
+]);
 
 export async function POST(
   request: Request,
@@ -92,50 +112,73 @@ export async function POST(
 ) {
   const crossOrigin = rejectCrossOriginRequest(request);
   if (crossOrigin) return crossOrigin;
-  if (Number(request.headers.get("content-length") ?? "0") > 80_000)
-    return Response.json({ error: "Request is too large." }, { status: 413 });
   const { resource: rawResource } = await context.params;
   if (!resources.has(rawResource as AdminResource))
-    return Response.json({ error: "Unknown admin resource." }, { status: 404 });
-  const parsed = schema.safeParse(
-    Object.fromEntries((await request.formData()).entries()),
-  );
+    return noStoreJson({ error: "Unknown admin resource." }, { status: 404 });
+  const form = await readApiForm(request, 80_000, {
+    invalidMessage: "Invalid admin transition form.",
+  });
+  if (!form.ok) return form.response;
+  const parsed = schema.safeParse(Object.fromEntries(form.data.entries()));
   if (!parsed.success)
-    return Response.json(
+    return noStoreJson(
       { error: "A valid action and reason are required." },
       { status: 400 },
     );
   if (!allowedActions[rawResource as AdminResource].has(parsed.data.action)) {
-    return Response.json(
+    return noStoreJson(
       { error: "That admin action is not available." },
       { status: 400 },
     );
   }
   const admin = await getAdminApiContext();
   if (!admin.ok) return admin.response;
-  let transitionError: { message: string } | null = null;
+  const attemptTransition = <T>(run: () => PromiseLike<T> | T) =>
+    attemptApiOperation(
+      `admin.${rawResource}.transition`,
+      "admin_transition_transport_failed",
+      "Admin transition service is temporarily unavailable.",
+      run,
+    );
+  let transitionSucceeded = false;
   if (rawResource === "editorial") {
-    const { error } = await admin.supabase.schema("api").rpc(
-      "transition_editorial" as never,
-      {
-        p_article_id: parsed.data.id,
-        p_expected_version: parsed.data.expected_version,
-        p_action: parsed.data.action,
-        p_reason: parsed.data.reason,
-      } as never,
+    const operation = await attemptTransition(() =>
+      admin.supabase.schema("api").rpc(
+        "transition_editorial" as never,
+        {
+          p_article_id: parsed.data.id,
+          p_expected_version: parsed.data.expected_version,
+          p_action: parsed.data.action,
+          p_reason: parsed.data.reason,
+        } as never,
+      ),
     );
-    transitionError = error;
+    if (!operation.ok) return operation.response;
+    transitionSucceeded = decodeApiRpcResult(
+      "admin.editorial.transition",
+      "admin_transition_failed",
+      operation.value,
+      acknowledgedTransitionSchema,
+    ).ok;
   } else if (rawResource === "company_claims") {
-    const { error } = await admin.supabase.schema("api").rpc(
-      "transition_company_claim" as never,
-      {
-        p_claim_id: parsed.data.id,
-        p_expected_version: parsed.data.expected_version,
-        p_action: parsed.data.action,
-        p_reason: parsed.data.reason,
-      } as never,
+    const operation = await attemptTransition(() =>
+      admin.supabase.schema("api").rpc(
+        "transition_company_claim" as never,
+        {
+          p_claim_id: parsed.data.id,
+          p_expected_version: parsed.data.expected_version,
+          p_action: parsed.data.action,
+          p_reason: parsed.data.reason,
+        } as never,
+      ),
     );
-    transitionError = error;
+    if (!operation.ok) return operation.response;
+    transitionSucceeded = decodeApiRpcResult(
+      "admin.company_claims.transition",
+      "admin_transition_failed",
+      operation.value,
+      acknowledgedTransitionSchema,
+    ).ok;
   } else if (rawResource === "employer_responses") {
     let publicPayload: Record<string, unknown> = {};
     if (parsed.data.action === "redact") {
@@ -147,23 +190,31 @@ export async function POST(
         if (!payloadResult.success) throw new Error("Invalid statement.");
         publicPayload = payloadResult.data;
       } catch {
-        return Response.json(
+        return noStoreJson(
           { error: "Redaction requires JSON with a valid statement." },
           { status: 400 },
         );
       }
     }
-    const { error } = await admin.supabase.schema("api").rpc(
-      "transition_employer_response" as never,
-      {
-        p_case_id: parsed.data.id,
-        p_expected_version: parsed.data.expected_version,
-        p_action: parsed.data.action,
-        p_reason: parsed.data.reason,
-        p_public_payload: publicPayload,
-      } as never,
+    const operation = await attemptTransition(() =>
+      admin.supabase.schema("api").rpc(
+        "transition_employer_response" as never,
+        {
+          p_case_id: parsed.data.id,
+          p_expected_version: parsed.data.expected_version,
+          p_action: parsed.data.action,
+          p_reason: parsed.data.reason,
+          p_public_payload: publicPayload,
+        } as never,
+      ),
     );
-    transitionError = error;
+    if (!operation.ok) return operation.response;
+    transitionSucceeded = decodeApiRpcResult(
+      "admin.employer_responses.transition",
+      "admin_transition_failed",
+      operation.value,
+      acknowledgedTransitionSchema,
+    ).ok;
   } else if (
     rawResource === "moderation" &&
     ["claim", "redact", "merge_duplicate"].includes(parsed.data.action)
@@ -182,7 +233,7 @@ export async function POST(
           throw new Error("A non-empty JSON object is required.");
         publicPayload = payloadResult.data;
       } catch {
-        return Response.json(
+        return noStoreJson(
           { error: "Redaction requires a valid, non-empty JSON object." },
           { status: 400 },
         );
@@ -192,15 +243,14 @@ export async function POST(
       parsed.data.action === "merge_duplicate" &&
       !parsed.data.linked_case_id
     ) {
-      return Response.json(
+      return noStoreJson(
         { error: "Merging requires the destination moderation case ID." },
         { status: 400 },
       );
     }
 
-    const { error } = await admin.supabase
-      .schema("api")
-      .rpc("transition_moderation", {
+    const operation = await attemptTransition(() =>
+      admin.supabase.schema("api").rpc("transition_moderation", {
         p_case_id: parsed.data.id,
         p_expected_version: parsed.data.expected_version,
         p_action: parsed.data.action,
@@ -209,28 +259,51 @@ export async function POST(
         p_changed_fields: Object.keys(publicPayload),
         p_public_payload: publicPayload as Json,
         p_linked_case_id: parsed.data.linked_case_id,
-      });
-    transitionError = error;
+      }),
+    );
+    if (!operation.ok) return operation.response;
+    transitionSucceeded = decodeApiRpcResult(
+      "admin.moderation.transition",
+      "admin_transition_failed",
+      operation.value,
+      moderationTransitionStateSchema,
+    ).ok;
   } else {
-    const { error } = await admin.supabase
-      .schema("api")
-      .rpc("admin_transition", {
+    const operation = await attemptTransition(() =>
+      admin.supabase.schema("api").rpc("admin_transition", {
         resource_name: rawResource,
         action_name: parsed.data.action,
         target_id: parsed.data.id,
         action_reason: parsed.data.reason,
         expected_version: parsed.data.expected_version,
-      });
-    transitionError = error;
+      }),
+    );
+    if (!operation.ok) return operation.response;
+    transitionSucceeded = decodeApiRpcResult(
+      `admin.${rawResource}.transition`,
+      "admin_transition_failed",
+      operation.value,
+      acknowledgedTransitionSchema,
+    ).ok;
   }
+  let postTransitionDegraded = false;
   if (
-    !transitionError &&
+    transitionSucceeded &&
     rawResource === "sources" &&
     ["enable", "disable", "request_review"].includes(parsed.data.action)
   ) {
-    const sourceList = await admin.supabase
-      .schema("api")
-      .rpc("admin_list_sources");
+    const sourceListAttempt = await attemptApiOperation(
+      "admin.sources.cache_lookup",
+      "admin_source_cache_lookup_failed",
+      "The source changed, but cache propagation could not be verified.",
+      () => admin.supabase.schema("api").rpc("admin_list_sources"),
+    );
+    if (!sourceListAttempt.ok) {
+      postTransitionDegraded = true;
+    }
+    const sourceList = sourceListAttempt.ok
+      ? sourceListAttempt.value
+      : { data: null, error: null };
     const sourceRows = z
       .array(
         z.object({
@@ -248,8 +321,16 @@ export async function POST(
             source.secondary?.startsWith(adapterPrefix),
         )
       : false;
-    if (!sourceList.error && transitionedRemotive) {
-      revalidateTag(REMOTIVE_CACHE_TAG, { expire: 0 });
+    if (sourceList.error || !sourceRows.success) {
+      postTransitionDegraded = true;
+    } else if (transitionedRemotive) {
+      const cacheAttempt = await attemptApiOperation(
+        "admin.sources.cache_revalidate",
+        "admin_source_cache_revalidation_failed",
+        "The source changed, but cache propagation is incomplete.",
+        () => revalidateTag(REMOTIVE_CACHE_TAG, { expire: 0 }),
+      );
+      if (!cacheAttempt.ok) postTransitionDegraded = true;
     }
   }
   const adminPath = {
@@ -258,6 +339,13 @@ export async function POST(
     employer_responses: "employer-responses",
   }[rawResource];
   const url = new URL(`/admin/${adminPath ?? rawResource}`, getAppOrigin());
-  url.searchParams.set("updated", transitionError ? "error" : "true");
-  return NextResponse.redirect(url, 303);
+  url.searchParams.set(
+    "updated",
+    !transitionSucceeded
+      ? "error"
+      : postTransitionDegraded
+        ? "degraded"
+        : "true",
+  );
+  return noStoreRedirect(url, 303);
 }

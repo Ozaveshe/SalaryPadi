@@ -65,10 +65,22 @@ function authoritativeFirst(left: DedupeCandidate, right: DedupeCandidate) {
   return left.id.localeCompare(right.id);
 }
 
+function assertCanonicalCandidate(candidate: DedupeCandidate) {
+  if (
+    !candidate.id ||
+    candidate.id !== candidate.id.trim() ||
+    !/^[0-9a-f]{64}$/.test(candidate.fingerprint) ||
+    !Number.isFinite(Date.parse(candidate.firstSeenAt))
+  ) {
+    throw new Error("invalid_canonical_candidate");
+  }
+}
+
 export function chooseCanonicalAuthority(
   candidates: readonly DedupeCandidate[],
 ) {
   if (candidates.length === 0) throw new Error("canonical_candidate_required");
+  candidates.forEach(assertCanonicalCandidate);
   return [...candidates].sort(authoritativeFirst)[0]!;
 }
 

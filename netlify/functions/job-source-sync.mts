@@ -18,9 +18,13 @@ import {
   storeAlertJobCatalog,
 } from "./_shared/jobs";
 import {
+  decodeRpcResult,
   getRuntimeBoolean,
+  observeSecondaryOperation,
   OperationalError,
   rpc,
+  rpcBooleanResultSchema,
+  rpcUuidResultSchema,
   runTrackedWorker,
   type WorkerExecution,
   workerSkipped,
@@ -29,23 +33,27 @@ import {
 
 const sourcePolicySchema = z
   .array(
-    z.object({
-      adapter_key: z.literal(REMOTIVE_ADAPTER_KEY),
-      source_type: z.literal(REMOTIVE_SOURCE_POLICY.type),
-      status: z.enum(["draft", "active", "paused", "disabled"]),
-      terms_url: z.literal(REMOTIVE_SOURCE_POLICY.termsUrl),
-      terms_reviewed_at: z.string().datetime({ offset: true }).nullable(),
-      terms_version: z.literal(REMOTIVE_TERMS_VERSION),
-      allow_public_listing: z.boolean(),
-      attribution_required: z.boolean(),
-      may_store_full_description: z.boolean(),
-      may_index_jobs: z.boolean(),
-      may_emit_jobposting_schema: z.boolean(),
-      required_destination_kind: z.literal(REMOTIVE_REQUIRED_DESTINATION_KIND),
-      refresh_interval_seconds: z.literal(
-        REMOTIVE_SOURCE_POLICY.refreshIntervalSeconds,
-      ),
-    }),
+    z
+      .object({
+        adapter_key: z.literal(REMOTIVE_ADAPTER_KEY),
+        source_type: z.literal(REMOTIVE_SOURCE_POLICY.type),
+        status: z.enum(["draft", "active", "paused", "disabled"]),
+        terms_url: z.literal(REMOTIVE_SOURCE_POLICY.termsUrl),
+        terms_reviewed_at: z.string().datetime({ offset: true }).nullable(),
+        terms_version: z.literal(REMOTIVE_TERMS_VERSION),
+        allow_public_listing: z.boolean(),
+        attribution_required: z.boolean(),
+        may_store_full_description: z.boolean(),
+        may_index_jobs: z.boolean(),
+        may_emit_jobposting_schema: z.boolean(),
+        required_destination_kind: z.literal(
+          REMOTIVE_REQUIRED_DESTINATION_KIND,
+        ),
+        refresh_interval_seconds: z.literal(
+          REMOTIVE_SOURCE_POLICY.refreshIntervalSeconds,
+        ),
+      })
+      .strict(),
   )
   .max(1);
 
@@ -61,6 +69,41 @@ type JobSourceSyncDependencies = {
   storeCatalog?: typeof storeAlertJobCatalog;
   randomUuid?: () => string;
 };
+
+const rpcShapeErrorCodes: Record<string, string> = {
+  worker_get_job_source_policy: "remotive_source_policy_invalid",
+  worker_claim_remotive_fetch: "remotive_fetch_claim_invalid",
+  worker_record_source_import_v2: "source_import_evidence_invalid",
+};
+
+function validatedRpc(dependency?: SourceSyncRpc): typeof rpc {
+  return async <T,>(
+    functionName: string,
+    resultSchema: z.ZodType<T>,
+    parameters: Record<string, unknown> = {},
+    options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  ) => {
+    try {
+      if (!dependency) {
+        return await rpc(functionName, resultSchema, parameters, options);
+      }
+      return decodeRpcResult(
+        functionName,
+        resultSchema,
+        await dependency(functionName, parameters, options),
+      );
+    } catch (reason) {
+      if (
+        reason instanceof OperationalError &&
+        reason.code === "supabase_rpc_invalid_shape" &&
+        rpcShapeErrorCodes[functionName]
+      ) {
+        throw new OperationalError(rpcShapeErrorCodes[functionName]);
+      }
+      throw reason;
+    }
+  };
+}
 
 export async function runJobSourceSync(
   { signal }: WorkerExecution,
@@ -80,7 +123,7 @@ export async function runJobSourceSync(
     return workerSkipped(code);
   }
 
-  const callRpc = dependencies.rpc ?? rpc;
+  const callRpc = validatedRpc(dependencies.rpc);
   const fetchSnapshot =
     dependencies.fetchSnapshot ?? fetchPublishedRemotiveSnapshot;
   const storeCatalog = dependencies.storeCatalog ?? storeAlertJobCatalog;
@@ -93,16 +136,16 @@ export async function runJobSourceSync(
   let unclearEligibilityCount = 0;
   let sourceCheckedAt: string | null = null;
   try {
-    const rawPolicy = await callRpc(
+    const parsedPolicy = await callRpc(
       "worker_get_job_source_policy",
+      sourcePolicySchema,
       { p_adapter_key: REMOTIVE_ADAPTER_KEY },
       { signal },
     );
-    const parsedPolicy = sourcePolicySchema.safeParse(rawPolicy);
-    if (!parsedPolicy.success || parsedPolicy.data.length !== 1) {
+    if (parsedPolicy.length !== 1) {
       throw new OperationalError("remotive_source_policy_invalid");
     }
-    const policy = parsedPolicy.data[0]!;
+    const policy = parsedPolicy[0]!;
     if (policy.status !== "active") {
       return workerSkipped(`remotive_source_${policy.status}`);
     }
@@ -123,6 +166,7 @@ export async function runJobSourceSync(
     }
     const claimed = await callRpc(
       "worker_claim_remotive_fetch",
+      rpcBooleanResultSchema,
       { p_request_key: requestKey, p_purpose: "scheduled_sync" },
       { signal },
     );
@@ -162,8 +206,9 @@ export async function runJobSourceSync(
         catalog_count: catalogCount,
       });
     }
-    const importId = await callRpc(
+    await callRpc(
       "worker_record_source_import_v2",
+      rpcUuidResultSchema,
       {
         p_adapter_key: REMOTIVE_ADAPTER_KEY,
         p_started_at: startedAt,
@@ -180,9 +225,6 @@ export async function runJobSourceSync(
       },
       { signal },
     );
-    if (!z.string().uuid().safeParse(importId).success) {
-      throw new OperationalError("source_import_evidence_invalid");
-    }
     return workerSucceeded({
       source: REMOTIVE_ADAPTER_KEY,
       source_checked_at: sourceCheckedAt,
@@ -204,24 +246,28 @@ export async function runJobSourceSync(
   } catch (reason) {
     const code =
       reason instanceof OperationalError ? reason.code : "source_sync_failed";
-    await callRpc(
-      "worker_record_source_import_v2",
-      {
-        p_adapter_key: REMOTIVE_ADAPTER_KEY,
-        p_started_at: startedAt,
-        p_source_checked_at: sourceCheckedAt,
-        p_fetched_count: fetchedCount,
-        p_accepted_count: acceptedCount,
-        p_duplicate_count: duplicateCount,
-        p_rejected_count: 0,
-        p_nigeria_local_count: nigeriaLocalCount,
-        p_explicit_eligible_count: explicitEligibleCount,
-        p_unclear_eligibility_count: unclearEligibilityCount,
-        p_status: "failed",
-        p_error_code: code,
-      },
-      { signal },
-    ).catch(() => undefined);
+    const secondaryFailure = await observeSecondaryOperation(
+      "remotive_record_failed_import",
+      callRpc(
+        "worker_record_source_import_v2",
+        rpcUuidResultSchema,
+        {
+          p_adapter_key: REMOTIVE_ADAPTER_KEY,
+          p_started_at: startedAt,
+          p_source_checked_at: sourceCheckedAt,
+          p_fetched_count: fetchedCount,
+          p_accepted_count: acceptedCount,
+          p_duplicate_count: duplicateCount,
+          p_rejected_count: 0,
+          p_nigeria_local_count: nigeriaLocalCount,
+          p_explicit_eligible_count: explicitEligibleCount,
+          p_unclear_eligibility_count: unclearEligibilityCount,
+          p_status: "failed",
+          p_error_code: code,
+        },
+        { signal },
+      ),
+    );
     throw new OperationalError(code, {
       source: REMOTIVE_ADAPTER_KEY,
       fetched_count: fetchedCount,
@@ -231,6 +277,8 @@ export async function runJobSourceSync(
       nigeria_local_count: nigeriaLocalCount,
       explicit_nigeria_africa_eligible_count: explicitEligibleCount,
       unclear_eligibility_count: unclearEligibilityCount,
+      failure_evidence_state: secondaryFailure ? "unavailable" : "recorded",
+      secondary_failure_codes: secondaryFailure ? [secondaryFailure.code] : [],
     });
   }
 }

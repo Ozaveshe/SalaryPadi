@@ -3,6 +3,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 
 import { JobCard } from "@/components/jobs/job-card";
+import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { JsonLd } from "@/components/json-ld";
 import { PageHeading } from "@/components/page-heading";
 import { REMOTE_JOBS_GUIDE } from "@/lib/editorial/repository";
@@ -92,6 +93,7 @@ export default async function RemoteJobsOpenToNigeriansGuide() {
         title="Remote jobs open to Nigerians"
         description="The guidance on this page stays evergreen. The job block is rebuilt from active records and shows a role only when its source permits indexing and its eligibility evidence explicitly supports Nigeria."
       />
+      <JobFeedNotice feed={feed} />
       <section className="rule-section stack" aria-labelledby="what-counts">
         <h2 className="section-title" id="what-counts">
           What counts as open to Nigerians
@@ -132,7 +134,7 @@ export default async function RemoteJobsOpenToNigeriansGuide() {
               <JobCard job={job} key={job.id} />
             ))}
           </div>
-        ) : (
+        ) : feed.state === "live" ? (
           <div className="empty-state">
             <h3>No indexable roles meet the evidence gate right now</h3>
             <p>
@@ -141,7 +143,7 @@ export default async function RemoteJobsOpenToNigeriansGuide() {
               remote roles.
             </p>
           </div>
-        )}
+        ) : null}
       </section>
       <section className="rule-section stack" aria-labelledby="next-steps">
         <h2 className="section-title" id="next-steps">

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   NIGERIA_PAYROLL_RULES_2026,
+  assertNigeriaPayrollRuleSets,
   calculateNigeriaPayroll,
   calculateProgressiveTax,
   normalizeToAnnual,
@@ -82,6 +83,49 @@ describe("versioned Nigeria payroll rules", () => {
     );
 
     expect(noticeCodes(result.warnings)).toContain("RULE_REVIEW_DATE_EXCEEDED");
+  });
+
+  it("fails fast on overlapping rule windows", () => {
+    expect(() =>
+      assertNigeriaPayrollRuleSets([
+        NIGERIA_PAYROLL_RULES_2026,
+        {
+          ...NIGERIA_PAYROLL_RULES_2026,
+          id: "ng-payroll-next",
+          version: "2026.2.0",
+          effectiveFrom: "2026-06-01",
+        },
+      ]),
+    ).toThrow(/overlapping effective windows/);
+  });
+
+  it("fails fast on unordered bands and unsafe source evidence", () => {
+    expect(() =>
+      assertNigeriaPayrollRuleSets([
+        {
+          ...NIGERIA_PAYROLL_RULES_2026,
+          payeBands: [
+            { upperBoundAnnual: 3_000_000, rateBps: 1_500 },
+            { upperBoundAnnual: 800_000, rateBps: 0 },
+            { upperBoundAnnual: null, rateBps: 2_500 },
+          ],
+        },
+      ]),
+    ).toThrow(/strictly ordered/);
+
+    expect(() =>
+      assertNigeriaPayrollRuleSets([
+        {
+          ...NIGERIA_PAYROLL_RULES_2026,
+          sources: [
+            {
+              ...NIGERIA_PAYROLL_RULES_2026.sources[0]!,
+              url: "https://user:secret@example.com/source",
+            },
+          ],
+        },
+      ]),
+    ).toThrow(/invalid source evidence/);
   });
 });
 

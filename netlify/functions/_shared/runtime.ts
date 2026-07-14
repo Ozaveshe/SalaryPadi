@@ -1,17 +1,57 @@
 import type { Context } from "@netlify/functions";
+import { z } from "zod";
 
+import { discardResponseBody } from "../../../src/lib/http/body";
+import { readBoundedJson } from "../../../src/lib/http/json";
 import { getSalaryPadiSupabaseOrigin } from "../../../src/lib/supabase/project";
 
 type NetlifyEnvironment = {
   env: { get(name: string): string | undefined };
 };
 
-type WorkerStart = { run_id: string; should_run: boolean };
+const workerStartResultSchema = z
+  .array(
+    z
+      .object({
+        run_id: z.string().uuid(),
+        should_run: z.boolean(),
+      })
+      .strict(),
+  )
+  .max(1);
+
+export const rpcBooleanResultSchema = z.boolean();
+export const rpcUuidResultSchema = z.string().uuid();
+export const rpcNonnegativeIntegerResultSchema = z.number().int().nonnegative();
+const operationalSummaryScalarSchema = z.union([
+  z.string().max(2_048),
+  z.number().finite(),
+  z.boolean(),
+  z.null(),
+]);
+export const operationalSummarySchema = z
+  .record(
+    z
+      .string()
+      .max(80)
+      .regex(/^[a-z][a-z0-9_]*$/),
+    z.union([
+      operationalSummaryScalarSchema,
+      z.array(operationalSummaryScalarSchema).max(100),
+    ]),
+  )
+  .refine(
+    (summary) => Object.keys(summary).length <= 50,
+    "Operational summary has too many fields.",
+  );
+export const rpcSummaryResultSchema = operationalSummarySchema;
 
 export const SCHEDULED_FUNCTION_LIMIT_MS = 30_000;
 export const SCHEDULED_WORKER_BUDGET_MS = 24_000;
 export const WORKER_OPERATION_BUDGET_MS = 20_000;
 export const RPC_TIMEOUT_MS = 4_000;
+export const RPC_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+export const SCHEDULE_MAX_REQUEST_BYTES = 8 * 1024;
 export const EXTERNAL_REQUEST_TIMEOUT_MS = 6_000;
 export const PLATFORM_SHUTDOWN_RESERVE_MS =
   SCHEDULED_FUNCTION_LIMIT_MS - SCHEDULED_WORKER_BUDGET_MS;
@@ -35,6 +75,7 @@ type RpcOptions = {
 
 type WorkerRpc = <T>(
   functionName: string,
+  resultSchema: z.ZodType<T>,
   parameters?: Record<string, unknown>,
   options?: RpcOptions,
 ) => Promise<T>;
@@ -46,12 +87,20 @@ type WorkerRuntimeOptions = {
 };
 
 export class OperationalError extends Error {
-  constructor(
-    public readonly code: string,
-    public readonly summary: Record<string, unknown> = {},
-  ) {
-    super(code);
+  public readonly code: string;
+  public readonly summary: Record<string, unknown>;
+
+  constructor(code: string, summary: Record<string, unknown> = {}) {
+    const safeCode = /^[a-z][a-z0-9_]{1,99}$/.test(code)
+      ? code
+      : "worker_failed";
+    super(safeCode);
     this.name = "OperationalError";
+    this.code = safeCode;
+    const parsedSummary = operationalSummarySchema.safeParse(summary);
+    this.summary = parsedSummary.success
+      ? parsedSummary.data
+      : { summary_state: "invalid" };
   }
 }
 
@@ -70,6 +119,40 @@ export function getRuntimeSecret(name: string): string {
     value.length < 32 ||
     value.length > 512 ||
     !/^[A-Za-z0-9_-]+$/.test(value)
+  ) {
+    throw new OperationalError(`invalid_${name.toLowerCase()}`);
+  }
+  return value;
+}
+
+export function getRuntimeHeaderCredential(name: string): string {
+  const value = getRuntimeEnvironment(name);
+  if (
+    value.length < 16 ||
+    value.length > 4_096 ||
+    !/^[\x21-\x7E]+$/.test(value)
+  ) {
+    throw new OperationalError(`invalid_${name.toLowerCase()}`);
+  }
+  return value;
+}
+
+const runtimeEmailSchema = z.email().max(320);
+
+export function getRuntimeMailbox(
+  name: string,
+  options: { allowDisplayName?: boolean } = {},
+): string {
+  const value = getRuntimeEnvironment(name);
+  if (runtimeEmailSchema.safeParse(value).success) return value;
+
+  const displayMailbox = options.allowDisplayName
+    ? /^([^<>\r\n]{1,100})\s+<([^<>\r\n]{3,320})>$/.exec(value)
+    : null;
+  if (
+    !displayMailbox ||
+    displayMailbox[1] !== displayMailbox[1]?.trim() ||
+    !runtimeEmailSchema.safeParse(displayMailbox[2]).success
   ) {
     throw new OperationalError(`invalid_${name.toLowerCase()}`);
   }
@@ -138,11 +221,41 @@ export function raceWithSignal<T>(
 export function workerSucceeded(
   summary: Record<string, unknown>,
 ): WorkerOutcome {
-  return { status: "succeeded", summary };
+  const parsed = operationalSummarySchema.safeParse(summary);
+  if (!parsed.success) throw new OperationalError("worker_summary_invalid");
+  return { status: "succeeded", summary: parsed.data };
 }
 
 export function workerSkipped(reason: string): WorkerOutcome {
-  return { status: "skipped", summary: { reason } };
+  const parsed = operationalSummarySchema.safeParse({ reason });
+  if (!parsed.success) throw new OperationalError("worker_summary_invalid");
+  return { status: "skipped", summary: parsed.data };
+}
+
+export function decodeRpcResult<T>(
+  functionName: string,
+  resultSchema: z.ZodType<T>,
+  payload: unknown,
+): T {
+  const parsed = resultSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new OperationalError("supabase_rpc_invalid_shape", {
+      rpc: functionName,
+    });
+  }
+  return parsed.data;
+}
+
+export async function readBoundedOperationalJson(
+  source: Request | Response,
+  maximumBytes: number,
+  invalidResponseCode: string,
+): Promise<unknown> {
+  try {
+    return await readBoundedJson(source, maximumBytes);
+  } catch {
+    throw new OperationalError(invalidResponseCode);
+  }
 }
 
 export function getRuntimeSupabaseOrigin(): string {
@@ -198,13 +311,49 @@ function errorSummary(reason: unknown): Record<string, unknown> {
   return reason instanceof OperationalError ? reason.summary : {};
 }
 
+export type SecondaryOperationFailure = {
+  operation: string;
+  code: string;
+};
+
+/**
+ * Preserves the primary failure while making a failed cleanup/evidence write
+ * observable. Only bounded operation identifiers and stable error codes are
+ * logged, never provider payloads or credentials.
+ */
+export async function observeSecondaryOperation(
+  operation: string,
+  action: Promise<unknown>,
+): Promise<SecondaryOperationFailure | null> {
+  try {
+    await action;
+    return null;
+  } catch (reason) {
+    const code = errorCode(reason);
+    console.warn(
+      JSON.stringify({
+        status: "degraded",
+        secondary_operation: operation,
+        secondary_error_code: code,
+      }),
+    );
+    return { operation, code };
+  }
+}
+
 export async function rpc<T>(
   functionName: string,
+  resultSchema: z.ZodType<T>,
   parameters: Record<string, unknown> = {},
   options: RpcOptions = {},
 ): Promise<T> {
+  if (!/^[a-z][a-z0-9_]{1,79}$/.test(functionName)) {
+    throw new OperationalError("invalid_supabase_rpc_name");
+  }
   const url = getRuntimeSupabaseOrigin();
-  const serviceRoleKey = getRuntimeEnvironment("SUPABASE_SERVICE_ROLE_KEY");
+  const serviceRoleKey = getRuntimeHeaderCredential(
+    "SUPABASE_SERVICE_ROLE_KEY",
+  );
   const response = await fetch(`${url}/rest/v1/rpc/${functionName}`, {
     method: "POST",
     headers: {
@@ -222,15 +371,29 @@ export async function rpc<T>(
     signal: boundedSignal(options.signal, options.timeoutMs ?? RPC_TIMEOUT_MS),
   });
   if (!response.ok) {
+    await discardResponseBody(response);
     throw new OperationalError(`supabase_rpc_${response.status}`);
   }
-  return (await response.json()) as T;
+  let payload: unknown;
+  try {
+    payload = await readBoundedJson(response, RPC_MAX_RESPONSE_BYTES);
+  } catch {
+    throw new OperationalError("supabase_rpc_invalid_json", {
+      rpc: functionName,
+    });
+  }
+  return decodeRpcResult(functionName, resultSchema, payload);
 }
 
 async function readSchedule(request: Request) {
   try {
-    const payload = (await request.json()) as { next_run?: unknown };
-    if (typeof payload.next_run === "string") {
+    const payload = await readBoundedJson(request, SCHEDULE_MAX_REQUEST_BYTES);
+    if (
+      typeof payload === "object" &&
+      payload !== null &&
+      "next_run" in payload &&
+      typeof payload.next_run === "string"
+    ) {
       const parsed = new Date(payload.next_run);
       if (!Number.isNaN(parsed.valueOf())) {
         return {
@@ -269,8 +432,9 @@ export async function runTrackedWorker(
   const runKey = deployId
     ? `${schedule.runKey}:deploy:${deployId}`
     : schedule.runKey;
-  const started = await callRpc<WorkerStart[]>(
+  const started = await callRpc(
     "worker_start",
+    workerStartResultSchema,
     {
       p_task_key: taskKey,
       p_run_key: runKey,
@@ -286,39 +450,20 @@ export async function runTrackedWorker(
     return new Response(null, { status: 204 });
   }
 
+  let outcome: WorkerOutcome;
   try {
-    const outcome = await operation({
+    outcome = await operation({
       signal: operationSignal,
       remainingMs: () =>
         Math.max(0, SCHEDULED_WORKER_BUDGET_MS - (now() - startedAt)),
-    });
-    const finished = await callRpc<boolean>(
-      "worker_finish",
-      {
-        p_run_id: run.run_id,
-        p_status: outcome.status,
-        p_summary: outcome.summary,
-        p_error_code: null,
-      },
-      { signal: workerSignal },
-    );
-    if (!finished) throw new OperationalError("worker_finish_rejected");
-    console.info(
-      JSON.stringify({
-        task: taskKey,
-        status: outcome.status,
-        ...outcome.summary,
-      }),
-    );
-    return Response.json({
-      status: outcome.status === "skipped" ? "skipped" : "ok",
     });
   } catch (reason) {
     const code = errorCode(reason);
     const summary = errorSummary(reason);
     try {
-      const finished = await callRpc<boolean>(
+      const finished = await callRpc(
         "worker_finish",
+        rpcBooleanResultSchema,
         {
           p_run_id: run.run_id,
           p_status: "failed",
@@ -340,4 +485,40 @@ export async function runTrackedWorker(
     console.error(JSON.stringify({ task: taskKey, status: "failed", code }));
     throw reason;
   }
+
+  try {
+    const finished = await callRpc(
+      "worker_finish",
+      rpcBooleanResultSchema,
+      {
+        p_run_id: run.run_id,
+        p_status: outcome.status,
+        p_summary: outcome.summary,
+        p_error_code: null,
+      },
+      { signal: workerSignal },
+    );
+    if (!finished) throw new OperationalError("worker_finish_rejected");
+  } catch (finishReason) {
+    console.error(
+      JSON.stringify({
+        task: taskKey,
+        status: "finish_failed",
+        operation_status: outcome.status,
+        code: errorCode(finishReason),
+      }),
+    );
+    throw finishReason;
+  }
+
+  console.info(
+    JSON.stringify({
+      task: taskKey,
+      status: outcome.status,
+      ...outcome.summary,
+    }),
+  );
+  return Response.json({
+    status: outcome.status === "skipped" ? "skipped" : "ok",
+  });
 }

@@ -30,7 +30,7 @@ async function firstLiveJob(page: Page) {
     await expect(
       page
         .getByText(
-          /Live jobs are temporarily unavailable|No matching jobs right now/,
+          /Live job results could not be loaded|Live job results are not configured|No matching jobs right now/,
         )
         .first(),
     ).toBeVisible();

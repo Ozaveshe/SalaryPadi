@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { OfferComparisonResult } from "@/lib/offers";
 import type { ScamCheckResult } from "@/lib/scam";
+import { externalHttpsUrlSchema } from "@/lib/security/url-schema";
 
 const periodicAmount = z.object({
   amount: z.number().finite().min(0).max(1_000_000_000_000),
@@ -130,13 +131,88 @@ export const salaryConversionRequestSchema = z.object({
   }),
 });
 
+const publicResultAmountSchema = z.number().finite().nonnegative();
+
+export const afroToolsFxEvidenceSchema = z
+  .object({
+    from: z.string().regex(/^[A-Z]{3}$/),
+    to: z.string().regex(/^[A-Z]{3}$/),
+    rate: z.number().finite().positive(),
+    source: z.string().trim().min(1).max(300),
+    updatedAt: z.iso.datetime({ offset: true }),
+    freshness: z.enum(["fresh", "stale"]),
+    sandbox: z.boolean(),
+    dataPolicy: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
+export const salaryConversionResultSchema = z
+  .object({
+    amount: publicResultAmountSchema.positive(),
+    convertedAmount: publicResultAmountSchema,
+    from: z.string().regex(/^[A-Z]{3}$/),
+    to: z.string().regex(/^[A-Z]{3}$/),
+    period: z.enum(["monthly", "annual"]),
+    evidence: afroToolsFxEvidenceSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.from !== value.evidence.from ||
+      value.to !== value.evidence.to ||
+      Math.abs(value.convertedAmount - value.amount * value.evidence.rate) >
+        Math.max(0.01, value.convertedAmount * 1e-12)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["evidence"],
+        message: "Conversion result does not match its FX evidence.",
+      });
+    }
+  });
+
+export const payeResultSchema = z
+  .object({
+    grossAnnual: publicResultAmountSchema,
+    grossMonthly: publicResultAmountSchema,
+    netAnnual: publicResultAmountSchema,
+    netMonthly: publicResultAmountSchema,
+    incomeTaxAnnual: publicResultAmountSchema,
+    taxableIncomeAnnual: publicResultAmountSchema,
+    deductionsAnnual: publicResultAmountSchema,
+    effectiveRate: z.string().trim().max(40).nullable(),
+    evidence: z
+      .object({
+        provider: z.string().trim().min(1).max(100),
+        apiVersion: z.string().trim().min(1).max(40),
+        rulesVersion: z.string().trim().min(1).max(200),
+        rulesYear: z.string().regex(/^\d{4}$/),
+        source: z.string().trim().min(1).max(500),
+        taxAuthority: z.string().trim().min(1).max(200),
+        lastVerifiedAt: z.iso.datetime({ offset: true }),
+        dataPolicy: z.string().trim().min(1).max(500),
+        docsUrl: externalHttpsUrlSchema,
+        sandbox: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export type AfroToolsFxEvidenceResult = z.infer<
+  typeof afroToolsFxEvidenceSchema
+>;
+export type SalaryConversionResult = z.infer<
+  typeof salaryConversionResultSchema
+>;
+export type PayeResult = z.infer<typeof payeResultSchema>;
+
 const afroToolsMetaSchema = z.object({
   api: z.string().min(1).max(80),
   version: z.string().min(1).max(40),
   timestamp: z.string(),
   sandbox: z.boolean(),
   dataPolicy: z.string().min(1).max(160),
-  docs: z.string().url(),
+  docs: externalHttpsUrlSchema,
 });
 
 export const afroToolsPayeResponseSchema = z.object({
@@ -199,7 +275,7 @@ export const afroToolsFxResponseSchema = z.object({
   amount: z.number().finite().positive().optional(),
   converted_amount: z.number().finite().positive().optional(),
   source: z.string().min(1).max(200),
-  updated_at: z.string(),
+  updated_at: z.iso.datetime({ offset: true }),
   change_24h: z.number().finite().optional(),
   sandbox: z.boolean().optional(),
   data_policy: z.string().min(1).max(160).optional(),

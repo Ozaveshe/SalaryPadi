@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildInforEuroCrossRates, currentInforEuroSource } from "./currency";
+import {
+  buildInforEuroCrossRates,
+  currentInforEuroSource,
+  fetchInforEuroRates,
+} from "./currency";
 
 const required = [
   ["EUR", 1],
@@ -16,6 +20,11 @@ const extras = Array.from({ length: 13 }, (_, index) => ({
   isoA3Code: `AA${String.fromCharCode(65 + index)}`,
   value: index + 2,
 }));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("European Commission InforEuro adapter", () => {
   it("builds every non-identity cross-rate for the supported launch currencies", () => {
@@ -50,5 +59,43 @@ describe("European Commission InforEuro adapter", () => {
     expect(() => buildInforEuroCrossRates(payload)).toThrow(
       /currency_missing_required/,
     );
+  });
+
+  it("rejects duplicate currency evidence instead of choosing one value", () => {
+    expect(() =>
+      buildInforEuroCrossRates([
+        ...required.map(([isoA3Code, value]) => ({ isoA3Code, value })),
+        ...extras,
+        { isoA3Code: "NGN", value: 1_700 },
+      ]),
+    ).toThrow(/currency_duplicate_currency/);
+  });
+
+  it("rejects a derived rate outside the public currency contract", () => {
+    expect(() =>
+      buildInforEuroCrossRates([
+        ...required.map(([isoA3Code, value]) => ({
+          isoA3Code,
+          value: isoA3Code === "NGN" ? 2_000_000_000_000 : value,
+        })),
+        ...extras,
+      ]),
+    ).toThrow(/currency_rate_out_of_range/);
+  });
+
+  it("maps malformed provider JSON to a stable operational error", async () => {
+    const fetchSpy = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response("{not-json", { status: 200 }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(fetchInforEuroRates()).rejects.toMatchObject({
+      code: "currency_source_invalid_response",
+    });
+    expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+    });
   });
 });

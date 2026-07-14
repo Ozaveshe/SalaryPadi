@@ -1,13 +1,25 @@
 import { createHash } from "node:crypto";
+import { z } from "zod";
 
 import type { Job } from "../../../src/lib/jobs/types";
 
+import {
+  defaultPublicHttpsResolve,
+  requestPinnedHttpsHead,
+  resolvePublicHttpsDestination,
+  type PublicHttpsResolver,
+} from "./apply-link-check";
 import { fetchAlertJobCatalog } from "./jobs";
 import { readSearchConsoleTopicSignals } from "./google-search-console";
 import {
   OperationalError,
   getRuntimeBoolean,
+  observeSecondaryOperation,
   rpc,
+  rpcNonnegativeIntegerResultSchema,
+  rpcSummaryResultSchema,
+  rpcUuidResultSchema,
+  RPC_TIMEOUT_MS,
   type WorkerExecution,
   workerSucceeded,
   workerSkipped,
@@ -40,20 +52,57 @@ type CapturedSnapshot = {
   id: string;
   checkedAt: string;
   metrics: SnapshotMetrics;
+  catalogState: "ready" | "degraded";
+  catalogIssueCodes: string[];
 };
 
-type LinkTarget = {
+export type LinkTarget = {
   source_id: string | null;
   article_id: string | null;
   url: string;
 };
 
-type LinkResult = LinkTarget & {
+export type LinkResult = LinkTarget & {
   status: "healthy" | "redirected" | "broken" | "timeout";
   http_status: number | null;
   final_url: string | null;
   error_code: string | null;
 };
+
+const linkTargetsResultSchema = z
+  .array(
+    z
+      .object({
+        source_id: z.string().uuid().nullable(),
+        article_id: z.string().uuid().nullable(),
+        url: z.string().url().max(2_048),
+      })
+      .strict(),
+  )
+  .max(50)
+  .superRefine((targets, context) => {
+    const identities = new Set<string>();
+    for (const [index, target] of targets.entries()) {
+      if ((target.source_id === null) === (target.article_id === null)) {
+        context.addIssue({
+          code: "custom",
+          path: [index],
+          message: "Editorial link targets must have exactly one owner.",
+        });
+      }
+      const identity = `${target.source_id ?? ""}:${target.article_id ?? ""}:${target.url}`;
+      if (identities.has(identity)) {
+        context.addIssue({
+          code: "custom",
+          path: [index],
+          message: "Editorial link targets must be unique.",
+        });
+      }
+      identities.add(identity);
+    }
+  });
+
+const EDITORIAL_NIGHTLY_DURABLE_RESERVE_MS = RPC_TIMEOUT_MS * 2 + 1_000;
 
 function isOpen(job: Job, now: number) {
   return (
@@ -111,10 +160,11 @@ export function buildEditorialSnapshot(jobs: Job[], now = new Date()) {
 }
 
 async function captureSnapshot(signal: AbortSignal): Promise<CapturedSnapshot> {
-  const jobs = await fetchAlertJobCatalog(signal);
-  const snapshot = buildEditorialSnapshot(jobs);
-  const id = await rpc<string>(
+  const catalog = await fetchAlertJobCatalog(signal);
+  const snapshot = buildEditorialSnapshot(catalog.jobs);
+  const id = await rpc(
     "editorial_capture_job_snapshot",
+    rpcUuidResultSchema,
     {
       p_snapshot_key: snapshot.snapshotKey,
       p_source_checked_at: snapshot.checkedAt,
@@ -124,60 +174,113 @@ async function captureSnapshot(signal: AbortSignal): Promise<CapturedSnapshot> {
     },
     { signal },
   );
-  return { id, checkedAt: snapshot.checkedAt, metrics: snapshot.metrics };
+  return {
+    id,
+    checkedAt: snapshot.checkedAt,
+    metrics: snapshot.metrics,
+    catalogState: catalog.state,
+    catalogIssueCodes: catalog.issues.map((issue) => issue.code),
+  };
 }
 
-function safeLink(raw: string): URL | null {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return null;
-  }
-  if (
-    url.protocol !== "https:" ||
-    url.username ||
-    url.password ||
-    url.port ||
-    url.hostname === "localhost" ||
-    url.hostname.endsWith(".local") ||
-    /^(?:127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(
-      url.hostname,
-    ) ||
-    url.hostname === "::1"
-  ) {
-    return null;
-  }
-  return url;
-}
+type EditorialLinkDependencies = {
+  resolve?: PublicHttpsResolver;
+  head?: typeof requestPinnedHttpsHead;
+};
 
-async function checkLink(target: LinkTarget, signal: AbortSignal) {
-  const url = safeLink(target.url);
-  if (!url) {
+export async function checkEditorialLink(
+  target: LinkTarget,
+  signal: AbortSignal,
+  dependencies: EditorialLinkDependencies = {},
+) {
+  const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(4_000)]);
+  const resolve = dependencies.resolve ?? defaultPublicHttpsResolve;
+  const allowed = await resolvePublicHttpsDestination(
+    target.url,
+    resolve,
+    requestSignal,
+  );
+  if (allowed.status !== "allowed") {
     return {
       ...target,
-      status: "broken",
+      status: allowed.status === "deadline_exceeded" ? "timeout" : "broken",
       http_status: null,
       final_url: null,
-      error_code: "unsafe_or_invalid_url",
+      error_code:
+        allowed.status === "unsafe"
+          ? "unsafe_or_invalid_url"
+          : allowed.status === "deadline_exceeded"
+            ? "link_request_timeout"
+            : "link_resolution_failed",
     } satisfies LinkResult;
   }
+  const { destination, address } = allowed;
   try {
-    const response = await fetch(url, {
-      method: "HEAD",
-      headers: { "User-Agent": "SalaryPadi-Editorial-LinkCheck/1.0" },
-      cache: "no-store",
-      credentials: "omit",
-      redirect: "manual",
-      signal: AbortSignal.any([signal, AbortSignal.timeout(4_000)]),
-    });
+    const response = await (dependencies.head ?? requestPinnedHttpsHead)(
+      destination,
+      address,
+      requestSignal,
+    );
     const redirected = response.status >= 300 && response.status < 400;
+    if (redirected) {
+      if (!response.location) {
+        return {
+          ...target,
+          status: "broken",
+          http_status: response.status,
+          final_url: null,
+          error_code: "redirect_location_missing",
+        } satisfies LinkResult;
+      }
+      let redirectUrl: string;
+      try {
+        redirectUrl = new URL(response.location, destination).toString();
+      } catch {
+        return {
+          ...target,
+          status: "broken",
+          http_status: response.status,
+          final_url: null,
+          error_code: "redirect_location_invalid",
+        } satisfies LinkResult;
+      }
+      const redirectDestination = await resolvePublicHttpsDestination(
+        redirectUrl,
+        resolve,
+        requestSignal,
+      );
+      if (redirectDestination.status !== "allowed") {
+        return {
+          ...target,
+          status: "broken",
+          http_status: response.status,
+          final_url: null,
+          error_code:
+            redirectDestination.status === "deadline_exceeded"
+              ? "redirect_resolution_timeout"
+              : redirectDestination.status === "unresolved"
+                ? "redirect_resolution_failed"
+                : "unsafe_redirect_location",
+        } satisfies LinkResult;
+      }
+      return {
+        ...target,
+        status: "redirected",
+        http_status: response.status,
+        final_url: redirectDestination.destination.toString(),
+        error_code: null,
+      } satisfies LinkResult;
+    }
     return {
       ...target,
-      status: redirected ? "redirected" : response.ok ? "healthy" : "broken",
+      status:
+        response.status >= 200 && response.status < 300 ? "healthy" : "broken",
       http_status: response.status,
-      final_url: redirected ? response.headers.get("location") : url.toString(),
-      error_code: response.ok || redirected ? null : `http_${response.status}`,
+      final_url: destination.toString(),
+      error_code:
+        response.status >= 200 && response.status < 300
+          ? null
+          : `http_${response.status}`,
     } satisfies LinkResult;
   } catch (error) {
     return {
@@ -194,34 +297,51 @@ async function checkLink(target: LinkTarget, signal: AbortSignal) {
   }
 }
 
-async function runNightlyAudit({ signal }: WorkerExecution) {
-  const targets = await rpc<LinkTarget[]>(
+async function runNightlyAudit({ signal, remainingMs }: WorkerExecution) {
+  const targets = await rpc(
     "editorial_link_targets",
+    linkTargetsResultSchema,
     {},
     { signal },
   );
-  const bounded = targets.slice(0, 50);
   const results: LinkResult[] = [];
-  for (let index = 0; index < bounded.length; index += 5) {
+  for (let index = 0; index < targets.length; index += 5) {
+    if (remainingMs() < EDITORIAL_NIGHTLY_DURABLE_RESERVE_MS) break;
     results.push(
       ...(await Promise.all(
-        bounded
+        targets
           .slice(index, index + 5)
-          .map((target) => checkLink(target, signal)),
+          .map((target) => checkEditorialLink(target, signal)),
       )),
     );
   }
-  const recorded = await rpc<number>(
+  const recorded = await rpc(
     "editorial_record_link_checks",
+    rpcNonnegativeIntegerResultSchema,
     { p_results: results },
     { signal },
   );
-  const audit = await rpc<Record<string, unknown>>(
+  if (recorded !== results.length) {
+    throw new OperationalError("editorial_link_checks_ack_mismatch", {
+      expected_count: results.length,
+      recorded_count: recorded,
+    });
+  }
+  const audit = await rpc(
     "editorial_run_nightly_audit",
+    rpcSummaryResultSchema,
     {},
     { signal },
   );
-  return { checked_links: recorded, ...audit };
+  const deferredLinks = targets.length - results.length;
+  if (deferredLinks > 0) {
+    throw new OperationalError("editorial_link_check_time_budget_exhausted", {
+      target_count: targets.length,
+      checked_links: recorded,
+      deferred_links: deferredLinks,
+    });
+  }
+  return { target_count: targets.length, checked_links: recorded, ...audit };
 }
 
 async function operation(
@@ -231,63 +351,83 @@ async function operation(
   switch (taskKey) {
     case "editorial_job_snapshot": {
       const snapshot = await captureSnapshot(execution.signal);
-      return { snapshot_id: snapshot.id, ...snapshot.metrics };
+      return {
+        snapshot_id: snapshot.id,
+        catalog_state: snapshot.catalogState,
+        catalog_issue_codes: snapshot.catalogIssueCodes,
+        ...snapshot.metrics,
+      };
     }
     case "editorial_topic_candidates": {
       const searchConsole = await readSearchConsoleTopicSignals(execution);
       const recorded =
         searchConsole.signals.length > 0
-          ? await rpc<number>(
+          ? await rpc(
               "editorial_record_topic_signals",
+              rpcNonnegativeIntegerResultSchema,
               { p_signals: searchConsole.signals },
               { signal: execution.signal },
             )
           : 0;
-      const selection = await rpc<Record<string, unknown>>(
+      if (recorded !== searchConsole.signals.length) {
+        throw new OperationalError("editorial_topic_signals_ack_mismatch", {
+          expected_count: searchConsole.signals.length,
+          recorded_count: recorded,
+        });
+      }
+      const selection = await rpc(
         "editorial_generate_topic_candidates",
+        rpcSummaryResultSchema,
         {},
         { signal: execution.signal },
       );
       return {
         ...selection,
         search_console_state: searchConsole.state,
+        search_console_issue_codes: searchConsole.issueCodes,
         search_console_signals_recorded: recorded,
       };
     }
     case "editorial_evidence_packs":
-      return rpc<Record<string, unknown>>(
+      return rpc(
         "editorial_prepare_evidence_pack",
+        rpcSummaryResultSchema,
         {},
         { signal: execution.signal },
       );
     case "editorial_draft":
-      return rpc<Record<string, unknown>>(
+      return rpc(
         "editorial_prepare_one_draft",
+        rpcSummaryResultSchema,
         {},
         { signal: execution.signal },
       );
     case "editorial_preflight":
-      return rpc<Record<string, unknown>>(
+      return rpc(
         "editorial_run_preflight_checks",
+        rpcSummaryResultSchema,
         {},
         { signal: execution.signal },
       );
     case "editorial_queue":
-      return rpc<Record<string, unknown>>(
+      return rpc(
         "editorial_queue_ready",
+        rpcSummaryResultSchema,
         {},
         { signal: execution.signal },
       );
     case "editorial_publish":
-      return rpc<Record<string, unknown>>(
+      return rpc(
         "editorial_publish_due",
+        rpcSummaryResultSchema,
         {},
         { signal: execution.signal },
       );
     case "editorial_live_blocks": {
       const snapshot = await captureSnapshot(execution.signal);
-      return rpc<Record<string, unknown>>(
+      const result = await rpc(
         "editorial_revalidate_live_blocks",
+        rpcSummaryResultSchema,
         {
           p_snapshot_id: snapshot.id,
           p_checked_at: snapshot.checkedAt,
@@ -295,18 +435,25 @@ async function operation(
         },
         { signal: execution.signal },
       );
+      return {
+        ...result,
+        catalog_state: snapshot.catalogState,
+        catalog_issue_codes: snapshot.catalogIssueCodes,
+      };
     }
     case "editorial_nightly_audit":
       return runNightlyAudit(execution);
     case "editorial_weekly_audit":
-      return rpc<Record<string, unknown>>(
+      return rpc(
         "editorial_run_weekly_audit",
+        rpcSummaryResultSchema,
         {},
         { signal: execution.signal },
       );
     case "editorial_monthly_audit":
-      return rpc<Record<string, unknown>>(
+      return rpc(
         "editorial_run_monthly_audit",
+        rpcSummaryResultSchema,
         {},
         { signal: execution.signal },
       );
@@ -328,16 +475,24 @@ export async function runEditorialOperation(
         ? reason.code
         : "editorial_task_failed";
     const runKey = new Date().toISOString().slice(0, 16);
-    await rpc(
+    const secondaryFailure = await observeSecondaryOperation(
       "editorial_record_failure",
-      {
-        p_task_key: taskKey,
-        p_run_key: runKey,
-        p_error_code: errorCode,
-        p_summary: {},
-      },
-      { signal: execution.signal },
-    ).catch(() => undefined);
-    throw reason;
+      rpc(
+        "editorial_record_failure",
+        rpcUuidResultSchema,
+        {
+          p_task_key: taskKey,
+          p_run_key: runKey,
+          p_error_code: errorCode,
+          p_summary: reason instanceof OperationalError ? reason.summary : {},
+        },
+        { signal: execution.signal },
+      ),
+    );
+    throw new OperationalError(errorCode, {
+      ...(reason instanceof OperationalError ? reason.summary : {}),
+      failure_evidence_state: secondaryFailure ? "unavailable" : "recorded",
+      secondary_failure_codes: secondaryFailure ? [secondaryFailure.code] : [],
+    });
   }
 }

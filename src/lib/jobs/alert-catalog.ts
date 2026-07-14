@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { externalHttpsUrlSchema } from "@/lib/security/url-schema";
+
 import type { Job } from "./types";
 
 const identifierSchema = z
@@ -14,19 +16,15 @@ const slugSchema = z
   .min(1)
   .max(240)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
-const timestampSchema = z.string().datetime({ offset: true, local: true });
-const httpsUrlSchema = z
-  .string()
-  .url()
-  .refine((value) => new URL(value).protocol === "https:");
+const timestampSchema = z.string().datetime({ offset: true });
 
 const sourceSchema = z
   .object({
     id: z.string().trim().min(1).max(200),
     name: z.string().trim().min(1).max(300),
     type: z.enum(["permitted_api", "employer", "partner", "manual"]),
-    termsUrl: z.string().trim().min(1).max(2_000),
-    termsReviewedAt: z.string().trim().min(1).max(100),
+    termsUrl: z.union([z.literal("/terms"), externalHttpsUrlSchema]),
+    termsReviewedAt: z.union([z.iso.date(), timestampSchema]),
     attributionRequired: z.string().trim().min(1).max(2_000),
     canStoreFullDescription: z.boolean(),
     canIndex: z.boolean(),
@@ -35,7 +33,16 @@ const sourceSchema = z
     destinationRequirement: z.string().trim().min(1).max(2_000),
     refreshIntervalSeconds: z.number().int().positive(),
   })
-  .strict();
+  .strict()
+  .superRefine((source, context) => {
+    if (source.canUseJobPostingStructuredData && !source.canIndex) {
+      context.addIssue({
+        code: "custom",
+        path: ["canUseJobPostingStructuredData"],
+        message: "Job posting schema requires indexing permission.",
+      });
+    }
+  });
 
 const salarySchema = z
   .object({
@@ -53,7 +60,20 @@ const salarySchema = z
     ]),
     grossNet: z.enum(["gross", "net", "unknown"]),
   })
-  .strict();
+  .strict()
+  .superRefine((salary, context) => {
+    if (
+      salary.minimum !== null &&
+      salary.maximum !== null &&
+      salary.maximum < salary.minimum
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["maximum"],
+        message: "Maximum salary cannot be below minimum salary.",
+      });
+    }
+  });
 
 const eligibilitySchema = z
   .object({
@@ -78,7 +98,22 @@ const eligibilitySchema = z
     provenance: z.enum(["source_provided", "manually_verified", "inferred"]),
     lastVerifiedAt: timestampSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((eligibility, context) => {
+    const included = new Set(eligibility.includedCountries);
+    if (
+      included.size !== eligibility.includedCountries.length ||
+      new Set(eligibility.excludedCountries).size !==
+        eligibility.excludedCountries.length ||
+      eligibility.excludedCountries.some((country) => included.has(country))
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["includedCountries"],
+        message: "Eligibility country evidence must be unique and consistent.",
+      });
+    }
+  });
 
 const riskIndicatorSchema = z
   .object({
@@ -101,8 +136,8 @@ export const alertCatalogJobSchema = z
     slug: slugSchema,
     externalId: z.string().trim().min(1).max(300),
     source: sourceSchema,
-    sourceUrl: httpsUrlSchema,
-    applicationUrl: httpsUrlSchema,
+    sourceUrl: externalHttpsUrlSchema,
+    applicationUrl: externalHttpsUrlSchema,
     title: z.string().trim().min(1).max(300),
     company: z
       .object({
@@ -149,7 +184,39 @@ export const alertCatalogJobSchema = z
     riskIndicators: z.array(riskIndicatorSchema).max(0),
     fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
   })
-  .strict() satisfies z.ZodType<Job>;
+  .strict()
+  .superRefine((job, context) => {
+    const checkedAt = Date.parse(job.lastCheckedAt) + 5 * 60_000;
+    for (const [field, value] of [
+      ["postedAt", job.postedAt],
+      ["eligibility", job.eligibility.lastVerifiedAt],
+    ] as const) {
+      if (Date.parse(value) > checkedAt) {
+        context.addIssue({
+          code: "custom",
+          path: field === "eligibility" ? [field, "lastVerifiedAt"] : [field],
+          message: "Job evidence cannot postdate its source check.",
+        });
+      }
+    }
+    if (
+      job.validThrough !== null &&
+      Date.parse(job.validThrough) < Date.parse(job.postedAt)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["validThrough"],
+        message: "Job expiry cannot predate publication.",
+      });
+    }
+    if (new Set(job.skills).size !== job.skills.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["skills"],
+        message: "Job skills must be unique.",
+      });
+    }
+  }) satisfies z.ZodType<Job>;
 
 export const alertCatalogSchema = z
   .object({
@@ -157,7 +224,28 @@ export const alertCatalogSchema = z
     checkedAt: timestampSchema,
     jobs: z.array(alertCatalogJobSchema).max(2_000),
   })
-  .strict();
+  .strict()
+  .superRefine((catalog, context) => {
+    const seenIds = new Set<string>();
+    const checkedAt = Date.parse(catalog.checkedAt) + 5 * 60_000;
+    catalog.jobs.forEach((job, index) => {
+      if (seenIds.has(job.id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["jobs", index, "id"],
+          message: "Alert catalog job IDs must be unique.",
+        });
+      }
+      seenIds.add(job.id);
+      if (Date.parse(job.lastCheckedAt) > checkedAt) {
+        context.addIssue({
+          code: "custom",
+          path: ["jobs", index, "lastCheckedAt"],
+          message: "Catalog jobs cannot postdate the catalog snapshot.",
+        });
+      }
+    });
+  });
 
 export type AlertCatalog = z.infer<typeof alertCatalogSchema>;
 

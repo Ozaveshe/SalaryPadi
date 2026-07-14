@@ -1,4 +1,5 @@
 import { getAppOrigin } from "@/lib/env";
+import { noStoreJson } from "@/lib/http/json";
 
 export function isSameOriginRequest(request: Request): boolean {
   const origin = request.headers.get("origin");
@@ -36,7 +37,7 @@ export function isSameOriginRequest(request: Request): boolean {
 export function rejectCrossOriginRequest(request: Request): Response | null {
   if (isSameOriginRequest(request)) return null;
 
-  return Response.json(
+  return noStoreJson(
     { error: "The request origin could not be verified." },
     { status: 403 },
   );

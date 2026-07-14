@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import { discardResponseBody } from "@/lib/http/body";
 import { JsonBodyError, noStoreJson, readBoundedJson } from "@/lib/http/json";
 
 describe("bounded JSON bodies", () => {
+  it("discards an unread response body without surfacing cleanup failures", async () => {
+    const response = new Response("provider detail");
+    await expect(discardResponseBody(response)).resolves.toBeUndefined();
+    expect(response.bodyUsed).toBe(true);
+    await expect(discardResponseBody(response)).resolves.toBeUndefined();
+  });
+
   it("enforces the actual streamed byte count without Content-Length", async () => {
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
@@ -23,6 +31,24 @@ describe("bounded JSON bodies", () => {
     await expect(readBoundedJson(request, 20)).rejects.toMatchObject({
       code: "too_large",
     } satisfies Partial<JsonBodyError>);
+  });
+
+  it("cancels an oversized declared response before rejecting it", async () => {
+    let cancelled = false;
+    const response = new Response(
+      new ReadableStream({
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      { headers: { "Content-Length": "100" } },
+    );
+
+    await expect(readBoundedJson(response, 20)).rejects.toMatchObject({
+      code: "too_large",
+    } satisfies Partial<JsonBodyError>);
+    expect(cancelled).toBe(true);
+    expect(response.bodyUsed).toBe(true);
   });
 
   it("parses a body below the byte limit", async () => {

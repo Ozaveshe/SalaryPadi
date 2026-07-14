@@ -1,6 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import rawWorkerRegistry from "../config/production-workers.json" with { type: "json" };
+
 export const EXIT_CODES = Object.freeze({
   ok: 0,
   usage: 2,
@@ -15,23 +17,29 @@ export const EXIT_CODES = Object.freeze({
   route: 30,
 });
 
-export const REQUIRED_WORKERS = Object.freeze([
-  "afrotools_catalog_sync",
-  "alert_delivery",
-  "ats_source_sync",
-  "currency_rates",
-  "job_source_sync",
-  "operations_maintenance",
-  "editorial_job_snapshot",
-  "editorial_topic_candidates",
-  "editorial_draft",
-  "editorial_preflight",
-  "editorial_queue",
-  "editorial_publish",
-  "editorial_live_blocks",
-  "editorial_nightly_audit",
-  "editorial_weekly_audit",
-]);
+function productionWorkerKeys(registry) {
+  const keys = registry?.workerKeys;
+  if (
+    registry?.schemaVersion !== 1 ||
+    !Array.isArray(keys) ||
+    keys.length < 1 ||
+    keys.length > 30 ||
+    new Set(keys).size !== keys.length ||
+    keys.some(
+      (key) =>
+        typeof key !== "string" ||
+        key.length > 80 ||
+        !/^[a-z][a-z0-9_]+$/.test(key),
+    )
+  ) {
+    throw new Error("Production worker registry is invalid.");
+  }
+  return keys;
+}
+
+export const REQUIRED_WORKERS = Object.freeze(
+  productionWorkerKeys(rawWorkerRegistry),
+);
 
 export const VERIFIED_ROUTES = Object.freeze([
   "/",
@@ -39,6 +47,8 @@ export const VERIFIED_ROUTES = Object.freeze([
   "/insights",
   "/feed.xml",
 ]);
+const HEALTH_MAX_RESPONSE_BYTES = 512 * 1024;
+const ROUTE_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 const USAGE = [
   "Usage:",
@@ -150,6 +160,55 @@ function passedCheck(id, summary) {
   return { id, status: "pass", summary, exit_code: EXIT_CODES.ok };
 }
 
+const HEALTH_BOOLEAN_CHECKS = Object.freeze([
+  "backend_configured",
+  "worker_backend_configured",
+  "source_refresh_configured",
+  "afrotools_configured",
+  "operations_configured",
+  "worker_health_complete",
+  "job_supply_ready",
+]);
+
+function degradedHealthSummary(payload, httpStatus) {
+  const parts = [`status=${String(payload.status)}`, `HTTP ${httpStatus}`];
+  if (!isRecord(payload.checks)) return parts.join(" ");
+
+  const failingChecks = HEALTH_BOOLEAN_CHECKS.filter(
+    (key) => payload.checks[key] === false,
+  );
+  if (isRecord(payload.checks.providers_ready)) {
+    for (const [key, value] of Object.entries(payload.checks.providers_ready)) {
+      if (value === false && /^[a-z][a-z0-9_]{0,79}$/.test(key)) {
+        failingChecks.push(`providers_ready.${key}`);
+      }
+    }
+  }
+  if (failingChecks.length > 0) {
+    parts.push(`failing_checks=${failingChecks.join(",")}`);
+  }
+
+  if (
+    payload.checks.job_supply_ready === false &&
+    isRecord(payload.checks.job_supply)
+  ) {
+    const supply = payload.checks.job_supply;
+    if (
+      typeof supply.state === "string" &&
+      /^[a-z][a-z0-9_]{0,39}$/.test(supply.state)
+    ) {
+      parts.push(`job_supply_state=${supply.state}`);
+    }
+    for (const key of ["visible_remote_jobs", "authorized_daily_capacity"]) {
+      if (Number.isSafeInteger(supply[key]) && supply[key] >= 0) {
+        parts.push(`${key}=${supply[key]}`);
+      }
+    }
+  }
+
+  return parts.join(" ");
+}
+
 function requestFailureSummary(error) {
   if (
     error instanceof DOMException &&
@@ -165,6 +224,8 @@ async function request(fetchImpl, origin, pathname, accept, timeoutSignal) {
     return {
       response: await fetchImpl(new URL(pathname, origin), {
         headers: { Accept: accept },
+        cache: "no-store",
+        credentials: "omit",
         redirect: "error",
         signal: timeoutSignal(10_000),
       }),
@@ -175,27 +236,96 @@ async function request(fetchImpl, origin, pathname, accept, timeoutSignal) {
   }
 }
 
+async function readBoundedBytes(response, maximumBytes, label) {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isSafeInteger(declaredLength) && declaredLength > maximumBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error(`${label} response exceeds the byte limit`);
+  }
+  if (!response.body) throw new Error(`${label} response has no body`);
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      totalBytes += value.byteLength;
+      if (totalBytes > maximumBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error(`${label} response exceeds the byte limit`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 async function readJson(response) {
   try {
-    return { payload: await response.json(), error: null };
+    const bytes = await readBoundedBytes(
+      response,
+      HEALTH_MAX_RESPONSE_BYTES,
+      "health",
+    );
+    return {
+      payload: JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+      ),
+      error: null,
+    };
   } catch (error) {
     return { payload: null, error };
   }
 }
 
-function workerMap(payload) {
-  const rows = payload?.checks?.workers;
-  if (!Array.isArray(rows)) return null;
-  return new Map(
-    rows.flatMap((worker) =>
-      isRecord(worker) && typeof worker.task_key === "string"
-        ? [[worker.task_key, worker]]
-        : [],
-    ),
-  );
+async function readRouteText(response) {
+  try {
+    const bytes = await readBoundedBytes(
+      response,
+      ROUTE_MAX_RESPONSE_BYTES,
+      "route",
+    );
+    return {
+      text: new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+      error: null,
+    };
+  } catch (error) {
+    return { text: null, error };
+  }
 }
 
-function checkWorker(taskKey, worker, deployStartedAt) {
+function workerMap(payload) {
+  const rows = payload?.checks?.workers;
+  if (!Array.isArray(rows) || rows.length > REQUIRED_WORKERS.length)
+    return null;
+  const allowed = new Set(REQUIRED_WORKERS);
+  const workers = new Map();
+  for (const worker of rows) {
+    if (
+      !isRecord(worker) ||
+      typeof worker.task_key !== "string" ||
+      !allowed.has(worker.task_key) ||
+      workers.has(worker.task_key)
+    ) {
+      return null;
+    }
+    workers.set(worker.task_key, worker);
+  }
+  return workers;
+}
+
+function checkWorker(taskKey, worker, deployStartedAt, checkedAt) {
   const id = `worker:${taskKey}`;
   if (!worker) {
     return failedCheck(
@@ -215,11 +345,49 @@ function checkWorker(taskKey, worker, deployStartedAt) {
       EXIT_CODES.invalid_payload,
     );
   }
+  if (startedAt > checkedAt.valueOf() + 5 * 60_000) {
+    return failedCheck(
+      id,
+      "last_started_at is in the future",
+      EXIT_CODES.invalid_payload,
+    );
+  }
   if (worker.freshness !== "healthy") {
     return failedCheck(
       id,
       `freshness=${String(worker.freshness)}`,
       EXIT_CODES.worker_unhealthy,
+    );
+  }
+  if (worker.last_status !== "succeeded" && worker.last_status !== "skipped") {
+    return failedCheck(
+      id,
+      `healthy worker has last_status=${String(worker.last_status)}`,
+      EXIT_CODES.invalid_payload,
+    );
+  }
+  let lastSuccess = null;
+  if (worker.last_success_at !== null) {
+    lastSuccess = Date.parse(worker.last_success_at);
+    if (
+      !Number.isFinite(lastSuccess) ||
+      lastSuccess > checkedAt.valueOf() + 5 * 60_000
+    ) {
+      return failedCheck(
+        id,
+        "last_success_at is invalid",
+        EXIT_CODES.invalid_payload,
+      );
+    }
+  }
+  if (
+    worker.last_status === "succeeded" &&
+    (lastSuccess === null || lastSuccess < startedAt)
+  ) {
+    return failedCheck(
+      id,
+      "succeeded worker has no matching last_success_at",
+      EXIT_CODES.invalid_payload,
     );
   }
   if (deployStartedAt && startedAt <= Date.parse(deployStartedAt)) {
@@ -231,7 +399,7 @@ function checkWorker(taskKey, worker, deployStartedAt) {
   }
   return passedCheck(
     id,
-    `freshness=healthy last_started_at=${new Date(startedAt).toISOString()}`,
+    `freshness=healthy last_status=${worker.last_status} last_started_at=${new Date(startedAt).toISOString()} last_success_at=${lastSuccess === null ? "never" : new Date(lastSuccess).toISOString()}`,
   );
 }
 
@@ -248,6 +416,10 @@ export async function verifyProductionFreshness({
     : null;
   const checks = [];
   let workers = null;
+  const checkedAt = now();
+  if (!(checkedAt instanceof Date) || !Number.isFinite(checkedAt.valueOf())) {
+    throw new UsageError("Verification clock must be a valid date.");
+  }
 
   const healthRequest = await request(
     fetchImpl,
@@ -295,7 +467,7 @@ export async function verifyProductionFreshness({
           checks,
           failedCheck(
             "health",
-            `status=${String(parsed.payload.status)} HTTP ${healthResponse.status}`,
+            degradedHealthSummary(parsed.payload, healthResponse.status),
             EXIT_CODES.health_degraded,
           ),
         );
@@ -330,12 +502,22 @@ export async function verifyProductionFreshness({
     addCheck(
       checks,
       workers
-        ? checkWorker(taskKey, workers.get(taskKey), normalizedDeployStartedAt)
+        ? checkWorker(
+            taskKey,
+            workers.get(taskKey),
+            normalizedDeployStartedAt,
+            checkedAt,
+          )
         : skippedCheck(`worker:${taskKey}`, "health payload unavailable"),
     );
   }
 
   for (const pathname of VERIFIED_ROUTES) {
+    const expectsFeed = pathname.endsWith(".xml");
+    const expectedContentType = expectsFeed
+      ? "application/rss+xml"
+      : "text/html";
+    const expectedMarker = expectsFeed ? "<rss" : "<html";
     const routeRequest = await request(
       fetchImpl,
       normalizedOrigin,
@@ -353,6 +535,7 @@ export async function verifyProductionFreshness({
         ),
       );
     } else if (!routeRequest.response.ok) {
+      await routeRequest.response.body?.cancel().catch(() => undefined);
       addCheck(
         checks,
         failedCheck(
@@ -362,14 +545,41 @@ export async function verifyProductionFreshness({
         ),
       );
     } else {
+      const contentType =
+        routeRequest.response.headers.get("content-type")?.toLowerCase() ?? "";
+      if (!contentType.startsWith(expectedContentType)) {
+        await routeRequest.response.body?.cancel().catch(() => undefined);
+        addCheck(
+          checks,
+          failedCheck(
+            `route:${pathname}`,
+            `unexpected content-type=${contentType || "missing"}`,
+            EXIT_CODES.route,
+          ),
+        );
+        continue;
+      }
+      const body = await readRouteText(routeRequest.response);
+      if (body.error || !body.text?.toLowerCase().includes(expectedMarker)) {
+        addCheck(
+          checks,
+          failedCheck(
+            `route:${pathname}`,
+            body.error
+              ? "response body was invalid or too large"
+              : `response body is missing ${expectedMarker}`,
+            EXIT_CODES.route,
+          ),
+        );
+        continue;
+      }
       addCheck(
         checks,
         passedCheck(
           `route:${pathname}`,
-          `HTTP ${routeRequest.response.status}`,
+          `HTTP ${routeRequest.response.status} content-type=${expectedContentType}`,
         ),
       );
-      await routeRequest.response.body?.cancel().catch(() => undefined);
     }
   }
 
@@ -380,7 +590,7 @@ export async function verifyProductionFreshness({
     origin: normalizedOrigin,
     mode: normalizedDeployStartedAt ? "post_deploy" : "scheduled",
     deploy_started_at: normalizedDeployStartedAt,
-    checked_at: now().toISOString(),
+    checked_at: checkedAt.toISOString(),
     exit_code: firstFailure?.exit_code ?? EXIT_CODES.ok,
     required_workers: [...REQUIRED_WORKERS],
     verified_routes: [...VERIFIED_ROUTES],

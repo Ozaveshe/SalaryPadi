@@ -7,6 +7,8 @@ import type {
   WorkCostKind,
 } from "@/lib/offers";
 
+import { ToolUserError } from "./tool-user-error";
+
 export type OfferPrefix = "a" | "b";
 
 export const BENEFIT_FIELDS: ReadonlyArray<readonly [BenefitKind, string]> = [
@@ -65,12 +67,14 @@ function readNumber(form: FormData, name: string, optional = false) {
   const raw = String(form.get(name) ?? "").trim();
   if (raw === "") {
     if (optional) return undefined;
-    throw new Error(`${fieldLabel(name)} is required.`);
+    throw new ToolUserError(`${fieldLabel(name)} is required.`);
   }
 
   const value = Number(raw);
   if (!Number.isFinite(value) || value < 0) {
-    throw new Error(`${fieldLabel(name)} must be a non-negative number.`);
+    throw new ToolUserError(
+      `${fieldLabel(name)} must be a non-negative number.`,
+    );
   }
   return value;
 }
@@ -80,7 +84,7 @@ function readCurrency(form: FormData, name: string): string {
     .trim()
     .toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) {
-    throw new Error(
+    throw new ToolUserError(
       `${fieldLabel(name)} must use a three-letter currency code.`,
     );
   }
@@ -95,7 +99,7 @@ function readEnum<const Options extends readonly string[]>(
   const value = String(form.get(name) ?? "");
   const selected = options.find((option) => option === value);
   if (selected === undefined) {
-    throw new Error(`${fieldLabel(name)} has an invalid value.`);
+    throw new ToolUserError(`${fieldLabel(name)} has an invalid value.`);
   }
   return selected;
 }

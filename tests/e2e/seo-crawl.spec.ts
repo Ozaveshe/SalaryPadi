@@ -16,9 +16,9 @@ const fixture = JSON.parse(
   readFileSync(resolve("tests/fixtures/crawl/seo-routes.json"), "utf8"),
 ) as CrawlFixture;
 const expectedOrigin = (
-  process.env.NEXT_PUBLIC_APP_URL ??
   process.env.PLAYWRIGHT_BASE_URL ??
-  "http://127.0.0.1:3000"
+  process.env.NEXT_PUBLIC_APP_URL ??
+  "http://127.0.0.1:3100"
 ).replace(/\/$/, "");
 
 test.describe("crawl contract", () => {
@@ -64,6 +64,9 @@ test.describe("crawl contract", () => {
     const response = await request.get("/sitemap.xml");
     expect(response.status()).toBe(200);
     expect(response.headers()["content-type"]).toContain("application/xml");
+    expect(response.headers()["x-salarypadi-sitemap-state"]).toMatch(
+      /^(?:ready|degraded)$/,
+    );
     const body = await response.text();
     for (const route of fixture.xmlRoutes.slice(1))
       expect(body).toContain(route);
@@ -72,7 +75,9 @@ test.describe("crawl contract", () => {
   for (const route of fixture.xmlRoutes.slice(1)) {
     test(`${route} returns a valid URL set`, async ({ request }) => {
       const response = await request.get(route);
-      expect(response.status()).toBe(200);
+      const state = response.headers()["x-salarypadi-sitemap-state"];
+      expect(state).toMatch(/^(?:ready|degraded|unavailable)$/);
+      expect(response.status()).toBe(state === "unavailable" ? 503 : 200);
       expect(response.headers()["content-type"]).toContain("application/xml");
       expect(await response.text()).toContain("<urlset");
     });

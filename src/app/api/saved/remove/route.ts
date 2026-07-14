@@ -1,25 +1,46 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { readApiForm } from "@/lib/api/form";
+import { attemptApiOperation } from "@/lib/api/operation";
+import { noStoreRedirect } from "@/lib/api/response";
+import {
+  apiRpcBooleanResultSchema,
+  decodeApiRpcResult,
+} from "@/lib/api/rpc-result";
 import { getAuthenticatedApiContext } from "@/lib/auth/api";
 import { getAppOrigin } from "@/lib/env";
+import { noStoreJson } from "@/lib/http/json";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
   if (crossOrigin) return crossOrigin;
-  const parsed = z
-    .string()
-    .uuid()
-    .safeParse((await request.formData()).get("id"));
+  const form = await readApiForm(request, 2_048, {
+    invalidMessage: "Invalid saved-job removal form.",
+  });
+  if (!form.ok) return form.response;
+  const parsed = z.string().uuid().safeParse(form.data.get("id"));
   if (!parsed.success)
-    return Response.json({ error: "Invalid saved job." }, { status: 400 });
+    return noStoreJson({ error: "Invalid saved job." }, { status: 400 });
   const context = await getAuthenticatedApiContext();
   if (!context.ok) return context.response;
-  const { data, error } = await context.supabase
-    .schema("api")
-    .rpc("remove_saved_job", { saved_job_id: parsed.data });
+  const operation = await attemptApiOperation(
+    "saved.remove",
+    "saved_job_remove_failed",
+    "Saved-job service is temporarily unavailable.",
+    () =>
+      context.supabase
+        .schema("api")
+        .rpc("remove_saved_job", { saved_job_id: parsed.data }),
+  );
+  if (!operation.ok) return operation.response;
+  const result = decodeApiRpcResult(
+    "saved.remove",
+    "saved_job_remove_failed",
+    operation.value,
+    apiRpcBooleanResultSchema,
+  );
   const url = new URL("/saved", getAppOrigin());
-  url.searchParams.set("removed", !error && data ? "true" : "error");
-  return NextResponse.redirect(url, 303);
+  url.searchParams.set("removed", result.ok && result.data ? "true" : "error");
+  return noStoreRedirect(url, 303);
 }

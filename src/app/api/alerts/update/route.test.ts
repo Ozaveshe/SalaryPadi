@@ -15,6 +15,8 @@ vi.mock("@/lib/env", () => ({ getAppOrigin: mocks.getAppOrigin }));
 vi.mock("@/lib/security/origin", () => ({
   rejectCrossOriginRequest: mocks.rejectCrossOriginRequest,
 }));
+vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 
 import { POST } from "./route";
 
@@ -111,6 +113,27 @@ describe("alert update route", () => {
     );
   });
 
+  it("rejects a hidden query that would silently broaden the alert", async () => {
+    const response = await POST(
+      alertRequest({
+        intent: "edit",
+        id: alertId,
+        keyword: "platform engineer",
+        location: "Nigeria",
+        eligibility: "nigeria",
+        cadence: "weekly",
+        search_query: JSON.stringify({ workMode: "banana" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid alert search update.",
+    });
+    expect(mocks.getAuthenticatedApiContext).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("pauses and resumes without replacing stored filters", async () => {
     const paused = await POST(
       alertRequest({ intent: "set-active", id: alertId, active: "false" }),
@@ -146,5 +169,16 @@ describe("alert update route", () => {
     expect(response.headers.get("location")).toBe(
       "https://salarypadi.com/alerts?updated=error",
     );
+  });
+
+  it("returns unavailable when the alert update transport throws", async () => {
+    mocks.rpc.mockRejectedValue(new Error("transport unavailable"));
+
+    const response = await POST(
+      alertRequest({ intent: "set-active", id: alertId, active: "false" }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });

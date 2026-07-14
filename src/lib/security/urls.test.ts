@@ -37,6 +37,11 @@ describe("safeExternalUrl", () => {
     "http://jobs.example/apply",
     "javascript:alert(1)",
     "https://user:secret@jobs.example/apply",
+    "https://localhost/apply",
+    "https://localhost./apply",
+    "https://recruiting.local/apply",
+    "https://127.0.0.1/apply",
+    "https://[::1]/apply",
     "not a URL",
   ])("rejects an unsafe external destination: %s", (value) => {
     expect(safeExternalUrl(value)).toBeNull();

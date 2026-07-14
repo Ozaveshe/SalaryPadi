@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { annualizedSalaryMinimum } from "./normalize";
 import { hasJobEvidence, type AfricaEvidenceKey } from "./evidence";
+import { isJobCurrentlyPublishable } from "./publication";
 import type { Job } from "./types";
 
 const stringValue = z.preprocess(
@@ -78,6 +79,68 @@ export const jobSearchSchema = z.object({
 
 export type JobSearch = z.infer<typeof jobSearchSchema>;
 
+function decodeCanonicalJobSearch(value: Record<string, unknown>) {
+  const parsed = jobSearchSchema.strict().safeParse(value);
+  if (!parsed.success) return null;
+  for (const [key, rawValue] of Object.entries(value)) {
+    if (!Object.is(rawValue, parsed.data[key as keyof JobSearch])) return null;
+  }
+  return parsed.data;
+}
+
+export const jobAlertDraftSearchSchema = z
+  .record(z.string(), z.unknown())
+  .superRefine((value, context) => {
+    if (!decodeCanonicalJobSearch(value)) {
+      context.addIssue({
+        code: "custom",
+        message: "Alert search contains non-canonical or unknown fields.",
+      });
+    }
+  })
+  .transform((value) => decodeCanonicalJobSearch(value)!);
+
+export const jobAlertSearchSpecSchema = z
+  .record(z.string(), z.unknown())
+  .superRefine((value, context) => {
+    if (value.schema_version !== 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["schema_version"],
+        message: "Unsupported alert search schema version.",
+      });
+      return;
+    }
+
+    const searchInput = { ...value };
+    delete searchInput.schema_version;
+    if (!decodeCanonicalJobSearch(searchInput)) {
+      context.addIssue({
+        code: "custom",
+        message: "Alert search contains non-canonical or unknown fields.",
+      });
+    }
+  })
+  .transform((value) => {
+    const searchInput = { ...value };
+    delete searchInput.schema_version;
+    return {
+      ...decodeCanonicalJobSearch(searchInput)!,
+      schema_version: 1 as const,
+    };
+  });
+
+export function parseStoredJobAlertSearch(value: string | undefined) {
+  if (!value) return jobAlertDraftSearchSchema.parse({});
+  try {
+    const parsed: unknown = JSON.parse(value);
+    const result = jobAlertDraftSearchSchema.safeParse(parsed);
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
+}
+
 export function parseJobSearch(input: Record<string, unknown>): JobSearch {
   const parsed = jobSearchSchema.safeParse(input);
   if (parsed.success) return parsed.data;
@@ -109,10 +172,14 @@ function relevanceScore(job: Job, search: JobSearch) {
   return score;
 }
 
-export function filterAndSortJobs(jobs: Job[], search: JobSearch): Job[] {
-  const now = Date.now();
+export function filterAndSortJobs(
+  jobs: Job[],
+  search: JobSearch,
+  now = new Date(),
+): Job[] {
+  const nowValue = now.valueOf();
   const filtered = jobs.filter((job) => {
-    if (job.status !== "open") return false;
+    if (!isJobCurrentlyPublishable(job, now)) return false;
     if (search.q && relevanceScore(job, search) === 0) return false;
     if (search.company && !includesValue(job.company.name, search.company))
       return false;
@@ -122,7 +189,7 @@ export function filterAndSortJobs(jobs: Job[], search: JobSearch): Job[] {
       return false;
     if (
       search.path === "local_nigeria" &&
-      (job.workMode === "remote" ||
+      ((job.workMode !== "onsite" && job.workMode !== "hybrid") ||
         !includesValue(job.locationDisplay, "nigeria"))
     )
       return false;
@@ -180,7 +247,7 @@ export function filterAndSortJobs(jobs: Job[], search: JobSearch): Job[] {
     }
     if (search.postedWithin !== "all") {
       const days = Number(search.postedWithin);
-      if (now - Date.parse(job.postedAt) > days * 86_400_000) return false;
+      if (nowValue - Date.parse(job.postedAt) > days * 86_400_000) return false;
     }
     if (search.visaSponsorship && job.eligibility.visaSponsorship !== "yes")
       return false;
@@ -287,11 +354,14 @@ export function diversifyJobResults(jobs: Job[]) {
 }
 
 export function paginateJobs(jobs: Job[], page: number, pageSize = 10) {
-  const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
-  const safePage = Math.min(Math.max(page, 1), totalPages);
-  const start = (safePage - 1) * pageSize;
+  const safePageSize =
+    Number.isInteger(pageSize) && pageSize > 0 ? Math.min(pageSize, 100) : 10;
+  const totalPages = Math.max(1, Math.ceil(jobs.length / safePageSize));
+  const requestedPage = Number.isInteger(page) && page > 0 ? page : 1;
+  const safePage = Math.min(requestedPage, totalPages);
+  const start = (safePage - 1) * safePageSize;
   return {
-    items: jobs.slice(start, start + pageSize),
+    items: jobs.slice(start, start + safePageSize),
     page: safePage,
     totalPages,
     totalItems: jobs.length,

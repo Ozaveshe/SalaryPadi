@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(),
 }));
@@ -20,6 +21,7 @@ import {
 } from "@/lib/companies/repository";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { unstable_rethrow } from "next/navigation";
 
 const mockedCreateClient = vi.mocked(createServerSupabaseClient);
 const mockedJobFeed = vi.mocked(getLiveJobFeed);
@@ -32,6 +34,20 @@ function clientReturning(data: unknown, error: unknown = null) {
     limit: async () => ({ data, error }),
   };
   return { schema: () => ({ from: () => query }) } as never;
+}
+
+function clientReturningWithLimit(data: unknown, error: unknown = null) {
+  const limit = vi.fn().mockResolvedValue({ data, error });
+  const query = {
+    select: () => query,
+    order: () => query,
+    eq: () => query,
+    limit,
+  };
+  return {
+    client: { schema: () => ({ from: () => query }) } as never,
+    limit,
+  };
 }
 
 function clientReturningSingle(data: unknown, error: unknown = null) {
@@ -53,6 +69,35 @@ function discoveryClientReturning(rows: Record<string, unknown[]>) {
           not: () => query,
           order: () => query,
           range: async () => ({ data: rows[table] ?? [], error: null }),
+        };
+        return query;
+      },
+    }),
+  } as never;
+}
+
+function intelligenceClientThrowing(failure: Error) {
+  const query = {
+    select: () => query,
+    eq: () => query,
+    limit: async () => Promise.reject(failure),
+  };
+  return { schema: () => ({ from: () => query }) } as never;
+}
+
+function discoveryClientFailing(failedTables: ReadonlySet<string>) {
+  return {
+    schema: () => ({
+      from: (table: string) => {
+        const query = {
+          select: () => query,
+          eq: () => query,
+          not: () => query,
+          order: () => query,
+          range: async () =>
+            failedTables.has(table)
+              ? { data: null, error: new Error(`${table} unavailable`) }
+              : { data: [], error: null },
         };
         return query;
       },
@@ -143,6 +188,7 @@ const validBenefit = {
 describe("companies repository", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.mocked(unstable_rethrow).mockReset();
     mockedJobFeed.mockResolvedValue(disabledFeed);
   });
 
@@ -195,6 +241,36 @@ describe("companies repository", () => {
     const result = await getCompaniesResult();
     expect(result.state).toBe("degraded");
     expect(result.data).toHaveLength(1);
+    expect(result.issues[0]?.code).toBe("companies_invalid_rows");
+  });
+
+  it("does not silently collapse duplicate or overflowing company rows", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const store = clientReturningWithLimit(Array(501).fill(validCompany));
+    mockedCreateClient.mockResolvedValue(store.client);
+
+    const result = await getCompaniesResult(disabledFeed);
+
+    expect(result.state).toBe("degraded");
+    expect(result.data).toHaveLength(1);
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "companies_duplicate_slugs" }),
+        expect.objectContaining({ code: "companies_capacity_exceeded" }),
+      ]),
+    );
+    expect(store.limit).toHaveBeenCalledWith(501);
+  });
+
+  it("does not silently erase malformed nested company evidence", async () => {
+    mockedCreateClient.mockResolvedValue(
+      clientReturning([{ ...validCompany, citations: "not-an-array" }]),
+    );
+
+    const result = await getCompaniesResult(disabledFeed);
+
+    expect(result.state).toBe("unavailable");
+    expect(result.data).toEqual([]);
     expect(result.issues[0]?.code).toBe("companies_invalid_rows");
   });
 
@@ -314,6 +390,65 @@ describe("companies repository", () => {
     ]);
   });
 
+  it("keeps privacy-withheld review and interview countries explicit", async () => {
+    const withheldReview = { ...validReview, country_code: "WITHHELD" };
+    const withheldInterview = { ...validInterview, country_code: "WITHHELD" };
+    mockedCreateClient
+      .mockResolvedValueOnce(clientReturning([withheldReview]))
+      .mockResolvedValueOnce(clientReturning([withheldInterview]));
+
+    await expect(getCompanyReviewsResult("acme")).resolves.toMatchObject({
+      state: "ready",
+      data: [withheldReview],
+    });
+    await expect(getInterviewExperiencesResult("acme")).resolves.toMatchObject({
+      state: "ready",
+      data: [withheldInterview],
+    });
+  });
+
+  it("reports bounded company-intelligence overflow explicitly", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const reviews = clientReturningWithLimit(
+      Array.from({ length: 101 }, (_, index) => ({
+        ...validReview,
+        id: `20000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      })),
+    );
+    mockedCreateClient.mockResolvedValueOnce(reviews.client);
+
+    const reviewResult = await getCompanyReviewsResult("acme");
+
+    expect(reviewResult.state).toBe("degraded");
+    expect(reviewResult.data).toHaveLength(100);
+    expect(reviewResult.issues).toContainEqual(
+      expect.objectContaining({
+        code: "company_intelligence_capacity_exceeded",
+      }),
+    );
+    expect(reviews.limit).toHaveBeenCalledWith(101);
+
+    const ratings = clientReturningWithLimit([validRating, validRating]);
+    mockedCreateClient.mockResolvedValueOnce(ratings.client);
+    const ratingResult = await getCompanyRatingResult("acme");
+
+    expect(ratingResult).toMatchObject({ state: "invalid", data: null });
+    expect(ratings.limit).toHaveBeenCalledWith(2);
+  });
+
+  it("quarantines duplicate company-intelligence identities", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockedCreateClient.mockResolvedValue(
+      clientReturning([validReview, validReview]),
+    );
+
+    await expect(getCompanyReviewsResult("acme")).resolves.toMatchObject({
+      state: "degraded",
+      data: [validReview],
+      issues: [{ code: "company_intelligence_duplicate_rows" }],
+    });
+  });
+
   it("reads the active company-rating sample threshold", async () => {
     mockedCreateClient.mockResolvedValue(
       clientReturningSingle({
@@ -374,6 +509,42 @@ describe("companies repository", () => {
     ]);
   });
 
+  it("degrades and excludes invalid slugs or future-dated discovery evidence", async () => {
+    mockedCreateClient.mockResolvedValue(
+      discoveryClientReturning({
+        company_reviews: [
+          {
+            company_slug: "valid-co",
+            published_at: "2026-07-11T00:00:00.000Z",
+          },
+          {
+            company_slug: "Invalid Slug",
+            published_at: "2026-07-11T00:00:00.000Z",
+          },
+          {
+            company_slug: "future-co",
+            published_at: "2026-07-14T00:06:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    const result = await getPublishedCompanyEvidenceResult(
+      new Date("2026-07-14T00:00:00.000Z"),
+    );
+
+    expect(result.state).toBe("degraded");
+    expect(result.data).toEqual([
+      {
+        companySlug: "valid-co",
+        lastModified: "2026-07-11T00:00:00.000Z",
+      },
+    ]);
+    expect(result.issues).toEqual([
+      expect.objectContaining({ code: "company_discovery_invalid_rows" }),
+    ]);
+  });
+
   it("marks malformed company intelligence as degraded", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockedCreateClient.mockResolvedValue(
@@ -382,5 +553,66 @@ describe("companies repository", () => {
     const result = await getCompanyReviewsResult("acme");
     expect(result.state).toBe("degraded");
     expect(result.data).toHaveLength(1);
+  });
+
+  it("maps a thrown company-client bootstrap failure to unavailable", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failure = new Error("company client failed");
+    mockedCreateClient.mockRejectedValue(failure);
+
+    await expect(getCompaniesResult(disabledFeed)).resolves.toMatchObject({
+      state: "unavailable",
+      data: [],
+      issues: [{ code: "companies_query_failed" }],
+    });
+    expect(unstable_rethrow).toHaveBeenCalledWith(failure);
+  });
+
+  it("maps a thrown intelligence query transport to unavailable", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failure = new Error("intelligence transport failed");
+    mockedCreateClient.mockResolvedValue(intelligenceClientThrowing(failure));
+
+    await expect(getCompanyReviewsResult("acme")).resolves.toMatchObject({
+      state: "unavailable",
+      data: [],
+      issues: [{ code: "company_intelligence_query_failed" }],
+    });
+    expect(unstable_rethrow).toHaveBeenCalledWith(failure);
+  });
+
+  it("marks discovery unavailable when every evidence table fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockedCreateClient.mockResolvedValue(
+      discoveryClientFailing(
+        new Set([
+          "company_reviews",
+          "interview_experiences",
+          "company_ratings",
+          "company_benefits",
+          "salary_aggregates",
+          "employer_responses",
+        ]),
+      ),
+    );
+
+    const result = await getPublishedCompanyEvidenceResult();
+
+    expect(result.state).toBe("unavailable");
+    expect(result.data).toEqual([]);
+    expect(result.issues).toHaveLength(6);
+  });
+
+  it("keeps discovery degraded when at least one evidence table succeeds", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockedCreateClient.mockResolvedValue(
+      discoveryClientFailing(new Set(["company_reviews"])),
+    );
+
+    const result = await getPublishedCompanyEvidenceResult();
+
+    expect(result.state).toBe("degraded");
+    expect(result.data).toEqual([]);
+    expect(result.issues).toHaveLength(1);
   });
 });

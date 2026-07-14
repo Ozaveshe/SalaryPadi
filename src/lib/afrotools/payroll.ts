@@ -14,9 +14,29 @@ export interface AfroToolsTaxResult {
 }
 
 function monthly(annual: PayrollBreakdown): PayrollBreakdown {
-  return Object.fromEntries(
-    Object.entries(annual).map(([key, value]) => [key, Math.round(value / 12)]),
-  ) as unknown as PayrollBreakdown;
+  const value = (amount: number) => Math.round(amount / 12);
+  return {
+    grossCashPay: value(annual.grossCashPay),
+    taxExemptEmploymentIncome: value(annual.taxExemptEmploymentIncome),
+    taxableCashEmploymentIncome: value(annual.taxableCashEmploymentIncome),
+    taxableBenefitsInKind: value(annual.taxableBenefitsInKind),
+    grossEmploymentIncome: value(annual.grossEmploymentIncome),
+    employeePension: value(annual.employeePension),
+    nationalHousingFund: value(annual.nationalHousingFund),
+    healthInsurance: value(annual.healthInsurance),
+    ownerOccupiedMortgageInterest: value(annual.ownerOccupiedMortgageInterest),
+    lifeInsuranceOrDeferredAnnuity: value(
+      annual.lifeInsuranceOrDeferredAnnuity,
+    ),
+    rentPaid: value(annual.rentPaid),
+    rentRelief: value(annual.rentRelief),
+    totalEligibleTaxDeductions: value(annual.totalEligibleTaxDeductions),
+    chargeableIncome: value(annual.chargeableIncome),
+    paye: value(annual.paye),
+    otherDeductions: value(annual.otherDeductions),
+    totalCashDeductions: value(annual.totalCashDeductions),
+    takeHomePay: value(annual.takeHomePay),
+  };
 }
 
 export function mergeAfroToolsTaxResult(

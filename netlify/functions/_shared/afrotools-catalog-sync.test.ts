@@ -125,7 +125,12 @@ describe("standalone AfroTools catalog worker", () => {
       vi.fn<typeof fetch>().mockImplementation(async (input) => {
         const url = String(input);
         if (url.endsWith("/rest/v1/rpc/worker_start")) {
-          return Response.json([{ run_id: "run-1", should_run: true }]);
+          return Response.json([
+            {
+              run_id: "10000000-0000-4000-8000-000000000001",
+              should_run: true,
+            },
+          ]);
         }
         if (url.endsWith("/rest/v1/rpc/worker_finish")) {
           return Response.json(true);

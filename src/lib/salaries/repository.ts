@@ -1,142 +1,68 @@
 import "server-only";
 
+import { unstable_rethrow } from "next/navigation";
+
 import {
   repositoryDegraded,
   repositoryFailure,
   repositoryIssue,
   repositoryReady,
+  type RepositoryIssue,
+  type RepositoryResult,
 } from "@/lib/data/repository-result";
+import {
+  decodePublicSalaryAggregate,
+  type PublicSalaryAggregate,
+} from "@/lib/salaries/aggregate-row";
 import {
   parseSalaryCellProgress,
   type SalaryCellProgress,
 } from "@/lib/salaries/progress";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-export interface PublicSalaryAggregate {
-  id: string;
-  companySlug: string | null;
-  roleSlug: string;
-  roleFamily: string;
-  countryCode: string;
-  seniority: string;
-  arrangement: string;
-  currency: string;
-  grossNet: "gross" | "net" | "mixed";
-  medianAnnual: number;
-  percentile25Annual: number | null;
-  percentile75Annual: number | null;
-  sampleSize: number | null;
-  submissionMonthStart: string;
-  submissionMonthEnd: string;
-  confidence: "low" | "medium" | "high";
-  calculatedAt: string;
-  evidenceLane: "first_party_contributions" | "verified_online_benchmark";
-  sourceName: string;
-  sourceUrl: string | null;
-  methodologyUrl: string | null;
-  sourceRoleLabel: string | null;
-  sourcePayPeriod: string | null;
-  sourceMedianAmount: number | null;
-  provenanceLabel: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function mapAggregate(row: unknown): PublicSalaryAggregate | null {
-  const evidenceLane =
-    isRecord(row) && row.evidence_lane === "verified_online_benchmark"
-      ? "verified_online_benchmark"
-      : "first_party_contributions";
-  const sampleSize =
-    isRecord(row) && typeof row.sample_size === "number"
-      ? row.sample_size
-      : null;
-  if (
-    !isRecord(row) ||
-    typeof row.id !== "string" ||
-    typeof row.role_slug !== "string" ||
-    typeof row.role_family !== "string" ||
-    typeof row.country_code !== "string" ||
-    typeof row.currency !== "string" ||
-    typeof row.median_annual !== "number" ||
-    (evidenceLane === "first_party_contributions" &&
-      (sampleSize === null || sampleSize < 3)) ||
-    (evidenceLane === "verified_online_benchmark" &&
-      (typeof row.source_name !== "string" ||
-        typeof row.source_url !== "string" ||
-        !row.source_url.startsWith("https://")))
-  )
-    return null;
-
-  return {
-    id: row.id,
-    companySlug: typeof row.company_slug === "string" ? row.company_slug : null,
-    roleSlug: row.role_slug,
-    roleFamily: row.role_family,
-    countryCode: row.country_code,
-    seniority: typeof row.seniority === "string" ? row.seniority : "all",
-    arrangement: typeof row.arrangement === "string" ? row.arrangement : "all",
-    currency: row.currency,
-    grossNet:
-      row.gross_net === "gross" || row.gross_net === "net"
-        ? row.gross_net
-        : "mixed",
-    medianAnnual: row.median_annual,
-    percentile25Annual:
-      typeof row.percentile_25_annual === "number"
-        ? row.percentile_25_annual
-        : null,
-    percentile75Annual:
-      typeof row.percentile_75_annual === "number"
-        ? row.percentile_75_annual
-        : null,
-    sampleSize,
-    submissionMonthStart:
-      typeof row.submission_month_start === "string"
-        ? row.submission_month_start
-        : "Unknown",
-    submissionMonthEnd:
-      typeof row.submission_month_end === "string"
-        ? row.submission_month_end
-        : "Unknown",
-    confidence:
-      row.confidence === "high" || row.confidence === "medium"
-        ? row.confidence
-        : "low",
-    calculatedAt:
-      typeof row.calculated_at === "string"
-        ? row.calculated_at
-        : new Date(0).toISOString(),
-    evidenceLane,
-    sourceName:
-      typeof row.source_name === "string"
-        ? row.source_name
-        : "SalaryPadi community",
-    sourceUrl: typeof row.source_url === "string" ? row.source_url : null,
-    methodologyUrl:
-      typeof row.methodology_url === "string" ? row.methodology_url : null,
-    sourceRoleLabel:
-      typeof row.source_role_label === "string" ? row.source_role_label : null,
-    sourcePayPeriod:
-      typeof row.source_pay_period === "string" ? row.source_pay_period : null,
-    sourceMedianAmount:
-      typeof row.source_median_amount === "number"
-        ? row.source_median_amount
-        : null,
-    provenanceLabel:
-      typeof row.provenance_label === "string"
-        ? row.provenance_label
-        : "Privacy-thresholded approved contributions",
-  };
-}
+export type { PublicSalaryAggregate } from "@/lib/salaries/aggregate-row";
 
 function mapAggregateRows(rows: unknown[]) {
-  const mapped = rows
-    .map((row) => mapAggregate(row))
-    .filter((row): row is PublicSalaryAggregate => row !== null);
-  return { mapped, rejected: rows.length - mapped.length };
+  const seenIds = new Set<string>();
+  let rejected = 0;
+  let duplicates = 0;
+  const mapped = rows.flatMap((row) => {
+    const decoded = decodePublicSalaryAggregate(row);
+    if (!decoded.ok) {
+      rejected += 1;
+      return [];
+    }
+    if (seenIds.has(decoded.aggregate.id)) {
+      duplicates += 1;
+      return [];
+    }
+    seenIds.add(decoded.aggregate.id);
+    return [decoded.aggregate];
+  });
+  return { mapped, rejected, duplicates };
+}
+
+async function captureSalaryRead<T>({
+  operation,
+  code,
+  fallback,
+  read,
+}: {
+  operation: string;
+  code: string;
+  fallback: T;
+  read: () => Promise<RepositoryResult<T>>;
+}): Promise<RepositoryResult<T>> {
+  try {
+    return await read();
+  } catch (error) {
+    unstable_rethrow(error);
+    return repositoryFailure(
+      "unavailable",
+      fallback,
+      repositoryIssue(operation, "query_failed", code, error),
+    );
+  }
 }
 
 function normalizeRoleSlug(role: string): string {
@@ -147,13 +73,24 @@ function normalizeRoleSlug(role: string): string {
     .replace(/^-|-$/g, "");
 }
 
-export async function getSalaryCellProgressResult({
-  role,
-  country,
-}: {
+function escapeLikePattern(value: string): string {
+  return value
+    .replaceAll("\\", "\\\\")
+    .replaceAll("%", "\\%")
+    .replaceAll("_", "\\_");
+}
+
+interface SalaryCellProgressFilters {
   role: string;
   country: string;
-}) {
+}
+
+async function getSalaryCellProgressResultUnchecked({
+  role,
+  country,
+}: SalaryCellProgressFilters): Promise<
+  RepositoryResult<SalaryCellProgress | null>
+> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
     return repositoryFailure<SalaryCellProgress | null>(
@@ -215,15 +152,28 @@ export async function getSalaryCellProgressResult({
   return repositoryReady<SalaryCellProgress | null>(progress);
 }
 
-export async function searchSalaryAggregatesResult({
-  role,
-  country,
-  company,
-}: {
+export function getSalaryCellProgressResult(
+  filters: SalaryCellProgressFilters,
+): Promise<RepositoryResult<SalaryCellProgress | null>> {
+  return captureSalaryRead({
+    operation: "salaries.progress",
+    code: "salary_progress_query_failed",
+    fallback: null,
+    read: () => getSalaryCellProgressResultUnchecked(filters),
+  });
+}
+
+export interface SalaryAggregateFilters {
   role?: string;
   country?: string;
   company?: string;
-}) {
+}
+
+async function searchSalaryAggregatesResultUnchecked({
+  role,
+  country,
+  company,
+}: SalaryAggregateFilters): Promise<RepositoryResult<PublicSalaryAggregate[]>> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
     return repositoryFailure(
@@ -240,8 +190,12 @@ export async function searchSalaryAggregatesResult({
     .schema("api")
     .from("salary_aggregates")
     .select("*")
-    .limit(50);
-  if (role) query = query.ilike("role_family", `%${role}%`);
+    .order("calculated_at", { ascending: false })
+    .order("id", { ascending: true })
+    .limit(51);
+  if (role) {
+    query = query.ilike("role_family", `%${escapeLikePattern(role)}%`);
+  }
   if (country) query = query.eq("country_code", country.toUpperCase());
   if (company) query = query.eq("company_slug", company);
   const { data, error } = await query;
@@ -257,20 +211,55 @@ export async function searchSalaryAggregatesResult({
       ),
     );
   }
-  const { mapped, rejected } = mapAggregateRows(data);
+  const overflow = data.length > 50;
+  const { mapped, rejected, duplicates } = mapAggregateRows(data.slice(0, 50));
+  const issues: RepositoryIssue[] = [];
   if (rejected > 0) {
-    return repositoryDegraded(mapped, [
+    issues.push(
       repositoryIssue(
         "salaries.search",
         "invalid_rows",
         "salaries_invalid_rows",
       ),
-    ]);
+    );
   }
-  return repositoryReady(mapped);
+  if (duplicates > 0) {
+    issues.push(
+      repositoryIssue(
+        "salaries.search",
+        "invalid_rows",
+        "salaries_duplicate_rows",
+      ),
+    );
+  }
+  if (overflow) {
+    issues.push(
+      repositoryIssue(
+        "salaries.search",
+        "invalid_container",
+        "salaries_capacity_exceeded",
+      ),
+    );
+  }
+  return issues.length > 0
+    ? repositoryDegraded(mapped, issues)
+    : repositoryReady(mapped);
 }
 
-export async function listPublishedSalaryAggregatesResult() {
+export function searchSalaryAggregatesResult(
+  filters: SalaryAggregateFilters,
+): Promise<RepositoryResult<PublicSalaryAggregate[]>> {
+  return captureSalaryRead({
+    operation: "salaries.search",
+    code: "salaries_query_failed",
+    fallback: [],
+    read: () => searchSalaryAggregatesResultUnchecked(filters),
+  });
+}
+
+async function listPublishedSalaryAggregatesResultUnchecked(): Promise<
+  RepositoryResult<PublicSalaryAggregate[]>
+> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
     return repositoryFailure(
@@ -324,17 +313,40 @@ export async function listPublishedSalaryAggregatesResult() {
     }
   }
 
-  const { mapped, rejected } = mapAggregateRows(rows);
+  const { mapped, rejected, duplicates } = mapAggregateRows(rows);
+  const issues: RepositoryIssue[] = [];
   if (rejected > 0) {
-    return repositoryDegraded(mapped, [
+    issues.push(
       repositoryIssue(
         "salaries.sitemap",
         "invalid_rows",
         "salary_sitemap_invalid_rows",
       ),
-    ]);
+    );
   }
-  return repositoryReady(mapped);
+  if (duplicates > 0) {
+    issues.push(
+      repositoryIssue(
+        "salaries.sitemap",
+        "invalid_rows",
+        "salary_sitemap_duplicate_rows",
+      ),
+    );
+  }
+  return issues.length > 0
+    ? repositoryDegraded(mapped, issues)
+    : repositoryReady(mapped);
+}
+
+export function listPublishedSalaryAggregatesResult(): Promise<
+  RepositoryResult<PublicSalaryAggregate[]>
+> {
+  return captureSalaryRead({
+    operation: "salaries.sitemap",
+    code: "salary_sitemap_query_failed",
+    fallback: [],
+    read: listPublishedSalaryAggregatesResultUnchecked,
+  });
 }
 
 export async function searchSalaryAggregates(

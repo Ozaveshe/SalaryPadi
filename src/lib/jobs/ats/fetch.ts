@@ -1,8 +1,13 @@
 import { z } from "zod";
 
+import {
+  BodyReadError,
+  discardResponseBody,
+  readBoundedBody,
+} from "@/lib/http/body";
 import { sourceResponseCheckedAt } from "../freshness";
 import { ashbyAdapter, greenhouseAdapter, leverAdapter } from "./adapters";
-import { AtsAdapterError, atsAdapterError } from "./errors";
+import { atsAdapterError } from "./errors";
 import type {
   AtsAuthorizedSource,
   AtsFetchOptions,
@@ -47,6 +52,7 @@ const authorizationSchema = z
     kind: z.literal("employer"),
     authorizedBy: z.string().trim().min(1).max(300),
     reviewedAt: z.string().datetime({ offset: true }),
+    expiresAt: z.string().datetime({ offset: true }).nullable(),
     evidenceReference: z.string().trim().min(1).max(500),
     allowedDestinations: z
       .array(allowedDestinationSchema)
@@ -57,7 +63,19 @@ const authorizationSchema = z
           destinations.length,
       ),
   })
-  .strict();
+  .strict()
+  .superRefine((authorization, context) => {
+    if (
+      authorization.expiresAt !== null &&
+      authorization.expiresAt <= authorization.reviewedAt
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["expiresAt"],
+        message: "ATS authorization must expire after its review",
+      });
+    }
+  });
 
 const sourceBaseShape = {
   key: z
@@ -148,59 +166,23 @@ async function readBoundedJson(
   signal: AbortSignal,
   provider: AtsProvider,
 ): Promise<unknown> {
-  const declaredLength = Number(response.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-    throw atsAdapterError("ats_response_too_large", provider);
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw atsAdapterError("ats_response_read_failed", provider);
-  }
-
-  const chunks: Uint8Array[] = [];
-  let receivedBytes = 0;
+  let bytes: Uint8Array;
   try {
-    while (true) {
-      if (signal.aborted) {
-        throw atsAdapterError("ats_request_aborted", provider);
-      }
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value?.byteLength) continue;
-
-      receivedBytes += value.byteLength;
-      if (receivedBytes > maxBytes) {
-        try {
-          await reader.cancel();
-        } catch {
-          // The bounded read already failed; cancellation is best effort.
-        }
-        throw atsAdapterError("ats_response_too_large", provider);
-      }
-      chunks.push(value);
-    }
+    bytes = await readBoundedBody(response, maxBytes);
   } catch (error) {
-    if (error instanceof AtsAdapterError) throw error;
+    if (error instanceof BodyReadError && error.code === "too_large") {
+      throw atsAdapterError("ats_response_too_large", provider);
+    }
     throw atsAdapterError(
       signal.aborted || isAbortFailure(error)
         ? "ats_request_aborted"
         : "ats_response_read_failed",
       provider,
     );
-  } finally {
-    reader.releaseLock();
   }
 
   if (signal.aborted) {
     throw atsAdapterError("ats_request_aborted", provider);
-  }
-
-  const bytes = new Uint8Array(receivedBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
   }
 
   let text: string;
@@ -242,6 +224,16 @@ async function fetchWithAdapter<P extends AtsProvider, TPayload, TRecord>(
   options: AtsFetchOptions,
 ): Promise<AtsFetchResult> {
   const { signal, requestedAt, maxBytes } = resolveOptions(options);
+  const reviewedAt = Date.parse(source.authorization.reviewedAt);
+  const expiresAt = source.authorization.expiresAt
+    ? Date.parse(source.authorization.expiresAt)
+    : null;
+  if (
+    reviewedAt > requestedAt.valueOf() + 5 * 60_000 ||
+    (expiresAt !== null && expiresAt <= requestedAt.valueOf())
+  ) {
+    throw atsAdapterError("ats_invalid_source", adapter.provider);
+  }
   const endpoint = adapter.buildEndpoint(source);
   const fetchImpl = options.fetch ?? globalThis.fetch;
 
@@ -267,9 +259,11 @@ async function fetchWithAdapter<P extends AtsProvider, TPayload, TRecord>(
   }
 
   if (!response.ok) {
+    await discardResponseBody(response);
     throw atsAdapterError("ats_http_error", adapter.provider, response.status);
   }
   if (!isJsonResponse(response)) {
+    await discardResponseBody(response);
     throw atsAdapterError("ats_invalid_content_type", adapter.provider);
   }
 

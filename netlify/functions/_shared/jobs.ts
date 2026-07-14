@@ -1,8 +1,9 @@
 import { getStore } from "@netlify/blobs";
 import { z } from "zod";
 
+import { discardResponseBody } from "../../../src/lib/http/body";
 import { readBoundedJson } from "../../../src/lib/http/json";
-import { mapDatabaseJobRow } from "../../../src/lib/jobs/database";
+import { decodeDatabaseJobRow } from "../../../src/lib/jobs/database";
 import { buildJobFingerprint } from "../../../src/lib/jobs/fingerprint";
 import { REMOTIVE_ADAPTER_ERROR_CODES } from "../../../src/lib/jobs/remotive-adapter";
 import {
@@ -11,10 +12,6 @@ import {
   REMOTIVE_SOURCE_POLICY,
   REMOTIVE_TERMS_VERSION,
 } from "../../../src/lib/jobs/source-policy";
-import {
-  filterAndSortJobs,
-  parseJobSearch,
-} from "../../../src/lib/jobs/search";
 import type { Job } from "../../../src/lib/jobs/types";
 
 import {
@@ -27,7 +24,7 @@ import {
   EXTERNAL_REQUEST_TIMEOUT_MS,
   getRuntimeAppOrigin,
   getRuntimeBoolean,
-  getRuntimeEnvironment,
+  getRuntimeHeaderCredential,
   getRuntimeSecret,
   getRuntimeSupabaseOrigin,
   OperationalError,
@@ -42,6 +39,7 @@ const ALERT_CATALOG_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const JOB_SNAPSHOT_REQUEST_TIMEOUT_MS = 15_000;
 const SOURCE_POLICY_MAX_RESPONSE_BYTES = 32 * 1024;
 const DATABASE_JOBS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+const MAX_DATABASE_ALERT_JOBS = 500;
 const RECOVERABLE_ALERT_CATALOG_ERRORS = new Set([
   "alert_catalog_missing",
   "alert_catalog_shape",
@@ -98,14 +96,15 @@ const jobSnapshotErrorSchema = z
   })
   .strict();
 
-export type AlertClaim = {
-  delivery_id: string;
-  claim_token: string;
-  alert_id: string;
-  recipient_email: string;
-  search_spec: Record<string, unknown>;
-  cadence: "daily" | "weekly";
-  last_sent_at: string | null;
+export type AlertJobCatalogIssue = {
+  code: string;
+  count?: number;
+};
+
+export type AlertJobCatalogResult = {
+  state: "ready" | "degraded";
+  jobs: Job[];
+  issues: AlertJobCatalogIssue[];
 };
 
 export async function fetchPublishedRemotiveSnapshot(
@@ -148,6 +147,7 @@ export async function fetchPublishedRemotiveSnapshot(
         if (reason instanceof OperationalError) throw reason;
       }
     }
+    await discardResponseBody(response);
     throw new OperationalError(`job_snapshot_${response.status}`);
   }
   if (
@@ -157,6 +157,7 @@ export async function fetchPublishedRemotiveSnapshot(
       ?.trim()
       .toLowerCase() !== "application/json"
   ) {
+    await discardResponseBody(response);
     throw new OperationalError("job_snapshot_content_type");
   }
 
@@ -226,13 +227,15 @@ export async function storeAlertJobCatalog(
   return catalog.jobs.length;
 }
 
-async function fetchDatabaseJobs(signal: AbortSignal): Promise<Job[]> {
+async function fetchDatabaseJobs(
+  signal: AbortSignal,
+): Promise<AlertJobCatalogResult> {
   const url = getRuntimeSupabaseOrigin();
-  const publishableKey = getRuntimeEnvironment(
+  const publishableKey = getRuntimeHeaderCredential(
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   );
   const response = await fetch(
-    `${url}/rest/v1/jobs?select=*&order=posted_at.desc&limit=500`,
+    `${url}/rest/v1/jobs?select=*&order=posted_at.desc&limit=${MAX_DATABASE_ALERT_JOBS + 1}`,
     {
       headers: {
         Accept: "application/json",
@@ -246,8 +249,10 @@ async function fetchDatabaseJobs(signal: AbortSignal): Promise<Job[]> {
       signal: boundedSignal(signal, EXTERNAL_REQUEST_TIMEOUT_MS),
     },
   );
-  if (!response.ok)
+  if (!response.ok) {
+    await discardResponseBody(response);
     throw new OperationalError(`database_jobs_${response.status}`);
+  }
   let payload: unknown;
   try {
     payload = await readBoundedJson(response, DATABASE_JOBS_MAX_RESPONSE_BYTES);
@@ -256,9 +261,56 @@ async function fetchDatabaseJobs(signal: AbortSignal): Promise<Job[]> {
   }
   if (!Array.isArray(payload))
     throw new OperationalError("database_jobs_shape");
-  return payload
-    .map((row) => mapDatabaseJobRow(row))
-    .filter((job): job is Job => job !== null);
+  const capacityExceeded = payload.length > MAX_DATABASE_ALERT_JOBS;
+  const decoded = payload
+    .slice(0, MAX_DATABASE_ALERT_JOBS)
+    .map((row) => decodeDatabaseJobRow(row));
+  const jobs = decoded.flatMap((result) => (result.ok ? [result.job] : []));
+  const rejectedRows = decoded.filter((result) => !result.ok);
+  if (rejectedRows.length === 0 && !capacityExceeded) {
+    return { state: "ready", jobs, issues: [] };
+  }
+
+  if (rejectedRows.length > 0) {
+    console.warn(
+      JSON.stringify({
+        event: "worker.rows_quarantined",
+        operation: "jobs.alert_catalog",
+        code: "database_jobs_invalid_rows",
+        rejected: rejectedRows.length,
+        issue_paths: [
+          ...new Set(rejectedRows.flatMap((result) => result.issuePaths)),
+        ].slice(0, 12),
+      }),
+    );
+  }
+  if (capacityExceeded) {
+    console.warn(
+      JSON.stringify({
+        event: "worker.capacity_exceeded",
+        operation: "jobs.alert_catalog",
+        code: "database_jobs_capacity_exceeded",
+        maximum: MAX_DATABASE_ALERT_JOBS,
+      }),
+    );
+  }
+  return {
+    state: "degraded",
+    jobs,
+    issues: [
+      ...(capacityExceeded
+        ? [{ code: "database_jobs_capacity_exceeded" }]
+        : []),
+      ...(rejectedRows.length > 0
+        ? [
+            {
+              code: "database_jobs_invalid_rows",
+              count: rejectedRows.length,
+            },
+          ]
+        : []),
+    ],
+  };
 }
 
 async function fetchRemotivePublicationEnabled(
@@ -285,7 +337,7 @@ async function fetchRemotivePublicationEnabled(
   );
   url.searchParams.set("adapter_key", `eq.${REMOTIVE_ADAPTER_KEY}`);
   url.searchParams.set("limit", "1");
-  const publishableKey = getRuntimeEnvironment(
+  const publishableKey = getRuntimeHeaderCredential(
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   );
   const response = await fetch(url, {
@@ -301,6 +353,7 @@ async function fetchRemotivePublicationEnabled(
     signal: boundedSignal(signal, EXTERNAL_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
+    await discardResponseBody(response);
     throw new OperationalError(`remotive_public_policy_${response.status}`);
   }
   let payload: unknown;
@@ -327,7 +380,7 @@ export async function assertAlertJobsPublishable(
 
 export async function fetchAlertJobCatalog(
   signal: AbortSignal,
-): Promise<Job[]> {
+): Promise<AlertJobCatalogResult> {
   const [database, remotiveEnabled] = await Promise.all([
     fetchDatabaseJobs(signal),
     fetchRemotivePublicationEnabled(signal),
@@ -348,11 +401,19 @@ export async function fetchAlertJobCatalog(
       // The canonical database remains the publication source of truth. A
       // missing or stale optional alert cache must not block editorial runs;
       // the independent source worker still records and alerts on its failure.
-      return database;
+      return {
+        state: "degraded",
+        jobs: database.jobs,
+        issues: [...database.issues, { code: reason.code }],
+      };
     }
     throw reason;
   }
-  return mergeAlertJobCatalogs(database, remotive);
+  return {
+    state: database.state,
+    jobs: mergeAlertJobCatalogs(database.jobs, remotive),
+    issues: database.issues,
+  };
 }
 
 export function mergeAlertJobCatalogs(
@@ -378,89 +439,4 @@ export function mergeAlertJobCatalogs(
   return [...byFingerprint.values()];
 }
 
-export function matchAlertJobs(
-  claim: AlertClaim,
-  jobs: Job[],
-  now = new Date(),
-): Job[] {
-  const search = parseJobSearch(claim.search_spec);
-  const cadenceWindow = claim.cadence === "weekly" ? 7 : 1;
-  const cadenceCutoff = now.valueOf() - cadenceWindow * 86_400_000;
-  const lastSent = claim.last_sent_at ? Date.parse(claim.last_sent_at) : 0;
-  const cutoff = Math.max(cadenceCutoff, Number.isNaN(lastSent) ? 0 : lastSent);
-  // Every source must opt in independently to private email distribution.
-  // Public listing permission, provider reachability, or an employer source
-  // type never implies permission to place a job in alerts.
-  const emailPermittedJobs = jobs.filter((job) => job.source.canEmail === true);
-  return filterAndSortJobs(emailPermittedJobs, search)
-    .filter((job) => Date.parse(job.postedAt) > cutoff)
-    .slice(0, 10);
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-export function renderAlertEmail(jobs: Job[]) {
-  const origin = getRuntimeEnvironment("NEXT_PUBLIC_APP_URL");
-  const subject = `${jobs.length} new SalaryPadi job ${jobs.length === 1 ? "match" : "matches"}`;
-  const rows = jobs.map((job) => {
-    const detailUrl = new URL(
-      `/jobs/${encodeURIComponent(job.id)}`,
-      origin,
-    ).toString();
-    return {
-      text: `${job.title} at ${job.company.name} - ${job.locationDisplay}\n${detailUrl}`,
-      html: `<li style="margin:0 0 16px"><strong>${escapeHtml(job.title)}</strong><br>${escapeHtml(job.company.name)} - ${escapeHtml(job.locationDisplay)}<br><a href="${escapeHtml(detailUrl)}">Check eligibility and source evidence</a></li>`,
-    };
-  });
-  const alertsUrl = new URL("/alerts", origin).toString();
-  return {
-    subject,
-    text: `${subject}\n\n${rows.map((row) => row.text).join("\n\n")}\n\nManage alerts: ${alertsUrl}\n\nReference-only career information. Verify every role with the original source before applying.`,
-    html: `<div style="font-family:Arial,sans-serif;line-height:1.5;color:#17211b"><h1 style="font-size:22px">${escapeHtml(subject)}</h1><p>These roles match your private SalaryPadi alert.</p><ul style="padding-left:20px">${rows.map((row) => row.html).join("")}</ul><p><a href="${escapeHtml(alertsUrl)}">Manage your alerts</a></p><p style="font-size:13px;color:#526057">Reference-only career information. Verify every role with the original source before applying.</p></div>`,
-  };
-}
-
-export async function sendAlertEmail(
-  deliveryId: string,
-  recipient: string,
-  email: ReturnType<typeof renderAlertEmail>,
-  signal?: AbortSignal,
-): Promise<string> {
-  const apiKey = getRuntimeEnvironment("RESEND_API_KEY");
-  const from = getRuntimeEnvironment("TRANSACTIONAL_EMAIL_FROM");
-  const replyTo = getRuntimeEnvironment("TRANSACTIONAL_EMAIL_REPLY_TO");
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-      "Idempotency-Key": `salarypadi-alert-${deliveryId}`,
-    },
-    body: JSON.stringify({
-      from,
-      to: [recipient],
-      reply_to: replyTo,
-      subject: email.subject,
-      text: email.text,
-      html: email.html,
-      headers: {
-        "List-Unsubscribe": `<${new URL("/alerts", getRuntimeEnvironment("NEXT_PUBLIC_APP_URL"))}>`,
-      },
-    }),
-    signal: boundedSignal(signal, EXTERNAL_REQUEST_TIMEOUT_MS),
-  });
-  if (!response.ok)
-    throw new OperationalError(`email_provider_${response.status}`);
-  const payload = (await response.json()) as { id?: unknown };
-  if (typeof payload.id !== "string")
-    throw new OperationalError("email_provider_shape");
-  return payload.id;
-}
+export * from "./job-alert-delivery";

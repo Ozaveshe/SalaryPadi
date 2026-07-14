@@ -13,11 +13,13 @@ export type ApplyLinkCheckResult = {
 
 type Dependencies = {
   fetch?: typeof globalThis.fetch;
-  resolve?: (hostname: string) => Promise<string[]>;
+  resolve?: PublicHttpsResolver;
   now?: () => number;
   sleep?: (milliseconds: number) => Promise<void>;
   random?: () => number;
 };
+
+export type PublicHttpsResolver = (hostname: string) => Promise<string[]>;
 
 function publicIpv4(value: string) {
   const octets = value.split(".").map(Number);
@@ -65,21 +67,44 @@ function publicIp(value: string) {
   );
 }
 
-async function defaultResolve(hostname: string) {
+export async function defaultPublicHttpsResolve(hostname: string) {
   return (await lookup(hostname, { all: true, verbatim: true })).map(
     ({ address }) => address,
   );
 }
 
-async function allowedDestination(
+async function resolveWithSignal(
+  hostname: string,
+  resolve: NonNullable<Dependencies["resolve"]>,
+  signal: AbortSignal,
+) {
+  if (signal.aborted) throw signal.reason;
+  return new Promise<string[]>((resolvePromise, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    resolve(hostname).then(
+      (addresses) => {
+        signal.removeEventListener("abort", abort);
+        resolvePromise(addresses);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      },
+    );
+  });
+}
+
+export async function resolvePublicHttpsDestination(
   rawUrl: string,
   resolve: NonNullable<Dependencies["resolve"]>,
+  signal: AbortSignal,
 ) {
   let destination: URL;
   try {
     destination = new URL(rawUrl);
   } catch {
-    return null;
+    return { status: "unsafe" } as const;
   }
   if (
     destination.protocol !== "https:" ||
@@ -89,49 +114,63 @@ async function allowedDestination(
     destination.hostname === "localhost" ||
     destination.hostname.endsWith(".local")
   ) {
-    return null;
+    return { status: "unsafe" } as const;
   }
   const hostname = destination.hostname.replace(/^\[|\]$/g, "");
   const literalVersion = isIP(hostname);
-  const addresses = literalVersion
-    ? [hostname]
-    : await resolve(hostname).catch(() => []);
-  if (
-    addresses.length === 0 ||
-    addresses.some((address) => !publicIp(address))
-  ) {
-    return null;
+  let addresses: string[];
+  try {
+    addresses = literalVersion
+      ? [hostname]
+      : await resolveWithSignal(hostname, resolve, signal);
+  } catch {
+    return {
+      status: signal.aborted ? "deadline_exceeded" : "unresolved",
+    } as const;
   }
-  return { destination, address: addresses[0]! };
+  if (addresses.length === 0) return { status: "unresolved" } as const;
+  if (addresses.some((address) => !publicIp(address))) {
+    return { status: "unsafe" } as const;
+  }
+  return { status: "allowed", destination, address: addresses[0]! } as const;
 }
 
-function pinnedHead(destination: URL, address: string, signal: AbortSignal) {
-  return new Promise<{ status: number }>((resolve, reject) => {
-    const request = httpsRequest(
-      {
-        protocol: "https:",
-        hostname: address,
-        servername: destination.hostname.replace(/^\[|\]$/g, ""),
-        path: `${destination.pathname}${destination.search}`,
-        method: "HEAD",
-        headers: {
-          Accept: "text/html,application/xhtml+xml",
-          Host: destination.host,
+export function requestPinnedHttpsHead(
+  destination: URL,
+  address: string,
+  signal: AbortSignal,
+) {
+  return new Promise<{ status: number; location: string | null }>(
+    (resolve, reject) => {
+      const request = httpsRequest(
+        {
+          protocol: "https:",
+          hostname: address,
+          servername: destination.hostname.replace(/^\[|\]$/g, ""),
+          path: `${destination.pathname}${destination.search}`,
+          method: "HEAD",
+          headers: {
+            Accept: "text/html,application/xhtml+xml",
+            Host: destination.host,
+          },
+          signal,
         },
-        signal,
-      },
-      (response) => {
-        response.resume();
-        if (response.statusCode === undefined) {
-          reject(new Error("apply_link_missing_status"));
-          return;
-        }
-        resolve({ status: response.statusCode });
-      },
-    );
-    request.once("error", reject);
-    request.end();
-  });
+        (response) => {
+          response.resume();
+          if (response.statusCode === undefined) {
+            reject(new Error("apply_link_missing_status"));
+            return;
+          }
+          resolve({
+            status: response.statusCode,
+            location: response.headers.location ?? null,
+          });
+        },
+      );
+      request.once("error", reject);
+      request.end();
+    },
+  );
 }
 
 function resultForStatus(
@@ -162,6 +201,14 @@ function resultForStatus(
   };
 }
 
+function redirectLocation(
+  response: Response | { status: number; location: string | null },
+) {
+  return response instanceof Response
+    ? response.headers.get("location")
+    : response.location;
+}
+
 const retryableStatus = new Set([408, 425, 500, 502, 503, 504]);
 
 export async function checkApplyLink(
@@ -170,7 +217,7 @@ export async function checkApplyLink(
   dependencies: Dependencies = {},
 ): Promise<ApplyLinkCheckResult> {
   const fetcher = dependencies.fetch;
-  const resolve = dependencies.resolve ?? defaultResolve;
+  const resolve = dependencies.resolve ?? defaultPublicHttpsResolve;
   const now = dependencies.now ?? Date.now;
   const sleep =
     dependencies.sleep ??
@@ -180,12 +227,21 @@ export async function checkApplyLink(
       ));
   const random = dependencies.random ?? Math.random;
   const startedAt = now();
-  const allowed = await allowedDestination(rawUrl, resolve);
-  if (!allowed) {
+  const allowed = await resolvePublicHttpsDestination(
+    rawUrl,
+    resolve,
+    parentSignal,
+  );
+  if (allowed.status !== "allowed") {
     return {
       result: "indeterminate",
       httpStatus: null,
-      errorCode: "unsafe_apply_destination",
+      errorCode:
+        allowed.status === "unsafe"
+          ? "unsafe_apply_destination"
+          : allowed.status === "deadline_exceeded"
+            ? "apply_link_deadline_exceeded"
+            : "apply_link_resolution_failed",
       responseMs: Math.max(0, now() - startedAt),
     };
   }
@@ -206,7 +262,56 @@ export async function checkApplyLink(
             redirect: "error",
             signal: requestSignal,
           })
-        : await pinnedHead(destination, address, requestSignal);
+        : await requestPinnedHttpsHead(destination, address, requestSignal);
+      if (response.status >= 300 && response.status < 400) {
+        const location = redirectLocation(response);
+        if (!location) {
+          return {
+            result: "broken",
+            httpStatus: response.status,
+            errorCode: "apply_link_redirect_missing",
+            responseMs: Math.max(0, now() - startedAt),
+          };
+        }
+        let redirectUrl: string;
+        try {
+          redirectUrl = new URL(location, destination).toString();
+        } catch {
+          return {
+            result: "broken",
+            httpStatus: response.status,
+            errorCode: "apply_link_redirect_invalid",
+            responseMs: Math.max(0, now() - startedAt),
+          };
+        }
+        const redirectDestination = await resolvePublicHttpsDestination(
+          redirectUrl,
+          resolve,
+          requestSignal,
+        );
+        if (redirectDestination.status !== "allowed") {
+          return {
+            result:
+              redirectDestination.status === "unsafe"
+                ? "broken"
+                : "indeterminate",
+            httpStatus: response.status,
+            errorCode:
+              redirectDestination.status === "unsafe"
+                ? "unsafe_apply_redirect"
+                : redirectDestination.status === "deadline_exceeded"
+                  ? "apply_link_redirect_deadline_exceeded"
+                  : "apply_link_redirect_resolution_failed",
+            responseMs: Math.max(0, now() - startedAt),
+          };
+        }
+        return {
+          result: "healthy",
+          httpStatus: response.status,
+          errorCode: null,
+          responseMs: Math.max(0, now() - startedAt),
+        };
+      }
       if (!retryableStatus.has(response.status) || attempt === 2) {
         return resultForStatus(response.status, Math.max(0, now() - startedAt));
       }

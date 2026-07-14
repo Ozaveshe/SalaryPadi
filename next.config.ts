@@ -1,5 +1,20 @@
 import type { NextConfig } from "next";
 
+const privateNoStoreSources = [
+  "/account/:path*",
+  "/saved/:path*",
+  "/applications/:path*",
+  "/alerts/:path*",
+  "/admin/:path*",
+  "/auth/mfa-required",
+  "/privacy/requests/:path*",
+  "/company-intelligence/requests/:path*",
+  "/contribute/:path*",
+  "/post-a-job",
+  "/companies/:slug/claim",
+  "/companies/:slug/respond",
+] as const;
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
@@ -26,26 +41,10 @@ const nextConfig: NextConfig = {
           { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
         ],
       },
-      {
-        source: "/account/:path*",
+      ...privateNoStoreSources.map((source) => ({
+        source,
         headers: [{ key: "Cache-Control", value: "private, no-store" }],
-      },
-      {
-        source: "/saved/:path*",
-        headers: [{ key: "Cache-Control", value: "private, no-store" }],
-      },
-      {
-        source: "/applications/:path*",
-        headers: [{ key: "Cache-Control", value: "private, no-store" }],
-      },
-      {
-        source: "/alerts/:path*",
-        headers: [{ key: "Cache-Control", value: "private, no-store" }],
-      },
-      {
-        source: "/admin/:path*",
-        headers: [{ key: "Cache-Control", value: "private, no-store" }],
-      },
+      })),
     ];
   },
 };

@@ -113,6 +113,31 @@ describe("AfroTools verified services", () => {
     ).rejects.toMatchObject({ code: "invalid_response" });
   });
 
+  it("rejects a non-HTTPS provenance link", async () => {
+    const provider = vi
+      .fn()
+      .mockResolvedValueOnce(
+        json({
+          ...calculation,
+          _meta: { ...calculation._meta, docs: "javascript:alert(1)" },
+        }),
+      )
+      .mockResolvedValueOnce(json(rules));
+    vi.stubGlobal("fetch", provider);
+
+    await expect(
+      calculateAfroToolsPaye(
+        {
+          country: "NG",
+          mode: "gross_to_net",
+          period: "monthly",
+          amount: 500_000,
+        },
+        new Date("2026-07-11T12:00:00.000Z"),
+      ),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
   it("rejects a reverse PAYE response that does not match the requested net", async () => {
     const provider = vi
       .fn()
@@ -187,6 +212,15 @@ describe("AfroTools verified services", () => {
         .mockResolvedValue(
           json({ ...base, updated_at: "2026-05-01T00:00:00.000Z" }),
         ),
+    );
+    await expect(
+      getAfroToolsFxRate("USD", "NGN", new Date("2026-07-11T00:00:00.000Z")),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(json({ ...base, updated_at: "not-a-timestamp" })),
     );
     await expect(
       getAfroToolsFxRate("USD", "NGN", new Date("2026-07-11T00:00:00.000Z")),

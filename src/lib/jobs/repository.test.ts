@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 vi.mock("@/lib/env", () => ({
   getServerEnvironment: mocks.environment,
   getSupabasePublicConfig: mocks.publicConfig,
@@ -41,6 +42,7 @@ import {
   getLiveJobFeed,
   getRemotiveJobFeed,
 } from "./repository";
+import { unstable_rethrow } from "next/navigation";
 
 const sourceJob: RemotiveJob = {
   id: 77,
@@ -62,6 +64,7 @@ const checkedAt = "2026-07-10T13:05:00.000Z";
 type ClientOptions = {
   policy?: Record<string, unknown> | null;
   policyError?: boolean;
+  policyThrows?: boolean;
 };
 
 let databaseRows: unknown[] = [];
@@ -85,6 +88,7 @@ function client({
     refresh_interval_seconds: 21_600,
   },
   policyError = false,
+  policyThrows = false,
 }: ClientOptions = {}) {
   return {
     schema: () => ({
@@ -94,10 +98,14 @@ function client({
             select: () => ({
               eq: () => ({
                 abortSignal: () => ({
-                  maybeSingle: async () => ({
-                    data: policy,
-                    error: policyError ? new Error("policy failed") : null,
-                  }),
+                  maybeSingle: async () => {
+                    if (policyThrows)
+                      throw new Error("policy transport failed");
+                    return {
+                      data: policy,
+                      error: policyError ? new Error("policy failed") : null,
+                    };
+                  },
                 }),
               }),
             }),
@@ -155,6 +163,7 @@ beforeEach(() => {
     job: row as Job,
   }));
   mocks.createClient.mockReset();
+  vi.mocked(unstable_rethrow).mockReset();
   mocks.fetchRemotiveJobs.mockResolvedValue({
     jobs: [remotiveJob()],
     checkedAt,
@@ -223,6 +232,33 @@ describe("job feed source orchestration", () => {
     expect(mocks.fetchRemotiveJobs).not.toHaveBeenCalled();
   });
 
+  it("fails closed when the live source policy has an invalid row shape", async () => {
+    const result = await getRemotiveJobFeed(
+      client({
+        policy: {
+          adapter_key: "remotive",
+          source_type: "permitted_api",
+          terms_url: "http://remotive.com/terms-of-use",
+          terms_reviewed_at: "not-a-timestamp",
+          terms_version: "remotive-terms-conflict-reviewed-2026-07-14",
+          attribution_required: true,
+          may_store_full_description: false,
+          may_index_jobs: false,
+          may_emit_jobposting_schema: false,
+          allow_public_listing: true,
+          required_destination_kind: "source_url",
+          refresh_interval_seconds: "21600",
+        },
+      }) as never,
+    );
+
+    expect(result).toMatchObject({
+      state: "unavailable",
+      code: "remotive_policy_invalid",
+    });
+    expect(mocks.fetchRemotiveJobs).not.toHaveBeenCalled();
+  });
+
   it("routes cache misses through the authenticated budgeted source proxy", async () => {
     const proxyResponse = Response.json({ jobs: [] });
     const fetchSpy = vi.fn<typeof fetch>().mockResolvedValue(proxyResponse);
@@ -246,6 +282,11 @@ describe("job feed source orchestration", () => {
     expect(new Headers(init?.headers).get("authorization")).toBe(
       "Bearer test-source-sync-token-0000000000000000",
     );
+    expect(init).toMatchObject({
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+    });
   });
 
   it("does not relabel an over-age cached response as live", async () => {
@@ -283,6 +324,59 @@ describe("job feed source orchestration", () => {
     );
   });
 
+  it("preserves the database feed when the source registry client fails", async () => {
+    const failure = new Error("registry client failed");
+    databaseRows = [remotiveJob()];
+    mocks.createClient.mockRejectedValue(failure);
+
+    const result = await getLiveJobFeed();
+
+    expect(result.state).toBe("degraded");
+    expect(result.jobs).toHaveLength(1);
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({
+        key: "remotive",
+        state: "unavailable",
+        code: "source_registry_client_failed",
+      }),
+    );
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({ key: "database", state: "live", count: 1 }),
+    );
+    expect(unstable_rethrow).toHaveBeenCalledWith(failure);
+  });
+
+  it("preserves the database feed when the policy transport throws", async () => {
+    databaseRows = [remotiveJob()];
+    mocks.createClient.mockResolvedValue(
+      client({ policyThrows: true }) as never,
+    );
+
+    const result = await getLiveJobFeed();
+
+    expect(result.state).toBe("degraded");
+    expect(result.jobs).toHaveLength(1);
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({
+        key: "remotive",
+        state: "unavailable",
+        code: "source_registry_query_failed",
+      }),
+    );
+    expect(unstable_rethrow).toHaveBeenCalledWith(expect.any(Error));
+    expect(mocks.fetchRemotiveJobs).not.toHaveBeenCalled();
+  });
+
+  it("does not swallow framework-controlled errors during source setup", async () => {
+    const frameworkError = new Error("next framework signal");
+    mocks.createClient.mockRejectedValue(frameworkError);
+    vi.mocked(unstable_rethrow).mockImplementationOnce((reason) => {
+      throw reason;
+    });
+
+    await expect(getLiveJobFeed()).rejects.toBe(frameworkError);
+  });
+
   it("quarantines invalid database rows and exposes the degraded count", async () => {
     databaseRows = [{ invalid: true }];
     mocks.createClient.mockResolvedValue(client() as never);
@@ -301,6 +395,49 @@ describe("job feed source orchestration", () => {
         state: "degraded",
         code: "database_jobs_invalid_rows",
         count: 0,
+      }),
+    );
+  });
+
+  it("marks the reviewed-job feed degraded when its capacity is exceeded", async () => {
+    const employer = remotiveJob();
+    databaseRows = Array.from({ length: 501 }, (_, index) => ({
+      ...employer,
+      id: `30000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    }));
+    mocks.createClient.mockResolvedValue(client() as never);
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await getLiveJobFeed();
+
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({
+        key: "database",
+        state: "degraded",
+        code: "database_jobs_capacity_exceeded",
+        count: 500,
+      }),
+    );
+    const databaseUrl = new URL(String(vi.mocked(fetch).mock.calls[0]?.[0]));
+    expect(databaseUrl.searchParams.get("limit")).toBe("501");
+    expect(warning).toHaveBeenCalledWith(
+      expect.stringContaining('"code":"database_jobs_capacity_exceeded"'),
+    );
+  });
+
+  it("quarantines duplicate database job identities", async () => {
+    const employer = remotiveJob();
+    databaseRows = [employer, employer];
+    mocks.createClient.mockResolvedValue(client() as never);
+
+    const result = await getLiveJobFeed();
+
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({
+        key: "database",
+        state: "degraded",
+        code: "database_jobs_duplicate_rows",
+        count: 1,
       }),
     );
   });
@@ -418,6 +555,7 @@ describe("job feed source orchestration", () => {
       id: "00000000-0000-4000-8000-000000000077",
       databaseId: "00000000-0000-4000-8000-000000000077",
       slug: "platform-engineer-at-example-ltd-direct",
+      workMode: "hybrid",
       source: {
         ...remote.source,
         id: "00000000-0000-4000-8000-000000000078",
@@ -436,6 +574,27 @@ describe("job feed source orchestration", () => {
     expect(lookupUrl.searchParams.get("slug")).toBe(`eq.${employer.slug}`);
     expect(lookupUrl.searchParams.get("limit")).toBe("2");
     expect(lookupUrl.searchParams.has("order")).toBe(false);
+  });
+
+  it("does not return an expired database detail even if the public view leaks it", async () => {
+    const employer: Job = {
+      ...remotiveJob(),
+      id: "00000000-0000-4000-8000-000000000077",
+      databaseId: "00000000-0000-4000-8000-000000000077",
+      slug: "expired-platform-engineer-at-example-ltd",
+      validThrough: "2026-07-10T12:00:00.000Z",
+      source: {
+        ...remotiveJob().source,
+        type: "employer",
+      },
+    };
+    databaseRows = [employer];
+
+    const result = await getJobBySlug(employer.slug);
+
+    expect(result.job).toBeNull();
+    expect(result.feed).toMatchObject({ state: "live", jobs: [] });
+    expect(mocks.fetchRemotiveJobs).not.toHaveBeenCalled();
   });
 
   it("supports a direct database UUID lookup", async () => {
@@ -459,6 +618,24 @@ describe("job feed source orchestration", () => {
     expect(lookupUrl.searchParams.get("or")).toBe(
       `(slug.eq.${employer.id},id.eq.${employer.id})`,
     );
+  });
+
+  it("preserves a degraded state for duplicate direct job rows", async () => {
+    const employer: Job = {
+      ...remotiveJob(),
+      id: "00000000-0000-4000-8000-000000000077",
+      databaseId: "00000000-0000-4000-8000-000000000077",
+      slug: "platform-engineer-at-example-ltd-direct",
+    };
+    databaseRows = [employer, employer];
+
+    await expect(
+      getDatabaseJobBySlugResult(employer.id),
+    ).resolves.toMatchObject({
+      state: "degraded",
+      data: employer,
+      issues: [{ code: "database_jobs_duplicate_rows" }],
+    });
   });
 
   it("preserves the unconfigured state for a direct database lookup", async () => {

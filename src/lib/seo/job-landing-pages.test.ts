@@ -27,7 +27,11 @@ function metrics(
 const job = {
   status: "open",
   workMode: "remote",
-  eligibility: { nigeria: "eligible", visaSponsorship: "no" },
+  eligibility: {
+    nigeria: "eligible",
+    visaSponsorship: "no",
+    lastVerifiedAt: "2026-07-14T00:00:00.000Z",
+  },
   locationDisplay: "Worldwide",
   experienceLevel: "mid",
   employmentType: "full_time",
@@ -35,6 +39,9 @@ const job = {
   category: "Software Development",
   company: { name: "Padi Labs" },
   description: "Build software.",
+  postedAt: "2026-07-14T00:00:00.000Z",
+  lastCheckedAt: "2026-07-14T00:00:00.000Z",
+  validThrough: null,
 } as Job;
 
 describe("programmatic job landing gates", () => {
@@ -79,5 +86,19 @@ describe("programmatic job landing gates", () => {
         "visa_sponsorship_nigeria",
       ),
     ).toBe(true);
+  });
+
+  it("requires a physical work mode for local Nigeria and Lagos landings", () => {
+    const unclear = {
+      ...job,
+      workMode: "unclear" as const,
+      locationDisplay: "Lagos, Nigeria",
+    };
+    const hybrid = { ...unclear, workMode: "hybrid" as const };
+
+    expect(matchesJobLanding(unclear, "nigeria_local")).toBe(false);
+    expect(matchesJobLanding(unclear, "city_lagos")).toBe(false);
+    expect(matchesJobLanding(hybrid, "nigeria_local")).toBe(true);
+    expect(matchesJobLanding(hybrid, "city_lagos")).toBe(true);
   });
 });

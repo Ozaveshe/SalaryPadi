@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { z } from "zod";
 
 import { classifyEligibilityEvidence } from "./eligibility";
 import { buildJobFingerprint } from "./fingerprint";
@@ -12,6 +13,8 @@ import {
 import type { AtsSourceRecord } from "./ats";
 
 const MAX_DESCRIPTION_LENGTH = 100_000;
+const MAX_EVIDENCE_FUTURE_SKEW_MS = 5 * 60_000;
+const evidenceTimestampSchema = z.string().max(40).datetime({ offset: true });
 
 type AtsWorkArrangement = "remote" | "hybrid" | "onsite" | "unspecified";
 type AtsEmploymentType =
@@ -168,6 +171,7 @@ type AtsRecordNormalizationResult =
 function normalizeRecord(
   record: AtsSourceRecord,
   policy: AtsImportPolicy,
+  now: Date,
 ): AtsRecordNormalizationResult {
   if (
     record.sourceKey !== policy.sourceKey ||
@@ -195,14 +199,51 @@ function normalizeRecord(
   } catch {
     return { kind: "quarantined", code: "invalid_record" };
   }
+  const nowValue = now.valueOf();
+  const checkedAt = evidenceTimestampSchema.safeParse(record.checkedAt);
+  const publishedAt =
+    record.publishedAt === null
+      ? null
+      : evidenceTimestampSchema.safeParse(record.publishedAt);
+  const updatedAt =
+    record.updatedAt === null
+      ? null
+      : evidenceTimestampSchema.safeParse(record.updatedAt);
+  const checkedAtValue = checkedAt.success
+    ? Date.parse(checkedAt.data)
+    : Number.NaN;
+  const publishedAtValue =
+    publishedAt === null
+      ? null
+      : publishedAt.success
+        ? Date.parse(publishedAt.data)
+        : Number.NaN;
+  const updatedAtValue =
+    updatedAt === null
+      ? null
+      : updatedAt.success
+        ? Date.parse(updatedAt.data)
+        : Number.NaN;
   if (
     !record.externalId.trim() ||
     record.externalId.length > 300 ||
     title.length < 2 ||
     title.length > 300 ||
     sourceUrl.protocol !== "https:" ||
+    sourceUrl.username ||
+    sourceUrl.password ||
     applicationUrl.protocol !== "https:" ||
-    record.checkedAt.length > 40
+    applicationUrl.username ||
+    applicationUrl.password ||
+    !Number.isFinite(nowValue) ||
+    !Number.isFinite(checkedAtValue) ||
+    checkedAtValue > nowValue + MAX_EVIDENCE_FUTURE_SKEW_MS ||
+    (publishedAtValue !== null &&
+      (!Number.isFinite(publishedAtValue) ||
+        publishedAtValue > checkedAtValue + MAX_EVIDENCE_FUTURE_SKEW_MS)) ||
+    (updatedAtValue !== null &&
+      (!Number.isFinite(updatedAtValue) ||
+        updatedAtValue > checkedAtValue + MAX_EVIDENCE_FUTURE_SKEW_MS))
   ) {
     return { kind: "quarantined", code: "invalid_record" };
   }
@@ -304,6 +345,7 @@ function normalizeRecord(
 export function normalizeAtsImportRecords(
   records: readonly AtsSourceRecord[],
   policy: AtsImportPolicy,
+  now = new Date(),
 ): AtsImportNormalizationResult {
   const jobs: AtsImportJob[] = [];
   const filterCodes: AtsImportNormalizationResult["filterCodes"] = {};
@@ -318,7 +360,7 @@ export function normalizeAtsImportRecords(
     }
     seenExternalIds.add(externalId);
 
-    const normalized = normalizeRecord(record, policy);
+    const normalized = normalizeRecord(record, policy, now);
     if (normalized.kind === "quarantined") {
       incrementCode(quarantineCodes, normalized.code);
       continue;

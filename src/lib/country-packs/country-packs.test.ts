@@ -12,6 +12,8 @@ import {
 } from "./format";
 import {
   COUNTRY_PACKS,
+  COUNTRY_PACK_REGISTRY,
+  countryPackRegistrySchema,
   getCountryPack,
   isCountryPackIndexable,
   isCountryPackPublic,
@@ -176,6 +178,42 @@ describe("country pack registry", () => {
         country.subdivision.fixtureId.startsWith("test-"),
       ),
     ).toBe(true);
+  });
+
+  it("rejects duplicate map identities and contradictory activation flags", () => {
+    const duplicateSlug = structuredClone(COUNTRY_PACK_REGISTRY);
+    duplicateSlug.packs[1]!.slug = duplicateSlug.packs[0]!.slug;
+    expect(countryPackRegistrySchema.safeParse(duplicateSlug).success).toBe(
+      false,
+    );
+
+    const contradictory = structuredClone(COUNTRY_PACK_REGISTRY);
+    contradictory.packs[1]!.activation.publicRoutesEnabled = true;
+    expect(countryPackRegistrySchema.safeParse(contradictory).success).toBe(
+      false,
+    );
+  });
+
+  it("fails readiness closed on malformed quantitative evidence", () => {
+    const ghana = getCountryPack("GH")!;
+    expect(
+      evaluateCountryPackReadiness(ghana, {
+        ...fixture.readinessEvidence.ready,
+        authorizedActiveJobs: Number.NaN,
+      }),
+    ).toEqual({
+      ready: false,
+      blockers: ["invalid_readiness_evidence"],
+    });
+    expect(
+      evaluateCountryPackReadiness(ghana, {
+        ...fixture.readinessEvidence.ready,
+        explicitEligibilityRatio: 1.01,
+      }),
+    ).toEqual({
+      ready: false,
+      blockers: ["invalid_readiness_evidence"],
+    });
   });
 
   it("pins the database fail-closed boundaries in the migration artifact", () => {

@@ -1,3 +1,5 @@
+import { BodyReadError, readBoundedBody } from "@/lib/http/body";
+
 export type JsonBodyErrorCode = "invalid_json" | "too_large";
 
 export class JsonBodyError extends Error {
@@ -5,14 +7,6 @@ export class JsonBodyError extends Error {
     super(code);
     this.name = "JsonBodyError";
   }
-}
-
-function declaredBodyLength(headers: Headers): number | null {
-  const value = headers.get("content-length");
-  if (!value) return null;
-
-  const length = Number(value);
-  return Number.isSafeInteger(length) && length >= 0 ? length : null;
 }
 
 /**
@@ -24,52 +18,16 @@ export async function readBoundedJson(
   source: Request | Response,
   maximumBytes: number,
 ): Promise<unknown> {
-  if (!Number.isSafeInteger(maximumBytes) || maximumBytes <= 0) {
-    throw new TypeError("maximumBytes must be a positive safe integer.");
-  }
-
-  const declaredLength = declaredBodyLength(source.headers);
-  if (declaredLength !== null && declaredLength > maximumBytes) {
-    throw new JsonBodyError("too_large");
-  }
-
-  if (!source.body) throw new JsonBodyError("invalid_json");
-
-  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  let bytes: Uint8Array;
   try {
-    reader = source.body.getReader();
-  } catch {
-    throw new JsonBodyError("invalid_json");
-  }
-
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-
-      totalBytes += value.byteLength;
-      if (totalBytes > maximumBytes) {
-        await reader.cancel().catch(() => undefined);
-        throw new JsonBodyError("too_large");
-      }
-      chunks.push(value);
-    }
+    bytes = await readBoundedBody(source, maximumBytes);
   } catch (error) {
-    if (error instanceof JsonBodyError) throw error;
-    throw new JsonBodyError("invalid_json");
-  } finally {
-    reader.releaseLock();
-  }
-
-  const bytes = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
+    if (error instanceof BodyReadError) {
+      throw new JsonBodyError(
+        error.code === "too_large" ? "too_large" : "invalid_json",
+      );
+    }
+    throw error;
   }
 
   try {

@@ -88,4 +88,72 @@ describe("salary source scheduled worker", () => {
       p_error_code: "salary_source_adapters_not_activated",
     });
   });
+
+  it("fails closed when the reviewed source registry contains duplicate keys", async () => {
+    stubWorkerEnvironment({ SALARY_SOURCE_SYNC_ENABLED: "true" });
+    const source = {
+      source_key: "us_bls_oews",
+      display_name: "US OEWS",
+      adapter_key: "bls_oews",
+      market_country_code: "US",
+      dataset_url: "https://www.bls.gov/oes/tables.htm",
+      methodology_url: "https://www.bls.gov/oes/current/oes_tec.htm",
+      terms_url: "https://www.bls.gov/developers/termsOfService.htm",
+      allowed_fields: ["median_annual"],
+      refresh_interval_seconds: 2_592_000,
+      last_success_at: null,
+    };
+    const fetchMock = installWorkerFetch({
+      rpc: {
+        worker_list_enabled_salary_sources: [source, source],
+      },
+    });
+
+    await expect(
+      salarySourceSync(scheduledRequest("salary_source_sync"), workerContext),
+    ).rejects.toMatchObject({ code: "salary_source_registry_invalid" });
+    expect(finishBody(fetchMock)).toMatchObject({
+      p_status: "failed",
+      p_error_code: "salary_source_registry_invalid",
+    });
+  });
+
+  it.each([
+    {
+      dataset_url: "https://user:secret@www.bls.gov/oes/tables.htm",
+    },
+    { allowed_fields: ["median_annual", "median_annual"] },
+  ])(
+    "rejects unsafe or ambiguous source configuration %#",
+    async (override) => {
+      stubWorkerEnvironment({ SALARY_SOURCE_SYNC_ENABLED: "true" });
+      const fetchMock = installWorkerFetch({
+        rpc: {
+          worker_list_enabled_salary_sources: [
+            {
+              source_key: "us_bls_oews",
+              display_name: "US OEWS",
+              adapter_key: "bls_oews",
+              market_country_code: "US",
+              dataset_url: "https://www.bls.gov/oes/tables.htm",
+              methodology_url: "https://www.bls.gov/oes/current/oes_tec.htm",
+              terms_url: "https://www.bls.gov/developers/termsOfService.htm",
+              allowed_fields: ["median_annual"],
+              refresh_interval_seconds: 2_592_000,
+              last_success_at: null,
+              ...override,
+            },
+          ],
+        },
+      });
+
+      await expect(
+        salarySourceSync(scheduledRequest("salary_source_sync"), workerContext),
+      ).rejects.toMatchObject({ code: "salary_source_registry_invalid" });
+      expect(finishBody(fetchMock)).toMatchObject({
+        p_status: "failed",
+        p_error_code: "salary_source_registry_invalid",
+      });
+    },
+  );
 });

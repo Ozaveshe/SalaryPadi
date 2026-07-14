@@ -22,9 +22,12 @@ import {
 } from "./_shared/ats-source-policy";
 import {
   boundedSignal,
+  decodeRpcResult,
   getRuntimeBoolean,
+  observeSecondaryOperation,
   OperationalError,
   rpc,
+  rpcUuidResultSchema,
   runTrackedWorker,
   type WorkerExecution,
   workerSkipped,
@@ -64,7 +67,111 @@ const beginResultSchema = z
       .strict(),
   )
   .length(1);
-const resultObjectSchema = z.record(z.string(), z.unknown());
+const atsResultCountSchema = z.number().int().min(0).max(2_000);
+const storeBatchResultSchema = z
+  .object({
+    accepted_count: z.number().int().min(1).max(MAX_BATCH_RECORDS),
+    created_count: atsResultCountSchema,
+    updated_count: atsResultCountSchema,
+    unchanged_count: atsResultCountSchema,
+  })
+  .strict();
+const finalizeResultSchema = z
+  .object({
+    outcome: z.enum(["complete", "quarantined", "partial", "failed"]),
+    fetched_count: atsResultCountSchema,
+    expected_record_count: atsResultCountSchema,
+    filtered_count: atsResultCountSchema,
+    created_count: atsResultCountSchema,
+    updated_count: atsResultCountSchema,
+    unchanged_count: atsResultCountSchema,
+    expired_count: atsResultCountSchema,
+    error_count: atsResultCountSchema,
+  })
+  .strict();
+type StoreBatchResult = z.infer<typeof storeBatchResultSchema>;
+type FinalizeResult = z.infer<typeof finalizeResultSchema>;
+
+export function assertAtsBatchAcknowledgement(
+  stored: StoreBatchResult,
+  expectedRecordCount: number,
+) {
+  if (
+    stored.accepted_count !== expectedRecordCount ||
+    stored.created_count + stored.updated_count + stored.unchanged_count !==
+      expectedRecordCount
+  ) {
+    throw new OperationalError("ats_import_batch_ack_mismatch");
+  }
+}
+
+export function assertAtsFinalizeAcknowledgement(
+  finalized: FinalizeResult,
+  expected: {
+    complete: boolean;
+    providerRecordCount: number;
+    expectedRecordCount: number;
+    errorCount: number;
+  },
+) {
+  if (
+    (expected.complete
+      ? finalized.outcome !== "complete"
+      : finalized.outcome === "complete") ||
+    finalized.fetched_count !== expected.providerRecordCount ||
+    finalized.expected_record_count !== expected.expectedRecordCount ||
+    finalized.filtered_count !==
+      expected.providerRecordCount - expected.expectedRecordCount ||
+    finalized.created_count +
+      finalized.updated_count +
+      finalized.unchanged_count !==
+      expected.expectedRecordCount ||
+    finalized.error_count !== expected.errorCount
+  ) {
+    throw new OperationalError("ats_import_finalize_ack_mismatch");
+  }
+}
+const authorizedPoliciesEnvelopeSchema = z
+  .array(z.record(z.string(), z.unknown()))
+  .max(50);
+const claimedPolicyEnvelopeSchema = z.record(z.string(), z.unknown());
+const rpcShapeErrorCodes: Record<string, string> = {
+  worker_list_authorized_ats_sources: "ats_source_registry_invalid",
+  worker_claim_authorized_ats_source: "ats_source_claim_invalid",
+  worker_begin_ats_snapshot: "ats_import_begin_invalid",
+  worker_store_ats_snapshot_batch: "ats_import_batch_invalid",
+  worker_finalize_ats_snapshot: "ats_import_finalize_invalid",
+  worker_record_source_import: "source_import_evidence_invalid",
+};
+
+function validatedRpc(dependency?: AtsSourceSyncRpc): typeof rpc {
+  return async <T,>(
+    functionName: string,
+    resultSchema: z.ZodType<T>,
+    parameters: Record<string, unknown> = {},
+    options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  ) => {
+    try {
+      if (!dependency) {
+        return await rpc(functionName, resultSchema, parameters, options);
+      }
+      return decodeRpcResult(
+        functionName,
+        resultSchema,
+        await dependency(functionName, parameters, options),
+      );
+    } catch (reason) {
+      if (
+        reason instanceof OperationalError &&
+        reason.code === "supabase_rpc_invalid_shape" &&
+        rpcShapeErrorCodes[functionName]
+      ) {
+        throw new OperationalError(rpcShapeErrorCodes[functionName]);
+      }
+      throw reason;
+    }
+  };
+}
 
 function safeErrorCode(reason: unknown): string {
   if (reason instanceof AtsAdapterError) return reason.code;
@@ -175,22 +282,26 @@ export async function fetchAtsWithRetry(
 }
 
 async function recordPreImportFailure(
-  callRpc: AtsSourceSyncRpc,
+  callRpc: typeof rpc,
   adapterKey: string,
   fetchedCount: number,
   code: string,
   signal: AbortSignal,
 ) {
-  await callRpc(
-    "worker_record_source_import",
-    {
-      p_adapter_key: adapterKey,
-      p_fetched_count: fetchedCount,
-      p_status: "failed",
-      p_error_code: code,
-    },
-    { signal },
-  ).catch(() => undefined);
+  return observeSecondaryOperation(
+    "ats_record_pre_import_failure",
+    callRpc(
+      "worker_record_source_import",
+      rpcUuidResultSchema,
+      {
+        p_adapter_key: adapterKey,
+        p_fetched_count: fetchedCount,
+        p_status: "failed",
+        p_error_code: code,
+      },
+      { signal },
+    ),
+  );
 }
 
 export async function runAtsSourceSync(
@@ -201,13 +312,14 @@ export async function runAtsSourceSync(
     return workerSkipped("ats_source_sync_disabled");
   }
 
-  const callRpc = dependencies.rpc ?? rpc;
+  const callRpc = validatedRpc(dependencies.rpc);
   const fetchSource = dependencies.fetchSource ?? fetchAtsSourceRecords;
   const now = dependencies.now ?? (() => new Date());
   const createRequestKey = dependencies.randomUuid ?? randomUUID;
   const listedPolicies = parseAuthorizedAtsRuntimePolicies(
     await callRpc(
       "worker_list_authorized_ats_sources",
+      authorizedPoliciesEnvelopeSchema,
       {},
       { signal: execution.signal },
     ),
@@ -218,6 +330,7 @@ export async function runAtsSourceSync(
   }
 
   let claimedSources = 0;
+  let inspectedSources = 0;
   let completedSources = 0;
   let duplicateSources = 0;
   let partialSources = 0;
@@ -226,14 +339,22 @@ export async function runAtsSourceSync(
   let storedRecords = 0;
   let filteredRecords = 0;
   let quarantinedRecords = 0;
+  const failureCodes = new Set<string>();
+  let secondaryFailureCount = 0;
+  const secondaryFailureCodes = new Set<string>();
+  let inspectionStopped: "completed" | "claim_limit" | "time_budget" =
+    "completed";
 
   for (const listedPolicy of listedPolicies) {
-    if (
-      claimedSources >= MAX_SOURCES_PER_RUN ||
-      execution.remainingMs() < 6_000
-    ) {
+    if (claimedSources >= MAX_SOURCES_PER_RUN) {
+      inspectionStopped = "claim_limit";
       break;
     }
+    if (execution.remainingMs() < 6_000) {
+      inspectionStopped = "time_budget";
+      break;
+    }
+    inspectedSources += 1;
 
     const requestKey = createRequestKey();
     if (!uuidSchema.safeParse(requestKey).success) {
@@ -242,6 +363,7 @@ export async function runAtsSourceSync(
     const claimed = parseClaimedAuthorizedAtsRuntimePolicy(
       await callRpc(
         "worker_claim_authorized_ats_source",
+        claimedPolicyEnvelopeSchema,
         {
           p_adapter_key: listedPolicy.source.key,
           p_request_key: requestKey,
@@ -313,8 +435,9 @@ export async function runAtsSourceSync(
       }
       if (!totalMatches) errorCodes.add("ats_provider_total_mismatch");
 
-      const rawBegin = await callRpc(
+      const begun = await callRpc(
         "worker_begin_ats_snapshot",
+        beginResultSchema,
         {
           p_adapter_key: policy.source.key,
           p_checked_at: result.checkedAt,
@@ -323,30 +446,26 @@ export async function runAtsSourceSync(
         },
         { signal: execution.signal },
       );
-      const begun = beginResultSchema.safeParse(rawBegin);
-      if (!begun.success) {
-        throw new OperationalError("ats_import_begin_invalid");
-      }
-      importRunId = begun.data[0]!.import_run_id;
-      if (!begun.data[0]!.should_run) {
+      importRunId = begun[0]!.import_run_id;
+      if (!begun[0]!.should_run) {
         importRunId = null;
         duplicateSources += 1;
         continue;
       }
 
       for (const batch of chunkAtsImportRecords(normalized.jobs)) {
-        const batchResult = await callRpc(
+        const stored = await callRpc(
           "worker_store_ats_snapshot_batch",
+          storeBatchResultSchema,
           { p_import_run_id: importRunId, p_records: batch },
           { signal: execution.signal },
         );
-        if (!resultObjectSchema.safeParse(batchResult).success) {
-          throw new OperationalError("ats_import_batch_invalid");
-        }
+        assertAtsBatchAcknowledgement(stored, batch.length);
       }
 
-      const finalResult = await callRpc(
+      const finalized = await callRpc(
         "worker_finalize_ats_snapshot",
+        finalizeResultSchema,
         {
           p_import_run_id: importRunId,
           p_complete: complete,
@@ -355,33 +474,41 @@ export async function runAtsSourceSync(
         },
         { signal: execution.signal },
       );
-      if (!resultObjectSchema.safeParse(finalResult).success) {
-        throw new OperationalError("ats_import_finalize_invalid");
-      }
-
+      assertAtsFinalizeAcknowledgement(finalized, {
+        complete,
+        providerRecordCount: result.snapshot.providerRecordCount,
+        expectedRecordCount: normalized.jobs.length,
+        errorCount: totalQuarantines + errorCodes.size,
+      });
       storedRecords += normalized.jobs.length;
       if (complete) completedSources += 1;
       else partialSources += 1;
     } catch (reason) {
       failedSources += 1;
       const code = safeErrorCode(reason);
+      failureCodes.add(code);
       // The operation signal can already be aborted here. The tracked worker
       // reserves four seconds after its operation budget, so use an independent
       // bounded signal to record a terminal snapshot/source failure safely.
       const cleanupSignal = boundedSignal(undefined, CLEANUP_TIMEOUT_MS);
+      let secondaryFailure;
       if (importRunId) {
-        await callRpc(
-          "worker_finalize_ats_snapshot",
-          {
-            p_import_run_id: importRunId,
-            p_complete: false,
-            p_quarantined_count: 0,
-            p_error_codes: [code],
-          },
-          { signal: cleanupSignal },
-        ).catch(() => undefined);
+        secondaryFailure = await observeSecondaryOperation(
+          "ats_finalize_failed_snapshot",
+          callRpc(
+            "worker_finalize_ats_snapshot",
+            finalizeResultSchema,
+            {
+              p_import_run_id: importRunId,
+              p_complete: false,
+              p_quarantined_count: 0,
+              p_error_codes: [code],
+            },
+            { signal: cleanupSignal },
+          ),
+        );
       } else {
-        await recordPreImportFailure(
+        secondaryFailure = await recordPreImportFailure(
           callRpc,
           policy.source.key,
           fetchedCount,
@@ -389,11 +516,18 @@ export async function runAtsSourceSync(
           cleanupSignal,
         );
       }
+      if (secondaryFailure) {
+        secondaryFailureCount += 1;
+        secondaryFailureCodes.add(secondaryFailure.code);
+      }
     }
   }
 
   const summary = {
     configured_sources: listedPolicies.length,
+    inspected_sources: inspectedSources,
+    deferred_sources: listedPolicies.length - inspectedSources,
+    inspection_stopped: inspectionStopped,
     claimed_sources: claimedSources,
     completed_sources: completedSources,
     duplicate_sources: duplicateSources,
@@ -403,11 +537,20 @@ export async function runAtsSourceSync(
     stored_records: storedRecords,
     filtered_records: filteredRecords,
     quarantined_records: quarantinedRecords,
+    failure_codes: [...failureCodes].sort(),
+    secondary_failure_count: secondaryFailureCount,
+    secondary_failure_codes: [...secondaryFailureCodes].sort(),
   };
-  if (claimedSources === 0) return workerSkipped("ats_sources_not_due");
   if (failedSources > 0 || partialSources > 0) {
     throw new OperationalError("ats_source_sync_incomplete", summary);
   }
+  if (inspectionStopped === "time_budget") {
+    throw new OperationalError(
+      "ats_source_sync_time_budget_exhausted",
+      summary,
+    );
+  }
+  if (claimedSources === 0) return workerSkipped("ats_sources_not_due");
   return workerSucceeded(summary);
 }
 

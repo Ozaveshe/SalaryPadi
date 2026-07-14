@@ -5,6 +5,7 @@ import {
   AdapterPolicyError,
   assertRunnableSourcePolicy,
   jobSourcePolicyRegistry,
+  parseJobSourcePolicyRegistry,
 } from "./policy";
 import {
   effectivePollingSeconds,
@@ -109,6 +110,28 @@ describe("job source policy registry", () => {
         (policy) => policy.adapterKey === "reliefweb",
       )?.missingDependencies,
     ).toContain("preapproved_reliefweb_app_name");
+  });
+
+  it("rejects duplicate adapters and contradictory rights evidence", () => {
+    const duplicate = structuredClone(jobSourcePolicyRegistry);
+    duplicate.sources.push(structuredClone(duplicate.sources[0]!));
+    expect(() => parseJobSourcePolicyRegistry(duplicate)).toThrow();
+
+    const invalidReview = structuredClone(jobSourcePolicyRegistry);
+    invalidReview.sources[0]!.reviewDueAt =
+      invalidReview.sources[0]!.reviewedAt;
+    expect(() => parseJobSourcePolicyRegistry(invalidReview)).toThrow();
+  });
+
+  it("rejects unsafe terms URLs and impossible publication permissions", () => {
+    const unsafeTerms = structuredClone(jobSourcePolicyRegistry);
+    unsafeTerms.sources[1]!.termsUrl = "https://user:secret@example.com/terms";
+    expect(() => parseJobSourcePolicyRegistry(unsafeTerms)).toThrow();
+
+    const impossibleIndexing = structuredClone(jobSourcePolicyRegistry);
+    impossibleIndexing.sources[1]!.searchIndexPermission = true;
+    impossibleIndexing.sources[1]!.publicDisplayPermission = false;
+    expect(() => parseJobSourcePolicyRegistry(impossibleIndexing)).toThrow();
   });
 });
 

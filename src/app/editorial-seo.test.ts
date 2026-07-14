@@ -22,7 +22,17 @@ const { groups } = vi.hoisted((): { groups: SitemapGroups } => ({
 
 vi.mock("@/lib/env", () => ({ getAppOrigin: () => "https://salarypadi.com" }));
 vi.mock("@/lib/seo/sitemap-data", () => ({
-  loadSitemapGroups: vi.fn().mockResolvedValue(groups),
+  loadSitemapData: vi.fn().mockResolvedValue({
+    groups,
+    states: {
+      jobs: "ready",
+      companies: "ready",
+      salaries: "ready",
+      tools: "ready",
+      guides: "ready",
+      insights: "ready",
+    },
+  }),
 }));
 
 import robots from "@/app/robots";
@@ -44,6 +54,7 @@ describe("editorial SEO surfaces", () => {
   it("returns a six-part sitemap index and accurate child inventory", async () => {
     const index = await getSitemapIndex();
     expect(index.headers.get("content-type")).toContain("application/xml");
+    expect(index.headers.get("x-salarypadi-sitemap-state")).toBe("ready");
     const indexXml = await index.text();
     expect(indexXml).toContain("<sitemapindex");
     for (const kind of [
@@ -58,6 +69,8 @@ describe("editorial SEO surfaces", () => {
     }
 
     const child = await getInsightSitemap();
+    expect(child.status).toBe(200);
+    expect(child.headers.get("x-salarypadi-sitemap-state")).toBe("ready");
     const childXml = await child.text();
     expect(childXml).toContain(
       "https://salarypadi.com/insights/job-source-freshness-snapshot",

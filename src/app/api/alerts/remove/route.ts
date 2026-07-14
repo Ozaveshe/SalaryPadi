@@ -1,25 +1,46 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { readApiForm } from "@/lib/api/form";
+import { attemptApiOperation } from "@/lib/api/operation";
+import { noStoreRedirect } from "@/lib/api/response";
+import {
+  apiRpcBooleanResultSchema,
+  decodeApiRpcResult,
+} from "@/lib/api/rpc-result";
 import { getAuthenticatedApiContext } from "@/lib/auth/api";
 import { getAppOrigin } from "@/lib/env";
+import { noStoreJson } from "@/lib/http/json";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOriginRequest(request);
   if (crossOrigin) return crossOrigin;
-  const parsed = z
-    .string()
-    .uuid()
-    .safeParse((await request.formData()).get("id"));
+  const form = await readApiForm(request, 2_048, {
+    invalidMessage: "Invalid alert removal form.",
+  });
+  if (!form.ok) return form.response;
+  const parsed = z.string().uuid().safeParse(form.data.get("id"));
   if (!parsed.success)
-    return Response.json({ error: "Invalid alert." }, { status: 400 });
+    return noStoreJson({ error: "Invalid alert." }, { status: 400 });
   const context = await getAuthenticatedApiContext();
   if (!context.ok) return context.response;
-  const { data, error } = await context.supabase
-    .schema("api")
-    .rpc("remove_job_alert", { alert_id: parsed.data });
+  const operation = await attemptApiOperation(
+    "alerts.remove",
+    "alert_remove_failed",
+    "Job-alert service is temporarily unavailable.",
+    () =>
+      context.supabase
+        .schema("api")
+        .rpc("remove_job_alert", { alert_id: parsed.data }),
+  );
+  if (!operation.ok) return operation.response;
+  const result = decodeApiRpcResult(
+    "alerts.remove",
+    "alert_remove_failed",
+    operation.value,
+    apiRpcBooleanResultSchema,
+  );
   const url = new URL("/alerts", getAppOrigin());
-  url.searchParams.set("removed", !error && data ? "true" : "error");
-  return NextResponse.redirect(url, 303);
+  url.searchParams.set("removed", result.ok && result.data ? "true" : "error");
+  return noStoreRedirect(url, 303);
 }

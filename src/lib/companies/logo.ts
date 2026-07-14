@@ -1,4 +1,5 @@
 import type { AfricanCompanyCatalogEntry } from "@/lib/companies/catalog";
+import { readBoundedBody } from "@/lib/http/body";
 
 const maxLogoBytes = 1024 * 1024;
 const acceptedContentTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -67,6 +68,7 @@ export async function resolveCompanyLogo(
   try {
     const response = await fetcher(providerUrl, {
       cache: "no-store",
+      credentials: "omit",
       headers: { Accept: "image/png,image/jpeg,image/webp" },
       redirect: "error",
       signal: AbortSignal.timeout(4_000),
@@ -81,9 +83,10 @@ export async function resolveCompanyLogo(
       !acceptedContentTypes.has(contentType) ||
       (declaredLength > 0 && declaredLength > maxLogoBytes)
     ) {
+      await response.body?.cancel().catch(() => undefined);
       return fallbackResponse(entry, "provider_unavailable");
     }
-    const bytes = await response.arrayBuffer();
+    const bytes = await readBoundedBody(response, maxLogoBytes);
     if (bytes.byteLength === 0 || bytes.byteLength > maxLogoBytes) {
       return fallbackResponse(entry, "provider_unavailable");
     }

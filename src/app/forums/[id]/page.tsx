@@ -7,6 +7,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { CommunityActions } from "@/components/community/community-actions";
 import { CommunityIdentityFields } from "@/components/community/community-fields";
 import { CommunityStatus } from "@/components/community/community-status";
+import { RepositoryNotice } from "@/components/repository-notice";
 import { getViewer } from "@/lib/auth/dal";
 import { getForumThreadPage } from "@/lib/community/repository";
 import { formatDate } from "@/lib/format";
@@ -28,11 +29,12 @@ export default async function ForumThreadPage({
   if (!z.string().uuid().safeParse(id).success) notFound();
   const input = await searchParams;
   const viewer = await getViewer();
-  const data = await getForumThreadPage({
+  const result = await getForumThreadPage({
     threadId: id,
     includeProfile: viewer.state === "authenticated",
   });
-  if (data.available && !data.loadError && !data.thread) notFound();
+  const data = result.data;
+  if (result.state === "ready" && !data.thread) notFound();
 
   return (
     <div className="reading-shell stack-lg">
@@ -47,12 +49,7 @@ export default async function ForumThreadPage({
         reported={firstSearchParam(input.reported)}
         status={firstSearchParam(input.status)}
       />
-      {data.loadError ? (
-        <div className="notice notice-warning" role="status">
-          This discussion could not be loaded. Please return to the forums and
-          try again.
-        </div>
-      ) : null}
+      <RepositoryNotice resource="Forum discussion" result={result} />
       {data.thread ? (
         <>
           <article className="surface surface-pad stack forum-thread-detail">

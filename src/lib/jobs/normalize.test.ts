@@ -127,31 +127,33 @@ describe("job normalization", () => {
     expect(job.fingerprint).toHaveLength(64);
   });
 
-  it.each(["https://evil.example/jobs/1", "https://evilremotive.com/jobs/1"])(
-    "rejects a destination outside Remotive: %s",
-    (url) => {
-      expect(() =>
-        normalizeRemotiveJob(
-          {
-            id: 1,
-            url,
-            title: "Role",
-            company_name: "Company",
-            company_logo: null,
-            company_logo_url: null,
-            category: null,
-            tags: [],
-            job_type: "full_time",
-            publication_date: "2026-07-09T12:00:00+00:00",
-            candidate_required_location: "Worldwide",
-            salary: null,
-            description: "<p>Text</p>",
-          },
-          checkedAt,
-        ),
-      ).toThrow(/outside/);
-    },
-  );
+  it.each([
+    "https://evil.example/jobs/1",
+    "https://evilremotive.com/jobs/1",
+    "https://user:secret@remotive.com/jobs/1",
+    "https://remotive.com:8443/jobs/1",
+  ])("rejects a destination outside Remotive: %s", (url) => {
+    expect(() =>
+      normalizeRemotiveJob(
+        {
+          id: 1,
+          url,
+          title: "Role",
+          company_name: "Company",
+          company_logo: null,
+          company_logo_url: null,
+          category: null,
+          tags: [],
+          job_type: "full_time",
+          publication_date: "2026-07-09T12:00:00+00:00",
+          candidate_required_location: "Worldwide",
+          salary: null,
+          description: "<p>Text</p>",
+        },
+        checkedAt,
+      ),
+    ).toThrow(/outside/);
+  });
 });
 
 describe("salary and duplicate normalization", () => {

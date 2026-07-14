@@ -21,8 +21,10 @@ describe("company logo resolver", () => {
 
   it("fetches only the fixed provider host with the manifest-owned domain", async () => {
     let requestedUrl = "";
-    const fetcher: typeof fetch = async (input) => {
+    let requestedInit: RequestInit | undefined;
+    const fetcher: typeof fetch = async (input, init) => {
       requestedUrl = String(input);
+      requestedInit = init;
       return new Response(new Uint8Array([137, 80, 78, 71]), {
         headers: { "Content-Type": "image/png", "Content-Length": "4" },
       });
@@ -32,6 +34,11 @@ describe("company logo resolver", () => {
     expect(requested.origin).toBe("https://img.logo.dev");
     expect(requested.pathname).toBe("/safaricom.co.ke");
     expect(requested.searchParams.get("fallback")).toBe("404");
+    expect(requestedInit).toMatchObject({
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+    });
     expect(response.headers.get("x-salarypadi-logo-state")).toBe(
       "provider_logo",
     );
@@ -59,6 +66,18 @@ describe("company logo resolver", () => {
         })) as typeof fetch,
     );
     expect(oversized.headers.get("x-salarypadi-logo-state")).toBe(
+      "provider_unavailable",
+    );
+
+    const headerlessOversized = await resolveCompanyLogo(
+      company,
+      "pk_test_key",
+      (async () =>
+        new Response(new Uint8Array(1024 * 1024 + 1), {
+          headers: { "Content-Type": "image/png" },
+        })) as typeof fetch,
+    );
+    expect(headerlessOversized.headers.get("x-salarypadi-logo-state")).toBe(
       "provider_unavailable",
     );
   });

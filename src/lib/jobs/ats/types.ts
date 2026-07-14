@@ -40,6 +40,7 @@ export interface AtsAuthorizationEvidence {
   kind: "employer";
   authorizedBy: string;
   reviewedAt: string;
+  expiresAt: string | null;
   evidenceReference: string;
   /** Additional exact HTTPS destinations approved by the employer. */
   allowedDestinations: readonly AtsAllowedDestination[];

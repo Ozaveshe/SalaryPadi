@@ -109,18 +109,18 @@ describe("Remotive adapter", () => {
   });
 
   it("rejects a successful non-JSON response before parsing its body", async () => {
+    const response = new Response('{"jobs":[]}', {
+      headers: { "Content-Type": "text/html" },
+    });
     await captureAdapterError(
       () =>
         fetchRemotiveJobs({
-          fetch: fixedFetch(
-            new Response('{"jobs":[]}', {
-              headers: { "Content-Type": "text/html" },
-            }),
-          ),
+          fetch: fixedFetch(response),
           requestedAt,
         }),
       "remotive_invalid_content_type",
     );
+    expect(response.bodyUsed).toBe(true);
   });
 
   it("streams and rejects an oversized body even when Content-Length lies", async () => {
@@ -146,22 +146,22 @@ describe("Remotive adapter", () => {
   });
 
   it("rejects a declared body larger than the configured bound", async () => {
+    const response = new Response("{}", {
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": "129",
+      },
+    });
     await captureAdapterError(
       () =>
         fetchRemotiveJobs({
-          fetch: fixedFetch(
-            new Response("{}", {
-              headers: {
-                "Content-Type": "application/json",
-                "Content-Length": "129",
-              },
-            }),
-          ),
+          fetch: fixedFetch(response),
           requestedAt,
           maxResponseBytes: 128,
         }),
       "remotive_response_too_large",
     );
+    expect(response.bodyUsed).toBe(true);
   });
 
   it("returns a typed safe code for malformed JSON", async () => {
@@ -202,15 +202,14 @@ describe("Remotive adapter", () => {
   });
 
   it("preserves an HTTP status without exposing a provider response", async () => {
+    const response = new Response("private upstream detail", {
+      status: 429,
+      headers: { "Content-Type": "text/plain" },
+    });
     const error = await captureAdapterError(
       () =>
         fetchRemotiveJobs({
-          fetch: fixedFetch(
-            new Response("private upstream detail", {
-              status: 429,
-              headers: { "Content-Type": "text/plain" },
-            }),
-          ),
+          fetch: fixedFetch(response),
           requestedAt,
           maxAttempts: 1,
         }),
@@ -219,6 +218,7 @@ describe("Remotive adapter", () => {
 
     expect(error.status).toBe(429);
     expect(error.message).not.toContain("private upstream detail");
+    expect(response.bodyUsed).toBe(true);
   });
 
   it("retries transient provider failures and returns the recovered payload", async () => {

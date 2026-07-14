@@ -77,6 +77,19 @@ describe("analytics events route", () => {
     expect(mocks.captureAnalyticsEvent).not.toHaveBeenCalled();
   });
 
+  it("rejects an oversized event body before capture", async () => {
+    const response = await POST(
+      analyticsRequest({
+        event_name: "page_view",
+        path: "/jobs",
+        padding: "x".repeat(3 * 1024),
+      }),
+    );
+
+    expect(response.status).toBe(413);
+    expect(mocks.captureAnalyticsEvent).not.toHaveBeenCalled();
+  });
+
   it("returns a bounded retry response when the anonymous window is full", async () => {
     mocks.captureAnalyticsEvent.mockResolvedValue({ status: "rate_limited" });
 

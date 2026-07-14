@@ -4,6 +4,10 @@ import type { FormEvent } from "react";
 
 import { trackEvent } from "@/lib/analytics/events";
 import { CompanyEvidenceInvitation } from "@/components/companies/company-evidence-invitation";
+import {
+  salaryConversionResultSchema,
+  type SalaryConversionResult,
+} from "@/lib/afrotools/schemas";
 import { formatSalaryAmount } from "@/lib/format";
 
 import {
@@ -11,30 +15,11 @@ import {
   toolResponseError,
   useToolRequest,
 } from "./use-tool-request";
-
-type AfroToolsFxEvidence = {
-  from: string;
-  to: string;
-  rate: number;
-  source: string;
-  updatedAt: string;
-  freshness: "fresh" | "stale";
-  sandbox: boolean;
-  dataPolicy: string;
-};
-
-type Conversion = {
-  amount: number;
-  convertedAmount: number;
-  from: string;
-  to: string;
-  period: "monthly" | "annual";
-  evidence: AfroToolsFxEvidence;
-};
+import { ToolUserError } from "./tool-user-error";
 
 export function SalaryConverter() {
   const { result, error, loading, run } =
-    useToolRequest<Conversion>("Conversion failed.");
+    useToolRequest<SalaryConversionResult>("Conversion failed.");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,12 +41,18 @@ export function SalaryConverter() {
         const parsedResult = isToolResponseRecord(body)
           ? body.result
           : undefined;
-        if (!response.ok || !isToolResponseRecord(parsedResult)) {
-          throw new Error(
+        if (!response.ok) {
+          throw new ToolUserError(
             toolResponseError(body, "No verified conversion is available."),
           );
         }
-        return parsedResult as unknown as Conversion;
+        const parsed = salaryConversionResultSchema.safeParse(parsedResult);
+        if (!parsed.success) {
+          throw new ToolUserError(
+            "The conversion service returned an invalid result.",
+          );
+        }
+        return parsed.data;
       },
     });
     if (completed) {

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
-type PanelMode = "loading" | "enrol" | "challenge" | "complete";
+type PanelMode = "loading" | "unavailable" | "enrol" | "challenge" | "complete";
 
 export function MfaPanel({
   returnTo = "/admin",
@@ -22,6 +22,7 @@ export function MfaPanel({
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [inspectionAttempt, setInspectionAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -31,26 +32,37 @@ export function MfaPanel({
       if (!supabase) {
         if (active) {
           setError("The SalaryPadi authentication service is not configured.");
-          setMode("enrol");
+          setMode("unavailable");
         }
         return;
       }
 
-      const [{ data: assurance, error: assuranceError }, factors] =
-        await Promise.all([
+      let assuranceResult;
+      let factors;
+      try {
+        [assuranceResult, factors] = await Promise.all([
           supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
           supabase.auth.mfa.listFactors(),
         ]);
-
-      if (!active) return;
-
-      if (assuranceError || factors.error) {
-        setError("We could not check your second-factor status. Try again.");
-        setMode("enrol");
+      } catch {
+        if (active) {
+          setError(
+            "The authentication service is temporarily unavailable. Try again.",
+          );
+          setMode("unavailable");
+        }
         return;
       }
 
-      if (assurance.currentLevel === "aal2") {
+      if (!active) return;
+
+      if (assuranceResult.error || factors.error) {
+        setError("We could not check your second-factor status. Try again.");
+        setMode("unavailable");
+        return;
+      }
+
+      if (assuranceResult.data.currentLevel === "aal2") {
         setMode("complete");
         return;
       }
@@ -71,7 +83,7 @@ export function MfaPanel({
     return () => {
       active = false;
     };
-  }, []);
+  }, [inspectionAttempt]);
 
   async function startEnrolment() {
     setBusy(true);
@@ -84,20 +96,29 @@ export function MfaPanel({
       return;
     }
 
-    const { data, error: enrolmentError } = await supabase.auth.mfa.enroll({
-      factorType: "totp",
-      friendlyName: accountVariant ? "SalaryPadi account" : "SalaryPadi admin",
-    });
+    let enrolment;
+    try {
+      enrolment = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: accountVariant
+          ? "SalaryPadi account"
+          : "SalaryPadi admin",
+      });
+    } catch {
+      setError("The authentication service is temporarily unavailable.");
+      setBusy(false);
+      return;
+    }
 
-    if (enrolmentError) {
+    if (enrolment.error) {
       setError("We could not start MFA enrolment. Try again.");
       setBusy(false);
       return;
     }
 
-    setFactorId(data.id);
-    setQrCode(data.totp.qr_code);
-    setSecret(data.totp.secret);
+    setFactorId(enrolment.data.id);
+    setQrCode(enrolment.data.totp.qr_code);
+    setSecret(enrolment.data.totp.secret);
     setCode("");
     setMode("challenge");
     setBusy(false);
@@ -120,18 +141,32 @@ export function MfaPanel({
       return;
     }
 
-    const challenge = await supabase.auth.mfa.challenge({ factorId });
+    let challenge;
+    try {
+      challenge = await supabase.auth.mfa.challenge({ factorId });
+    } catch {
+      setError("The authentication service is temporarily unavailable.");
+      setBusy(false);
+      return;
+    }
     if (challenge.error) {
       setError("We could not start the verification challenge. Try again.");
       setBusy(false);
       return;
     }
 
-    const verification = await supabase.auth.mfa.verify({
-      factorId,
-      challengeId: challenge.data.id,
-      code,
-    });
+    let verification;
+    try {
+      verification = await supabase.auth.mfa.verify({
+        factorId,
+        challengeId: challenge.data.id,
+        code,
+      });
+    } catch {
+      setError("The authentication service is temporarily unavailable.");
+      setBusy(false);
+      return;
+    }
 
     if (verification.error) {
       setError("That code was not accepted. Check the app and try again.");
@@ -167,6 +202,27 @@ export function MfaPanel({
         <a className="button w-fit" href={returnTo}>
           {accountVariant ? "Return to account" : "Continue to admin"}
         </a>
+      </div>
+    );
+  }
+
+  if (mode === "unavailable") {
+    return (
+      <div className="surface surface-pad stack">
+        <div className="notice notice-danger" role="alert">
+          {error}
+        </div>
+        <button
+          className="button w-fit"
+          type="button"
+          onClick={() => {
+            setError(null);
+            setMode("loading");
+            setInspectionAttempt((attempt) => attempt + 1);
+          }}
+        >
+          Check again
+        </button>
       </div>
     );
   }

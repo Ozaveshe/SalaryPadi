@@ -68,4 +68,39 @@ describe("verified salary source contract", () => {
       );
     }
   });
+
+  it("rejects credential-bearing source links and contradictory provenance", () => {
+    const result = normalizedSalaryBenchmarkSchema.safeParse({
+      ...validBenchmark,
+      sourceUrl: "https://user:secret@example.gov/dataset",
+      retrievedAt: "2026-03-31T23:59:59.000Z",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map((issue) => issue.path.join("."))).toEqual(
+        expect.arrayContaining(["sourceUrl", "retrievedAt"]),
+      );
+    }
+  });
+
+  it("requires raw and annual percentile evidence to form pairs", () => {
+    expect(
+      normalizedSalaryBenchmarkSchema.safeParse({
+        ...validBenchmark,
+        percentile25Amount: null,
+        percentile25Annual: 90_000,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects duplicate source adapters and activation blockers", () => {
+    const registry = structuredClone(salarySourceRegistry);
+    registry.sources[1]!.adapterKey = registry.sources[0]!.adapterKey;
+    registry.sources[0]!.activationBlockers.push(
+      registry.sources[0]!.activationBlockers[0]!,
+    );
+
+    expect(salarySourceRegistrySchema.safeParse(registry).success).toBe(false);
+  });
 });

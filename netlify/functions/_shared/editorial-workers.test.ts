@@ -11,6 +11,7 @@ import editorialPublish from "../editorial-publish.mjs";
 import editorialQueue from "../editorial-queue.mjs";
 import editorialTopicCandidates from "../editorial-topic-candidates.mjs";
 import editorialWeeklyAudit from "../editorial-weekly-audit.mjs";
+import { runEditorialOperation } from "./editorial";
 import {
   installWorkerFetch,
   nonBookkeepingUrls,
@@ -95,7 +96,7 @@ const workers: EditorialWorkerCase[] = [
     task: "editorial_nightly_audit",
     handler: editorialNightlyAudit,
     kind: "nightly",
-    expectedSummary: { checked_links: 0, broken_links: 0 },
+    expectedSummary: { target_count: 0, checked_links: 0, broken_links: 0 },
   },
   {
     task: "editorial_weekly_audit",
@@ -232,6 +233,113 @@ describe("editorial scheduled-worker successful runs", () => {
 });
 
 describe("editorial scheduled-worker failures", () => {
+  it("records only inspected links when the nightly budget is exhausted", async () => {
+    stubWorkerEnvironment({ EDITORIAL_AUTOMATION_ENABLED: "true" });
+    const fetchMock = installWorkerFetch({
+      rpc: {
+        editorial_link_targets: [
+          {
+            source_id: "50000000-0000-4000-8000-000000000021",
+            article_id: null,
+            url: "https://salarypadi.com/methodology",
+          },
+        ],
+        editorial_record_link_checks: 0,
+        editorial_run_nightly_audit: {
+          broken_findings: 0,
+          unavailable_internal_link_findings: 0,
+        },
+        editorial_record_failure: "50000000-0000-4000-8000-000000000012",
+      },
+    });
+
+    await expect(
+      runEditorialOperation("editorial_nightly_audit", {
+        signal: new AbortController().signal,
+        remainingMs: () => 8_999,
+      }),
+    ).rejects.toMatchObject({
+      code: "editorial_link_check_time_budget_exhausted",
+      summary: {
+        target_count: 1,
+        checked_links: 0,
+        deferred_links: 1,
+      },
+    });
+    expect(rpcCallBodies(fetchMock, "editorial_record_link_checks")).toEqual([
+      { p_results: [] },
+    ]);
+    expect(
+      rpcCallBodies(fetchMock, "editorial_run_nightly_audit"),
+    ).toHaveLength(1);
+    expect(rpcCallBodies(fetchMock, "editorial_record_failure")).toEqual([
+      expect.objectContaining({
+        p_error_code: "editorial_link_check_time_budget_exhausted",
+        p_summary: {
+          target_count: 1,
+          checked_links: 0,
+          deferred_links: 1,
+        },
+      }),
+    ]);
+  });
+
+  it("rejects an ambiguous nightly link target before checking it", async () => {
+    stubWorkerEnvironment({ EDITORIAL_AUTOMATION_ENABLED: "true" });
+    const fetchMock = installWorkerFetch({
+      rpc: {
+        editorial_link_targets: [
+          {
+            source_id: null,
+            article_id: null,
+            url: "https://salarypadi.com/methodology",
+          },
+        ],
+        editorial_record_failure: "50000000-0000-4000-8000-000000000012",
+      },
+    });
+
+    await expect(
+      editorialNightlyAudit(
+        scheduledRequest("editorial_nightly_audit"),
+        workerContext,
+      ),
+    ).rejects.toMatchObject({ code: "supabase_rpc_invalid_shape" });
+    expect(rpcCallBodies(fetchMock, "editorial_record_link_checks")).toEqual(
+      [],
+    );
+    expect(finishBody(fetchMock)).toMatchObject({
+      p_status: "failed",
+      p_error_code: "supabase_rpc_invalid_shape",
+    });
+  });
+
+  it("rejects a partial nightly link-check acknowledgement", async () => {
+    stubWorkerEnvironment({ EDITORIAL_AUTOMATION_ENABLED: "true" });
+    const fetchMock = installWorkerFetch({
+      rpc: {
+        editorial_link_targets: [],
+        editorial_record_link_checks: 1,
+        editorial_record_failure: "50000000-0000-4000-8000-000000000012",
+      },
+    });
+
+    await expect(
+      editorialNightlyAudit(
+        scheduledRequest("editorial_nightly_audit"),
+        workerContext,
+      ),
+    ).rejects.toMatchObject({
+      code: "editorial_link_checks_ack_mismatch",
+      summary: { expected_count: 0, recorded_count: 1 },
+    });
+    expect(rpcCallBodies(fetchMock, "editorial_run_nightly_audit")).toEqual([]);
+    expect(finishBody(fetchMock)).toMatchObject({
+      p_status: "failed",
+      p_error_code: "editorial_link_checks_ack_mismatch",
+    });
+  });
+
   it.each(workers)(
     "$task records the operation error code before rejecting",
     async (worker) => {
@@ -250,6 +358,10 @@ describe("editorial scheduled-worker failures", () => {
       ).rejects.toMatchObject({ code: expectedCode });
       expect(finishBody(fetchMock)).toMatchObject({
         p_status: "failed",
+        p_summary: {
+          failure_evidence_state: "unavailable",
+          secondary_failure_codes: ["supabase_rpc_invalid_shape"],
+        },
         p_error_code: expectedCode,
       });
       expect(rpcCallBodies(fetchMock, "editorial_record_failure")).toEqual([

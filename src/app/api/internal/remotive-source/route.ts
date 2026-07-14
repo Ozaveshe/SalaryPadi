@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { unstable_rethrow } from "next/navigation";
 
 import { getServerEnvironment } from "@/lib/env";
 import {
@@ -31,6 +32,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     openSupplyAdapter("remotive");
   } catch (reason) {
+    unstable_rethrow(reason);
     const code =
       reason instanceof AdapterPolicyError
         ? `remotive_${reason.code}`
@@ -66,6 +68,7 @@ export async function GET(request: Request): Promise<Response> {
       },
     });
   } catch (reason) {
+    unstable_rethrow(reason);
     if (reason instanceof RemotiveAdapterError) {
       return noStoreJson({ error: reason.code }, 502);
     }

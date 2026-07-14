@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import registryJson from "../../../../config/job-source-policy-registry.json";
+import { externalHttpsUrlSchema } from "@/lib/security/url-schema";
 
 export const SOURCE_AUTHORITY = {
   secondary_feed: 100,
@@ -25,13 +26,13 @@ const policySchema = z
     state: z.enum(["enabled", "disabled", "expired"]),
     permissionBasis: z.string().min(3).max(200),
     evidenceReference: z.string().min(3).max(500).nullable(),
-    termsUrl: z
-      .string()
-      .refine((value) => value === "/terms" || value.startsWith("https://"))
-      .nullable(),
+    termsUrl: z.union([z.literal("/terms"), externalHttpsUrlSchema]).nullable(),
     reviewedAt: timestamp.nullable(),
     reviewDueAt: timestamp.nullable(),
-    allowedFields: z.array(z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/)).max(80),
+    allowedFields: z
+      .array(z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/))
+      .max(80)
+      .refine((values) => new Set(values).size === values.length),
     fullDescriptionPermission: z.boolean(),
     attribution: z.string().min(3).max(2_000).nullable(),
     minimumPollingSeconds: z.number().int().min(900).nullable(),
@@ -40,8 +41,14 @@ const policySchema = z
     publicDisplayPermission: z.boolean(),
     searchIndexPermission: z.boolean(),
     googleJobPostingPermission: z.boolean(),
-    requiredDependencies: z.array(z.string().regex(/^[a-z0-9_]+$/)).max(30),
-    missingDependencies: z.array(z.string().regex(/^[a-z0-9_]+$/)).max(30),
+    requiredDependencies: z
+      .array(z.string().regex(/^[a-z0-9_]+$/))
+      .max(30)
+      .refine((values) => new Set(values).size === values.length),
+    missingDependencies: z
+      .array(z.string().regex(/^[a-z0-9_]+$/))
+      .max(30)
+      .refine((values) => new Set(values).size === values.length),
   })
   .strict()
   .superRefine((policy, context) => {
@@ -80,6 +87,42 @@ const policySchema = z
           "Google JobPosting permission also requires indexing permission",
       });
     }
+    if (policy.searchIndexPermission && !policy.publicDisplayPermission) {
+      context.addIssue({
+        code: "custom",
+        path: ["searchIndexPermission"],
+        message: "indexing permission also requires public display permission",
+      });
+    }
+    if (
+      policy.fullDescriptionPermission &&
+      !policy.allowedFields.includes("description")
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["fullDescriptionPermission"],
+        message: "full-description permission requires the description field",
+      });
+    }
+    if (policy.publicDisplayPermission && !policy.attribution) {
+      context.addIssue({
+        code: "custom",
+        path: ["attribution"],
+        message: "public sources require explicit attribution",
+      });
+    }
+    const reviewPairPresent =
+      policy.reviewedAt !== null && policy.reviewDueAt !== null;
+    if (
+      (policy.reviewedAt === null) !== (policy.reviewDueAt === null) ||
+      (reviewPairPresent && policy.reviewedAt! >= policy.reviewDueAt!)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["reviewDueAt"],
+        message: "rights review dates must form an increasing pair",
+      });
+    }
   });
 
 const registrySchema = z
@@ -89,12 +132,48 @@ const registrySchema = z
     reviewIntervalDays: z.number().int().min(1).max(365),
     sources: z.array(policySchema).min(1).max(100),
   })
-  .strict();
+  .strict()
+  .superRefine((registry, context) => {
+    const adapterKeys = new Set<string>();
+    for (const [index, source] of registry.sources.entries()) {
+      if (adapterKeys.has(source.adapterKey)) {
+        context.addIssue({
+          code: "custom",
+          path: ["sources", index, "adapterKey"],
+          message: "source adapter keys must be unique",
+        });
+      }
+      adapterKeys.add(source.adapterKey);
+      if (source.reviewedAt && source.reviewedAt > registry.generatedAt) {
+        context.addIssue({
+          code: "custom",
+          path: ["sources", index, "reviewedAt"],
+          message: "source reviews cannot postdate the generated registry",
+        });
+      }
+      if (
+        source.state === "enabled" &&
+        source.reviewDueAt &&
+        source.reviewDueAt <= registry.generatedAt
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["sources", index, "reviewDueAt"],
+          message: "enabled sources require a current review window",
+        });
+      }
+    }
+  });
 
 export type JobSourcePolicyRecord = z.infer<typeof policySchema>;
 export type JobSourcePolicyRegistry = z.infer<typeof registrySchema>;
 
-export const jobSourcePolicyRegistry = registrySchema.parse(registryJson);
+export function parseJobSourcePolicyRegistry(value: unknown) {
+  return registrySchema.parse(value);
+}
+
+export const jobSourcePolicyRegistry =
+  parseJobSourcePolicyRegistry(registryJson);
 
 export type AdapterPolicyRejection =
   | "policy_missing"

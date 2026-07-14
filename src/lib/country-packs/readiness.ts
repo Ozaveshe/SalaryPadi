@@ -30,6 +30,26 @@ export function evaluateCountryPackReadiness(
   evidence: CountryPackReadinessEvidence,
 ): CountryPackReadinessDecision {
   const blockers: string[] = [];
+  const integerEvidence = [
+    evidence.authorizedActiveJobs,
+    evidence.authorizedSources,
+    evidence.uniqueContentPages,
+    evidence.firstPartyContributions,
+    evidence.reviewedTaxRules,
+    evidence.reviewedEmploymentRules,
+  ];
+  if (
+    integerEvidence.some(
+      (value) => !Number.isSafeInteger(value) || value < 0,
+    ) ||
+    !Number.isFinite(evidence.explicitEligibilityRatio) ||
+    evidence.explicitEligibilityRatio < 0 ||
+    evidence.explicitEligibilityRatio > 1 ||
+    !evidence.reviewGates ||
+    typeof evidence.reviewGates !== "object"
+  ) {
+    return { ready: false, blockers: ["invalid_readiness_evidence"] };
+  }
   const thresholds = pack.activation.thresholds;
   if (evidence.authorizedActiveJobs < thresholds.authorizedActiveJobs) {
     blockers.push("authorized_job_supply");

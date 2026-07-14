@@ -3,7 +3,10 @@
 import type { FormEvent } from "react";
 
 import { trackEvent } from "@/lib/analytics/events";
-import { offerComparisonResultResponseSchema } from "@/lib/afrotools/schemas";
+import {
+  afroToolsFxEvidenceSchema,
+  offerComparisonResultResponseSchema,
+} from "@/lib/afrotools/schemas";
 import type { OfferComparisonResult } from "@/lib/offers";
 
 import { buildOfferFromForm } from "./offer-compare-form";
@@ -17,26 +20,18 @@ import {
   toolResponseError,
   useToolRequest,
 } from "./use-tool-request";
-
-function isFxEvidence(value: unknown): value is FxEvidence {
-  return (
-    isToolResponseRecord(value) &&
-    typeof value.from === "string" &&
-    typeof value.to === "string" &&
-    typeof value.rate === "number" &&
-    Number.isFinite(value.rate) &&
-    typeof value.source === "string" &&
-    typeof value.updatedAt === "string" &&
-    (value.freshness === "fresh" || value.freshness === "stale")
-  );
-}
+import { ToolUserError } from "./tool-user-error";
 
 function responseFxEvidence(body: Record<string, unknown>): FxEvidence[] {
   if (body.fxEvidence === undefined) return [];
-  if (!Array.isArray(body.fxEvidence) || !body.fxEvidence.every(isFxEvidence)) {
-    throw new Error("The comparison returned invalid FX evidence.");
+  const parsed = afroToolsFxEvidenceSchema
+    .array()
+    .max(10)
+    .safeParse(body.fxEvidence);
+  if (!parsed.success) {
+    throw new ToolUserError("The comparison returned invalid FX evidence.");
   }
-  return body.fxEvidence;
+  return parsed.data;
 }
 
 interface OfferToolResult {
@@ -68,14 +63,16 @@ export function OfferCompare() {
           .trim()
           .toUpperCase();
         if (!/^[A-Z]{3}$/.test(comparisonCurrency)) {
-          throw new Error(
+          throw new ToolUserError(
             "comparison currency must use a three-letter currency code.",
           );
         }
 
         const providerConsent = form.get("afrotools_consent") === "on";
         if (!providerConsent) {
-          throw new Error("Allow the required AfroTools currency request.");
+          throw new ToolUserError(
+            "Allow the required AfroTools currency request.",
+          );
         }
 
         const offerA = buildOfferFromForm(form, "a");
@@ -87,19 +84,23 @@ export function OfferCompare() {
       },
       parseResponse: (response, body) => {
         if (!response.ok) {
-          throw new Error(
+          throw new ToolUserError(
             toolResponseError(body, "The comparison could not be completed."),
           );
         }
         if (!isToolResponseRecord(body)) {
-          throw new Error("The comparison returned an invalid response.");
+          throw new ToolUserError(
+            "The comparison returned an invalid response.",
+          );
         }
 
         const parsedResult = offerComparisonResultResponseSchema.safeParse(
           body.result,
         );
         if (!parsedResult.success) {
-          throw new Error("The comparison returned an invalid response.");
+          throw new ToolUserError(
+            "The comparison returned an invalid response.",
+          );
         }
 
         return {

@@ -30,7 +30,7 @@ Never expose a service-role key through a `NEXT_PUBLIC_*` variable. Production c
 
 Optional Netlify build configuration:
 
-- `GITHUB_STATUS_TOKEN` is a protected, build-only fine-grained GitHub token with Metadata read and Actions read access to the private SalaryPadi repository. When present, `npm run deploy:verify` checks the latest `CI` workflow run for Netlify's `COMMIT_REF` and rejects a completed failed run before the application build. Missing credentials, a pending or absent run, and GitHub API failures are logged and skipped deliberately so a GitHub outage cannot take down deploys. The stronger dashboard-level control remains configuring Netlify to wait for required GitHub checks before publishing.
+- `GITHUB_STATUS_TOKEN` is a protected, build-only fine-grained GitHub token with Metadata read and Actions read access to the private SalaryPadi repository. When present, `npm run deploy:verify` checks the latest `CI` workflow run for Netlify's `COMMIT_REF` and rejects a completed failed run before the application build. Missing credentials, a pending or absent run, and GitHub API failures are logged and skipped deliberately so a GitHub outage cannot take down deploys. The verifier's final summary reports configuration proof separately from `github_ci=<outcome>:<reason>` so a skipped CI check is never presented as verified CI. The stronger dashboard-level control remains configuring Netlify to wait for required GitHub checks before publishing.
 
 The GA4 tag is public configuration, but it remains entirely unloaded until the
 versioned optional-analytics consent is granted. Keep enhanced measurement for
@@ -111,13 +111,35 @@ Do not deploy as a static export; authentication, CSP, server-side source reads,
 
 Published production deploys register these Netlify schedules:
 
-| Function                 | Schedule (UTC)       | Stale after | Purpose                                                                                                                                                  |
-| ------------------------ | -------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `job-source-sync`        | `5 1,13 * * *`       | 14 hours    | Enforce source policy, read or revalidate the shared public Remotive cache, replace the description-free alert snapshot, and record source/import health |
-| `ats-source-sync`        | `35 2,8,14,20 * * *` | 14 hours    | Record a safe skip while `ATS_SOURCE_SYNC_ENABLED=false`; otherwise claim at most two currently authorized employer ATS sources per invocation           |
-| `alert-delivery`         | `*/10 * * * *`       | 35 minutes  | Claim due daily/weekly alerts idempotently and send matching jobs                                                                                        |
-| `currency-rates`         | `25 2 * * *`         | 36 hours    | Store the current European Commission InforEuro monthly reference set and provenance                                                                     |
-| `operations-maintenance` | `45 2 * * *`         | 36 hours    | Expire jobs, process aggregate queues, retry/dead-letter deliveries, and enforce retention                                                               |
+| Function                        | Schedule (UTC)       | Stale after | Purpose                                                                   |
+| ------------------------------- | -------------------- | ----------- | ------------------------------------------------------------------------- |
+| `afrotools-catalog-sync`        | `5 */6 * * *`        | 14 hours    | Refresh the reviewed AfroTools catalog snapshot.                          |
+| `alert-delivery`                | `*/15 * * * *`       | 45 minutes  | Claim due alerts idempotently and send permitted matches.                 |
+| `apply-link-check`              | `8,23,38,53 * * * *` | 45 minutes  | Check claimed job destinations without following unsafe redirects.        |
+| `ats-source-sync`               | `2,17,32,47 * * * *` | 5 hours     | Safely skip while disabled, or claim one currently authorized ATS source. |
+| `currency-rates`                | `25 2 * * *`         | 36 hours    | Store the current InforEuro reference set and provenance.                 |
+| `editorial-draft`               | `0 5 * * *`          | 27 hours    | Produce bounded evidence-backed editorial drafts.                         |
+| `editorial-evidence-packs`      | `30 4 * * *`         | 27 hours    | Assemble reviewed evidence packs for editorial work.                      |
+| `editorial-job-snapshot`        | `0 4 * * *`          | 27 hours    | Refresh the editorial projection of publishable jobs.                     |
+| `editorial-live-blocks`         | `0 5,11,17,23 * * *` | 7 hours     | Refresh live editorial blocks from current approved data.                 |
+| `editorial-monthly-audit`       | `0 2 1 * *`          | 35 days     | Run the monthly editorial policy audit.                                   |
+| `editorial-nightly-audit`       | `30 0 * * *`         | 27 hours    | Run nightly editorial quality checks.                                     |
+| `editorial-preflight`           | `30 5 * * *`         | 27 hours    | Validate drafts before queueing.                                          |
+| `editorial-publish`             | `0 8 * * *`          | 27 hours    | Publish only approved queued editorial records.                           |
+| `editorial-queue`               | `0 6 * * *`          | 27 hours    | Move eligible editorial records into the reviewed queue.                  |
+| `editorial-topic-candidates`    | `15 4 * * *`         | 27 hours    | Generate bounded topic candidates from approved signals.                  |
+| `editorial-weekly-audit`        | `0 1 * * 1`          | 8 days      | Run weekly SEO and cannibalization checks.                                |
+| `google-indexing-notifications` | `*/15 * * * *`       | 45 minutes  | Deliver claimed, allowlisted Google indexing notifications.               |
+| `job-dedupe-review`             | `13 3 * * *`         | 36 hours    | Process conservative duplicate-review candidates.                         |
+| `job-lifecycle`                 | `*/15 * * * *`       | 45 minutes  | Apply deadline and complete-run lifecycle evidence.                       |
+| `job-source-sync`               | `5 1,7,13,19 * * *`  | 14 hours    | Enforce source policy and refresh the reviewed source snapshot.           |
+| `job-supply-dispatcher`         | `*/15 * * * *`       | 45 minutes  | Dispatch bounded authorized supply work.                                  |
+| `operations-maintenance`        | `45 2 * * *`         | 36 hours    | Process maintenance, retry/dead-letter work, and retention.               |
+| `salary-source-sync`            | `35 3 * * *`         | 36 hours    | Safely skip until reviewed salary-source adapters are activated.          |
+| `source-health-digest`          | `7 5 * * *`          | 36 hours    | Aggregate source-health evidence and stable alerts.                       |
+| `source-rights-review`          | `19 6 1 * *`         | 40 days     | Flag expired or due source-rights reviews.                                |
+
+`config/production-workers.json` is the executable worker registry used by both `/api/health` and the production freshness verifier. A test compares it with every scheduled handler, so adding a schedule without adding health proof fails the local quality gate.
 
 The ATS schedule is operational scaffolding, not source authorization. Keep `ATS_SOURCE_SYNC_ENABLED=false`; with no seeded employer source/configuration, it must make no provider request. After written permission and final policy/config review, a controlled one-off gate activation may perform the claimed review-only production dry run. Return the gate to false while reviewing budget, snapshot, quarantine, moderation, and kill-switch evidence; leaving it true for schedules requires a separate named approval.
 

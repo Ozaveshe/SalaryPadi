@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(38);
+select plan(40);
 
 select has_table('ingest', 'job_source_occurrences', 'source occurrences exist');
 select has_table('ingest', 'job_occurrence_links', 'occurrence links exist');
@@ -94,6 +94,21 @@ select ok(
      where adapter_key = 'salarypadi_employer_submissions')
   ),
   'reviewed direct employer lane is runnable'
+);
+
+select is(
+  (api.worker_run_source_rights_review()->>'enabled_sources')::integer,
+  (select count(*)::integer from app.job_sources where policy_state = 'enabled'),
+  'source rights review reports the actual enabled policy count'
+);
+select is(
+  (api.worker_run_source_rights_review()->>'runnable_sources')::integer,
+  (
+    select count(*)::integer
+    from app.job_sources source
+    where security.job_source_policy_is_runnable(source.id)
+  ),
+  'source rights review keeps runnable sources distinct from enabled policies'
 );
 
 insert into ingest.import_runs (

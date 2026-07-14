@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security;
-select plan(39);
+select plan(40);
 
 select has_table('app', 'currencies', 'currency catalog exists');
 select has_table('app', 'country_locales', 'country locales exist');
@@ -65,6 +65,11 @@ select ok(
   not has_function_privilege('anon', 'api.worker_get_source_country_rights(uuid)', 'EXECUTE')
   and has_function_privilege('service_role', 'api.worker_get_source_country_rights(uuid)', 'EXECUTE'),
   'only service workers can resolve source country rights'
+);
+select ok(
+  pg_get_functiondef('api.worker_get_source_country_rights(uuid)'::regprocedure)
+    like '%perform security.require_service_role();%',
+  'worker country-rights lookup enforces the service role inside the security definer boundary'
 );
 select ok(
   (select bool_and(c.relrowsecurity and c.relforcerowsecurity)

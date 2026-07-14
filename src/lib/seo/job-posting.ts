@@ -1,13 +1,11 @@
 import type { Job, PayPeriod } from "@/lib/jobs/types";
+import { isJobCurrentlyPublishable } from "@/lib/jobs/publication";
 
 export function canIndexJobDetail(job: Job, now = new Date()): boolean {
-  const validThrough = job.validThrough ? Date.parse(job.validThrough) : null;
   return (
     Boolean(job.databaseId) &&
     job.source.canIndex &&
-    job.status === "open" &&
-    (validThrough === null ||
-      (Number.isFinite(validThrough) && validThrough > now.valueOf()))
+    isJobCurrentlyPublishable(job, now)
   );
 }
 

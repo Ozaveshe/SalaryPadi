@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 vi.mock("@/lib/env", () => ({
   getAfroToolsConfig: vi.fn(),
   getServerEnvironment: vi.fn(),
@@ -15,6 +17,7 @@ import {
   getServerEnvironment,
   getSupabasePublicConfig,
 } from "@/lib/env";
+import { EXPECTED_WORKER_KEYS } from "@/lib/operations/worker-registry";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const environment = {
@@ -46,29 +49,7 @@ type WorkerRow = {
   freshness: "disabled" | "never" | "stale" | "degraded" | "healthy";
 };
 
-const healthyWorkers: WorkerRow[] = [
-  "alert_delivery",
-  "currency_rates",
-  "job_source_sync",
-  "ats_source_sync",
-  "operations_maintenance",
-  "editorial_job_snapshot",
-  "editorial_topic_candidates",
-  "editorial_draft",
-  "editorial_preflight",
-  "editorial_queue",
-  "editorial_publish",
-  "editorial_live_blocks",
-  "editorial_nightly_audit",
-  "editorial_weekly_audit",
-  "afrotools_catalog_sync",
-  "job_supply_dispatcher",
-  "job_lifecycle",
-  "apply_link_check",
-  "job_dedupe_review",
-  "source_health_digest",
-  "source_rights_review",
-].map((taskKey) => ({
+const healthyWorkers: WorkerRow[] = EXPECTED_WORKER_KEYS.map((taskKey) => ({
   task_key: taskKey,
   owner_label: "Test operations owner",
   last_status: "succeeded",
@@ -105,6 +86,7 @@ function mockWorkerResult(
 
 describe("operational health", () => {
   beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.mocked(getServerEnvironment).mockReturnValue({ ...environment });
     vi.mocked(getSupabasePublicConfig).mockReturnValue({
       url: environment.NEXT_PUBLIC_SUPABASE_URL,
@@ -202,6 +184,24 @@ describe("operational health", () => {
     expect(body.status).toBe("degraded");
   });
 
+  it("rejects contradictory worker status and freshness evidence", async () => {
+    mockWorkerResult([
+      {
+        ...healthyWorkers[0]!,
+        last_status: "failed",
+        freshness: "healthy",
+      },
+      ...healthyWorkers.slice(1),
+    ]);
+
+    const response = await GET();
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      status: "degraded",
+      checks: { worker_health_complete: false, workers: [] },
+    });
+  });
+
   it("returns 503 when the database omits a required worker", async () => {
     mockWorkerResult(healthyWorkers.slice(0, 3));
 
@@ -212,6 +212,36 @@ describe("operational health", () => {
     expect(body).toMatchObject({
       status: "degraded",
       checks: { worker_health_complete: false },
+    });
+  });
+
+  it("returns 503 when the worker registry contains an unknown task", async () => {
+    mockWorkerResult([
+      ...healthyWorkers,
+      { ...healthyWorkers[0]!, task_key: "unreviewed_worker" },
+    ]);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({
+      status: "degraded",
+      checks: { worker_health_complete: false, workers: [] },
+    });
+  });
+
+  it("returns 503 when worker timestamps are malformed", async () => {
+    mockWorkerResult([
+      { ...healthyWorkers[0]!, last_started_at: "not-a-timestamp" },
+      ...healthyWorkers.slice(1),
+    ]);
+
+    const response = await GET();
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      status: "degraded",
+      checks: { worker_health_complete: false, workers: [] },
     });
   });
 
@@ -243,6 +273,40 @@ describe("operational health", () => {
     });
   });
 
+  it("rejects a canary that claims readiness without supply evidence", async () => {
+    mockWorkerResult(healthyWorkers, null, {
+      ...readyJobSupply,
+      visible_remote_jobs: 0,
+      authorized_daily_capacity: 0,
+      last_canonical_created_at: null,
+      state: "ready",
+    });
+
+    const response = await GET();
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      status: "degraded",
+      checks: {
+        job_supply_ready: false,
+        job_supply: { state: "unavailable" },
+      },
+    });
+  });
+
+  it("rejects canary evidence that postdates its generation time", async () => {
+    mockWorkerResult(healthyWorkers, null, {
+      ...readyJobSupply,
+      last_canonical_created_at: "2026-07-10T12:05:02.001Z",
+    });
+
+    const response = await GET();
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      status: "degraded",
+      checks: { job_supply_ready: false },
+    });
+  });
+
   it("returns 503 when supply evidence is absent or below capacity", async () => {
     mockWorkerResult(healthyWorkers, null, {
       ...readyJobSupply,
@@ -261,5 +325,47 @@ describe("operational health", () => {
         job_supply: { state: "unavailable" },
       },
     });
+  });
+
+  it("returns a bounded degraded response when client creation throws", async () => {
+    vi.mocked(createServerSupabaseClient).mockRejectedValue(
+      new Error("client creation failed with secret detail"),
+    );
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({
+      status: "degraded",
+      checks: {
+        worker_health_complete: false,
+        job_supply_ready: false,
+        job_supply: { state: "unavailable" },
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain("secret detail");
+  });
+
+  it("keeps independent RPC exceptions inside the degraded health contract", async () => {
+    vi.mocked(createServerSupabaseClient).mockResolvedValue({
+      schema: () => ({
+        rpc: vi.fn().mockRejectedValue(new Error("rpc transport failed")),
+      }),
+    } as never);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({
+      status: "degraded",
+      checks: {
+        worker_health_complete: false,
+        job_supply_ready: false,
+        workers: [],
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain("rpc transport failed");
   });
 });

@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/env", () => ({ getAppOrigin: vi.fn() }));
 
 import { getAppOrigin } from "@/lib/env";
-import { isSameOriginRequest } from "@/lib/security/origin";
+import {
+  isSameOriginRequest,
+  rejectCrossOriginRequest,
+} from "@/lib/security/origin";
 
 const mockedGetAppOrigin = vi.mocked(getAppOrigin);
 
@@ -53,6 +56,12 @@ describe("request origin boundary", () => {
     expect(
       isSameOriginRequest(new Request("https://salarypadi.com/api/test")),
     ).toBe(false);
+
+    const response = rejectCrossOriginRequest(
+      new Request("https://salarypadi.com/api/test"),
+    );
+    expect(response?.status).toBe(403);
+    expect(response?.headers.get("cache-control")).toBe("no-store");
   });
 
   it("permits loopback only for a reserved test canonical domain", () => {

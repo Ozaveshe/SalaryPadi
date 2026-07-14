@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
+
 const mocks = vi.hoisted(() => ({
   environment: vi.fn(),
   claimBudget: vi.fn(),

@@ -1,6 +1,11 @@
 import type { Config } from "@netlify/functions";
 
-import { rpc, runTrackedWorker, workerSucceeded } from "./_shared/runtime";
+import {
+  rpc,
+  rpcSummaryResultSchema,
+  runTrackedWorker,
+  workerSucceeded,
+} from "./_shared/runtime";
 
 const handler = async (
   request: Request,
@@ -12,8 +17,9 @@ const handler = async (
     context,
     async ({ signal }) =>
       workerSucceeded(
-        await rpc<Record<string, unknown>>(
+        await rpc(
           "worker_dispatch_job_supply",
+          rpcSummaryResultSchema,
           {},
           { signal },
         ),

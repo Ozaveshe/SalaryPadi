@@ -1,3 +1,5 @@
+import { unstable_rethrow } from "next/navigation";
+
 import { getServerEnvironment } from "@/lib/env";
 import { createAlertCatalog } from "@/lib/jobs/alert-catalog";
 import { getRemotiveJobFeed } from "@/lib/jobs/repository";
@@ -37,7 +39,8 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     return noStoreJson(createAlertCatalog(source.jobs, source.checkedAt));
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
     return noStoreJson({ error: "job_source_snapshot_failed" }, 503);
   }
 }

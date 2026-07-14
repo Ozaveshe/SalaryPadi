@@ -4,30 +4,48 @@ import Link from "next/link";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JobCard } from "@/components/jobs/job-card";
+import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { JsonLd } from "@/components/json-ld";
 import { PageHeading } from "@/components/page-heading";
+import { RepositoryNotice } from "@/components/repository-notice";
 import { getAppOrigin } from "@/lib/env";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
 import { diversifyJobResults } from "@/lib/jobs/search";
-import { getJobLandingMetrics } from "@/lib/seo/job-landing-repository";
+import { getJobLandingMetricsResult } from "@/lib/seo/job-landing-repository";
 import {
   evaluateJobLandingIndexability,
   getJobLandingDefinition,
   matchesJobLanding,
+  type JobLandingDefinition,
   type JobLandingKey,
+  type JobLandingMetrics,
 } from "@/lib/seo/job-landing-pages";
 import { canIndexJobDetail } from "@/lib/seo/job-posting";
 import { buildSocialImageMetadata } from "@/lib/seo/open-graph";
 import { buildBreadcrumbStructuredData } from "@/lib/seo/structured-data";
 import { countryAlternates } from "@/lib/country-packs/routing";
 
+function landingDecision(
+  definition: JobLandingDefinition,
+  metrics: JobLandingMetrics | null,
+) {
+  return metrics
+    ? evaluateJobLandingIndexability(definition, metrics)
+    : {
+        indexable: false,
+        reasons: ["landing_metrics_unavailable"],
+        summary:
+          "Indexing evidence is temporarily unavailable. This page remains visible to people and excluded from search indexes until current volume and diversity metrics can be verified.",
+      };
+}
+
 export async function buildJobLandingMetadata(
   key: JobLandingKey,
 ): Promise<Metadata> {
   const definition = getJobLandingDefinition(key);
   if (!definition) return { title: "Job page unavailable", robots: "noindex" };
-  const metrics = await getJobLandingMetrics(key);
-  const decision = evaluateJobLandingIndexability(definition, metrics);
+  const metrics = (await getJobLandingMetricsResult(key)).data;
+  const decision = landingDecision(definition, metrics);
   const socialImage = buildSocialImageMetadata(
     "/jobs/opengraph-image.png",
     `${definition.title} on SalaryPadi`,
@@ -63,11 +81,12 @@ export async function JobLandingPage({
 }) {
   const definition = getJobLandingDefinition(landingKey);
   if (!definition) return null;
-  const [metrics, feed] = await Promise.all([
-    getJobLandingMetrics(landingKey),
+  const [metricsResult, feed] = await Promise.all([
+    getJobLandingMetricsResult(landingKey),
     getLiveJobFeed(),
   ]);
-  const decision = evaluateJobLandingIndexability(definition, metrics);
+  const metrics = metricsResult.data;
+  const decision = landingDecision(definition, metrics);
   const matching = feed.jobs.filter((job) =>
     matchesJobLanding(job, landingKey),
   );
@@ -100,6 +119,11 @@ export async function JobLandingPage({
         title={definition.heading}
         description={definition.description}
       />
+      <RepositoryNotice
+        resource="Landing-page indexing metrics"
+        result={metricsResult}
+      />
+      <JobFeedNotice feed={feed} />
       <section
         className="surface surface-pad stack"
         aria-labelledby="coverage-heading"
@@ -114,15 +138,25 @@ export async function JobLandingPage({
         <dl className="data-list">
           <div>
             <dt>Active unique jobs</dt>
-            <dd>{metrics.activeUniqueJobs} / 20 required</dd>
+            <dd>
+              {metrics
+                ? `${metrics.activeUniqueJobs} / 20 required`
+                : "Unavailable"}
+            </dd>
           </div>
           <div>
             <dt>Unique jobs seen in 90 days</dt>
-            <dd>{metrics.uniqueJobsSeen90Days} / 30 required</dd>
+            <dd>
+              {metrics
+                ? `${metrics.uniqueJobsSeen90Days} / 30 required`
+                : "Unavailable"}
+            </dd>
           </div>
           <div>
             <dt>Companies</dt>
-            <dd>{metrics.companyCount} / 3 required</dd>
+            <dd>
+              {metrics ? `${metrics.companyCount} / 3 required` : "Unavailable"}
+            </dd>
           </div>
           <div>
             <dt>Search status</dt>
@@ -159,7 +193,7 @@ export async function JobLandingPage({
               <JobCard job={job} key={job.id} />
             ))}
           </div>
-        ) : (
+        ) : feed.state !== "unavailable" && feed.state !== "disabled" ? (
           <div className="empty-state">
             <h3 className="m-0 text-xl font-bold">
               No matching jobs right now
@@ -170,7 +204,7 @@ export async function JobLandingPage({
               next source refresh.
             </p>
           </div>
-        )}
+        ) : null}
       </section>
       <nav className="surface surface-pad stack" aria-label="Related job paths">
         <h2 className="text-lg font-bold">Continue exploring</h2>

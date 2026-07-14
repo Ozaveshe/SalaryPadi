@@ -143,4 +143,38 @@ describe("Google service-account OAuth boundary", () => {
       getGoogleAccessToken("scope", new AbortController().signal),
     ).rejects.toMatchObject({ code: "google_oauth_invalid_response" });
   });
+
+  it("rejects a bearer token that is unsafe to place in a header", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          access_token: "opaque-token\r\nX-Injected: unsafe",
+          token_type: "Bearer",
+        }),
+      ),
+    );
+
+    await expect(
+      getGoogleAccessToken("scope", new AbortController().signal),
+    ).rejects.toMatchObject({ code: "google_oauth_invalid_response" });
+  });
+
+  it("rejects an oversized OAuth payload before parsing it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            access_token: "x".repeat(20 * 1_024),
+            token_type: "Bearer",
+          }),
+        ),
+      ),
+    );
+
+    await expect(
+      getGoogleAccessToken("scope", new AbortController().signal),
+    ).rejects.toMatchObject({ code: "google_oauth_invalid_response" });
+  });
 });

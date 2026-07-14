@@ -7,6 +7,7 @@ import {
   toolResponseError,
   type ToolRequestState,
 } from "./use-tool-request";
+import { ToolUserError } from "./tool-user-error";
 
 describe("useToolRequest shared behavior", () => {
   it("owns the result, error and loading state transitions", () => {
@@ -71,13 +72,30 @@ describe("useToolRequest shared behavior", () => {
       executeToolRequest({
         endpoint: "/api/tools/example",
         createPayload: () => {
-          throw new Error("Check the entered amount.");
+          throw new ToolUserError("Check the entered amount.");
         },
         parseResponse: () => ({ value: 1 }),
         fetcher,
       }),
     ).rejects.toThrow("Check the entered amount.");
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("rejects a tool response larger than the browser processing bound", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response("{}", {
+        headers: { "Content-Length": String(4 * 1_024 * 1_024 + 1) },
+      }),
+    );
+
+    await expect(
+      executeToolRequest({
+        endpoint: "/api/tools/example",
+        createPayload: () => ({ input: {} }),
+        parseResponse: () => ({ value: 1 }),
+        fetcher,
+      }),
+    ).rejects.toMatchObject({ code: "too_large" });
   });
 
   it("keeps approved error copy but bounds untrusted response messages", () => {
@@ -93,5 +111,14 @@ describe("useToolRequest shared behavior", () => {
     expect(
       toolRequestError({ message: "not an Error" }, "Safe fallback."),
     ).toBe("Safe fallback.");
+    expect(toolRequestError(new Error("invalid_json"), "Safe fallback.")).toBe(
+      "Safe fallback.",
+    );
+    expect(
+      toolRequestError(
+        new ToolUserError("Check the entered amount."),
+        "Safe fallback.",
+      ),
+    ).toBe("Check the entered amount.");
   });
 });

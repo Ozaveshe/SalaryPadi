@@ -29,6 +29,7 @@ function authorization(
     kind: "employer" as const,
     authorizedBy: "Example employer operations",
     reviewedAt: "2026-07-10T10:00:00.000Z",
+    expiresAt: null,
     evidenceReference: "approval-ticket-123",
     allowedDestinations,
   };
@@ -237,6 +238,34 @@ describe("employer-authorized ATS adapter", () => {
           signal: undefined as never,
         }),
       "ats_deadline_required",
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects future-reviewed or expired authorization before fetching", async () => {
+    const fetchImpl = vi.fn();
+    const futureReviewed = greenhouseSource();
+    futureReviewed.authorization.reviewedAt = "2026-07-10T12:05:00.001Z";
+    await captureAdapterError(
+      () =>
+        fetchAtsSourceRecords(futureReviewed, {
+          fetch: fetchImpl as unknown as AtsFetch,
+          signal: signal(),
+          requestedAt,
+        }),
+      "ats_invalid_source",
+    );
+
+    const expired = greenhouseSource();
+    expired.authorization.expiresAt = "2026-07-10T11:59:59.999Z";
+    await captureAdapterError(
+      () =>
+        fetchAtsSourceRecords(expired, {
+          fetch: fetchImpl as unknown as AtsFetch,
+          signal: signal(),
+          requestedAt,
+        }),
+      "ats_invalid_source",
     );
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -469,22 +498,22 @@ describe("employer-authorized ATS adapter", () => {
   });
 
   it("rejects declared oversized, non-JSON and malformed JSON feeds", async () => {
+    const oversizedResponse = new Response("{}", {
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": "257",
+      },
+    });
     await captureAdapterError(
       () =>
         fetchAtsSourceRecords(greenhouseSource(), {
-          fetch: fixedFetch(
-            new Response("{}", {
-              headers: {
-                "Content-Type": "application/json",
-                "Content-Length": "257",
-              },
-            }),
-          ),
+          fetch: fixedFetch(oversizedResponse),
           signal: signal(),
           maxResponseBytes: 256,
         }),
       "ats_response_too_large",
     );
+    expect(oversizedResponse.bodyUsed).toBe(true);
 
     await captureAdapterError(
       () =>
@@ -561,11 +590,10 @@ describe("employer-authorized ATS adapter", () => {
     expect(httpError.message).not.toContain("private provider detail");
   });
 
-  it("quarantines cross-tenant, unapproved and insecure destinations", async () => {
+  it("quarantines cross-tenant and unapproved HTTPS destinations", async () => {
     for (const absoluteUrl of [
       "https://boards.greenhouse.io/another/jobs/123",
       "https://evil.example/example/jobs/123",
-      "http://boards.greenhouse.io/example/jobs/123",
     ]) {
       const result = await fetchAtsSourceRecords(greenhouseSource(), {
         fetch: fixedFetch(
@@ -583,6 +611,28 @@ describe("employer-authorized ATS adapter", () => {
       ]);
       expect(result.snapshot.invalidRecordCount).toBe(1);
     }
+  });
+
+  it("rejects an insecure provider destination at the schema boundary", async () => {
+    const result = await fetchAtsSourceRecords(greenhouseSource(), {
+      fetch: fixedFetch(
+        jsonResponse({
+          jobs: [
+            greenhouseJob({
+              absolute_url: "http://boards.greenhouse.io/example/jobs/123",
+            }),
+          ],
+          meta: { total: 1 },
+        }),
+      ),
+      signal: signal(),
+    });
+
+    expect(result.records).toEqual([]);
+    expect(result.invalidRecords).toEqual([
+      { index: 0, stage: "validation", issuePaths: ["absolute_url"] },
+    ]);
+    expect(result.snapshot.invalidRecordCount).toBe(1);
   });
 
   it("keeps valid jobs when another record is invalid without leaking its data", async () => {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { JobCard } from "@/components/jobs/job-card";
+import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { JobSearchForm } from "@/components/jobs/job-search-form";
 import { Pagination } from "@/components/jobs/pagination";
 import { PageHeading } from "@/components/page-heading";
@@ -37,6 +38,12 @@ export async function JobsExperience({
     ),
   ].toSorted();
   const serializedSearch = serializeJobSearch(search);
+  const feedIsConclusive = feed.state === "live";
+  const resultCountLabel = feedIsConclusive
+    ? `${result.totalItems} ${result.totalItems === 1 ? "job" : "jobs"}`
+    : feed.state === "degraded"
+      ? `${result.totalItems} available (partial)`
+      : "Unavailable";
 
   return (
     <div className="site-shell stack-lg">
@@ -76,26 +83,7 @@ export async function JobsExperience({
         ))}
       </nav>
       <JobSearchForm search={search} categories={categories} />
-      {feed.state === "unavailable" ? (
-        <div className="notice notice-warning" role="alert">
-          <strong>Live jobs are temporarily unavailable.</strong> {feed.message}
-          <a className="ml-2 font-bold" href="">
-            Try again
-          </a>
-          .
-        </div>
-      ) : null}
-      {feed.state === "degraded" ? (
-        <div className="notice notice-warning" role="status">
-          <strong>Some job sources are temporarily degraded.</strong>{" "}
-          {feed.message}
-        </div>
-      ) : null}
-      {feed.state === "disabled" ? (
-        <div className="notice" role="status">
-          {feed.message}
-        </div>
-      ) : null}
+      <JobFeedNotice feed={feed} />
       <section
         className="stack"
         aria-labelledby="job-results-heading"
@@ -107,8 +95,7 @@ export async function JobsExperience({
               Current results
             </h2>
             <span className="results-count">
-              {result.totalItems} {result.totalItems === 1 ? "job" : "jobs"} ·
-              bounded to 10 per page
+              {resultCountLabel} · bounded to 10 per page
             </span>
           </div>
           <div className="cluster result-actions">
@@ -152,14 +139,18 @@ export async function JobsExperience({
         ) : (
           <div className="empty-state">
             <h3 className="m-0 text-xl font-bold">
-              {feed.jobs.length === 0
-                ? "No current jobs have passed the publication checks"
-                : "No jobs match these filters"}
+              {!feedIsConclusive && feed.jobs.length === 0
+                ? "Current job results could not be confirmed"
+                : feed.jobs.length === 0
+                  ? "No current jobs have passed the publication checks"
+                  : "No jobs match these filters"}
             </h3>
             <p className="text-muted mt-2 mb-0 max-w-2xl">
-              {feed.jobs.length === 0
-                ? "The source status above is the current state of the feed, not confirmation that suitable jobs do not exist elsewhere. SalaryPadi will not publish placeholder vacancies."
-                : "Try fewer filters or include unclear eligibility. SalaryPadi will not relabel a generic remote vacancy as Nigeria-eligible just to fill this list."}
+              {!feedIsConclusive && feed.jobs.length === 0
+                ? "One or more reviewed sources are unavailable or disabled. This is not evidence that no suitable jobs exist."
+                : feed.jobs.length === 0
+                  ? "The source status above is the current state of the feed, not confirmation that suitable jobs do not exist elsewhere. SalaryPadi will not publish placeholder vacancies."
+                  : "Try fewer filters or include unclear eligibility. SalaryPadi will not relabel a generic remote vacancy as Nigeria-eligible just to fill this list."}
             </p>
             <div className="cluster mt-4">
               <Link

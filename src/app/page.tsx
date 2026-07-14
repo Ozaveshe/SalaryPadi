@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 
 import { JobCard } from "@/components/jobs/job-card";
+import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
@@ -77,6 +78,17 @@ export default async function HomePage() {
   const healthySources = feed.sources.filter(
     (source) => source.state === "live",
   );
+  const feedIsConclusive = feed.state === "live";
+  const jobCountLabel = feedIsConclusive
+    ? String(feed.jobs.length)
+    : feed.state === "degraded"
+      ? `${feed.jobs.length} available (partial)`
+      : "Unavailable";
+  const eligibleCountLabel = feedIsConclusive
+    ? String(explicitlyOpenJobs.length)
+    : feed.state === "degraded"
+      ? `${explicitlyOpenJobs.length} available (partial)`
+      : "Unavailable";
 
   return (
     <div className="site-shell stack-lg">
@@ -139,6 +151,8 @@ export default async function HomePage() {
           </p>
         </form>
 
+        <JobFeedNotice feed={feed} />
+
         <aside className="home-proof" aria-label="Current SalaryPadi coverage">
           <div className="home-proof-heading">
             <div>
@@ -150,11 +164,23 @@ export default async function HomePage() {
           <dl className="home-proof-grid">
             <div>
               <dt>Current roles</dt>
-              <dd>{feed.jobs.length}</dd>
+              <dd
+                className={
+                  feedIsConclusive ? undefined : "home-proof-value-state"
+                }
+              >
+                {jobCountLabel}
+              </dd>
             </div>
             <div>
               <dt>Open to Nigeria/Africa</dt>
-              <dd>{explicitlyOpenJobs.length}</dd>
+              <dd
+                className={
+                  feedIsConclusive ? undefined : "home-proof-value-state"
+                }
+              >
+                {eligibleCountLabel}
+              </dd>
             </div>
           </dl>
           <div className="home-proof-meta">
@@ -265,7 +291,7 @@ export default async function HomePage() {
               <JobCard job={job} key={job.id} />
             ))}
           </div>
-        ) : (
+        ) : feedIsConclusive ? (
           <div className="notice notice-warning" role="status">
             <strong>
               No current vacancy has passed the publication checks.
@@ -273,6 +299,11 @@ export default async function HomePage() {
             Source status and freshness remain visible while the feed is empty.
             Company research, salary evidence and decision tools are still
             available.
+          </div>
+        ) : (
+          <div className="empty-state">
+            <h3>Current vacancies could not be confirmed</h3>
+            <p>See the source-status notice above for the active limitation.</p>
           </div>
         )}
       </section>

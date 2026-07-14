@@ -6,8 +6,11 @@ import {
   isGoogleAnalyticsEnabled,
   sendGoogleAnalyticsEvent,
 } from "@/lib/analytics/google";
+import { discardResponseBody } from "@/lib/http/body";
 
 export type { AnalyticsEventName } from "@/lib/analytics/catalog";
+
+const ANALYTICS_REQUEST_TIMEOUT_MS = 4_000;
 
 type SafeAnalyticsValue = string | number | boolean;
 export type AnalyticsProperties = Record<string, SafeAnalyticsValue>;
@@ -51,8 +54,14 @@ export function trackEvent(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ event_name: name, path: window.location.pathname }),
+    cache: "no-store",
+    credentials: "omit",
     keepalive: true,
-  });
+    redirect: "error",
+    signal: AbortSignal.timeout(ANALYTICS_REQUEST_TIMEOUT_MS),
+  })
+    .then(discardResponseBody)
+    .catch(() => undefined);
   if (name !== "page_view" && isGoogleAnalyticsEnabled()) {
     sendGoogleAnalyticsEvent(name);
   }

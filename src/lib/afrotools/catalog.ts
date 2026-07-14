@@ -20,6 +20,7 @@ const opaqueHttpEtagSchema = z
   .regex(/^(?:W\/)?"[\x21\x23-\x7e]{1,150}"$/);
 const afroToolsHttpsUrlSchema = z
   .string()
+  .max(2_048)
   .url()
   .refine((value) => {
     const url = new URL(value);
@@ -184,7 +185,7 @@ export const catalogSnapshotSchema = z
       z.literal("https://afrotools.com/data/tool-directory.json"),
       z.literal(AFROTOOLS_CATALOG_SOURCE_URL),
     ]),
-    checkedAt: z.string(),
+    checkedAt: z.iso.datetime({ offset: true }),
     catalogLastUpdated: catalogDateSchema,
     catalogPublishedAt: catalogDateSchema.optional(),
     schemaVersion: z.literal("1.0.0").optional(),

@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { getDomain } from "tldts";
+
+import { externalHttpsUrlSchema } from "@/lib/security/url-schema";
 
 const optional = (max: number) =>
   z.preprocess(
@@ -14,13 +17,7 @@ export const employerJobSubmissionSchema = z
   .object({
     company_name: z.string().trim().min(2).max(180),
     corporate_email: z.string().email().max(254),
-    company_website: z
-      .string()
-      .url()
-      .refine(
-        (value) => new URL(value).protocol === "https:",
-        "Use an HTTPS company website.",
-      ),
+    company_website: externalHttpsUrlSchema,
     title: z.string().trim().min(2).max(200),
     description: z.string().trim().min(100).max(20_000),
     requirements: z.string().trim().min(20).max(10_000),
@@ -71,13 +68,7 @@ export const employerJobSubmissionSchema = z
       "unknown",
     ]),
     gross_net: z.enum(["gross", "net", "unknown"]),
-    application_url: z
-      .string()
-      .url()
-      .refine(
-        (value) => new URL(value).protocol === "https:",
-        "Use an HTTPS application URL.",
-      ),
+    application_url: externalHttpsUrlSchema,
     deadline: z.preprocess(
       (value) => (value === "" ? undefined : value),
       z.string().date().optional(),
@@ -124,12 +115,20 @@ export function assessCorporateEmail(email: string, website: string) {
   const websiteDomain = new URL(website).hostname
     .toLowerCase()
     .replace(/^www\./, "");
+  const emailRegistrableDomain = getDomain(emailDomain, {
+    allowPrivateDomains: false,
+    validateHostname: true,
+  });
+  const websiteRegistrableDomain = getDomain(websiteDomain, {
+    allowPrivateDomains: false,
+    validateHostname: true,
+  });
   return {
     emailDomain,
     websiteDomain,
-    isFreeProvider: freeEmailDomains.has(emailDomain),
+    isFreeProvider: freeEmailDomains.has(emailRegistrableDomain ?? emailDomain),
     domainMatches:
-      emailDomain === websiteDomain ||
-      emailDomain.endsWith(`.${websiteDomain}`),
+      emailRegistrableDomain !== null &&
+      emailRegistrableDomain === websiteRegistrableDomain,
   };
 }

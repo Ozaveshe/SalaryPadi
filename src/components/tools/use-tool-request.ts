@@ -2,7 +2,12 @@
 
 import { useReducer } from "react";
 
+import { readBoundedJson } from "@/lib/http/json";
+
+import { ToolUserError } from "./tool-user-error";
+
 const maximumUserFacingErrorLength = 300;
+const maximumToolResponseBytes = 4 * 1_024 * 1_024;
 
 export interface ToolRequestState<TResult> {
   result: TResult | null;
@@ -51,7 +56,7 @@ export function toolResponseError(body: unknown, fallback: string): string {
 }
 
 export function toolRequestError(reason: unknown, fallback: string): string {
-  return reason instanceof Error
+  return reason instanceof ToolUserError
     ? (boundedMessage(reason.message) ?? fallback)
     : fallback;
 }
@@ -74,7 +79,7 @@ export async function executeToolRequest<TRequest, TResult>({
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(createPayload()),
   });
-  const body: unknown = await response.json();
+  const body = await readBoundedJson(response, maximumToolResponseBytes);
   return parseResponse(response, body);
 }
 

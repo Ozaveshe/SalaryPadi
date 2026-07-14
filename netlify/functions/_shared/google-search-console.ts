@@ -1,7 +1,11 @@
+import { z } from "zod";
+
+import { discardResponseBody } from "../../../src/lib/http/body";
 import {
   getOptionalRuntimeEnvironment,
   getRuntimeBoolean,
   OperationalError,
+  readBoundedOperationalJson,
   type WorkerExecution,
 } from "./runtime";
 import { getGoogleAccessToken } from "./google-auth";
@@ -12,6 +16,17 @@ const SAFE_SITE_URLS = new Set([
   "sc-domain:salarypadi.com",
   "https://salarypadi.com/",
 ]);
+const SEARCH_CONSOLE_MAX_RESPONSE_BYTES = 128 * 1024;
+const searchConsoleResponseSchema = z
+  .object({ rows: z.array(z.unknown()).max(50).optional() })
+  .passthrough();
+const searchConsoleRowSchema = z
+  .object({
+    keys: z.tuple([z.unknown()]),
+    clicks: z.number().int().nonnegative(),
+    impressions: z.number().int().nonnegative(),
+  })
+  .passthrough();
 
 export type EditorialTopicSignal = {
   signal_kind: "search_console";
@@ -48,11 +63,12 @@ function dateOnly(date: Date) {
 export async function readSearchConsoleTopicSignals({
   signal,
 }: WorkerExecution): Promise<{
-  state: "disabled" | "ready";
+  state: "disabled" | "ready" | "degraded";
   signals: EditorialTopicSignal[];
+  issueCodes: string[];
 }> {
   if (!getRuntimeBoolean("GOOGLE_SEARCH_CONSOLE_ENABLED", false)) {
-    return { state: "disabled", signals: [] };
+    return { state: "disabled", signals: [], issueCodes: [] };
   }
   const siteUrl = getOptionalRuntimeEnvironment(
     "GOOGLE_SEARCH_CONSOLE_SITE_URL",
@@ -87,24 +103,32 @@ export async function readSearchConsoleTopicSignals({
     signal: AbortSignal.any([signal, AbortSignal.timeout(8_000)]),
   });
   if (!response.ok) {
+    await discardResponseBody(response);
     throw new OperationalError(`google_search_console_${response.status}`, {
       provider_status: response.status,
     });
   }
-  const payload = (await response.json()) as {
-    rows?: Array<{ keys?: unknown[]; clicks?: unknown; impressions?: unknown }>;
-  };
-  const signals = (payload.rows ?? []).flatMap((row) => {
-    const query = sanitizeSearchConsoleQuery(row.keys?.[0]);
-    const impressions = Number(row.impressions);
-    const clicks = Number(row.clicks);
-    if (
-      !query ||
-      !Number.isInteger(impressions) ||
-      impressions < 3 ||
-      !Number.isInteger(clicks) ||
-      clicks < 0
-    ) {
+  const payload = searchConsoleResponseSchema.safeParse(
+    await readBoundedOperationalJson(
+      response,
+      SEARCH_CONSOLE_MAX_RESPONSE_BYTES,
+      "google_search_console_invalid_response",
+    ),
+  );
+  if (!payload.success) {
+    throw new OperationalError("google_search_console_invalid_response");
+  }
+  let invalidRows = 0;
+  const signals = (payload.data.rows ?? []).flatMap((candidate) => {
+    const row = searchConsoleRowSchema.safeParse(candidate);
+    if (!row.success) {
+      invalidRows += 1;
+      return [];
+    }
+    const query = sanitizeSearchConsoleQuery(row.data.keys[0]);
+    const { impressions, clicks } = row.data;
+    if (!query || impressions < 3 || clicks > impressions) {
+      invalidRows += 1;
       return [];
     }
     return [
@@ -120,5 +144,9 @@ export async function readSearchConsoleTopicSignals({
       },
     ];
   });
-  return { state: "ready", signals };
+  return {
+    state: invalidRows > 0 ? "degraded" : "ready",
+    signals,
+    issueCodes: invalidRows > 0 ? ["google_search_console_invalid_rows"] : [],
+  };
 }

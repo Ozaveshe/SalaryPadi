@@ -1,11 +1,19 @@
 import type { Context } from "@netlify/functions";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import {
   getRuntimeAppOrigin,
+  getRuntimeHeaderCredential,
+  getRuntimeMailbox,
   getRuntimeSecret,
+  observeSecondaryOperation,
+  OperationalError,
+  operationalSummarySchema,
   PLATFORM_SHUTDOWN_RESERVE_MS,
+  RPC_MAX_RESPONSE_BYTES,
   RPC_TIMEOUT_MS,
+  rpcBooleanResultSchema,
   rpc,
   runTrackedWorker,
   SCHEDULED_FUNCTION_LIMIT_MS,
@@ -44,6 +52,90 @@ describe("scheduled worker runtime", () => {
     expect(WORKER_FINISH_RESERVE_MS).toBeGreaterThanOrEqual(RPC_TIMEOUT_MS);
   });
 
+  it("surfaces a secondary failure without replacing the primary path", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(
+      observeSecondaryOperation(
+        "record_failure_evidence",
+        Promise.reject(new Error("database unavailable")),
+      ),
+    ).resolves.toEqual({
+      operation: "record_failure_evidence",
+      code: "worker_failed",
+    });
+    expect(warning).toHaveBeenCalledWith(
+      JSON.stringify({
+        status: "degraded",
+        secondary_operation: "record_failure_evidence",
+        secondary_error_code: "worker_failed",
+      }),
+    );
+  });
+
+  it("accepts only bounded flat operational summaries", () => {
+    expect(
+      operationalSummarySchema.safeParse({
+        processed: 3,
+        provider: "salarypadi",
+        degraded: false,
+        warnings: ["stale_source", null],
+      }).success,
+    ).toBe(true);
+    expect(
+      operationalSummarySchema.safeParse({ nested: { secret: "value" } })
+        .success,
+    ).toBe(false);
+    expect(
+      operationalSummarySchema.safeParse({
+        values: Array.from({ length: 101 }, (_, index) => index),
+      }).success,
+    ).toBe(false);
+    expect(
+      operationalSummarySchema.safeParse(
+        Object.fromEntries(
+          Array.from({ length: 51 }, (_, index) => [`field_${index}`, index]),
+        ),
+      ).success,
+    ).toBe(false);
+  });
+
+  it("rejects an invalid successful worker summary", () => {
+    expect(() =>
+      workerSucceeded({ nested: { secret: "must-not-be-persisted" } }),
+    ).toThrowError(
+      expect.objectContaining({
+        name: "OperationalError",
+        code: "worker_summary_invalid",
+      }),
+    );
+  });
+
+  it("normalizes unsafe operational errors before persistence", () => {
+    const error = new OperationalError("Provider secret message!", {
+      api_key: "must-not-be-persisted",
+      nested: { value: true },
+    });
+
+    expect(error.message).toBe("worker_failed");
+    expect(error.code).toBe("worker_failed");
+    expect(error.summary).toEqual({ summary_state: "invalid" });
+  });
+
+  it("preserves valid operational error codes and summaries", () => {
+    const error = new OperationalError("provider_unavailable", {
+      provider: "example",
+      retryable: true,
+    });
+
+    expect(error.message).toBe("provider_unavailable");
+    expect(error.code).toBe("provider_unavailable");
+    expect(error.summary).toEqual({
+      provider: "example",
+      retryable: true,
+    });
+  });
+
   it("rejects a wrong Supabase project before sending a credential", async () => {
     netlifyEnvironment({
       NEXT_PUBLIC_SUPABASE_URL: "https://wrong-project.supabase.co",
@@ -52,7 +144,7 @@ describe("scheduled worker runtime", () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
-    await expect(rpc("worker_start")).rejects.toMatchObject({
+    await expect(rpc("worker_start", z.unknown())).rejects.toMatchObject({
       code: "invalid_supabase_project_url",
     });
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -68,9 +160,11 @@ describe("scheduled worker runtime", () => {
       .mockResolvedValue(Response.json({ accepted: true }));
     vi.stubGlobal("fetch", fetchSpy);
 
-    await expect(rpc("worker_start", { p_task_key: "test" })).resolves.toEqual({
-      accepted: true,
-    });
+    await expect(
+      rpc("worker_start", z.object({ accepted: z.literal(true) }).strict(), {
+        p_task_key: "test",
+      }),
+    ).resolves.toEqual({ accepted: true });
     expect(fetchSpy).toHaveBeenCalledOnce();
     const [url, init] = fetchSpy.mock.calls[0]!;
     expect(String(url)).toBe(
@@ -85,6 +179,63 @@ describe("scheduled worker runtime", () => {
     expect(new Headers(init?.headers).get("apikey")).toBe(
       "test-service-role-key",
     );
+  });
+
+  it("rejects an invalid RPC response shape with bounded diagnostics", async () => {
+    netlifyEnvironment({
+      NEXT_PUBLIC_SUPABASE_URL: "https://bxelrhklsznmpksgrqep.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(Response.json({ accepted: true })),
+    );
+
+    await expect(
+      rpc("worker_finish", rpcBooleanResultSchema),
+    ).rejects.toMatchObject({
+      code: "supabase_rpc_invalid_shape",
+      summary: { rpc: "worker_finish" },
+    });
+  });
+
+  it("rejects an oversized RPC response before parsing it", async () => {
+    netlifyEnvironment({
+      NEXT_PUBLIC_SUPABASE_URL: "https://bxelrhklsznmpksgrqep.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response("{}", {
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": String(RPC_MAX_RESPONSE_BYTES + 1),
+          },
+        }),
+      ),
+    );
+
+    await expect(rpc("worker_start", z.unknown())).rejects.toMatchObject({
+      code: "supabase_rpc_invalid_json",
+      summary: { rpc: "worker_start" },
+    });
+  });
+
+  it("rejects an invalid RPC name before sending a credential", async () => {
+    netlifyEnvironment({
+      NEXT_PUBLIC_SUPABASE_URL: "https://bxelrhklsznmpksgrqep.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "must-not-be-sent",
+    });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(rpc("../worker_start", z.unknown())).rejects.toMatchObject({
+      code: "invalid_supabase_rpc_name",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("rejects a wrong application origin before an internal credential can leave", () => {
@@ -103,10 +254,66 @@ describe("scheduled worker runtime", () => {
     );
   });
 
+  it("accepts JWT-style header credentials while rejecting unsafe values", () => {
+    netlifyEnvironment({
+      SUPABASE_SERVICE_ROLE_KEY: "header.payload.signature",
+    });
+    expect(getRuntimeHeaderCredential("SUPABASE_SERVICE_ROLE_KEY")).toBe(
+      "header.payload.signature",
+    );
+
+    netlifyEnvironment({
+      SUPABASE_SERVICE_ROLE_KEY:
+        "safe-prefix\r\nX-Injected-Header: unsafe-value",
+    });
+    expect(() =>
+      getRuntimeHeaderCredential("SUPABASE_SERVICE_ROLE_KEY"),
+    ).toThrow("invalid_supabase_service_role_key");
+  });
+
+  it("accepts the documented transactional mailbox formats", () => {
+    netlifyEnvironment({
+      TRANSACTIONAL_EMAIL_FROM: "SalaryPadi <updates@mail.salarypadi.com>",
+      TRANSACTIONAL_EMAIL_REPLY_TO: "support@salarypadi.com",
+    });
+
+    expect(
+      getRuntimeMailbox("TRANSACTIONAL_EMAIL_FROM", {
+        allowDisplayName: true,
+      }),
+    ).toBe("SalaryPadi <updates@mail.salarypadi.com>");
+    expect(getRuntimeMailbox("TRANSACTIONAL_EMAIL_REPLY_TO")).toBe(
+      "support@salarypadi.com",
+    );
+  });
+
+  it.each([
+    "not-an-address",
+    "SalaryPadi <not-an-address>",
+    "SalaryPadi\nBcc: attacker@example.test <updates@mail.salarypadi.com>",
+  ])("rejects an invalid transactional sender: %s", (value) => {
+    netlifyEnvironment({ TRANSACTIONAL_EMAIL_FROM: value });
+    expect(() =>
+      getRuntimeMailbox("TRANSACTIONAL_EMAIL_FROM", {
+        allowDisplayName: true,
+      }),
+    ).toThrow("invalid_transactional_email_from");
+  });
+
+  it("does not accept a display name where a bare reply-to is required", () => {
+    netlifyEnvironment({
+      TRANSACTIONAL_EMAIL_REPLY_TO: "Support <support@salarypadi.com>",
+    });
+    expect(() => getRuntimeMailbox("TRANSACTIONAL_EMAIL_REPLY_TO")).toThrow(
+      "invalid_transactional_email_reply_to",
+    );
+  });
+
   it("scopes scheduled-run idempotency to the immutable deploy", async () => {
     const startCalls: Record<string, unknown>[] = [];
     const fakeRpc = async <T>(
       functionName: string,
+      _resultSchema: z.ZodType<T>,
       parameters: Record<string, unknown> = {},
     ): Promise<T> => {
       if (functionName !== "worker_start") {
@@ -143,12 +350,51 @@ describe("scheduled worker runtime", () => {
     ]);
   });
 
-  it("rejects a false terminal write instead of logging success", async () => {
+  it("bounds an oversized schedule payload and falls back to a manual run key", async () => {
+    let startParameters: Record<string, unknown> = {};
+    const fakeRpc = async <T>(
+      functionName: string,
+      _resultSchema: z.ZodType<T>,
+      parameters: Record<string, unknown> = {},
+    ): Promise<T> => {
+      if (functionName !== "worker_start") {
+        throw new Error(`unexpected RPC ${functionName}`);
+      }
+      startParameters = parameters;
+      return [
+        { run_id: "00000000-0000-4000-8000-000000000004", should_run: false },
+      ] as T;
+    };
+    const request = new Request(
+      "https://salarypadi.com/.netlify/functions/test",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          next_run: "2026-07-10T12:00:00.000Z",
+          padding: "x".repeat(10 * 1024),
+        }),
+      },
+    );
+
+    await runTrackedWorker(
+      "test_worker",
+      request,
+      {} as Context,
+      async () => workerSucceeded({}),
+      { rpc: fakeRpc },
+    );
+
+    expect(startParameters.p_run_key).toMatch(/^manual:/);
+    expect(startParameters.p_scheduled_for).toBeNull();
+  });
+
+  it("does not relabel completed work when its terminal acknowledgement is rejected", async () => {
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const terminalStatuses: unknown[] = [];
     const fakeRpc = async <T>(
       functionName: string,
+      _resultSchema: z.ZodType<T>,
       parameters: Record<string, unknown> = {},
     ): Promise<T> => {
       if (functionName === "worker_start") {
@@ -169,7 +415,7 @@ describe("scheduled worker runtime", () => {
         { rpc: fakeRpc },
       ),
     ).rejects.toMatchObject({ code: "worker_finish_rejected" });
-    expect(terminalStatuses).toEqual(["succeeded", "failed"]);
+    expect(terminalStatuses).toEqual(["succeeded"]);
   });
 
   it("persists a disabled provider run as skipped", async () => {
@@ -177,6 +423,7 @@ describe("scheduled worker runtime", () => {
     const terminalCalls: Record<string, unknown>[] = [];
     const fakeRpc = async <T>(
       functionName: string,
+      _resultSchema: z.ZodType<T>,
       parameters: Record<string, unknown> = {},
     ): Promise<T> => {
       if (functionName === "worker_start") {
@@ -216,6 +463,7 @@ describe("scheduled worker runtime", () => {
     const terminalCalls: Record<string, unknown>[] = [];
     const fakeRpc = async <T>(
       functionName: string,
+      _resultSchema: z.ZodType<T>,
       parameters: Record<string, unknown> = {},
     ): Promise<T> => {
       if (functionName === "worker_start") {

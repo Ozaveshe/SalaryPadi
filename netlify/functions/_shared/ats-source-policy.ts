@@ -5,6 +5,7 @@ import type {
   AtsAuthorizedSource,
   AtsProvider,
 } from "../../../src/lib/jobs/ats";
+import { externalHttpsUrlSchema } from "../../../src/lib/security/url-schema";
 
 import { OperationalError } from "./runtime";
 
@@ -46,8 +47,8 @@ const authorizedSourceRowSchema = z
     daily_request_budget: z.number().int().min(1).max(96),
     minimum_request_spacing_seconds: z.number().int().min(60).max(86_400),
     publication_mode: z.enum(["review", "automatic"]),
-    homepage_url: z.string().url().nullable(),
-    terms_url: z.string().url(),
+    homepage_url: externalHttpsUrlSchema.nullable(),
+    terms_url: externalHttpsUrlSchema,
     terms_version: z.string().trim().min(1).max(500),
     attribution_required: z.boolean(),
     attribution_text: z.string().trim().max(2_000).nullable(),
@@ -86,6 +87,20 @@ const authorizedSourceRowSchema = z
         code: "custom",
         path: ["minimum_request_spacing_seconds"],
         message: "minimum spacing cannot exceed the refresh interval",
+      });
+    }
+    if (row.may_emit_jobposting_schema && !row.may_index_jobs) {
+      context.addIssue({
+        code: "custom",
+        path: ["may_emit_jobposting_schema"],
+        message: "job posting schema requires indexing permission",
+      });
+    }
+    if (row.attribution_required && !row.attribution_text) {
+      context.addIssue({
+        code: "custom",
+        path: ["attribution_text"],
+        message: "required attribution must include attribution text",
       });
     }
   });
@@ -134,6 +149,7 @@ function runtimeSource(
       kind: "employer" as const,
       authorizedBy: row.authorization_grantor,
       reviewedAt: row.authorization_reviewed_at,
+      expiresAt: row.authorization_expires_at,
       evidenceReference: row.authorization_evidence_ref,
       allowedDestinations: groupDestinations(
         row.allowed_destination_hosts,
@@ -178,7 +194,8 @@ export function parseAuthorizedAtsRuntimePolicies(
       : null;
     if (
       reviewedAt > now.valueOf() + 5 * 60_000 ||
-      (expiresAt !== null && expiresAt <= now.valueOf())
+      (expiresAt !== null &&
+        (expiresAt <= now.valueOf() || expiresAt <= reviewedAt))
     ) {
       throw new OperationalError("ats_source_authorization_invalid");
     }

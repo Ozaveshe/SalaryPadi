@@ -61,7 +61,12 @@ export function clearGoogleAnalyticsCookies(): void {
 }
 
 export function sendGoogleAnalyticsEvent(name: AnalyticsEventName): void {
-  if (!isGoogleAnalyticsEnabled()) return;
+  if (
+    !isGoogleAnalyticsEnabled() ||
+    !isGoogleAnalyticsRouteAllowed(window.location.pathname)
+  ) {
+    return;
+  }
   window.gtag?.("event", name);
 }
 

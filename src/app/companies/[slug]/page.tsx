@@ -394,7 +394,9 @@ export default async function CompanyPage({
             Active jobs
           </h2>
           <span className="results-count">
-            {company.activeJobs.length} source-listed
+            {companyResult.state === "ready"
+              ? `${company.activeJobs.length} source-listed`
+              : `${company.activeJobs.length} available (partial)`}
           </span>
         </div>
         {company.activeJobs.length > 0 ? (
@@ -403,10 +405,15 @@ export default async function CompanyPage({
               <JobCard job={job} key={job.id} />
             ))}
           </div>
-        ) : (
+        ) : companyResult.state === "ready" ? (
           <div className="notice">
             No active source-listed job is available for this company right now.
             SalaryPadi does not create openings to fill this section.
+          </div>
+        ) : (
+          <div className="notice notice-warning" role="status">
+            Active jobs could not be fully checked. The empty list is not
+            confirmation that this company has no current openings.
           </div>
         )}
       </section>

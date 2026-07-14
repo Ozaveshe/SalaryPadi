@@ -5,6 +5,7 @@ import { CommunityActions } from "@/components/community/community-actions";
 import { CommunityIdentityFields } from "@/components/community/community-fields";
 import { CommunityStatus } from "@/components/community/community-status";
 import { PageHeading } from "@/components/page-heading";
+import { RepositoryNotice } from "@/components/repository-notice";
 import { getViewer } from "@/lib/auth/dal";
 import { getForumsPage } from "@/lib/community/repository";
 import { formatDate } from "@/lib/format";
@@ -26,10 +27,11 @@ export default async function ForumsPage({
   const input = await searchParams;
   const topic = sliceSearchParam(input.topic, 80);
   const viewer = await getViewer();
-  const data = await getForumsPage({
+  const result = await getForumsPage({
     topic,
     includeProfile: viewer.state === "authenticated",
   });
+  const data = result.data;
   const selectedTopic = data.topics.find((item) => item.slug === topic);
 
   return (
@@ -43,11 +45,7 @@ export default async function ForumsPage({
         reported={firstSearchParam(input.reported)}
         status={firstSearchParam(input.status)}
       />
-      {data.loadError ? (
-        <div className="notice notice-warning" role="status">
-          The forums could not be refreshed. Please try again shortly.
-        </div>
-      ) : null}
+      <RepositoryNotice resource="Forum discussions" result={result} />
 
       <section className="stack" aria-labelledby="forum-topics-heading">
         <div className="results-heading">
@@ -84,7 +82,7 @@ export default async function ForumsPage({
         </div>
       </section>
 
-      {viewer.state === "authenticated" ? (
+      {viewer.state === "authenticated" && result.state === "ready" ? (
         <details
           className="surface community-composer"
           open={data.threads.length === 0}
@@ -147,7 +145,7 @@ export default async function ForumsPage({
             </button>
           </form>
         </details>
-      ) : (
+      ) : viewer.state !== "authenticated" ? (
         <div className="surface surface-pad split">
           <div>
             <h2 className="m-0 text-xl font-bold">
@@ -161,7 +159,7 @@ export default async function ForumsPage({
             Sign in to join
           </Link>
         </div>
-      )}
+      ) : null}
 
       <section className="stack" aria-labelledby="forum-threads-heading">
         <div className="results-heading">
@@ -211,7 +209,7 @@ export default async function ForumsPage({
               </article>
             ))}
           </div>
-        ) : (
+        ) : result.state === "ready" ? (
           <div className="empty-state">
             <h3 className="section-title">No discussions here yet</h3>
             <p>
@@ -219,7 +217,7 @@ export default async function ForumsPage({
               a useful answer.
             </p>
           </div>
-        )}
+        ) : null}
       </section>
     </div>
   );

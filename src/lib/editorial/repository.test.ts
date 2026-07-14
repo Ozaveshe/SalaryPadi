@@ -77,6 +77,99 @@ describe("editorial repository", () => {
     expect(result.issues[0]?.code).toBe("editorial_invalid_rows");
   });
 
+  it("quarantines malformed editorial timestamps before they reach feeds", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify([
+            {
+              ...validBrief,
+              published_at: "not-a-timestamp",
+              updated_at: "2026-07-11 00:00:00",
+            },
+          ]),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    const result = await getPublishedEditorialResult();
+
+    expect(result.state).toBe("degraded");
+    expect(result.data).toEqual([REMOTE_JOBS_GUIDE]);
+    expect(result.issues[0]?.code).toBe("editorial_invalid_rows");
+  });
+
+  it("quarantines contradictory publication chronology", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json([
+          {
+            ...validBrief,
+            published_at: "2026-07-12T00:00:00.000Z",
+            updated_at: "2026-07-11T00:00:00.000Z",
+          },
+        ]),
+      ),
+    );
+
+    await expect(getPublishedEditorialResult()).resolves.toMatchObject({
+      state: "degraded",
+      data: [REMOTE_JOBS_GUIDE],
+      issues: [{ code: "editorial_invalid_rows" }],
+    });
+  });
+
+  it("rejects protocol-relative and duplicate internal links", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json([
+          {
+            ...validBrief,
+            internal_link_targets: [
+              "//attacker.example/redirect",
+              "/jobs/remote",
+              "/jobs/remote",
+            ],
+          },
+        ]),
+      ),
+    );
+
+    await expect(getPublishedEditorialResult()).resolves.toMatchObject({
+      state: "degraded",
+      data: [REMOTE_JOBS_GUIDE],
+      issues: [{ code: "editorial_invalid_rows" }],
+    });
+  });
+
+  it("rejects duplicate editorial identities instead of choosing one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json([
+          validBrief,
+          {
+            ...validBrief,
+            id: "10172db5-af35-4487-a657-470b68d5d1e0",
+          },
+        ]),
+      ),
+    );
+
+    await expect(getPublishedEditorialResult()).resolves.toMatchObject({
+      state: "degraded",
+      data: [REMOTE_JOBS_GUIDE],
+      issues: [{ code: "editorial_invalid_rows" }],
+    });
+  });
+
   it("returns validated articles and resolves a single brief", async () => {
     const fetchMock = vi.fn().mockImplementation(async () =>
       Promise.resolve(

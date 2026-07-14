@@ -8,7 +8,9 @@ import type {
   AnalyticsRouteGroup,
 } from "@/lib/analytics/catalog";
 import { getServerEnvironment } from "@/lib/env";
+import { discardResponseBody } from "@/lib/http/body";
 import { readBoundedJson } from "@/lib/http/json";
+import { trustedClientNetworkAddress } from "@/lib/security/client-network";
 import { getSalaryPadiSupabaseOrigin } from "@/lib/supabase/project";
 
 export const ANALYTICS_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1_000;
@@ -21,19 +23,6 @@ type AnalyticsCaptureResult =
 const postgrestErrorSchema = z.object({
   code: z.string().max(40),
 });
-
-function clientNetworkAddress(request: Request): string {
-  // Netlify supplies and overwrites this header at the platform boundary.
-  // The forwarded fallback keeps local and non-Netlify previews fail-closed.
-  const platformAddress = request.headers
-    .get("x-nf-client-connection-ip")
-    ?.trim();
-  const forwardedAddress = request.headers
-    .get("x-forwarded-for")
-    ?.split(",", 1)[0]
-    ?.trim();
-  return (platformAddress || forwardedAddress || "unknown").slice(0, 256);
-}
 
 export function analyticsRateLimitWindowStart(now: Date): string {
   return new Date(
@@ -50,7 +39,7 @@ export function hashAnalyticsNetworkAddress(
   const dailySalt = now.toISOString().slice(0, 10);
   return createHmac("sha256", secret)
     .update(
-      `salarypadi-analytics-network-v1\0${dailySalt}\0${clientNetworkAddress(request)}`,
+      `salarypadi-analytics-network-v1\0${dailySalt}\0${trustedClientNetworkAddress(request)}`,
     )
     .digest("hex");
 }
@@ -120,7 +109,10 @@ export async function captureAnalyticsEvent({
     return { status: "unavailable", errorCode: "analytics_rpc_network" };
   }
 
-  if (response.ok) return { status: "accepted" };
+  if (response.ok) {
+    await discardResponseBody(response);
+    return { status: "accepted" };
+  }
 
   let errorCode: string | undefined;
   try {

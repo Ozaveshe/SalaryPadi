@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 
 import { parseServerEnvironment } from "@/lib/env";
 
@@ -36,6 +38,45 @@ describe("server environment", () => {
       }).NEXT_PUBLIC_APP_URL,
     ).toBe("https://salarypadi.test");
   });
+
+  it("allows the explicit CI-only loopback origin used by production browser tests", () => {
+    expect(
+      parseServerEnvironment({
+        NODE_ENV: "production",
+        CI: "true",
+        SALARYPADI_LOCAL_E2E: "true",
+        NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+      }).NEXT_PUBLIC_APP_URL,
+    ).toBe("http://127.0.0.1:3100");
+  });
+
+  it("does not honor the local E2E origin flag outside CI", () => {
+    expect(() =>
+      parseServerEnvironment({
+        NODE_ENV: "production",
+        SALARYPADI_LOCAL_E2E: "true",
+        NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+      }),
+    ).toThrow(/HTTPS and a non-loopback host/);
+  });
+
+  it.each([
+    "ftp://salarypadi.test",
+    "https://user:secret@salarypadi.test",
+    "https://salarypadi.test/app",
+    "https://salarypadi.test?preview=true",
+    "https://salarypadi.test#preview",
+  ])(
+    "rejects an executable URL that is not an application origin: %s",
+    (url) => {
+      expect(() =>
+        parseServerEnvironment({
+          NODE_ENV: "development",
+          NEXT_PUBLIC_APP_URL: url,
+        }),
+      ).toThrow(/credential-free HTTP\(S\) origin/);
+    },
+  );
 
   it("accepts a GA4 measurement ID", () => {
     expect(
@@ -84,5 +125,40 @@ describe("server environment", () => {
         JOB_SOURCE_SYNC_TOKEN: "too-short",
       }),
     ).toThrow(/>=32/);
+  });
+
+  it("accepts the documented transactional mailbox formats", () => {
+    expect(
+      parseServerEnvironment({
+        NODE_ENV: "development",
+        TRANSACTIONAL_EMAIL_FROM: "SalaryPadi <updates@mail.salarypadi.com>",
+        TRANSACTIONAL_EMAIL_REPLY_TO: "support@salarypadi.com",
+      }),
+    ).toMatchObject({
+      TRANSACTIONAL_EMAIL_FROM: "SalaryPadi <updates@mail.salarypadi.com>",
+      TRANSACTIONAL_EMAIL_REPLY_TO: "support@salarypadi.com",
+    });
+  });
+
+  it.each([
+    ["TRANSACTIONAL_EMAIL_FROM", "not-an-address"],
+    [
+      "TRANSACTIONAL_EMAIL_FROM",
+      "SalaryPadi\nBcc: attacker@example.test <updates@mail.salarypadi.com>",
+    ],
+    ["TRANSACTIONAL_EMAIL_REPLY_TO", "Support <support@salarypadi.com>"],
+  ] as const)("rejects an invalid %s mailbox", (name, value) => {
+    expect(() =>
+      parseServerEnvironment({ NODE_ENV: "development", [name]: value }),
+    ).toThrow(/valid email mailbox/);
+  });
+
+  it("rejects a credential containing header-breaking whitespace", () => {
+    expect(() =>
+      parseServerEnvironment({
+        NODE_ENV: "development",
+        RESEND_API_KEY: "valid-prefix\nforged-header",
+      }),
+    ).toThrow(/single bounded token/);
   });
 });

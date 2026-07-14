@@ -85,6 +85,20 @@ describe("server analytics capture", () => {
     expect(first).not.toContain("203.0.113.42");
   });
 
+  it("does not trust a caller-controlled forwarded address", () => {
+    const now = new Date("2026-07-13T10:00:00.000Z");
+    const first = new Request("https://salarypadi.test/api/analytics/events", {
+      headers: { "x-forwarded-for": "203.0.113.1" },
+    });
+    const second = new Request("https://salarypadi.test/api/analytics/events", {
+      headers: { "x-forwarded-for": "198.51.100.2" },
+    });
+
+    expect(hashAnalyticsNetworkAddress(first, "secret", now)).toBe(
+      hashAnalyticsNetworkAddress(second, "secret", now),
+    );
+  });
+
   it("uses exact five-minute windows", () => {
     expect(
       analyticsRateLimitWindowStart(new Date("2026-07-13T10:09:59.999Z")),

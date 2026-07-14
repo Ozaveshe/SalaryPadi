@@ -4,8 +4,10 @@ import { normalizeRemotiveJob } from "./normalize";
 import {
   diversifyJobResults,
   filterAndSortJobs,
+  jobAlertSearchSpecSchema,
   paginateJobs,
   parseJobSearch,
+  parseStoredJobAlertSearch,
   serializeJobSearch,
 } from "./search";
 
@@ -56,6 +58,51 @@ describe("job search", () => {
     expect(result.minSalary).toBeUndefined();
   });
 
+  it("accepts a sparse but canonical stored alert search", () => {
+    expect(
+      jobAlertSearchSpecSchema.parse({
+        schema_version: 1,
+        q: "engineer",
+        page: 2,
+        salaryDisclosed: true,
+      }),
+    ).toMatchObject({
+      schema_version: 1,
+      q: "engineer",
+      page: 2,
+      salaryDisclosed: true,
+      workMode: "all",
+    });
+  });
+
+  it.each([
+    { schema_version: 2 },
+    { schema_version: 1, unreviewedFilter: true },
+    { schema_version: 1, page: "2" },
+    { schema_version: 1, salaryDisclosed: "on" },
+    { schema_version: 1, q: " engineer " },
+  ])("rejects a non-canonical stored alert search: %o", (searchSpec) => {
+    expect(jobAlertSearchSpecSchema.safeParse(searchSpec).success).toBe(false);
+  });
+
+  it("rejects malformed hidden alert JSON instead of broadening the search", () => {
+    expect(
+      parseStoredJobAlertSearch(
+        JSON.stringify({ q: "engineer", workMode: "banana" }),
+      ),
+    ).toBeNull();
+    expect(
+      parseStoredJobAlertSearch(
+        JSON.stringify({ q: "engineer", salaryDisclosed: "on" }),
+      ),
+    ).toBeNull();
+    expect(parseStoredJobAlertSearch("not-json")).toBeNull();
+    expect(parseStoredJobAlertSearch(undefined)).toMatchObject({
+      q: "",
+      workMode: "all",
+    });
+  });
+
   it("filters explicitly Nigeria-eligible jobs", () => {
     const search = parseJobSearch({ eligibility: "nigeria" });
     expect(filterAndSortJobs(jobs, search)).toHaveLength(1);
@@ -75,6 +122,56 @@ describe("job search", () => {
     expect(paginated.page).toBe(3);
     expect(paginated.items).toHaveLength(3);
   });
+
+  it("does not surface an expired job even if its stored status is open", () => {
+    const expired = {
+      ...jobs[0]!,
+      validThrough: "2000-01-01T00:00:00.000Z",
+    };
+    expect(filterAndSortJobs([expired], parseJobSearch({}))).toEqual([]);
+  });
+
+  it("does not surface a job with publication evidence beyond clock tolerance", () => {
+    const now = new Date("2026-07-10T00:00:00.000Z");
+    const future = {
+      ...jobs[0]!,
+      postedAt: "2026-07-10T00:05:00.001Z",
+    };
+    expect(filterAndSortJobs([future], parseJobSearch({}), now)).toEqual([]);
+  });
+
+  it("requires an explicit onsite or hybrid mode for the local Nigeria path", () => {
+    const locationDisplay = "Lagos, Nigeria";
+    const unclear = {
+      ...jobs[0]!,
+      workMode: "unclear" as const,
+      locationDisplay,
+    };
+    const hybrid = { ...unclear, workMode: "hybrid" as const };
+    const search = parseJobSearch({ path: "local_nigeria" });
+
+    expect(filterAndSortJobs([unclear], search)).toEqual([]);
+    expect(filterAndSortJobs([hybrid], search)).toEqual([hybrid]);
+  });
+
+  it("uses a bounded fallback when a caller supplies an invalid page size", () => {
+    const repeated = Array.from({ length: 12 }, () => jobs[0]!);
+    expect(paginateJobs(repeated, 1, 0).items).toHaveLength(10);
+    expect(paginateJobs(repeated, 1, 1_000).items).toHaveLength(12);
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, 0, -1, 1.5])(
+    "uses the first page for an invalid direct page value: %s",
+    (page) => {
+      const repeated = Array.from({ length: 12 }, () => jobs[0]!);
+      expect(paginateJobs(repeated, page, 5)).toMatchObject({
+        page: 1,
+        totalPages: 3,
+        items: expect.any(Array),
+      });
+      expect(paginateJobs(repeated, page, 5).items).toHaveLength(5);
+    },
+  );
 
   it("round-trips Africa-specific evidence filters through the URL", () => {
     const search = parseJobSearch({

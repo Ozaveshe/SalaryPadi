@@ -5,11 +5,16 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { GoogleAnalytics } from "@/components/google-analytics";
+import { analyticsConsentResponseSchema } from "@/lib/analytics/consent-contract";
 import { trackEvent } from "@/lib/analytics/events";
 import {
   clearGoogleAnalyticsCookies,
   setGoogleAnalyticsEnabled,
 } from "@/lib/analytics/google";
+import { discardResponseBody } from "@/lib/http/body";
+import { readBoundedJson } from "@/lib/http/json";
+
+const CONSENT_REQUEST_TIMEOUT_MS = 8_000;
 
 type Consent = "granted" | "denied" | null;
 
@@ -25,6 +30,7 @@ export function AnalyticsConsent({
   const [consent, setConsent] = useState<Consent>(initialConsent);
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -33,20 +39,36 @@ export function AnalyticsConsent({
 
   async function choose(allowed: boolean) {
     setPending(true);
+    setErrorMessage(null);
     try {
       const response = await fetch("/api/analytics/consent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ allowed }),
+        cache: "no-store",
+        credentials: "same-origin",
+        redirect: "error",
+        signal: AbortSignal.timeout(CONSENT_REQUEST_TIMEOUT_MS),
       });
-      if (response.ok) {
-        if (!allowed && measurementId) {
-          setGoogleAnalyticsEnabled(measurementId, false);
-          clearGoogleAnalyticsCookies();
-        }
-        setConsent(allowed ? "granted" : "denied");
-        setEditing(false);
+      if (!response.ok) {
+        await discardResponseBody(response);
+        setErrorMessage("Analytics choices could not be saved. Try again.");
+        return;
       }
+      const body = await readBoundedJson(response, 1_024);
+      const acknowledgement = analyticsConsentResponseSchema.parse(body);
+      if (acknowledgement.allowed !== allowed) {
+        setErrorMessage("Analytics choices could not be confirmed. Try again.");
+        return;
+      }
+      if (!allowed && measurementId) {
+        setGoogleAnalyticsEnabled(measurementId, false);
+        clearGoogleAnalyticsCookies();
+      }
+      setConsent(allowed ? "granted" : "denied");
+      setEditing(false);
+    } catch {
+      setErrorMessage("Analytics choices are temporarily unavailable.");
     } finally {
       setPending(false);
     }
@@ -109,6 +131,11 @@ export function AnalyticsConsent({
             {consent === "granted" ? "Turn off analytics" : "No thanks"}
           </button>
         </div>
+        {errorMessage ? (
+          <p className="field-help m-0" role="status" aria-live="polite">
+            {errorMessage}
+          </p>
+        ) : null}
       </aside>
     </>
   );

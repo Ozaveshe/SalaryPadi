@@ -1,3 +1,9 @@
+import {
+  BodyReadError,
+  discardResponseBody,
+  readBoundedBody,
+} from "../http/body";
+
 import { sourceResponseCheckedAt } from "./freshness";
 import { normalizeRemotiveJob } from "./normalize";
 import { remotiveResponseSchema } from "./remotive-schema";
@@ -181,50 +187,18 @@ async function readBoundedResponse(
   maxBytes: number,
   signal: AbortSignal | null | undefined,
 ): Promise<string> {
-  const declaredLength = Number(response.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-    throw adapterError("remotive_response_too_large");
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) throw adapterError("remotive_response_read_failed");
-
-  const chunks: Uint8Array[] = [];
-  let receivedBytes = 0;
-
+  let body: Uint8Array;
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value || value.byteLength === 0) continue;
-
-      receivedBytes += value.byteLength;
-      if (receivedBytes > maxBytes) {
-        try {
-          await reader.cancel();
-        } catch {
-          // The bounded read has already failed; cancellation is best effort.
-        }
-        throw adapterError("remotive_response_too_large");
-      }
-      chunks.push(value);
-    }
+    body = await readBoundedBody(response, maxBytes);
   } catch (error) {
-    if (error instanceof RemotiveAdapterError) throw error;
+    if (error instanceof BodyReadError && error.code === "too_large") {
+      throw adapterError("remotive_response_too_large");
+    }
     throw adapterError(
       isAborted(signal)
         ? "remotive_request_aborted"
         : "remotive_response_read_failed",
     );
-  } finally {
-    reader.releaseLock();
-  }
-
-  const body = new Uint8Array(receivedBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
   }
 
   try {
@@ -287,13 +261,15 @@ export async function fetchRemotivePayload(
 
     if (response.ok) break;
     if (attempt === maxAttempts || !isRetryableStatus(response.status)) {
+      await discardResponseBody(response);
       throw adapterError("remotive_http_error", response.status);
     }
-    await response.body?.cancel().catch(() => undefined);
+    await discardResponseBody(response);
     await waitForRetry(retryDelayMs, attempt, signal);
   }
   if (!response) throw adapterError("remotive_request_failed");
   if (!isJsonResponse(response)) {
+    await discardResponseBody(response);
     throw adapterError("remotive_invalid_content_type");
   }
 

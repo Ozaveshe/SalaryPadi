@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { externalHttpsUrlSchema } from "@/lib/security/url-schema";
+
 import {
   countryNameFromCode,
   eligibilityDecisionForAfrica,
@@ -20,85 +22,231 @@ import type {
   WorkMode,
 } from "./types";
 
-const httpsUrl = z
-  .string()
-  .url()
-  .refine((value) => new URL(value).protocol === "https:");
+const timestampSchema = z.iso.datetime({ offset: true });
+const countryCodeSchema = z.string().regex(/^[A-Z]{2}$/);
+const nonnegativeAmountSchema = z.coerce.number().finite().nonnegative();
 
-const locationSchema = z.object({
-  country_code: z.string().nullable().optional(),
-  city: z.string().nullable().optional(),
-  region: z.string().nullable().optional(),
-  is_primary: z.boolean().optional(),
-});
+const locationSchema = z
+  .object({
+    country_code: countryCodeSchema.nullable().optional(),
+    city: z.string().trim().max(160).nullable().optional(),
+    region: z.string().trim().max(160).nullable().optional(),
+    is_primary: z.boolean().optional(),
+  })
+  .strict();
 
-const eligibilityCountrySchema = z.object({
-  country_code: z.string(),
-  rule: z.enum(["include", "exclude"]),
-});
+const eligibilityCountrySchema = z
+  .object({
+    country_code: countryCodeSchema,
+    rule: z.enum(["include", "exclude"]),
+  })
+  .strict();
 
-const riskSchema = z.object({
-  code: z.string(),
-  severity: z.coerce.number().int().min(1).max(5),
-  evidence_text: z.string().nullable().optional(),
-});
+const riskSchema = z
+  .object({
+    code: z
+      .string()
+      .min(1)
+      .max(80)
+      .regex(/^[a-z0-9_]+$/),
+    severity: z.coerce.number().int().min(1).max(5),
+    evidence_text: z.string().max(2_000).nullable().optional(),
+  })
+  .strict();
 
-const databaseJobSchema = z.object({
-  id: z.string().uuid(),
-  slug: z.string(),
-  external_source_id: z.string(),
-  title: z.string(),
-  description_text: z.string(),
-  requirements_text: z.string().nullable(),
-  benefits_text: z.string().nullable(),
-  work_arrangement: z.string(),
-  employment_type: z.string(),
-  engagement_type: z.string(),
-  experience_level: z.string(),
-  salary_min: z.coerce.number().nullable(),
-  salary_max: z.coerce.number().nullable(),
-  currency_code: z.string().nullable(),
-  pay_period: z.string().nullable(),
-  gross_net: z.string(),
-  bonus_text: z.string().nullable(),
-  application_url: httpsUrl,
-  source_url: httpsUrl,
-  posted_at: z.string().nullable(),
-  valid_through: z.string().nullable(),
-  last_checked_at: z.string(),
-  last_verified_at: z.string().nullable(),
-  company_slug: z.string(),
-  company_name: z.string(),
-  company_verification_status: z.string(),
-  source_name: z.string(),
-  source_id: z.string().uuid(),
-  source_type: z.string(),
-  source_terms_url: z.string(),
-  source_homepage_url: z.string().nullable(),
-  attribution_required: z.boolean(),
-  attribution_text: z.string().nullable(),
-  may_store_full_description: z.boolean(),
-  may_index_jobs: z.boolean(),
-  may_emit_jobposting_schema: z.boolean(),
-  may_email_jobs: z.boolean(),
-  required_destination_kind: z.string(),
-  refresh_interval_seconds: z.coerce.number().int().positive(),
-  terms_reviewed_at: z.string(),
-  eligibility_scope: z.string().nullable(),
-  required_timezone_overlap: z.string().nullable(),
-  work_authorization_requirement: z.string().nullable(),
-  visa_sponsorship: z.boolean().nullable(),
-  relocation_support: z.boolean().nullable(),
-  eligibility_evidence: z.string().nullable(),
-  eligibility_provenance: z.string().nullable(),
-  eligibility_verified_at: z.string().nullable(),
-  role_family: z.string().nullable(),
-  dedup_fingerprint: z.string().nullable(),
-  locations: z.array(locationSchema).max(50),
-  eligibility_countries: z.array(eligibilityCountrySchema).max(100),
-  skills: z.array(z.string()).max(100),
-  risk_indicators: z.array(riskSchema).max(100),
-});
+const databaseJobSchema = z
+  .object({
+    id: z.string().uuid(),
+    slug: z
+      .string()
+      .min(1)
+      .max(240)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    external_source_id: z.string().trim().min(1).max(300),
+    title: z.string().trim().min(2).max(300),
+    description_text: z.string().min(20).max(100_000),
+    requirements_text: z.string().max(100_000).nullable(),
+    benefits_text: z.string().max(100_000).nullable(),
+    work_arrangement: z.enum(["remote", "hybrid", "onsite", "unspecified"]),
+    employment_type: z.enum([
+      "full_time",
+      "part_time",
+      "contract",
+      "freelance",
+      "temporary",
+      "internship",
+      "graduate_trainee",
+      "other",
+    ]),
+    engagement_type: z.enum([
+      "employee",
+      "contractor",
+      "freelance",
+      "unspecified",
+    ]),
+    experience_level: z.enum([
+      "entry",
+      "junior",
+      "mid",
+      "senior",
+      "lead",
+      "executive",
+      "unspecified",
+    ]),
+    salary_min: nonnegativeAmountSchema.nullable(),
+    salary_max: nonnegativeAmountSchema.nullable(),
+    currency_code: z
+      .string()
+      .regex(/^[A-Z]{3}$/)
+      .nullable(),
+    pay_period: z
+      .enum(["hourly", "daily", "weekly", "monthly", "annual"])
+      .nullable(),
+    gross_net: z.enum(["gross", "net", "unspecified"]),
+    bonus_text: z.string().max(10_000).nullable(),
+    application_url: externalHttpsUrlSchema,
+    source_url: externalHttpsUrlSchema,
+    posted_at: timestampSchema.nullable(),
+    valid_through: timestampSchema.nullable(),
+    last_checked_at: timestampSchema,
+    last_verified_at: timestampSchema.nullable(),
+    company_slug: z
+      .string()
+      .min(1)
+      .max(160)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    company_name: z.string().trim().min(1).max(300),
+    company_verification_status: z.enum([
+      "unverified",
+      "domain_verified",
+      "organization_verified",
+      "suspended",
+    ]),
+    source_name: z.string().trim().min(1).max(300),
+    source_id: z.string().uuid(),
+    source_type: z.enum([
+      "direct_employer",
+      "partner_feed",
+      "permitted_api",
+      "employer_ats",
+      "manual",
+    ]),
+    source_terms_url: z.union([z.literal("/terms"), externalHttpsUrlSchema]),
+    source_homepage_url: externalHttpsUrlSchema.nullable(),
+    attribution_required: z.boolean(),
+    attribution_text: z.string().nullable(),
+    may_store_full_description: z.boolean(),
+    may_index_jobs: z.boolean(),
+    may_emit_jobposting_schema: z.boolean(),
+    may_email_jobs: z.boolean(),
+    required_destination_kind: z.string(),
+    refresh_interval_seconds: z.coerce.number().int().positive(),
+    terms_reviewed_at: timestampSchema,
+    eligibility_scope: z
+      .enum([
+        "worldwide",
+        "africa",
+        "emea",
+        "nigeria",
+        "named_countries",
+        "restricted_region",
+        "unclear",
+      ])
+      .nullable(),
+    required_timezone_overlap: z.string().nullable(),
+    work_authorization_requirement: z.string().nullable(),
+    visa_sponsorship: z.boolean().nullable(),
+    relocation_support: z.boolean().nullable(),
+    eligibility_evidence: z.string().nullable(),
+    eligibility_provenance: z
+      .enum(["source_provided", "manually_verified", "inferred"])
+      .nullable(),
+    eligibility_verified_at: timestampSchema.nullable(),
+    role_family: z.string().nullable(),
+    dedup_fingerprint: z.string().nullable(),
+    locations: z.array(locationSchema).max(50),
+    eligibility_countries: z.array(eligibilityCountrySchema).max(100),
+    skills: z.array(z.string().trim().min(1).max(160)).max(100),
+    risk_indicators: z.array(riskSchema).max(100),
+  })
+  .superRefine((row, context) => {
+    if (
+      row.salary_min !== null &&
+      row.salary_max !== null &&
+      row.salary_max < row.salary_min
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["salary_max"],
+        message: "Maximum salary cannot be below minimum salary.",
+      });
+    }
+    if (
+      row.posted_at !== null &&
+      row.valid_through !== null &&
+      Date.parse(row.valid_through) < Date.parse(row.posted_at)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["valid_through"],
+        message: "Job expiry cannot predate publication.",
+      });
+    }
+    const checkedAt = Date.parse(row.last_checked_at) + 5 * 60_000;
+    for (const [field, value] of [
+      ["posted_at", row.posted_at],
+      ["last_verified_at", row.last_verified_at],
+      ["eligibility_verified_at", row.eligibility_verified_at],
+    ] as const) {
+      if (value !== null && Date.parse(value) > checkedAt) {
+        context.addIssue({
+          code: "custom",
+          path: [field],
+          message: "Job evidence cannot postdate its source check.",
+        });
+      }
+    }
+    if (row.may_emit_jobposting_schema && !row.may_index_jobs) {
+      context.addIssue({
+        code: "custom",
+        path: ["may_emit_jobposting_schema"],
+        message: "Job posting schema requires indexing permission.",
+      });
+    }
+    if (row.attribution_required && !row.attribution_text?.trim()) {
+      context.addIssue({
+        code: "custom",
+        path: ["attribution_text"],
+        message: "Required attribution must include display text.",
+      });
+    }
+    const countryRules = new Set<string>();
+    row.eligibility_countries.forEach((country, index) => {
+      if (countryRules.has(country.country_code)) {
+        context.addIssue({
+          code: "custom",
+          path: ["eligibility_countries", index, "country_code"],
+          message: "A country cannot have contradictory eligibility rules.",
+        });
+      }
+      countryRules.add(country.country_code);
+    });
+    for (const [field, values] of [
+      ["skills", row.skills],
+      [
+        "risk_indicators",
+        row.risk_indicators.map((indicator) => indicator.code),
+      ],
+    ] as const) {
+      if (new Set(values).size !== values.length) {
+        context.addIssue({
+          code: "custom",
+          path: [field],
+          message: "Repeated public job evidence is not allowed.",
+        });
+      }
+    }
+  });
 
 function mapSourceType(value: string): JobSourcePolicy["type"] {
   if (value === "direct_employer" || value === "employer_ats")

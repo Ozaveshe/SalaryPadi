@@ -17,6 +17,15 @@ vi.mock("@/lib/auth/api", () => ({
 }));
 vi.mock("@/lib/contributions/schemas", () => ({
   containsProhibitedDocumentField: mocks.containsProhibitedDocumentField,
+  contributionKindSchema: {
+    safeParse: (value: unknown) =>
+      typeof value === "string" &&
+      ["salary", "review", "interview", "benefits", "pay_reliability"].includes(
+        value,
+      )
+        ? { success: true, data: value }
+        : { success: false },
+  },
   contributionSchemas: {
     salary: { safeParse: mocks.safeParse },
     review: { safeParse: mocks.safeParse },
@@ -38,6 +47,8 @@ vi.mock("@/lib/env", () => ({
 vi.mock("@/lib/security/origin", () => ({
   rejectCrossOriginRequest: mocks.rejectCrossOriginRequest,
 }));
+vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 
 import { POST } from "./route";
 
@@ -55,7 +66,10 @@ beforeEach(() => {
     success: true,
     data: { role: "Engineer" },
   });
-  mocks.rpc.mockResolvedValue({ data: "contribution-id", error: null });
+  mocks.rpc.mockResolvedValue({
+    data: "00000000-0000-4000-8000-000000000001",
+    error: null,
+  });
   mocks.getAuthenticatedApiContext.mockResolvedValue({
     ok: true,
     supabase: { schema: () => ({ rpc: mocks.rpc }) },
@@ -63,6 +77,25 @@ beforeEach(() => {
 });
 
 describe("contribution route", () => {
+  it("rejects an oversized actual form stream without trusting Content-Length", async () => {
+    const request = new Request(
+      "https://salarypadi.com/api/contributions/salary",
+      {
+        method: "POST",
+        body: new URLSearchParams({ narrative: "x".repeat(70_000) }),
+      },
+    );
+    expect(request.headers.has("content-length")).toBe(false);
+
+    const response = await POST(request, {
+      params: Promise.resolve({ kind: "salary" }),
+    } as never);
+
+    expect(response.status).toBe(413);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("identifies a successful salary submission for the share prompt", async () => {
     const response = await POST(
       new Request("https://salarypadi.com/api/contributions/salary", {
@@ -87,6 +120,25 @@ describe("contribution route", () => {
         },
       },
     });
+  });
+
+  it("fails closed when contribution abuse protection is unconfigured", async () => {
+    mocks.getServerEnvironment.mockReturnValue({
+      SUPABASE_SERVICE_ROLE_KEY: undefined,
+    });
+
+    const response = await POST(
+      new Request("https://salarypadi.com/api/contributions/salary", {
+        method: "POST",
+        body: new URLSearchParams({ role: "Engineer" }),
+      }),
+      { params: Promise.resolve({ kind: "salary" }) } as never,
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(mocks.hashContributionNetworkAddress).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("refuses prohibited verification evidence before persistence", async () => {
@@ -141,5 +193,20 @@ describe("contribution route", () => {
     expect(response.headers.get("location")).toBe(
       "https://salarypadi.com/contribute?status=error",
     );
+  });
+
+  it("returns an explicit unavailable response when persistence transport throws", async () => {
+    mocks.rpc.mockRejectedValue(new Error("transport unavailable"));
+
+    const response = await POST(
+      new Request("https://salarypadi.com/api/contributions/salary", {
+        method: "POST",
+        body: new URLSearchParams({ role: "Engineer" }),
+      }),
+      { params: Promise.resolve({ kind: "salary" }) } as never,
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });

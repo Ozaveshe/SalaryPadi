@@ -69,8 +69,10 @@ export default async function CompanyReviewsPage({
                   <div className="split">
                     <div>
                       <p className="eyebrow">
-                        {review.country_code} ·{" "}
-                        {review.role_family ?? "Role not published"}
+                        {review.country_code === "WITHHELD"
+                          ? "Country withheld"
+                          : review.country_code}{" "}
+                        · {review.role_family ?? "Role not published"}
                       </p>
                       <h3 className="m-0 text-xl font-bold">
                         {review.overall_rating?.toFixed(1) ?? "Unrated"} / 5

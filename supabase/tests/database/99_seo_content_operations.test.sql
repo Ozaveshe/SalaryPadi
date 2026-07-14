@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, editorial, security;
-select plan(25);
+select plan(28);
 
 select has_table('editorial', 'seo_landing_pages', 'programmatic SEO landing registry exists');
 select has_table('editorial', 'topic_signals', 'editorial signal ledger exists');
@@ -30,6 +30,22 @@ select ok(
 select ok(
   to_regprocedure('api.google_indexing_finish_notification(uuid,boolean,integer,text)') is not null,
   'Google indexing completion RPC exists'
+);
+select ok(
+  pg_get_functiondef('api.google_indexing_claim_notifications(integer)'::regprocedure)
+    ilike '%status = ''processing''%stale_claim_recovered%'
+  and pg_get_functiondef('api.google_indexing_claim_notifications(integer)'::regprocedure)
+    ilike '%stale_claim_attempts_exhausted%',
+  'Google indexing recovers abandoned claims without retrying exhausted work forever'
+);
+select ok(
+  exists (
+    select 1
+    from pg_indexes
+    where schemaname = 'private'
+      and indexname = 'google_indexing_outbox_processing_claim'
+  ),
+  'stale Google indexing claim recovery uses a bounded partial index'
 );
 select ok(
   to_regprocedure('api.editorial_prepare_evidence_pack()') is not null,
@@ -115,6 +131,13 @@ select ok(
   and pg_get_functiondef('security.enqueue_google_indexing_job_change()'::regprocedure)
     ~ 'old.slug is distinct from new.slug',
   'material job, eligibility, location, and slug changes keep the outbox current'
+);
+select ok(
+  pg_get_functiondef('security.job_matches_seo_landing(uuid,text)'::regprocedure)
+    !~ 'work_arrangement <> ''remote'''
+  and pg_get_functiondef('security.job_matches_seo_landing(uuid,text)'::regprocedure)
+    ~ 'work_arrangement in \(''onsite'', ''hybrid''\)',
+  'local job landings require explicit onsite or hybrid evidence'
 );
 
 select * from finish();
