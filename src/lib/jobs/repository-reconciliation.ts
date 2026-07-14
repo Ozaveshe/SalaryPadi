@@ -69,10 +69,10 @@ export function combineJobSources(
       const jobs = source.jobs.filter(
         (job) =>
           isJobCurrentlyPublishable(job, now) &&
-          // Remotive is a reviewed remote-supply adapter. Its Africa-access
-          // publication rule must not suppress moderated first-party employer
+          // Reviewed secondary feeds use the same Africa-access publication
+          // rule. It must not suppress moderated first-party employer
           // jobs, including legitimate onsite and hybrid roles in Nigeria.
-          (source.key !== "remotive" ||
+          ((source.key !== "remotive" && source.key !== "jobicy") ||
             evaluateRemotePublication({
               arrangement: job.workMode,
               evidenceText: job.eligibility.evidenceText,
@@ -96,7 +96,9 @@ export function combineJobSources(
   const sourceProblems = publicationSources.filter(
     ({ state }) => state === "unavailable" || state === "degraded",
   );
-  const remotive = publicationSources.find(({ key }) => key === "remotive");
+  const hasLiveSource = publicationSources.some(
+    ({ state: sourceState }) => sourceState === "live",
+  );
   const noSources = publicationSources.length === 0;
   const state: JobFeedResult["state"] =
     jobs.length > 0
@@ -105,7 +107,10 @@ export function combineJobSources(
         : "live"
       : noSources || sourceProblems.length > 0
         ? "unavailable"
-        : remotive?.state === "disabled"
+        : !hasLiveSource &&
+            publicationSources.some(
+              ({ state: sourceState }) => sourceState === "disabled",
+            )
           ? "disabled"
           : "live";
   const messageSources =

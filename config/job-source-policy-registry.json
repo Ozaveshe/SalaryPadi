@@ -230,8 +230,8 @@
       "adapterKey": "jobicy",
       "name": "Jobicy public API",
       "authority": "secondary_feed",
-      "state": "disabled",
-      "permissionBasis": "documented_public_feed_requires_storage_and_index_review",
+      "state": "enabled",
+      "permissionBasis": "documented_public_feed_with_attribution",
       "evidenceReference": "https://jobicy.com/jobs-rss-feed",
       "termsUrl": "https://jobicy.com/jobs-rss-feed",
       "reviewedAt": "2026-07-14T00:00:00.000Z",
@@ -261,10 +261,11 @@
       "searchIndexPermission": false,
       "googleJobPostingPermission": false,
       "requiredDependencies": [
-        "storage_retention_review",
-        "search_index_review"
+        "clickable_source_attribution",
+        "six_hour_polling_limit",
+        "no_external_redistribution"
       ],
-      "missingDependencies": ["storage_retention_review", "search_index_review"]
+      "missingDependencies": []
     }
   ]
 }

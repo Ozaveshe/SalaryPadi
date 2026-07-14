@@ -230,7 +230,12 @@ export function eligibilityDecisionForAfrica(
   scope: RemoteEligibilityScope,
   includedCodes: ReadonlySet<string>,
 ): EligibilityDecision {
-  if (scope === "worldwide" || scope === "africa" || scope === "nigeria") {
+  if (
+    scope === "worldwide" ||
+    scope === "africa" ||
+    scope === "emea" ||
+    scope === "nigeria"
+  ) {
     return "eligible";
   }
   if (scope === "named_countries") {

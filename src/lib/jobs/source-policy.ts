@@ -27,3 +27,30 @@ export const REMOTIVE_REQUIRED_DESTINATION_KIND = "source_url" as const;
 export const REMOTIVE_CACHE_TAG = "salarypadi-job-source-remotive" as const;
 export const REMOTIVE_TERMS_VERSION =
   "remotive-terms-conflict-reviewed-2026-07-14" as const;
+
+/**
+ * Jobicy explicitly documents its public feed for integration into websites
+ * and wider distribution. SalaryPadi keeps only minimal metadata, links every
+ * role back to Jobicy, does not index or emit JobPosting markup for these
+ * records, and polls no more frequently than every six hours.
+ */
+export const JOBICY_SOURCE_POLICY: JobSourcePolicy = {
+  id: "jobicy-public-api",
+  name: "Jobicy",
+  type: "permitted_api",
+  termsUrl: "https://jobicy.com/jobs-rss-feed",
+  termsReviewedAt: "2026-07-14",
+  attributionRequired: 'Show "Source: Jobicy" and link to the returned URL.',
+  canStoreFullDescription: false,
+  canIndex: false,
+  canUseJobPostingStructuredData: false,
+  canEmail: false,
+  destinationRequirement: "Use the Jobicy URL returned by the API.",
+  refreshIntervalSeconds: 21_600,
+};
+
+export const JOBICY_ADAPTER_KEY = "jobicy" as const;
+export const JOBICY_REQUIRED_DESTINATION_KIND = "source_url" as const;
+export const JOBICY_CACHE_TAG = "salarypadi-job-source-jobicy" as const;
+export const JOBICY_TERMS_VERSION =
+  "jobicy-public-feed-reviewed-2026-07-14" as const;

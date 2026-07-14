@@ -3,8 +3,9 @@ import sanitizeHtml from "sanitize-html";
 
 import { classifyEligibility } from "./eligibility";
 import { buildJobFingerprint } from "./fingerprint";
+import { jobicyJobSchema, type JobicyJob } from "./jobicy-schema";
 import { remotiveJobSchema, type RemotiveJob } from "./remotive-schema";
-import { REMOTIVE_SOURCE_POLICY } from "./source-policy";
+import { JOBICY_SOURCE_POLICY, REMOTIVE_SOURCE_POLICY } from "./source-policy";
 import { extractCompleteEligibilityEvidence } from "./supply/eligibility-evidence";
 import type {
   EmploymentArrangement,
@@ -357,6 +358,115 @@ export function normalizeRemotiveJob(
         label: "Employer not verified by SalaryPadi",
         explanation:
           "This listing comes from a permitted third-party feed. Verify the vacancy on the employer’s own website before sharing information.",
+        severity: "caution",
+      },
+    ],
+    fingerprint,
+  };
+}
+
+function jobicySalary(source: JobicyJob): SalaryRange | null {
+  const minimum = source.salaryMin ?? source.salaryMax;
+  const maximum = source.salaryMax ?? source.salaryMin;
+  if (
+    minimum == null ||
+    maximum == null ||
+    !source.salaryCurrency ||
+    !(source.salaryCurrency in SALARY_PLAUSIBILITY_BOUNDS)
+  ) {
+    return null;
+  }
+  const period = source.salaryPeriod?.toLowerCase() ?? "";
+  const periodText = period.includes("hour")
+    ? "hour"
+    : period.includes("day")
+      ? "day"
+      : period.includes("week")
+        ? "week"
+        : period.includes("month")
+          ? "month"
+          : period.includes("year") || period.includes("annual")
+            ? "year"
+            : "";
+  return parseSalary(
+    `${source.salaryCurrency} ${minimum} - ${maximum}${periodText ? ` per ${periodText}` : ""}`,
+  );
+}
+
+export function normalizeJobicyJob(
+  input: JobicyJob,
+  checkedAt = new Date().toISOString(),
+): Job {
+  const source = jobicyJobSchema.parse(input);
+  const employmentType = parseEmploymentType(source.jobType.join(" "));
+  const arrangement = inferArrangement(employmentType);
+  const sourceUrl = new URL(source.url);
+  if (
+    sourceUrl.protocol !== "https:" ||
+    sourceUrl.username ||
+    sourceUrl.password ||
+    (sourceUrl.port && sourceUrl.port !== "443") ||
+    (sourceUrl.hostname !== "jobicy.com" &&
+      !sourceUrl.hostname.endsWith(".jobicy.com"))
+  ) {
+    throw new Error(
+      "Jobicy returned a destination outside its allowed HTTPS host.",
+    );
+  }
+
+  const location = source.jobGeo;
+  const companySlug = slugify(source.companyName);
+  const titleSlug = slugify(source.jobTitle);
+  const description = htmlToPlainText(source.jobExcerpt ?? "").slice(0, 600);
+  const eligibility = classifyEligibility(location, checkedAt);
+  const fingerprint = buildJobFingerprint({
+    title: source.jobTitle,
+    company: source.companyName,
+    location,
+    arrangement,
+    destination: sourceUrl.toString(),
+  });
+
+  return {
+    id: `jobicy-${source.id}`,
+    databaseId: null,
+    slug: `${titleSlug}-at-${companySlug}-${source.id}`,
+    externalId: source.id,
+    source: JOBICY_SOURCE_POLICY,
+    sourceUrl: sourceUrl.toString(),
+    applicationUrl: sourceUrl.toString(),
+    title: source.jobTitle,
+    company: {
+      name: source.companyName,
+      slug: companySlug,
+      verification: "source_listed",
+    },
+    locationDisplay: location,
+    workMode: "remote",
+    employmentType,
+    arrangement,
+    experienceLevel: inferExperienceLevel(source.jobTitle, [
+      source.jobLevel ?? "",
+      ...source.jobIndustry,
+    ]),
+    category: source.jobIndustry[0] ?? null,
+    skills: [],
+    salary: jobicySalary(source),
+    eligibility,
+    description:
+      description || "Open the attributed source listing for full details.",
+    requirements: null,
+    benefits: null,
+    postedAt: source.pubDate,
+    lastCheckedAt: checkedAt,
+    validThrough: null,
+    status: "open",
+    riskIndicators: [
+      {
+        code: "source-not-employer-verified",
+        label: "Employer not verified by SalaryPadi",
+        explanation:
+          "This listing comes from Jobicy's documented public feed. Verify the vacancy on the employer's own website before sharing information.",
         severity: "caution",
       },
     ],

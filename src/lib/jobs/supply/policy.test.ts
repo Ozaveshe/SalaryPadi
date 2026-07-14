@@ -43,16 +43,12 @@ describe("job source policy registry", () => {
         code: "policy_missing",
       }),
     );
-    for (const adapterKey of ["remotive", "jobicy"] as const) {
-      expect(() =>
-        openSupplyAdapter(adapterKey, new Date("2026-07-14")),
-      ).toThrow(
-        expect.objectContaining<Partial<AdapterPolicyError>>({
-          code: "policy_disabled",
-          adapterKey,
-        }),
-      );
-    }
+    expect(() => openSupplyAdapter("remotive", new Date("2026-07-14"))).toThrow(
+      expect.objectContaining<Partial<AdapterPolicyError>>({
+        code: "policy_disabled",
+        adapterKey: "remotive",
+      }),
+    );
     expect(() =>
       openSupplyAdapter(
         "salarypadi_employer_submissions",
@@ -81,18 +77,40 @@ describe("job source policy registry", () => {
     });
   });
 
-  it("keeps Remotive and Jobicy out of search and Google Jobs", () => {
+  it("opens Jobicy only with the reviewed attribution and distribution limits", () => {
+    expect(
+      openSupplyAdapter("jobicy", new Date("2026-07-14T12:00:00.000Z")).policy,
+    ).toMatchObject({
+      state: "enabled",
+      authority: "secondary_feed",
+      publicDisplayPermission: true,
+      searchIndexPermission: false,
+      googleJobPostingPermission: false,
+      missingDependencies: [],
+    });
+  });
+
+  it("keeps secondary feeds out of search and Google Jobs", () => {
     for (const key of ["remotive", "jobicy"] as const) {
       const policy = jobSourcePolicyRegistry.sources.find(
         (candidate) => candidate.adapterKey === key,
       );
       expect(policy).toMatchObject({
-        state: "disabled",
         searchIndexPermission: false,
         googleJobPostingPermission: false,
         fullDescriptionPermission: false,
       });
     }
+    expect(
+      jobSourcePolicyRegistry.sources.find(
+        (candidate) => candidate.adapterKey === "remotive",
+      )?.state,
+    ).toBe("disabled");
+    expect(
+      jobSourcePolicyRegistry.sources.find(
+        (candidate) => candidate.adapterKey === "jobicy",
+      )?.state,
+    ).toBe("enabled");
   });
 
   it("lists exact external dependencies instead of fabricating access", () => {

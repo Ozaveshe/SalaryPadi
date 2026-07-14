@@ -8,6 +8,7 @@ import { externalHttpsUrlSchema } from "@/lib/security/url-schema";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { buildJobFingerprintLookupKeys } from "./fingerprint";
+import { fetchJobicyJobs, JobicyAdapterError } from "./jobicy-adapter";
 import {
   fetchRemotiveJobs,
   RemotiveAdapterError,
@@ -22,6 +23,11 @@ import {
 } from "./repository-database";
 import { combineJobSources } from "./repository-reconciliation";
 import {
+  JOBICY_ADAPTER_KEY,
+  JOBICY_CACHE_TAG,
+  JOBICY_REQUIRED_DESTINATION_KIND,
+  JOBICY_SOURCE_POLICY,
+  JOBICY_TERMS_VERSION,
   REMOTIVE_ADAPTER_KEY,
   REMOTIVE_CACHE_TAG,
   REMOTIVE_REQUIRED_DESTINATION_KIND,
@@ -40,7 +46,7 @@ type ServerSupabaseClient = NonNullable<
 
 const SOURCE_MAX_AGE_MS = 14 * 60 * 60 * 1_000;
 const SOURCE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1_000;
-const remotivePolicyRowSchema = z
+const reviewedPolicyRowSchema = z
   .object({
     adapter_key: z.string().min(1).max(80),
     source_type: z.string().min(1).max(40),
@@ -89,9 +95,13 @@ async function resolveClient(
   return supplied === undefined ? await createServerSupabaseClient() : supplied;
 }
 
-function sourceRegistryUnavailable(attemptedAt: string, code: string) {
+function sourceRegistryUnavailable(
+  key: SourceFeed["key"],
+  attemptedAt: string,
+  code: string,
+) {
   return sourceUnavailable(
-    "remotive",
+    key,
     attemptedAt,
     code,
     "The reviewed job source policy could not be verified.",
@@ -106,6 +116,18 @@ function readRemotivePolicy(supabase: ServerSupabaseClient) {
       "adapter_key,source_type,terms_url,terms_reviewed_at,terms_version,attribution_required,may_store_full_description,may_index_jobs,may_emit_jobposting_schema,allow_public_listing,required_destination_kind,refresh_interval_seconds",
     )
     .eq("adapter_key", REMOTIVE_ADAPTER_KEY)
+    .abortSignal(AbortSignal.timeout(4_000))
+    .maybeSingle();
+}
+
+function readJobicyPolicy(supabase: ServerSupabaseClient) {
+  return supabase
+    .schema("api")
+    .from("job_sources")
+    .select(
+      "adapter_key,source_type,terms_url,terms_reviewed_at,terms_version,attribution_required,may_store_full_description,may_index_jobs,may_emit_jobposting_schema,allow_public_listing,required_destination_kind,refresh_interval_seconds",
+    )
+    .eq("adapter_key", JOBICY_ADAPTER_KEY)
     .abortSignal(AbortSignal.timeout(4_000))
     .maybeSingle();
 }
@@ -155,6 +177,7 @@ export async function getRemotiveJobFeed(
   } catch (reason) {
     unstable_rethrow(reason);
     return sourceRegistryUnavailable(
+      "remotive",
       attemptedAt,
       "source_registry_client_failed",
     );
@@ -174,6 +197,7 @@ export async function getRemotiveJobFeed(
   } catch (reason) {
     unstable_rethrow(reason);
     return sourceRegistryUnavailable(
+      "remotive",
       attemptedAt,
       "source_registry_query_failed",
     );
@@ -181,6 +205,7 @@ export async function getRemotiveJobFeed(
 
   if (policy.error) {
     return sourceRegistryUnavailable(
+      "remotive",
       attemptedAt,
       "source_registry_query_failed",
     );
@@ -196,7 +221,7 @@ export async function getRemotiveJobFeed(
       message: "The reviewed Remotive source is paused or disabled.",
     };
   }
-  const parsedPolicy = remotivePolicyRowSchema.safeParse(policy.data);
+  const parsedPolicy = reviewedPolicyRowSchema.safeParse(policy.data);
   if (!parsedPolicy.success) {
     return sourceUnavailable(
       "remotive",
@@ -283,12 +308,174 @@ export async function getRemotiveJobFeed(
   }
 }
 
+/**
+ * Jobicy is authorized by both the reviewed application registry and the live
+ * operator registry. Either gate can stop acquisition independently.
+ */
+export async function getJobicyJobFeed(
+  suppliedClient?: ServerSupabaseClient | null,
+): Promise<SourceFeed> {
+  const attemptedAt = new Date().toISOString();
+  try {
+    openSupplyAdapter("jobicy", new Date(attemptedAt));
+  } catch (reason) {
+    const code =
+      reason instanceof AdapterPolicyError
+        ? `jobicy_${reason.code}`
+        : "jobicy_policy_invalid";
+    return {
+      key: "jobicy",
+      jobs: [],
+      state: "disabled",
+      checkedAt: attemptedAt,
+      count: 0,
+      code,
+      message:
+        "The reviewed Jobicy source is disabled by the application source-policy registry.",
+    };
+  }
+
+  let supabase: ServerSupabaseClient | null;
+  try {
+    supabase = await resolveClient(suppliedClient);
+  } catch (reason) {
+    unstable_rethrow(reason);
+    return sourceRegistryUnavailable(
+      "jobicy",
+      attemptedAt,
+      "source_registry_client_failed",
+    );
+  }
+  if (!supabase) {
+    return sourceUnavailable(
+      "jobicy",
+      attemptedAt,
+      "source_registry_unconfigured",
+      "The job source registry is not configured.",
+    );
+  }
+
+  let policy: Awaited<ReturnType<typeof readJobicyPolicy>>;
+  try {
+    policy = await readJobicyPolicy(supabase);
+  } catch (reason) {
+    unstable_rethrow(reason);
+    return sourceRegistryUnavailable(
+      "jobicy",
+      attemptedAt,
+      "source_registry_query_failed",
+    );
+  }
+  if (policy.error) {
+    return sourceRegistryUnavailable(
+      "jobicy",
+      attemptedAt,
+      "source_registry_query_failed",
+    );
+  }
+  if (!policy.data) {
+    return {
+      key: "jobicy",
+      jobs: [],
+      state: "disabled",
+      checkedAt: attemptedAt,
+      count: 0,
+      code: "jobicy_policy_disabled",
+      message: "The reviewed Jobicy source is paused or disabled.",
+    };
+  }
+
+  const parsedPolicy = reviewedPolicyRowSchema.safeParse(policy.data);
+  if (!parsedPolicy.success) {
+    return sourceUnavailable(
+      "jobicy",
+      attemptedAt,
+      "jobicy_policy_invalid",
+      "The live source policy is malformed and cannot authorize acquisition.",
+    );
+  }
+  const policyRow = parsedPolicy.data;
+  if (
+    policyRow.adapter_key !== JOBICY_ADAPTER_KEY ||
+    policyRow.source_type !== JOBICY_SOURCE_POLICY.type ||
+    policyRow.terms_url !== JOBICY_SOURCE_POLICY.termsUrl ||
+    policyRow.terms_version !== JOBICY_TERMS_VERSION ||
+    !policyRow.attribution_required ||
+    policyRow.may_store_full_description !==
+      JOBICY_SOURCE_POLICY.canStoreFullDescription ||
+    policyRow.may_index_jobs !== JOBICY_SOURCE_POLICY.canIndex ||
+    policyRow.may_emit_jobposting_schema !==
+      JOBICY_SOURCE_POLICY.canUseJobPostingStructuredData ||
+    !policyRow.allow_public_listing ||
+    policyRow.required_destination_kind !== JOBICY_REQUIRED_DESTINATION_KIND ||
+    policyRow.refresh_interval_seconds !==
+      JOBICY_SOURCE_POLICY.refreshIntervalSeconds
+  ) {
+    return sourceUnavailable(
+      "jobicy",
+      attemptedAt,
+      "jobicy_policy_mismatch",
+      "The live source policy does not match the reviewed application policy.",
+    );
+  }
+
+  try {
+    const result = await fetchJobicyJobs({
+      requestedAt: new Date(attemptedAt),
+      signal: AbortSignal.timeout(10_000),
+      requestInit: {
+        next: {
+          revalidate: JOBICY_SOURCE_POLICY.refreshIntervalSeconds,
+          tags: [JOBICY_CACHE_TAG],
+        },
+      },
+    });
+    const checkedAt = Date.parse(result.checkedAt);
+    const ageMs = Date.now() - checkedAt;
+    if (!Number.isFinite(checkedAt) || ageMs > SOURCE_MAX_AGE_MS) {
+      return sourceUnavailable(
+        "jobicy",
+        attemptedAt,
+        "jobicy_snapshot_stale",
+        "The reviewed Jobicy snapshot is too old to publish.",
+      );
+    }
+    if (ageMs < -SOURCE_MAX_FUTURE_SKEW_MS) {
+      return sourceUnavailable(
+        "jobicy",
+        attemptedAt,
+        "jobicy_snapshot_future",
+        "The reviewed Jobicy source returned invalid freshness evidence.",
+      );
+    }
+    return {
+      key: "jobicy",
+      jobs: result.jobs,
+      state: "live",
+      checkedAt: result.checkedAt,
+      count: result.jobs.length,
+    };
+  } catch (reason) {
+    const code =
+      reason instanceof JobicyAdapterError
+        ? reason.code
+        : "jobicy_adapter_failed";
+    return sourceUnavailable(
+      "jobicy",
+      attemptedAt,
+      code,
+      "The reviewed Jobicy source could not be safely refreshed. Try again later.",
+    );
+  }
+}
+
 export async function getLiveJobFeed(): Promise<JobFeedResult> {
-  const [remotive, database] = await Promise.all([
+  const [jobicy, remotive, database] = await Promise.all([
+    getJobicyJobFeed(),
     getRemotiveJobFeed(),
     getDatabaseJobFeed(),
   ]);
-  return combineJobSources([remotive, database]);
+  return combineJobSources([jobicy, remotive, database]);
 }
 
 export async function getJobBySlug(
@@ -300,8 +487,11 @@ export async function getJobBySlug(
     return { feed, job: feed.jobs[0] ?? null };
   }
 
-  const remotive = await getRemotiveJobFeed();
-  const candidate = remotive.jobs.find(
+  const [jobicy, remotive] = await Promise.all([
+    getJobicyJobFeed(),
+    getRemotiveJobFeed(),
+  ]);
+  const candidate = [...jobicy.jobs, ...remotive.jobs].find(
     (job) => job.slug === slugOrId || job.id === slugOrId,
   );
   let databaseSource = databaseDetailSource(databaseResult);
@@ -317,7 +507,7 @@ export async function getJobBySlug(
       await getDatabaseJobsByFingerprintResult(fingerprintKeys),
     );
   }
-  const feed = combineJobSources([remotive, databaseSource]);
+  const feed = combineJobSources([jobicy, remotive, databaseSource]);
   return {
     feed,
     job:

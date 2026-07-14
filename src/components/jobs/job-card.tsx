@@ -87,9 +87,14 @@ export function JobCard({ job }: { job: Job }) {
         ) : null}
         <div className="job-card-footer">
           <div className="job-source-badges" aria-label="Source and freshness">
-            <span className="status status-neutral">
+            <a
+              className="status status-neutral"
+              href={job.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+            >
               Source: {job.source.name}
-            </span>
+            </a>
             <span className="status status-neutral">
               Checked {formatDate(job.lastCheckedAt)}
             </span>

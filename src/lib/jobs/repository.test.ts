@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   publicConfig: vi.fn(),
   createClient: vi.fn(),
   fetchRemotiveJobs: vi.fn(),
+  fetchJobicyJobs: vi.fn(),
   decodeDatabaseJobRow: vi.fn(),
   openSupplyAdapter: vi.fn(),
 }));
@@ -28,6 +29,10 @@ vi.mock("./remotive-adapter", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./remotive-adapter")>();
   return { ...actual, fetchRemotiveJobs: mocks.fetchRemotiveJobs };
 });
+vi.mock("./jobicy-adapter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./jobicy-adapter")>();
+  return { ...actual, fetchJobicyJobs: mocks.fetchJobicyJobs };
+});
 vi.mock("./database", () => ({
   decodeDatabaseJobRow: mocks.decodeDatabaseJobRow,
 }));
@@ -38,6 +43,7 @@ vi.mock("./supply/adapters", async (importOriginal) => {
 
 import {
   getDatabaseJobBySlugResult,
+  getJobicyJobFeed,
   getJobBySlug,
   getLiveJobFeed,
   getRemotiveJobFeed,
@@ -63,6 +69,7 @@ const checkedAt = "2026-07-10T13:05:00.000Z";
 
 type ClientOptions = {
   policy?: Record<string, unknown> | null;
+  jobicyPolicy?: Record<string, unknown> | null;
   policyError?: boolean;
   policyThrows?: boolean;
 };
@@ -89,6 +96,20 @@ function client({
   },
   policyError = false,
   policyThrows = false,
+  jobicyPolicy = {
+    adapter_key: "jobicy",
+    source_type: "permitted_api",
+    terms_url: "https://jobicy.com/jobs-rss-feed",
+    terms_reviewed_at: "2026-07-14T00:00:00+00:00",
+    terms_version: "jobicy-public-feed-reviewed-2026-07-14",
+    attribution_required: true,
+    may_store_full_description: false,
+    may_index_jobs: false,
+    may_emit_jobposting_schema: false,
+    allow_public_listing: true,
+    required_destination_kind: "source_url",
+    refresh_interval_seconds: 21_600,
+  },
 }: ClientOptions = {}) {
   return {
     schema: () => ({
@@ -96,13 +117,13 @@ function client({
         if (name === "job_sources") {
           return {
             select: () => ({
-              eq: () => ({
+              eq: (_column: string, adapterKey: string) => ({
                 abortSignal: () => ({
                   maybeSingle: async () => {
                     if (policyThrows)
                       throw new Error("policy transport failed");
                     return {
-                      data: policy,
+                      data: adapterKey === "jobicy" ? jobicyPolicy : policy,
                       error: policyError ? new Error("policy failed") : null,
                     };
                   },
@@ -152,6 +173,7 @@ beforeEach(() => {
     }),
   );
   mocks.fetchRemotiveJobs.mockReset();
+  mocks.fetchJobicyJobs.mockReset();
   mocks.openSupplyAdapter.mockReset();
   mocks.openSupplyAdapter.mockReturnValue({
     policy: { adapterKey: "remotive" },
@@ -168,6 +190,7 @@ beforeEach(() => {
     jobs: [remotiveJob()],
     checkedAt,
   });
+  mocks.fetchJobicyJobs.mockResolvedValue({ jobs: [], checkedAt });
 });
 
 afterEach(() => {
@@ -176,6 +199,53 @@ afterEach(() => {
 });
 
 describe("job feed source orchestration", () => {
+  it("does not contact Jobicy when its application policy is disabled", async () => {
+    const { AdapterPolicyError } = await import("./supply/policy");
+    mocks.openSupplyAdapter.mockImplementationOnce(() => {
+      throw new AdapterPolicyError("policy_disabled", "jobicy");
+    });
+
+    const result = await getJobicyJobFeed(client() as never);
+
+    expect(result).toMatchObject({
+      key: "jobicy",
+      state: "disabled",
+      code: "jobicy_policy_disabled",
+      jobs: [],
+    });
+    expect(mocks.fetchJobicyJobs).not.toHaveBeenCalled();
+  });
+
+  it("checks the live Jobicy policy and applies the six-hour cache contract", async () => {
+    const result = await getJobicyJobFeed(client() as never);
+
+    expect(result).toMatchObject({ key: "jobicy", state: "live", jobs: [] });
+    expect(mocks.fetchJobicyJobs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestInit: {
+          next: {
+            revalidate: 21_600,
+            tags: ["salarypadi-job-source-jobicy"],
+          },
+        },
+      }),
+    );
+  });
+
+  it("fails closed when the live Jobicy policy is paused", async () => {
+    const result = await getJobicyJobFeed(
+      client({ jobicyPolicy: null }) as never,
+    );
+
+    expect(result).toMatchObject({
+      key: "jobicy",
+      state: "disabled",
+      code: "jobicy_policy_disabled",
+      jobs: [],
+    });
+    expect(mocks.fetchJobicyJobs).not.toHaveBeenCalled();
+  });
+
   it("does not read the live registry or contact Remotive when the application policy is disabled", async () => {
     const { AdapterPolicyError } = await import("./supply/policy");
     mocks.openSupplyAdapter.mockImplementationOnce(() => {
@@ -795,7 +865,7 @@ describe("job feed source orchestration", () => {
     });
     mocks.createClient.mockResolvedValue(client() as never);
 
-    const result = await getLiveJobFeed();
+    const result = await getRemotiveJobFeed();
 
     expect(result).toMatchObject({
       state: "disabled",
@@ -808,7 +878,7 @@ describe("job feed source orchestration", () => {
   it("explains a policy-paused source when no reviewed jobs exist", async () => {
     mocks.createClient.mockResolvedValue(client({ policy: null }) as never);
 
-    const result = await getLiveJobFeed();
+    const result = await getRemotiveJobFeed();
 
     expect(result).toMatchObject({
       state: "disabled",

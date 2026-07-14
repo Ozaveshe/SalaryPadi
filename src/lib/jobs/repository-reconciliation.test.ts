@@ -178,6 +178,60 @@ describe("job source reconciliation", () => {
     });
   });
 
+  it("publishes only Africa-accessible Jobicy roles", () => {
+    const emea = job({
+      databaseId: null,
+      workMode: "remote",
+      eligibility: {
+        ...job().eligibility,
+        scope: "emea",
+        nigeria: "unclear",
+        africa: "eligible",
+        evidenceText: "EMEA",
+      },
+      source: { ...job().source, type: "permitted_api" },
+    });
+    const usaOnly = job({
+      id: "job-2",
+      slug: "job-2",
+      externalId: "external-2",
+      databaseId: null,
+      workMode: "remote",
+      fingerprint: "b".repeat(64),
+      eligibility: {
+        ...job().eligibility,
+        scope: "restricted_region",
+        nigeria: "unclear",
+        africa: "unclear",
+        evidenceText: "USA",
+      },
+      source: { ...job().source, type: "permitted_api" },
+    });
+
+    expect(
+      combineJobSources([source("jobicy", [emea, usaOnly])], now),
+    ).toMatchObject({
+      state: "live",
+      jobs: [emea],
+      sources: [{ key: "jobicy", count: 1 }],
+    });
+  });
+
+  it("keeps a conclusive live source when another source is disabled", () => {
+    const disabled: SourceFeed = {
+      key: "remotive",
+      jobs: [],
+      state: "disabled",
+      checkedAt,
+      count: 0,
+      code: "remotive_policy_disabled",
+    };
+
+    expect(
+      combineJobSources([source("jobicy", []), disabled], now),
+    ).toMatchObject({ state: "live", jobs: [] });
+  });
+
   it("never republishes expired or explicitly closed jobs", () => {
     const expiredByDate = job({
       validThrough: "2000-01-01T00:00:00.000Z",
