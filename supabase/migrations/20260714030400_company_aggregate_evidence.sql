@@ -273,10 +273,10 @@ create or replace view api.company_ratings
 with (security_invoker = true, security_barrier = true)
 as
 select
-  s.id, s.company_id, s.sample_size, s.independent_contributors,
-  s.overall_rating, s.confidence_label, s.country_scope,
-  s.source_month_from, s.source_month_to, s.verification_mix,
-  s.rule_version_id, s.computed_at, c.slug as company_slug
+  s.id, s.company_id, s.sample_size, s.overall_rating, s.confidence_label,
+  s.rule_version_id, s.computed_at, c.slug as company_slug,
+  s.independent_contributors, s.country_scope,
+  s.source_month_from, s.source_month_to, s.verification_mix
 from app.company_rating_snapshots s
 join app.companies c on c.id = s.company_id
 where s.is_current and s.is_released and s.sample_size >= 5;
@@ -381,9 +381,9 @@ select
   s.p75_annual, s.p75_annual as percentile_75_annual,
   s.source_month_from, s.source_month_from as submission_month_start,
   s.source_month_to, s.source_month_to as submission_month_end,
-  s.verification_mix,
   s.confidence_label, s.confidence_label as confidence,
-  s.rule_version_id, s.computed_at, s.computed_at as calculated_at
+  s.rule_version_id, s.computed_at, s.computed_at as calculated_at,
+  s.verification_mix
 from app.salary_aggregate_snapshots s
 join app.role_families r on r.id = s.role_family_id
 left join app.companies c on c.id = s.company_id
@@ -394,7 +394,7 @@ with (security_invoker = true, security_barrier = true)
 as
 select
   b.id, b.company_id, c.slug as company_slug, b.benefit_code, b.label,
-  b.description, b.source_kind::text as source_kind, b.sample_size,
+  b.description, b.source_kind, b.sample_size,
   b.confidence_label, b.last_verified_at, null::text as country_code,
   b.source_month_from, b.source_month_to, b.verification_mix
 from app.company_benefits b
@@ -403,7 +403,7 @@ where b.record_status = 'published' and b.source_kind <> 'community_reported'
 union all
 select
   s.id, s.company_id, c.slug, s.benefit_code, s.label,
-  null::text, 'community_reported'::text, s.sample_size,
+  null::text, 'community_reported'::app.intelligence_source_kind, s.sample_size,
   s.confidence_label, s.computed_at, s.country_code,
   s.source_month_from, s.source_month_to, s.verification_mix
 from app.company_benefit_snapshots s
