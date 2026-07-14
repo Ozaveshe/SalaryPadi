@@ -1378,4 +1378,21 @@ comment on table app.job_timezone_requirements is
 
 revoke all on function security.enforce_country_pack_activation() from public, anon, authenticated, service_role;
 
+-- Final privilege invariant for every internal security-definer routine,
+-- including functions introduced by earlier migrations in this release.
+do $$
+declare routine record;
+begin
+  for routine in
+    select procedure.oid::regprocedure as signature
+    from pg_proc procedure
+    join pg_namespace namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname in ('security', 'audit')
+      and procedure.prosecdef
+  loop
+    execute format('revoke all on function %s from public', routine.signature);
+  end loop;
+end;
+$$;
+
 commit;

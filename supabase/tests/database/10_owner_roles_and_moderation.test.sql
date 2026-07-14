@@ -55,6 +55,20 @@ values (
 )
 on conflict (id) do nothing;
 
+insert into app.source_country_rights (
+  source_id, country_code, policy_state, permission_basis,
+  evidence_reference, terms_url, reviewed_at, review_due_at,
+  allowed_fields, may_store_full_description, attribution_required,
+  attribution_text, retention_period, allow_public_display,
+  allow_search_index, allow_google_jobposting
+) values (
+  '30000000-0000-0000-0000-000000000001', 'NG', 'enabled', 'first_party',
+  'test-fixture:owner-roles-and-moderation', 'https://example.test/terms',
+  now(), now() + interval '30 days',
+  array['title', 'description', 'application_url', 'source_url'],
+  false, true, 'Source: Test Source', interval '30 days', true, false, false
+);
+
 insert into app.jobs (
   id, company_id, source_id, external_source_id, slug, status, title,
   description_text, employment_type, application_url, source_url,
@@ -69,6 +83,10 @@ values (
   'https://example.test/apply', 'https://example.test/jobs/1', now(), now(), now() + interval '30 days'
 )
 on conflict (id) do nothing;
+
+insert into app.job_locations (job_id, country_code, is_primary)
+values ('40000000-0000-0000-0000-000000000001', 'NG', true)
+on conflict do nothing;
 
 select set_config(
   'request.jwt.claims',

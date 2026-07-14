@@ -47,6 +47,16 @@ set policy_state = 'enabled', allow_public_listing = true,
     maximum_requests_per_day = 4
 where adapter_key = 'remotive';
 
+-- Changing publication rights invalidates the prior review. Restore the
+-- hypothetical reviewed authorization before deriving country-scoped rights.
+update app.job_sources
+set terms_reviewed_at = clock_timestamp(),
+    authorization_reviewed_at = clock_timestamp(),
+    authorization_revoked_at = null,
+    authorization_revoked_by = null,
+    authorization_revocation_reason = null
+where adapter_key = 'remotive';
+
 insert into app.source_country_rights (
   source_id, country_code, policy_state, permission_basis,
   evidence_reference, terms_url, reviewed_at, review_due_at,
@@ -74,16 +84,8 @@ set policy_state = excluded.policy_state,
     retention_period = excluded.retention_period,
     allow_public_display = excluded.allow_public_display;
 
--- Changing publication rights invalidates the prior review. Restore the
--- hypothetical reviewed authorization only after the new policy and country
--- rights have been persisted, then activate the source as a final step.
 update app.job_sources
-set terms_reviewed_at = clock_timestamp(),
-    authorization_reviewed_at = clock_timestamp(),
-    authorization_revoked_at = null,
-    authorization_revoked_by = null,
-    authorization_revocation_reason = null,
-    status = 'active'
+set status = 'active'
 where adapter_key = 'remotive';
 
 set local role service_role;

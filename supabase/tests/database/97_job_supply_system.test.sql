@@ -263,6 +263,8 @@ select is(
   'Nigeria|Must reside in Nigeria|employee',
   'eligibility evidence preserves region, location, and arrangement wording'
 );
+insert into app.job_eligibility_countries (job_id, country_code, rule)
+values ('97000000-0000-4000-8000-000000000011', 'NG', 'include');
 select ok(
   security.public_job_provenance(
     '97000000-0000-4000-8000-000000000011'

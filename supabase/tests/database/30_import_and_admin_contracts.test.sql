@@ -120,14 +120,14 @@ values (
     'ab000000-0000-0000-0000-000000000001',
     'ac000000-0000-0000-0000-000000000001',
     'external-1', 'https://source.example.test/jobs/1', null,
-    '{"title":"First"}'::jsonb, repeat('a', 64), 'fingerprint-1', now() + interval '30 days'
+    '{"title":"First"}'::jsonb, repeat('a', 64), repeat('d', 64), now() + interval '30 days'
   )
 ), (
   security.upsert_raw_job_record(
     'ab000000-0000-0000-0000-000000000001',
     'ac000000-0000-0000-0000-000000000001',
     'external-1', 'https://source.example.test/jobs/1', null,
-    '{"title":"Updated"}'::jsonb, repeat('b', 64), 'fingerprint-1', now() + interval '30 days'
+    '{"title":"Updated"}'::jsonb, repeat('b', 64), repeat('d', 64), now() + interval '30 days'
   )
 );
 
@@ -153,7 +153,7 @@ select throws_ok(
   $$ select security.upsert_raw_job_record(
     'ab000000-0000-0000-0000-000000000002', null, 'external-2',
     'https://metadata.example.test/jobs/2', null, '{"title":"Forbidden"}'::jsonb,
-    repeat('c', 64), 'fingerprint-2', null
+    repeat('c', 64), repeat('e', 64), null
   ) $$,
   '42501', null,
   'source storage terms prevent retaining prohibited raw payloads'
@@ -162,7 +162,7 @@ select lives_ok(
   $$ select security.upsert_raw_job_record(
     'ab000000-0000-0000-0000-000000000002', null, 'external-2',
     'https://metadata.example.test/jobs/2', null, null,
-    repeat('c', 64), 'fingerprint-2', null
+    repeat('c', 64), repeat('e', 64), null
   ) $$,
   'metadata-only source can ingest without a raw payload'
 );

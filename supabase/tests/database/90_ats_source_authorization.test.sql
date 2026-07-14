@@ -589,7 +589,7 @@ select is(
 reset role;
 insert into app.job_sources (
   id, adapter_key, name, source_type, status, terms_url,
-  attribution_required, allow_public_listing, refresh_interval,
+  attribution_required, attribution_text, allow_public_listing, refresh_interval,
   terms_reviewed_at, terms_version
 ) values (
   'ac000000-0000-4000-8000-000000000020',
@@ -637,7 +637,7 @@ insert into app.job_sources (
   'ac000000-0000-4000-8000-000000000031',
   'test_automatic_ats', 'Automatic Employer ATS', 'employer_ats',
   'draft', 'https://automatic.example.test/terms',
-  true, true, interval '6 hours', now(), 'automatic-terms-v1'
+  true, 'Source: Automatic Employer', true, interval '6 hours', now(), 'automatic-terms-v1'
 );
 insert into private.ats_source_configs (
   source_id, company_id, provider, provider_region, tenant_identifier,

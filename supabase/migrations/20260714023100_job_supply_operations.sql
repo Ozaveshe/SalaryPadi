@@ -1131,5 +1131,6 @@ grant execute on function api.admin_get_job_supply_health() to authenticated;
 
 revoke all on function security.get_worker_health_internal() from public, anon, authenticated, service_role;
 revoke all on function security.complete_job_supply_import_metrics() from public, anon, authenticated, service_role;
+grant execute on function security.get_worker_health_internal() to anon, authenticated;
 
 commit;
