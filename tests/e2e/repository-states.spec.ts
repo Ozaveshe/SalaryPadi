@@ -46,7 +46,7 @@ test.describe("repository-backed public states", () => {
     await page.goto("/salaries?role=unlikely-role-sentinel&country=NG");
     await expect(
       page.getByRole("heading", {
-        name: "Compare pay without exposing a person",
+        name: "Compare pay with the evidence attached",
       }),
     ).toBeVisible();
     await expectOneHonestState({
