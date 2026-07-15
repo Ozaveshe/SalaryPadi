@@ -1,8 +1,12 @@
 name: CI
 
+# Branch pushes are covered by pull_request; without the filter every push ran a
+# full CI and opening a pull request then ran the same commits again.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
