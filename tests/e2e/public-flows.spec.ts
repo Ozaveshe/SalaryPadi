@@ -74,7 +74,7 @@ test.describe("public MVP journeys", () => {
       page.getByRole("heading", { name: "What is it worth?" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Can I trust it?" }),
+      page.getByRole("heading", { name: "Where did it come from?" }),
     ).toBeVisible();
     await expect(page.getByText(/Source and freshness/)).toBeVisible();
 

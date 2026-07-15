@@ -120,17 +120,23 @@ test.describe("repository-backed public states", () => {
     const response = await page.goto(
       "/jobs/definitely-not-a-real-salarypadi-job-sentinel",
     );
-    const confirmedMissing = response?.status() === 404;
+    const confirmedMissingHeading = page.getByRole("heading", {
+      name: "This page is no longer available.",
+    });
     const unavailableHeading = page.getByRole("heading", {
       name: "This job could not be checked",
     });
 
     await expect
-      .poll(
-        async () =>
+      .poll(async () => {
+        const confirmedMissing =
+          response?.status() === 404 ||
+          (await confirmedMissingHeading.count()) > 0;
+        return (
           Number(confirmedMissing) +
-          Number((await unavailableHeading.count()) > 0),
-      )
+          Number((await unavailableHeading.count()) > 0)
+        );
+      })
       .toBe(1);
     await expect(page.locator('meta[name="robots"]').first()).toHaveAttribute(
       "content",
