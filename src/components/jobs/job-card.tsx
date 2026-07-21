@@ -7,9 +7,11 @@ import {
 import Link from "next/link";
 
 import { EligibilityStatus } from "@/components/jobs/eligibility-status";
+import { MatchBadge } from "@/components/jobs/match-badge";
 import { formatDate, formatEnum } from "@/lib/format";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { Job } from "@/lib/jobs/types";
+import type { MatchResult } from "@/lib/match/types";
 
 function jobPathLabel(job: Job) {
   if (job.workMode !== "remote" && /\bnigeria\b/i.test(job.locationDisplay)) {
@@ -26,7 +28,14 @@ function jobPathLabel(job: Job) {
     : formatEnum(job.workMode);
 }
 
-export function JobCard({ job }: { job: Job }) {
+export function JobCard({
+  job,
+  match,
+}: {
+  job: Job;
+  /** Present only for a signed-in viewer who has saved a match profile. */
+  match?: MatchResult;
+}) {
   const evidence = getJobEvidenceLabels(job).slice(0, 5);
 
   return (
@@ -43,6 +52,7 @@ export function JobCard({ job }: { job: Job }) {
           </h2>
         </div>
         <div className="job-badges" aria-label="Eligibility and arrangement">
+          {match ? <MatchBadge result={match} /> : null}
           <EligibilityStatus eligibility={job.eligibility} compact />
           <span className="status status-neutral">{jobPathLabel(job)}</span>
           <span className="status status-neutral">

@@ -7,6 +7,9 @@ import { repositoryIssue } from "@/lib/data/repository-result";
 export const apiRpcBooleanResultSchema = z.boolean();
 export const apiRpcUuidResultSchema = z.string().uuid();
 export const apiRpcVoidResultSchema = z.null();
+export const apiRpcTimestampResultSchema = z
+  .string()
+  .datetime({ offset: true });
 
 export type ApiRpcResult<T> =
   | { ok: true; data: T }

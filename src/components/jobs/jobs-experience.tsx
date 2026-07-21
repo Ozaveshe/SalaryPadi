@@ -5,6 +5,8 @@ import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { JobSearchForm } from "@/components/jobs/job-search-form";
 import { Pagination } from "@/components/jobs/pagination";
 import { PageHeading } from "@/components/page-heading";
+import { getViewer } from "@/lib/auth/dal";
+import { getCandidateProfile } from "@/lib/career/repository";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
 import {
   diversifyJobResults,
@@ -13,6 +15,23 @@ import {
   parseJobSearch,
   serializeJobSearch,
 } from "@/lib/jobs/search";
+import { toCandidateProfile, toJobFacts } from "@/lib/match/adapt";
+import { scoreJobMatch } from "@/lib/match/score";
+import type { CandidateProfile } from "@/lib/match/types";
+
+/**
+ * The viewer's own attested profile, or null for anyone who is signed out, has
+ * not saved one, or whose private read failed. A match is an enhancement — the
+ * job list must render identically without it.
+ */
+async function readMatchProfile(): Promise<CandidateProfile | null> {
+  const viewer = await getViewer();
+  if (viewer.state !== "authenticated") return null;
+
+  const result = await getCandidateProfile();
+  if (result.state !== "ready" || !result.data) return null;
+  return toCandidateProfile(result.data);
+}
 
 export async function JobsExperience({
   input,
@@ -26,7 +45,10 @@ export async function JobsExperience({
   forcedFilters?: Record<string, string>;
 }) {
   const search = parseJobSearch({ ...input, ...forcedFilters });
-  const feed = await getLiveJobFeed();
+  const [feed, matchProfile] = await Promise.all([
+    getLiveJobFeed(),
+    readMatchProfile(),
+  ]);
   const filteredJobs = filterAndSortJobs(feed.jobs, search);
   const diversifiedJobs = diversifyJobResults(filteredJobs);
   const result = paginateJobs(diversifiedJobs, search.page);
@@ -133,7 +155,15 @@ export async function JobsExperience({
         {result.items.length > 0 ? (
           <div className="job-list">
             {result.items.map((job) => (
-              <JobCard job={job} key={job.id} />
+              <JobCard
+                job={job}
+                key={job.id}
+                match={
+                  matchProfile
+                    ? scoreJobMatch(matchProfile, toJobFacts(job))
+                    : undefined
+                }
+              />
             ))}
           </div>
         ) : (

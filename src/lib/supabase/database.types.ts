@@ -1228,6 +1228,24 @@ export type Database = {
           state_code: string;
         }[];
       };
+      get_my_candidate_profile: {
+        Args: never;
+        Returns: {
+          attested_at: string | null;
+          desired_currency_code: string | null;
+          desired_pay_period: string | null;
+          desired_salary_max: number | null;
+          desired_salary_min: number | null;
+          desired_work_arrangement: string;
+          experience_level: string;
+          headline: string | null;
+          location_country: string | null;
+          open_to_relocation: boolean;
+          summary: string | null;
+          updated_at: string;
+          years_experience: number | null;
+        }[];
+      };
       get_my_job_alerts: {
         Args: never;
         Returns: {
@@ -1417,6 +1435,10 @@ export type Database = {
           source_key: string;
           source_url: string;
         };
+        Returns: string;
+      };
+      save_my_candidate_profile: {
+        Args: { profile_payload: Json };
         Returns: string;
       };
       set_analytics_consent: {

@@ -68,6 +68,12 @@ export default async function AccountPage({
           <Link className="button button-secondary" href="/alerts">
             Job alerts
           </Link>
+          <Link
+            className="button button-secondary"
+            href="/account/candidate-profile"
+          >
+            Job match profile
+          </Link>
         </div>
       </nav>
 
