@@ -113,6 +113,32 @@ describe("job search", () => {
     expect(filterAndSortJobs(jobs, search)).toHaveLength(0);
   });
 
+  it("finds a job through role synonyms, ranked below literal matches", () => {
+    const platform = normalizeRemotiveJob(
+      { ...base, id: 11, title: "Platform Engineer", tags: [] },
+      "2026-07-10T00:00:00.000Z",
+    );
+    const literal = normalizeRemotiveJob(
+      { ...base, id: 12, title: "DevOps Lead", tags: [] },
+      "2026-07-10T00:00:00.000Z",
+    );
+
+    const results = filterAndSortJobs(
+      [platform, literal],
+      parseJobSearch({ q: "devops", sort: "relevance" }),
+    );
+
+    expect(results.map((job) => job.title)).toEqual([
+      "DevOps Lead",
+      "Platform Engineer",
+    ]);
+  });
+
+  it("does not let synonyms broaden an unrelated query", () => {
+    const search = parseJobSearch({ q: "welder" });
+    expect(filterAndSortJobs(jobs, search)).toHaveLength(0);
+  });
+
   it("bounds pagination instead of loading an unbounded list", () => {
     const paginated = paginateJobs(
       Array.from({ length: 23 }, () => jobs[0]!),
