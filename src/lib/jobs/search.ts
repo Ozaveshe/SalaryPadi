@@ -3,6 +3,7 @@ import { z } from "zod";
 import { annualizedSalaryMinimum } from "./normalize";
 import { hasJobEvidence, type AfricaEvidenceKey } from "./evidence";
 import { isJobCurrentlyPublishable } from "./publication";
+import { expandJobSearchQuery } from "./search-synonyms";
 import type { Job } from "./types";
 
 const stringValue = z.preprocess(
@@ -159,9 +160,7 @@ function includesValue(value: string, query: string) {
   return value.toLowerCase().includes(query.toLowerCase());
 }
 
-function relevanceScore(job: Job, search: JobSearch) {
-  const query = search.q.toLowerCase();
-  if (!query) return 0;
+function directRelevanceScore(job: Job, query: string) {
   let score = 0;
   if (job.title.toLowerCase().includes(query)) score += 8;
   if (job.company.name.toLowerCase().includes(query)) score += 5;
@@ -170,6 +169,33 @@ function relevanceScore(job: Job, search: JobSearch) {
   if (job.category?.toLowerCase().includes(query)) score += 2;
   if (job.description.toLowerCase().includes(query)) score += 1;
   return score;
+}
+
+/**
+ * A synonym match ranks below the same match on the literal query and never
+ * matches on the company name: a role vocabulary maps between role words,
+ * not between employers.
+ */
+function synonymRelevanceScore(job: Job, phrase: string) {
+  let score = 0;
+  if (job.title.toLowerCase().includes(phrase)) score += 6;
+  if (job.skills.some((skill) => skill.toLowerCase().includes(phrase)))
+    score += 3;
+  if (job.category?.toLowerCase().includes(phrase)) score += 2;
+  if (job.description.toLowerCase().includes(phrase)) score += 1;
+  return score;
+}
+
+function relevanceScore(job: Job, search: JobSearch) {
+  const query = search.q.toLowerCase();
+  if (!query) return 0;
+  const direct = directRelevanceScore(job, query);
+  let best = direct;
+  for (const phrase of expandJobSearchQuery(query)) {
+    const score = synonymRelevanceScore(job, phrase);
+    if (score > best) best = score;
+  }
+  return best;
 }
 
 export function filterAndSortJobs(
