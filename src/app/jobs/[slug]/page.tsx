@@ -31,6 +31,8 @@ import {
 } from "@/lib/companies/repository";
 import { formatDate, formatEnum } from "@/lib/format";
 import { getAppOrigin } from "@/lib/env";
+import { getReferenceCurrencyRates } from "@/lib/currency/repository";
+import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
 import { getJobBySlug } from "@/lib/jobs/repository";
 import { searchSalaryAggregatesResult } from "@/lib/salaries/repository";
 import { buildWhatsAppShareUrl } from "@/lib/share/whatsapp";
@@ -111,13 +113,16 @@ export default async function JobDetailPage({
     interviewsResult,
     benefitsResult,
     salaryResult,
+    currencyRates,
   ] = await Promise.all([
     getCompanyRatingResult(job.company.slug),
     getCompanyReviewsResult(job.company.slug),
     getInterviewExperiencesResult(job.company.slug),
     getCompanyBenefitsResult(job.company.slug),
     searchSalaryAggregatesResult({ company: job.company.slug }),
+    getReferenceCurrencyRates(),
   ]);
+  const nairaEstimate = estimateNairaTakeHome(job.salary, currencyRates);
   const companyRating = ratingResult.data;
   const companyReviews = reviewsResult.data;
   const companyInterviews = interviewsResult.data;
@@ -227,7 +232,7 @@ export default async function JobDetailPage({
           The job could not be saved. Try again.
         </div>
       ) : null}
-      <JobTruthCard job={job} />
+      <JobTruthCard job={job} nairaEstimate={nairaEstimate} />
       <nav className="decision-path" aria-label="Continue this job decision">
         <div>
           <p className="eyebrow">Continue your decision</p>
