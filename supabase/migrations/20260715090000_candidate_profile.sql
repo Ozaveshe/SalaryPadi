@@ -201,6 +201,11 @@ returns timestamptz
 language sql volatile security invoker set search_path = ''
 as $$ select security.save_my_candidate_profile(profile_payload) $$;
 
+revoke all on function security.get_my_candidate_profile() from public, anon, authenticated;
+revoke all on function security.save_my_candidate_profile(jsonb) from public, anon, authenticated;
+revoke all on function api.get_my_candidate_profile() from public, anon, authenticated;
+revoke all on function api.save_my_candidate_profile(jsonb) from public, anon, authenticated;
+
 grant execute on function security.get_my_candidate_profile() to authenticated;
 grant execute on function security.save_my_candidate_profile(jsonb) to authenticated;
 
