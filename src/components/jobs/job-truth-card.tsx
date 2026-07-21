@@ -8,6 +8,7 @@ import {
 
 import { EligibilityStatus } from "@/components/jobs/eligibility-status";
 import { formatDate, formatEnum, formatSalaryAmount } from "@/lib/format";
+import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import { normalizeSalaryEvidence } from "@/lib/jobs/supply/salary";
 import type { Job } from "@/lib/jobs/types";
 
@@ -43,7 +44,30 @@ function salaryRange(
   return `${formatSalaryAmount(minimum, currency)}–${formatSalaryAmount(maximum, currency)}`;
 }
 
-export function JobTruthCard({ job }: { job: Job }) {
+function nairaEstimateAssumptions(estimate: NairaTakeHomeEstimate) {
+  const parts = [
+    `Based on the stated ${estimate.basis}`,
+    "statutory pension and private-sector NHF assumed",
+  ];
+  if (estimate.grossAssumed) {
+    parts.push("source did not state gross or net; gross assumed");
+  }
+  if (estimate.effectiveRate !== null) {
+    parts.push(
+      `converted at ≈${formatSalaryAmount(Math.round(estimate.effectiveRate), "NGN")} per ${estimate.sourceCurrency}` +
+        (estimate.rateProviderName ? ` (${estimate.rateProviderName})` : ""),
+    );
+  }
+  return `${parts.join("; ")}. An estimate, not tax advice.`;
+}
+
+export function JobTruthCard({
+  job,
+  nairaEstimate = null,
+}: {
+  job: Job;
+  nairaEstimate?: NairaTakeHomeEstimate | null;
+}) {
   const normalizedSalary = job.salary
     ? normalizeSalaryEvidence({
         sourceText: job.salary.originalText,
@@ -181,6 +205,25 @@ export function JobTruthCard({ job }: { job: Job }) {
                   : "None applied"}
               </dd>
             </div>
+            {nairaEstimate ? (
+              <>
+                <div>
+                  <dt>Naira take-home estimate</dt>
+                  <dd>
+                    ≈
+                    {formatSalaryAmount(
+                      Math.round(nairaEstimate.monthlyTakeHomeNgn),
+                      "NGN",
+                    )}{" "}
+                    per month after PAYE
+                  </dd>
+                </div>
+                <div>
+                  <dt>Take-home assumptions</dt>
+                  <dd>{nairaEstimateAssumptions(nairaEstimate)}</dd>
+                </div>
+              </>
+            ) : null}
             <div>
               <dt>Bonus and allowances</dt>
               <dd>Shown below only when the source provides evidence</dd>
