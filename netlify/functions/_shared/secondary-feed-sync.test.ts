@@ -161,10 +161,13 @@ describe("secondary feed sync worker", () => {
     const now = Date.now();
     const agedCheckedAt = new Date(now - 7 * 60 * 60 * 1_000).toISOString();
     const freshCheckedAt = new Date(now).toISOString();
-    const fetchJobs = vi.fn(async (_source: string) => ({
-      jobs: [feedJob(freshCheckedAt)],
-      checkedAt: freshCheckedAt,
-    }));
+    const fetchJobs = vi.fn(async (source: string) => {
+      void source;
+      return {
+        jobs: [feedJob(freshCheckedAt)],
+        checkedAt: freshCheckedAt,
+      };
+    });
 
     const result = await runSecondaryFeedSync(execution(), {
       rpc: policyRpc(),
