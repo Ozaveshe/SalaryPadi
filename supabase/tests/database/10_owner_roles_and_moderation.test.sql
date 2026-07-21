@@ -25,6 +25,16 @@ values
   ('f0000000-0000-0000-0000-000000000006', 'admin', null, 'test bootstrap')
 on conflict (user_id, role) where revoked_at is null do nothing;
 
+-- The taxonomy migration seeds this slug with a generated id; adopt the
+-- fixture id so later foreign-key references stay deterministic.
+update app.role_families
+set id = '10000000-0000-0000-0000-000000000001'
+where slug = 'software-engineering'
+  and not exists (
+    select 1 from app.role_families
+    where id = '10000000-0000-0000-0000-000000000001'
+  );
+
 insert into app.role_families (id, slug, name)
 values ('10000000-0000-0000-0000-000000000001', 'software-engineering', 'Software Engineering')
 on conflict (id) do nothing;
