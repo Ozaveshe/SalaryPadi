@@ -270,6 +270,40 @@ describe("job feed source orchestration", () => {
     });
   });
 
+  it("keeps a Himalayas snapshot publishable across its full daily cache window", async () => {
+    mocks.fetchHimalayasJobs.mockResolvedValueOnce({
+      jobs: [remotiveJob()],
+      checkedAt: new Date(Date.now() - 20 * 60 * 60 * 1_000).toISOString(),
+      partial: false,
+      successfulRequestCount: 3,
+    });
+
+    const result = await getHimalayasJobFeed(client() as never);
+
+    expect(result).toMatchObject({
+      key: "himalayas",
+      state: "live",
+      count: 1,
+    });
+  });
+
+  it("rejects a Himalayas snapshot older than its daily cache window plus grace", async () => {
+    mocks.fetchHimalayasJobs.mockResolvedValueOnce({
+      jobs: [remotiveJob()],
+      checkedAt: new Date(Date.now() - 27 * 60 * 60 * 1_000).toISOString(),
+      partial: false,
+      successfulRequestCount: 3,
+    });
+
+    const result = await getHimalayasJobFeed(client() as never);
+
+    expect(result).toMatchObject({
+      state: "unavailable",
+      code: "himalayas_snapshot_stale",
+      jobs: [],
+    });
+  });
+
   it("does not contact Jobicy when its application policy is disabled", async () => {
     const { AdapterPolicyError } = await import("./supply/policy");
     mocks.openSupplyAdapter.mockImplementationOnce(() => {

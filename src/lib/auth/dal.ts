@@ -106,12 +106,12 @@ export const getViewer = cache(async (): Promise<Viewer> => {
 export async function requireViewer(nextPath: string) {
   const viewer = await getViewer();
   if (viewer.state === "authenticated") return viewer;
-  if (viewer.state === "unconfigured") {
-    throw new Error("Authentication backend is not configured.");
-  }
   if (viewer.state === "unavailable") {
     throw new Error("Authentication state could not be verified.");
   }
+  // An unconfigured backend lands on sign-in like any guest: that page
+  // surfaces the setup state explicitly, so the failure stays visible
+  // without turning a public "save this search" click into a server error.
 
   const next = safeRelativePath(nextPath);
   redirect(`/auth/sign-in?next=${encodeURIComponent(next)}`);

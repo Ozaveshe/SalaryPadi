@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+// The app server always runs with NEXT_PUBLIC_APP_URL set to the base URL
+// under test (playwright.config.ts webServer env), so emitted canonical,
+// feed and sitemap origins must match the base URL — not the ambient
+// NEXT_PUBLIC_APP_URL of the test process, which CI sets differently.
 const expectedOrigin =
-  process.env.NEXT_PUBLIC_APP_URL ??
-  process.env.PLAYWRIGHT_BASE_URL ??
-  "http://127.0.0.1:3000";
+  process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
 
 test("publishes the evergreen guide with live data and valid Article metadata", async ({
   page,

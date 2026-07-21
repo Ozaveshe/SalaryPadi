@@ -143,14 +143,15 @@ describe("Next proxy boundary", () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
 
-  it("reports an unconfigured authentication backend as unavailable", async () => {
+  it("sends an unconfigured backend to sign-in, which surfaces setup state", async () => {
     mocks.getSupabasePublicConfig.mockReturnValue(null);
     const request = new NextRequest("https://salarypadi.com/saved");
 
     const response = await proxy(request);
 
-    expect(response.status).toBe(503);
-    expect(getRedirectUrl(response)).toBeNull();
+    expect(getRedirectUrl(response)).toBe(
+      "https://salarypadi.com/auth/sign-in?next=%2Fsaved",
+    );
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(mocks.createServerClient).not.toHaveBeenCalled();
   });

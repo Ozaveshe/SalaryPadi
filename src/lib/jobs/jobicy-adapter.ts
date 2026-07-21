@@ -6,8 +6,15 @@ import { jobicyResponseSchema } from "./jobicy-schema";
 import { normalizeJobicyJob } from "./normalize";
 import type { Job } from "./types";
 
+/**
+ * The EMEA geo filter keeps the single permitted request focused on the
+ * region that can contain Africa-eligible listings. Jobicy's unfiltered feed
+ * is dominated by US-only roles that the eligibility gate must discard, while
+ * the EMEA slice carries the EMEA-wide and worldwide ("Anywhere") listings
+ * Africans can actually apply for.
+ */
 export const JOBICY_ENDPOINT =
-  "https://jobicy.com/api/v2/remote-jobs?count=100";
+  "https://jobicy.com/api/v2/remote-jobs?count=100&geo=emea";
 export const JOBICY_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 export const JOBICY_ADAPTER_ERROR_CODES = [
