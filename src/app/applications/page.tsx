@@ -25,6 +25,21 @@ const statuses = [
   "withdrawn",
 ] as const;
 
+/**
+ * An application untouched for two weeks has usually progressed off-platform.
+ * That moment — not the moment of applying — is when a first-party interview
+ * or salary account exists to be asked for.
+ */
+const STALE_APPLICATION_MS = 14 * 24 * 60 * 60 * 1_000;
+
+function isStaleApplication(updatedAt: string | null): boolean {
+  if (!updatedAt) return false;
+  const updated = Date.parse(updatedAt);
+  return (
+    Number.isFinite(updated) && Date.now() - updated >= STALE_APPLICATION_MS
+  );
+}
+
 export default async function ApplicationsPage({
   searchParams,
 }: {
@@ -149,7 +164,18 @@ export default async function ApplicationsPage({
               </form>
               {application.status === "interview" ||
               application.status === "offer" ? (
-                <CompanyEvidenceInvitation kind={application.status} />
+                <CompanyEvidenceInvitation
+                  kind={application.status}
+                  company={application.company_name}
+                  role={application.title}
+                />
+              ) : application.status === "applied" &&
+                isStaleApplication(application.updated_at) ? (
+                <CompanyEvidenceInvitation
+                  kind="application"
+                  company={application.company_name}
+                  role={application.title}
+                />
               ) : null}
             </article>
           ))}

@@ -3,14 +3,22 @@ import type { Metadata } from "next";
 import { ContributionShell } from "@/components/contributions/contribution-shell";
 import { DraftControls } from "@/components/contributions/draft-controls";
 import { requireViewer } from "@/lib/auth/dal";
+import { sliceSearchParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
   title: "Submit interview experience",
   robots: { index: false, follow: false },
 };
 
-export default async function InterviewContributionPage() {
+export default async function InterviewContributionPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireViewer("/contribute/interview");
+  const input = await searchParams;
+  const prefilledCompany = sliceSearchParam(input.company, 180);
+  const prefilledRole = sliceSearchParam(input.role_family, 120);
   return (
     <ContributionShell
       title="Share an interview experience"
@@ -32,6 +40,7 @@ export default async function InterviewContributionPage() {
                 id="company"
                 name="company"
                 maxLength={180}
+                defaultValue={prefilledCompany}
                 required
               />
             </div>
@@ -42,6 +51,7 @@ export default async function InterviewContributionPage() {
                 id="role_family"
                 name="role_family"
                 maxLength={120}
+                defaultValue={prefilledRole}
                 required
               />
             </div>

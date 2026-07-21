@@ -5,12 +5,28 @@ import {
   type CompanyEvidenceInvitationKind,
 } from "@/lib/companies/invitations";
 
+function prefilledHref(
+  pathname: string,
+  parameters: Record<string, string | null | undefined>,
+) {
+  const query = new URLSearchParams();
+  for (const [name, value] of Object.entries(parameters)) {
+    if (value) query.set(name, value);
+  }
+  const encoded = query.toString();
+  return encoded ? `${pathname}?${encoded}` : pathname;
+}
+
 export function CompanyEvidenceInvitation({
   kind,
   companySlug,
+  company,
+  role,
 }: {
   kind: CompanyEvidenceInvitationKind;
   companySlug?: string | null;
+  company?: string | null;
+  role?: string | null;
 }) {
   return (
     <aside
@@ -23,10 +39,19 @@ export function CompanyEvidenceInvitation({
         is sent automatically.
       </p>
       <div className="cluster">
-        <Link className="text-link" href="/contribute/salary">
+        <Link
+          className="text-link"
+          href={prefilledHref("/contribute/salary", { company, role })}
+        >
           Salary
         </Link>
-        <Link className="text-link" href="/contribute/interview">
+        <Link
+          className="text-link"
+          href={prefilledHref("/contribute/interview", {
+            company,
+            role_family: role,
+          })}
+        >
           Interview
         </Link>
         <Link className="text-link" href="/contribute/benefits">
