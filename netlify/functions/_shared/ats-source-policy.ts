@@ -57,7 +57,11 @@ const authorizedSourceRowSchema = z
     may_emit_jobposting_schema: z.boolean(),
     may_email_jobs: z.boolean(),
     required_destination_kind: z.string().trim().min(1).max(120),
-    authorization_basis: z.enum(["written_permission", "commercial_contract"]),
+    authorization_basis: z.enum([
+      "written_permission",
+      "commercial_contract",
+      "documented_public_api",
+    ]),
     authorization_grantor: z.string().trim().min(3).max(300),
     authorization_evidence_ref: z.string().trim().min(3).max(500),
     authorization_reviewed_at: z.string().datetime({ offset: true }),

@@ -309,16 +309,16 @@ select throws_ok(
 );
 
 update app.job_sources
-set authorization_basis = 'documented_public_api',
-    authorization_evidence_ref = 'evidence:public-api-only',
-    authorization_grantor = 'Public API documentation',
+set authorization_basis = 'first_party',
+    authorization_evidence_ref = 'evidence:wrong-basis',
+    authorization_grantor = 'Nobody in particular',
     authorization_reviewed_at = now()
 where id = 'ac000000-0000-4000-8000-000000000002';
 select throws_ok(
   $$ update app.job_sources set status = 'active'
      where id = 'ac000000-0000-4000-8000-000000000002' $$,
-  '23514', 'active ATS source requires employer permission or contract',
-  'public API reachability alone cannot authorize third-party ATS fetching'
+  '23514', 'active ATS source requires a reviewed authorization basis and grantor',
+  'an ATS source cannot activate outside the reviewed authorization bases'
 );
 update app.job_sources
 set authorization_reviewed_at = null
