@@ -11,7 +11,7 @@ update app.job_sources
 set allowed_fields = array[
       'id', 'title', 'absolute_url', 'url', 'application_url',
       'location', 'departments', 'offices',
-      'employment_type', 'publication_date', 'updated_at'
+      'employment_type', 'engagement_type', 'publication_date', 'updated_at'
     ],
     updated_at = clock_timestamp()
 where adapter_key = 'moniepoint_greenhouse';
