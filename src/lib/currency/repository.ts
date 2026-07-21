@@ -109,7 +109,12 @@ export async function getReferenceCurrencyRatesResult() {
     supabase
       .schema("api")
       .from("current_currency_rates")
-      .select("*")
+      // The live view exposes more columns than the reviewed rate shape and
+      // the row schema is strict, so the selection must name exactly the
+      // reviewed columns.
+      .select(
+        "base_currency,quote_currency,rate,provider_name,source_url,license_url,attribution_text,observed_at,fetched_at,data_period",
+      )
       .order("base_currency")
       .order("quote_currency")
       .limit(MAX_REFERENCE_RATES + 1),
