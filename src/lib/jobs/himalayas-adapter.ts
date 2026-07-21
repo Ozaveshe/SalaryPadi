@@ -9,6 +9,9 @@ import type { Job } from "./types";
 export const HIMALAYAS_ENDPOINTS = [
   "https://himalayas.app/jobs/api/search?country=NG&exclude_worldwide=true&sort=recent&page=1",
   "https://himalayas.app/jobs/api/search?country=NG&exclude_worldwide=true&sort=recent&page=2",
+  "https://himalayas.app/jobs/api/search?country=NG&exclude_worldwide=true&sort=recent&page=3",
+  "https://himalayas.app/jobs/api/search?country=NG&exclude_worldwide=true&sort=recent&page=4",
+  "https://himalayas.app/jobs/api/search?country=NG&exclude_worldwide=true&sort=recent&page=5",
   "https://himalayas.app/jobs/api/search?worldwide=true&sort=recent&page=1",
 ] as const;
 export const HIMALAYAS_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -46,6 +49,8 @@ export interface HimalayasAdapterOptions {
   requestedAt?: Date;
   signal?: AbortSignal;
   requestInit?: HimalayasRequestInit;
+  /** Gap between paced page requests; tests pass 0. */
+  pageDelayMs?: number;
 }
 
 function safeHeaders(init: HimalayasRequestInit | undefined) {
@@ -153,11 +158,25 @@ export async function fetchHimalayasJobs(
     throw new HimalayasAdapterError("himalayas_request_failed");
   }
 
-  const pages = await Promise.allSettled(
-    HIMALAYAS_ENDPOINTS.map((endpoint) =>
-      readPage(endpoint, options, requestedAt),
-    ),
-  );
+  // Pages are fetched one at a time with a short gap to respect the
+  // documented one-request-per-second pacing.
+  const pages: PromiseSettledResult<Awaited<ReturnType<typeof readPage>>>[] =
+    [];
+  for (const [index, endpoint] of HIMALAYAS_ENDPOINTS.entries()) {
+    if (index > 0) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, options.pageDelayMs ?? 1_000),
+      );
+    }
+    try {
+      pages.push({
+        status: "fulfilled",
+        value: await readPage(endpoint, options, requestedAt),
+      });
+    } catch (reason) {
+      pages.push({ status: "rejected", reason });
+    }
+  }
   const successful = pages
     .filter(
       (
