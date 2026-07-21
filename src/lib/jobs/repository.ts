@@ -17,6 +17,10 @@ import {
 } from "./remotive-adapter";
 import { sourceUnavailable, type SourceFeed } from "./repository-contracts";
 import {
+  readSecondaryFeedSnapshot,
+  type SecondaryFeedKey,
+} from "./secondary-feed-store";
+import {
   databaseDetailSource,
   getDatabaseJobBySlugResult,
   getDatabaseJobFeed,
@@ -60,6 +64,37 @@ const SOURCE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1_000;
 
 function sourceMaxAgeMs(refreshIntervalSeconds: number): number {
   return refreshIntervalSeconds * 1_000 + SOURCE_MAX_AGE_GRACE_MS;
+}
+
+/**
+ * Serve a worker-written snapshot when one is fresh, so page rendering never
+ * waits on the provider. Returns null when no publishable snapshot exists;
+ * the caller then falls back to the bounded request-time fetch. This runs
+ * only after the application registry and live operator policy have both
+ * authorized the source, so a snapshot can never bypass the policy gates.
+ */
+async function readFreshSecondaryFeed(
+  key: SecondaryFeedKey,
+  refreshIntervalSeconds: number,
+): Promise<SourceFeed | null> {
+  const snapshot = await readSecondaryFeedSnapshot(key);
+  if (snapshot.state !== "ready") return null;
+  const checkedAt = Date.parse(snapshot.catalog.checkedAt);
+  const ageMs = Date.now() - checkedAt;
+  if (
+    !Number.isFinite(checkedAt) ||
+    ageMs > sourceMaxAgeMs(refreshIntervalSeconds) ||
+    ageMs < -SOURCE_MAX_FUTURE_SKEW_MS
+  ) {
+    return null;
+  }
+  return {
+    key,
+    jobs: snapshot.catalog.jobs,
+    state: "live",
+    checkedAt: snapshot.catalog.checkedAt,
+    count: snapshot.catalog.jobs.length,
+  };
 }
 const reviewedPolicyRowSchema = z
   .object({
@@ -449,6 +484,12 @@ export async function getJobicyJobFeed(
     );
   }
 
+  const jobicySnapshot = await readFreshSecondaryFeed(
+    "jobicy",
+    JOBICY_SOURCE_POLICY.refreshIntervalSeconds,
+  );
+  if (jobicySnapshot) return jobicySnapshot;
+
   try {
     const result = await fetchJobicyJobs({
       requestedAt: new Date(attemptedAt),
@@ -614,6 +655,12 @@ export async function getHimalayasJobFeed(
       "The live source policy does not match the reviewed application policy.",
     );
   }
+
+  const himalayasSnapshot = await readFreshSecondaryFeed(
+    "himalayas",
+    HIMALAYAS_SOURCE_POLICY.refreshIntervalSeconds,
+  );
+  if (himalayasSnapshot) return himalayasSnapshot;
 
   try {
     const result = await fetchHimalayasJobs({

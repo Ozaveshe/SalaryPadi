@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   fetchHimalayasJobs: vi.fn(),
   decodeDatabaseJobRow: vi.fn(),
   openSupplyAdapter: vi.fn(),
+  readSecondaryFeedSnapshot: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -44,6 +45,14 @@ vi.mock("./database", () => ({
 vi.mock("./supply/adapters", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./supply/adapters")>();
   return { ...actual, openSupplyAdapter: mocks.openSupplyAdapter };
+});
+vi.mock("./secondary-feed-store", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("./secondary-feed-store")>();
+  return {
+    ...actual,
+    readSecondaryFeedSnapshot: mocks.readSecondaryFeedSnapshot,
+  };
 });
 
 import {
@@ -224,6 +233,8 @@ beforeEach(() => {
     partial: false,
     successfulRequestCount: 3,
   });
+  mocks.readSecondaryFeedSnapshot.mockReset();
+  mocks.readSecondaryFeedSnapshot.mockResolvedValue({ state: "missing" });
 });
 
 afterEach(() => {
@@ -268,6 +279,53 @@ describe("job feed source orchestration", () => {
       count: 1,
       code: "himalayas_partial_snapshot",
     });
+  });
+
+  it("serves a fresh worker-written snapshot without contacting the provider", async () => {
+    const { createAlertCatalog } = await import("./alert-catalog");
+    mocks.readSecondaryFeedSnapshot.mockResolvedValue({
+      state: "ready",
+      catalog: createAlertCatalog([remotiveJob()], checkedAt),
+    });
+
+    const result = await getHimalayasJobFeed(client() as never);
+
+    expect(result).toMatchObject({
+      key: "himalayas",
+      state: "live",
+      count: 1,
+      checkedAt,
+    });
+    expect(mocks.fetchHimalayasJobs).not.toHaveBeenCalled();
+  });
+
+  it("ignores a stale worker snapshot and falls back to the bounded live fetch", async () => {
+    const { createAlertCatalog } = await import("./alert-catalog");
+    const staleCheckedAt = new Date(
+      Date.now() - 27 * 60 * 60 * 1_000,
+    ).toISOString();
+    mocks.readSecondaryFeedSnapshot.mockResolvedValue({
+      state: "ready",
+      catalog: createAlertCatalog([remotiveJob()], staleCheckedAt),
+    });
+
+    const result = await getHimalayasJobFeed(client() as never);
+
+    expect(mocks.fetchHimalayasJobs).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ key: "himalayas", state: "live" });
+  });
+
+  it("serves the Jobicy snapshot ahead of the request-time fetch as well", async () => {
+    const { createAlertCatalog } = await import("./alert-catalog");
+    mocks.readSecondaryFeedSnapshot.mockResolvedValue({
+      state: "ready",
+      catalog: createAlertCatalog([remotiveJob()], checkedAt),
+    });
+
+    const result = await getJobicyJobFeed(client() as never);
+
+    expect(result).toMatchObject({ key: "jobicy", state: "live", count: 1 });
+    expect(mocks.fetchJobicyJobs).not.toHaveBeenCalled();
   });
 
   it("keeps a Himalayas snapshot publishable across its full daily cache window", async () => {
