@@ -24,6 +24,7 @@
     "job_supply_dispatcher",
     "operations_maintenance",
     "salary_source_sync",
+    "secondary_feed_sync",
     "source_health_digest",
     "source_rights_review"
   ]
