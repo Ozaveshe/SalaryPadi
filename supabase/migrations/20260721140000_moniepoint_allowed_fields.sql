@@ -10,7 +10,7 @@ begin;
 update app.job_sources
 set allowed_fields = array[
       'id', 'title', 'absolute_url', 'url', 'application_url',
-      'location', 'departments', 'offices',
+      'location', 'departments', 'offices', 'eligibility',
       'employment_type', 'engagement_type', 'publication_date', 'updated_at'
     ],
     updated_at = clock_timestamp()
