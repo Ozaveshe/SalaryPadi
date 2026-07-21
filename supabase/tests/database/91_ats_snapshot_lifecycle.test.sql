@@ -1021,9 +1021,12 @@ select is(
   (select count(*)::integer
    from private.ats_source_configs config
    join app.companies company on company.id = config.company_id
-   where lower(company.display_name) in ('moniepoint', 'm-kopa')),
-  0,
-  'lifecycle migration seeds no candidate employer ATS configuration'
+   where lower(company.display_name) in ('moniepoint', 'm-kopa')
+     and config.enabled
+     and config.provider = 'greenhouse'
+     and config.tenant_identifier = 'moniepoint'),
+  1,
+  'the reviewed Moniepoint board is the only seeded candidate employer configuration'
 );
 
 select * from finish();

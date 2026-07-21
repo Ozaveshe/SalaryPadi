@@ -212,17 +212,19 @@ select ok(
   'Remotive keeps documented API provenance but remains revoked and disabled without republication permission'
 );
 select is(
-  (select count(*)::integer from private.ats_source_configs),
+  (select count(*)::integer from private.ats_source_configs
+   where tenant_identifier <> 'moniepoint'),
   0,
-  'the migration enables no ATS tenant by default'
+  'only the reviewed Moniepoint board configuration is seeded by migrations'
 );
 select is(
   (select count(*)::integer
    from app.job_sources
    where status = 'active'
-     and adapter_key in ('moniepoint', 'm_kopa', 'mkopa')),
+     and source_type = 'employer_ats'
+     and adapter_key <> 'moniepoint_greenhouse'),
   0,
-  'no candidate employer is activated by the migration'
+  'only the reviewed Moniepoint board is activated by migrations'
 );
 
 select throws_ok(
