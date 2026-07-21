@@ -5,6 +5,7 @@ import { classifyEligibilityEvidence } from "./eligibility";
 import { buildJobFingerprint } from "./fingerprint";
 import { htmlToPlainText, slugify } from "./normalize";
 import {
+  evaluateLocalPublication,
   evaluateRemotePublication,
   inferRemoteArrangement,
   remoteEligibilityEvidence,
@@ -256,11 +257,20 @@ function normalizeRecord(
   const employmentType = mapEmploymentType(record.employmentType);
   const engagementType = mapEngagementType(employmentType);
   const eligibilityEvidence = remoteEligibilityEvidence(location, description);
-  const publication = evaluateRemotePublication({
-    arrangement: workArrangement,
-    evidenceText: eligibilityEvidence,
-    verifiedAt: record.checkedAt,
-  });
+  // Remote roles must prove candidate eligibility; onsite/hybrid roles on an
+  // employer's own board are eligible wherever their stated workplace is,
+  // provided that workplace resolves to an African country.
+  const publication =
+    workArrangement === "remote"
+      ? evaluateRemotePublication({
+          arrangement: workArrangement,
+          evidenceText: eligibilityEvidence,
+          verifiedAt: record.checkedAt,
+        })
+      : evaluateLocalPublication({
+          evidenceText: eligibilityEvidence,
+          verifiedAt: record.checkedAt,
+        });
   if (!publication.eligible) {
     return { kind: "filtered", code: publication.reason };
   }

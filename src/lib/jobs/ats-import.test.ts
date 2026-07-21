@@ -79,7 +79,7 @@ describe("ATS import normalization", () => {
     );
   });
 
-  it("keeps only explicitly remote arrangements", () => {
+  it("filters non-remote arrangements outside Africa", () => {
     const result = normalizeAtsImportRecords(
       [
         record({ externalId: "remote", workplaceType: "Remote" }),
@@ -90,7 +90,47 @@ describe("ATS import normalization", () => {
     );
     expect(result.jobs.map((job) => job.external_id)).toEqual(["remote"]);
     expect(result.filteredCount).toBe(2);
-    expect(result.filterCodes).toEqual({ not_remote: 2 });
+    expect(result.filterCodes).toEqual({ geography_restricted: 2 });
+  });
+
+  it("publishes onsite and hybrid roles located in an African country", () => {
+    const result = normalizeAtsImportRecords(
+      [
+        record({
+          externalId: "lagos-onsite",
+          workplaceType: "OnSite",
+          location: "Lagos, Nigeria",
+        }),
+        record({
+          externalId: "nairobi-hybrid",
+          workplaceType: "Hybrid",
+          location: "Nairobi, Kenya",
+        }),
+        record({
+          externalId: "london-onsite",
+          workplaceType: "OnSite",
+          location: "London, United Kingdom",
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(result.jobs.map((job) => job.external_id)).toEqual([
+      "lagos-onsite",
+      "nairobi-hybrid",
+    ]);
+    expect(result.jobs[0]).toMatchObject({
+      work_arrangement: "onsite",
+      locations: [
+        {
+          country_code: "NG",
+          city: "Lagos",
+          region: null,
+          is_primary: true,
+        },
+      ],
+    });
+    expect(result.filterCodes).toEqual({ geography_restricted: 1 });
   });
 
   it("accepts EMEA but rejects an unclear remote location", () => {
