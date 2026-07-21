@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, security;
-select plan(48);
+select plan(49);
 
 select has_column(
   'app', 'job_sources', 'authorization_basis',
@@ -225,6 +225,12 @@ select is(
      and adapter_key <> 'moniepoint_greenhouse'),
   0,
   'only the reviewed Moniepoint board is activated by migrations'
+);
+select is(
+  (select status::text from app.job_sources
+   where adapter_key = 'moniepoint_greenhouse'),
+  'active',
+  'the reviewed Moniepoint board activates through the full policy chain'
 );
 
 select throws_ok(
