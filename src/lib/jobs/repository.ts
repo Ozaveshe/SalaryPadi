@@ -50,8 +50,17 @@ type ServerSupabaseClient = NonNullable<
   Awaited<ReturnType<typeof createServerSupabaseClient>>
 >;
 
-const SOURCE_MAX_AGE_MS = 14 * 60 * 60 * 1_000;
+/**
+ * A snapshot stays publishable for its full reviewed refresh interval plus a
+ * bounded grace window, so a source whose policy only allows daily polling
+ * (for example Himalayas) is not rejected as stale between permitted fetches.
+ */
+const SOURCE_MAX_AGE_GRACE_MS = 2 * 60 * 60 * 1_000;
 const SOURCE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1_000;
+
+function sourceMaxAgeMs(refreshIntervalSeconds: number): number {
+  return refreshIntervalSeconds * 1_000 + SOURCE_MAX_AGE_GRACE_MS;
+}
 const reviewedPolicyRowSchema = z
   .object({
     adapter_key: z.string().min(1).max(80),
@@ -289,7 +298,10 @@ export async function getRemotiveJobFeed(
     });
     const checkedAt = Date.parse(result.checkedAt);
     const ageMs = Date.now() - checkedAt;
-    if (!Number.isFinite(checkedAt) || ageMs > SOURCE_MAX_AGE_MS) {
+    if (
+      !Number.isFinite(checkedAt) ||
+      ageMs > sourceMaxAgeMs(REMOTIVE_SOURCE_POLICY.refreshIntervalSeconds)
+    ) {
       return sourceUnavailable(
         "remotive",
         attemptedAt,
@@ -450,7 +462,10 @@ export async function getJobicyJobFeed(
     });
     const checkedAt = Date.parse(result.checkedAt);
     const ageMs = Date.now() - checkedAt;
-    if (!Number.isFinite(checkedAt) || ageMs > SOURCE_MAX_AGE_MS) {
+    if (
+      !Number.isFinite(checkedAt) ||
+      ageMs > sourceMaxAgeMs(JOBICY_SOURCE_POLICY.refreshIntervalSeconds)
+    ) {
       return sourceUnavailable(
         "jobicy",
         attemptedAt,
@@ -613,7 +628,10 @@ export async function getHimalayasJobFeed(
     });
     const checkedAt = Date.parse(result.checkedAt);
     const ageMs = Date.now() - checkedAt;
-    if (!Number.isFinite(checkedAt) || ageMs > SOURCE_MAX_AGE_MS) {
+    if (
+      !Number.isFinite(checkedAt) ||
+      ageMs > sourceMaxAgeMs(HIMALAYAS_SOURCE_POLICY.refreshIntervalSeconds)
+    ) {
       return sourceUnavailable(
         "himalayas",
         attemptedAt,
