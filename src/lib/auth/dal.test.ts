@@ -12,9 +12,10 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { getViewer, requireAdmin, requireViewer } from "@/lib/auth/dal";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { unstable_rethrow } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 
 const mockedCreateClient = vi.mocked(createServerSupabaseClient);
+const mockedRedirect = vi.mocked(redirect);
 
 function client({
   claims,
@@ -153,11 +154,10 @@ describe("viewer authentication states", () => {
     );
   });
 
-  it("does not redirect an unconfigured backend to sign-in", async () => {
+  it("sends an unconfigured backend to sign-in, which surfaces setup state", async () => {
     mockedCreateClient.mockResolvedValue(null);
-    await expect(requireViewer("/saved")).rejects.toThrow(
-      "Authentication backend is not configured",
-    );
+    await requireViewer("/saved").catch(() => undefined);
+    expect(mockedRedirect).toHaveBeenCalledWith("/auth/sign-in?next=%2Fsaved");
   });
 
   it("does not treat a staff-role outage as a normal access denial", async () => {

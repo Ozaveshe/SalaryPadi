@@ -89,8 +89,12 @@ export async function proxy(request: NextRequest) {
   const isProtected = isProtectedPagePath(request.nextUrl.pathname);
 
   let response = NextResponse.next({ request: { headers: requestHeaders } });
+  // With no Supabase configuration a protected path is treated like an
+  // anonymous visit: the sign-in page surfaces the setup state explicitly,
+  // so the misconfiguration stays visible without failing guest journeys.
+  // "unavailable" is reserved for a configured backend that cannot answer.
   let authenticationState: "anonymous" | "authenticated" | "unavailable" =
-    configuration || !isProtected ? "anonymous" : "unavailable";
+    "anonymous";
 
   if (configuration) {
     const supabase = createServerClient<Database>(
