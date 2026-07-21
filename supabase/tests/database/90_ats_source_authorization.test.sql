@@ -212,17 +212,19 @@ select ok(
   'Remotive keeps documented API provenance but remains revoked and disabled without republication permission'
 );
 select is(
-  (select count(*)::integer from private.ats_source_configs),
+  (select count(*)::integer from private.ats_source_configs
+   where tenant_identifier <> 'moniepoint'),
   0,
-  'the migration enables no ATS tenant by default'
+  'only the reviewed Moniepoint board configuration is seeded by migrations'
 );
 select is(
   (select count(*)::integer
    from app.job_sources
    where status = 'active'
-     and adapter_key in ('moniepoint', 'm_kopa', 'mkopa')),
+     and source_type = 'employer_ats'
+     and adapter_key <> 'moniepoint_greenhouse'),
   0,
-  'no candidate employer is activated by the migration'
+  'only the reviewed Moniepoint board is activated by migrations'
 );
 
 select throws_ok(
@@ -309,16 +311,16 @@ select throws_ok(
 );
 
 update app.job_sources
-set authorization_basis = 'documented_public_api',
-    authorization_evidence_ref = 'evidence:public-api-only',
-    authorization_grantor = 'Public API documentation',
+set authorization_basis = 'first_party',
+    authorization_evidence_ref = 'evidence:wrong-basis',
+    authorization_grantor = 'Nobody in particular',
     authorization_reviewed_at = now()
 where id = 'ac000000-0000-4000-8000-000000000002';
 select throws_ok(
   $$ update app.job_sources set status = 'active'
      where id = 'ac000000-0000-4000-8000-000000000002' $$,
-  '23514', 'active ATS source requires employer permission or contract',
-  'public API reachability alone cannot authorize third-party ATS fetching'
+  '23514', 'active ATS source requires a reviewed authorization basis and grantor',
+  'an ATS source cannot activate outside the reviewed authorization bases'
 );
 update app.job_sources
 set authorization_reviewed_at = null

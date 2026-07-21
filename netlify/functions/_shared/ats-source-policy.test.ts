@@ -84,7 +84,7 @@ describe("authorized ATS runtime policy", () => {
   });
 
   it.each([
-    { authorization_basis: "documented_public_api" },
+    { authorization_basis: "first_party" },
     { authorization_grantor: null },
     { authorization_expires_at: "2026-07-11T11:00:00.000Z" },
     { authorization_reviewed_at: "2026-07-11T13:00:00.000Z" },
