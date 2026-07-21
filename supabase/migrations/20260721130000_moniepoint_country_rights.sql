@@ -28,4 +28,23 @@ where source.adapter_key = 'moniepoint_greenhouse'
     where rights.source_id = source.id and rights.country_code = 'NG'
   );
 
+insert into private.job_source_dependencies (
+  source_id, dependency_key, state, evidence_reference, reviewed_at
+)
+select s.id, dep.key, 'verified',
+  case dep.key
+    when 'employer_application_destination' then 'ATS destination policy allows only job-boards greenhouse hosts under /moniepoint; required_destination_kind=employer_application_url'
+    when 'clickable_source_attribution' then 'Job Truth Card renders clickable source attribution and the original source link for every ATS job'
+  end,
+  clock_timestamp()
+from app.job_sources s
+cross join (values
+  ('employer_application_destination'), ('clickable_source_attribution')
+) dep(key)
+where s.adapter_key = 'moniepoint_greenhouse'
+  and not exists (
+    select 1 from private.job_source_dependencies d
+    where d.source_id = s.id and d.dependency_key = dep.key
+  );
+
 commit;
