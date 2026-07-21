@@ -53,6 +53,7 @@ describe("Himalayas adapter", () => {
       .mockImplementation(async () => response(payload()));
 
     const result = await fetchHimalayasJobs({
+      pageDelayMs: 0,
       fetch,
       requestedAt: new Date(checkedAt),
       requestInit: { next: { revalidate: 86_400, tags: ["himalayas"] } },
@@ -61,7 +62,7 @@ describe("Himalayas adapter", () => {
     expect(result).toMatchObject({
       checkedAt,
       partial: false,
-      successfulRequestCount: 3,
+      successfulRequestCount: HIMALAYAS_ENDPOINTS.length,
     });
     expect(result.jobs).toHaveLength(1);
     expect(result.jobs[0]).toMatchObject({
@@ -112,6 +113,7 @@ describe("Himalayas adapter", () => {
       );
 
     const result = await fetchHimalayasJobs({
+      pageDelayMs: 0,
       fetch,
       requestedAt: new Date(checkedAt),
     });
@@ -127,6 +129,7 @@ describe("Himalayas adapter", () => {
       ...Array.from({ length: 147 }, (_, index) => `Region ${index + 1}`),
     ];
     const result = await fetchHimalayasJobs({
+      pageDelayMs: 0,
       fetch: vi.fn<typeof globalThis.fetch>().mockImplementation(async () =>
         response(
           payload({
@@ -147,6 +150,7 @@ describe("Himalayas adapter", () => {
   it("fails closed when all pages fail or a destination leaves Himalayas", async () => {
     await expect(
       fetchHimalayasJobs({
+        pageDelayMs: 0,
         fetch: vi
           .fn<typeof globalThis.fetch>()
           .mockResolvedValue(new Response(null, { status: 429 })),
@@ -156,6 +160,7 @@ describe("Himalayas adapter", () => {
 
     await expect(
       fetchHimalayasJobs({
+        pageDelayMs: 0,
         fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(
           response(
             payload({

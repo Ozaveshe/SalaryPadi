@@ -8,7 +8,11 @@ import { externalHttpsUrlSchema } from "@/lib/security/url-schema";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { buildJobFingerprintLookupKeys } from "./fingerprint";
-import { fetchHimalayasJobs, HimalayasAdapterError } from "./himalayas-adapter";
+import {
+  fetchHimalayasJobs,
+  HIMALAYAS_ENDPOINTS,
+  HimalayasAdapterError,
+} from "./himalayas-adapter";
 import { fetchJobicyJobs, JobicyAdapterError } from "./jobicy-adapter";
 import {
   fetchRemotiveJobs,
@@ -665,7 +669,10 @@ export async function getHimalayasJobFeed(
   try {
     const result = await fetchHimalayasJobs({
       requestedAt: new Date(attemptedAt),
-      signal: AbortSignal.timeout(12_000),
+      // Six sequential paced page requests need more headroom than the
+      // previous parallel fetch; this path only runs when no worker-written
+      // snapshot is available.
+      signal: AbortSignal.timeout(20_000),
       requestInit: {
         next: {
           revalidate: HIMALAYAS_SOURCE_POLICY.refreshIntervalSeconds,
@@ -703,7 +710,7 @@ export async function getHimalayasJobFeed(
       ...(result.partial
         ? {
             code: "himalayas_partial_snapshot",
-            message: `Himalayas returned ${result.successfulRequestCount} of the 3 reviewed result pages. Available jobs are shown as partial.`,
+            message: `Himalayas returned ${result.successfulRequestCount} of the ${HIMALAYAS_ENDPOINTS.length} reviewed result pages. Available jobs are shown as partial.`,
           }
         : {}),
     };
