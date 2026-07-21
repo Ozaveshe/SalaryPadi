@@ -157,9 +157,7 @@ describe("viewer authentication states", () => {
   it("sends an unconfigured backend to sign-in, which surfaces setup state", async () => {
     mockedCreateClient.mockResolvedValue(null);
     await requireViewer("/saved").catch(() => undefined);
-    expect(mockedRedirect).toHaveBeenCalledWith(
-      "/auth/sign-in?next=%2Fsaved",
-    );
+    expect(mockedRedirect).toHaveBeenCalledWith("/auth/sign-in?next=%2Fsaved");
   });
 
   it("does not treat a staff-role outage as a normal access denial", async () => {
