@@ -24,12 +24,12 @@ employer profile.
 These companies already publish a public ATS board today, so onboarding after
 permission is immediate:
 
-| Company | Country focus | ATS | Board token | Open roles at check |
-| --- | --- | --- | --- | --- |
-| Moniepoint | Nigeria | Greenhouse | `moniepoint` | 110 |
-| Carbon | Nigeria | Greenhouse | `carbon` | 12 |
-| Jumia | Pan-African | Greenhouse | `jumia` | 9 |
-| Tala | Kenya (+global) | Lever | `tala` | 10 |
+| Company    | Country focus   | ATS        | Board token  | Open roles at check |
+| ---------- | --------------- | ---------- | ------------ | ------------------- |
+| Moniepoint | Nigeria         | Greenhouse | `moniepoint` | 110                 |
+| Carbon     | Nigeria         | Greenhouse | `carbon`     | 12                  |
+| Jumia      | Pan-African     | Greenhouse | `jumia`      | 9                   |
+| Tala       | Kenya (+global) | Lever      | `tala`       | 10                  |
 
 Endpoint forms used for verification:
 `https://boards-api.greenhouse.io/v1/boards/<token>/jobs` and
