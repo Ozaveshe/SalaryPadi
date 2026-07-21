@@ -26,6 +26,16 @@ const getSalaryHubResult = cache(() =>
   searchSalaryAggregatesResult({ country: "NG" }),
 );
 
+/**
+ * Verified benchmarks from non-market countries (for example US official
+ * statistics) are reference points for evaluating remote offers. They render
+ * in their own clearly labelled section and are never mixed into a market
+ * country's local evidence.
+ */
+const getRemoteBenchmarkReference = cache(() =>
+  searchSalaryAggregatesResult({ country: "US" }),
+);
+
 export async function generateMetadata(): Promise<Metadata> {
   const result = await getSalaryHubResult();
   return {
@@ -69,6 +79,10 @@ export default async function SalariesPage({
     !company
       ? await getSalaryCellProgressResult({ role, country })
       : null;
+  const benchmarkReference = hasSearch
+    ? null
+    : await getRemoteBenchmarkReference();
+  const benchmarkRows = benchmarkReference?.data ?? [];
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -200,6 +214,24 @@ export default async function SalariesPage({
             <Link className="button button-secondary" href="/methodology">
               Read the methodology
             </Link>
+          </div>
+        </section>
+      ) : null}
+      {benchmarkRows.length > 0 ? (
+        <section className="stack" aria-labelledby="remote-benchmark-reference">
+          <h2 className="section-title" id="remote-benchmark-reference">
+            Remote benchmark reference — United States
+          </h2>
+          <p className="text-muted m-0 max-w-2xl text-sm">
+            Official US statistics for roles commonly hired remotely. These are
+            reference points for evaluating remote offers in their original
+            currency — they are not Nigerian pay evidence and are never mixed
+            into local cohorts.
+          </p>
+          <div className="aggregate-grid">
+            {benchmarkRows.map((aggregate) => (
+              <SalaryAggregateCard aggregate={aggregate} key={aggregate.id} />
+            ))}
           </div>
         </section>
       ) : null}
