@@ -10,6 +10,7 @@ import { EligibilityStatus } from "@/components/jobs/eligibility-status";
 import { MatchBadge } from "@/components/jobs/match-badge";
 import { formatDate, formatEnum } from "@/lib/format";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
+import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import type { Job } from "@/lib/jobs/types";
 import type { MatchResult } from "@/lib/match/types";
 
@@ -31,10 +32,13 @@ function jobPathLabel(job: Job) {
 export function JobCard({
   job,
   match,
+  nairaEstimate,
 }: {
   job: Job;
   /** Present only for a signed-in viewer who has saved a match profile. */
   match?: MatchResult;
+  /** Estimated monthly naira take-home for the disclosed salary, if computable. */
+  nairaEstimate?: NairaTakeHomeEstimate | null;
 }) {
   const evidence = getJobEvidenceLabels(job).slice(0, 5);
 
@@ -84,6 +88,15 @@ export function JobCard({
             <WalletCards aria-hidden="true" size={16} />
             {job.salary?.originalText ?? "Salary not disclosed"}
           </span>
+          {nairaEstimate ? (
+            <span className="job-naira-estimate">
+              ≈ ₦
+              {Math.round(nairaEstimate.monthlyTakeHomeNgn).toLocaleString(
+                "en-NG",
+              )}
+              /month take-home (est.)
+            </span>
+          ) : null}
         </div>
         {evidence.length > 0 ? (
           <ul

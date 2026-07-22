@@ -14,6 +14,8 @@ import Link from "next/link";
 
 import { JobCard } from "@/components/jobs/job-card";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
+import { getReferenceCurrencyRates } from "@/lib/currency/repository";
+import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
 import { nigeriaValueTier } from "@/lib/jobs/search";
 
@@ -41,7 +43,10 @@ const toolLinks = [
 ] as const;
 
 export default async function HomePage() {
-  const feed = await getLiveJobFeed();
+  const [feed, currencyRates] = await Promise.all([
+    getLiveJobFeed(),
+    getReferenceCurrencyRates(),
+  ]);
   const explicitlyOpenJobs = feed.jobs.filter(
     (job) =>
       job.eligibility.nigeria === "eligible" ||
@@ -339,7 +344,11 @@ export default async function HomePage() {
         {recentJobs.length > 0 ? (
           <div className="job-list">
             {recentJobs.map((job) => (
-              <JobCard job={job} key={job.id} />
+              <JobCard
+                job={job}
+                key={job.id}
+                nairaEstimate={estimateNairaTakeHome(job.salary, currencyRates)}
+              />
             ))}
           </div>
         ) : feedIsConclusive ? (
