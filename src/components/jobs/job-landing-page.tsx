@@ -8,7 +8,9 @@ import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { JsonLd } from "@/components/json-ld";
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
+import { getReferenceCurrencyRates } from "@/lib/currency/repository";
 import { getAppOrigin } from "@/lib/env";
+import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
 import { diversifyJobResults } from "@/lib/jobs/search";
 import { getJobLandingMetricsResult } from "@/lib/seo/job-landing-repository";
@@ -81,9 +83,10 @@ export async function JobLandingPage({
 }) {
   const definition = getJobLandingDefinition(landingKey);
   if (!definition) return null;
-  const [metricsResult, feed] = await Promise.all([
+  const [metricsResult, feed, currencyRates] = await Promise.all([
     getJobLandingMetricsResult(landingKey),
     getLiveJobFeed(),
+    getReferenceCurrencyRates(),
   ]);
   const metrics = metricsResult.data;
   const decision = landingDecision(definition, metrics);
@@ -190,7 +193,11 @@ export async function JobLandingPage({
         {displayed.length > 0 ? (
           <div className="job-list">
             {displayed.map((job) => (
-              <JobCard job={job} key={job.id} />
+              <JobCard
+                job={job}
+                key={job.id}
+                nairaEstimate={estimateNairaTakeHome(job.salary, currencyRates)}
+              />
             ))}
           </div>
         ) : feed.state !== "unavailable" && feed.state !== "disabled" ? (

@@ -7,6 +7,8 @@ import { Pagination } from "@/components/jobs/pagination";
 import { PageHeading } from "@/components/page-heading";
 import { getViewer } from "@/lib/auth/dal";
 import { getCandidateProfile } from "@/lib/career/repository";
+import { getReferenceCurrencyRates } from "@/lib/currency/repository";
+import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
 import {
   diversifyJobResults,
@@ -45,9 +47,10 @@ export async function JobsExperience({
   forcedFilters?: Record<string, string>;
 }) {
   const search = parseJobSearch({ ...input, ...forcedFilters });
-  const [feed, matchProfile] = await Promise.all([
+  const [feed, matchProfile, currencyRates] = await Promise.all([
     getLiveJobFeed(),
     readMatchProfile(),
+    getReferenceCurrencyRates(),
   ]);
   const filteredJobs = filterAndSortJobs(feed.jobs, search);
   const diversifiedJobs = diversifyJobResults(filteredJobs);
@@ -163,6 +166,7 @@ export async function JobsExperience({
                     ? scoreJobMatch(matchProfile, toJobFacts(job))
                     : undefined
                 }
+                nairaEstimate={estimateNairaTakeHome(job.salary, currencyRates)}
               />
             ))}
           </div>
