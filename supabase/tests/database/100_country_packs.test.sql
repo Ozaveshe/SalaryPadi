@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security;
-select plan(40);
+select plan(41);
 
 select has_table('app', 'currencies', 'currency catalog exists');
 select has_table('app', 'country_locales', 'country locales exist');
