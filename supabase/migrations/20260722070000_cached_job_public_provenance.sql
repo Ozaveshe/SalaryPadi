@@ -219,6 +219,13 @@ after update on app.market_countries
 deferrable initially deferred
 for each row execute function security.job_provenance_market_changed();
 
+revoke all on function security.job_provenance_evidence_changed()
+from public, anon, authenticated, service_role;
+revoke all on function security.job_provenance_source_policy_changed()
+from public, anon, authenticated, service_role;
+revoke all on function security.job_provenance_market_changed()
+from public, anon, authenticated, service_role;
+
 -- The view and the public read policy now consume the cached decision. All
 -- purely time-based conditions stay live and cheap.
 create or replace view api.jobs
