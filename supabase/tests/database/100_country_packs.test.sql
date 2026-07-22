@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security;
-select plan(40);
+select plan(41);
 
 select has_table('app', 'currencies', 'currency catalog exists');
 select has_table('app', 'country_locales', 'country locales exist');
@@ -112,9 +112,22 @@ select is(
   security.job_explicitly_allows_country(
     'a0000000-0000-4000-8000-000000000002', 'GH'
   ),
-  false,
-  'EMEA never automatically includes Ghana or all African countries'
+  true,
+  'EMEA scope admits African market countries because Africa is part of EMEA'
 );
+update app.job_eligibility
+set scope = 'unclear'
+where job_id = 'a0000000-0000-4000-8000-000000000002';
+select is(
+  security.job_explicitly_allows_country(
+    'a0000000-0000-4000-8000-000000000002', 'GH'
+  ),
+  false,
+  'unclear scope without country evidence never authorizes a country'
+);
+update app.job_eligibility
+set scope = 'emea'
+where job_id = 'a0000000-0000-4000-8000-000000000002';
 
 insert into app.job_eligibility_countries (job_id, country_code, rule) values (
   'a0000000-0000-4000-8000-000000000002', 'ZA', 'include'
