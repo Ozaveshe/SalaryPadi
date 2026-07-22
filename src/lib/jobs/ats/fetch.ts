@@ -6,7 +6,12 @@ import {
   readBoundedBody,
 } from "@/lib/http/body";
 import { sourceResponseCheckedAt } from "../freshness";
-import { ashbyAdapter, greenhouseAdapter, leverAdapter } from "./adapters";
+import {
+  ashbyAdapter,
+  greenhouseAdapter,
+  leverAdapter,
+  workableAdapter,
+} from "./adapters";
 import { atsAdapterError } from "./errors";
 import type {
   AtsAuthorizedSource,
@@ -103,6 +108,7 @@ const authorizedSourceSchema = z.discriminatedUnion("provider", [
     })
     .strict(),
   z.object({ ...sourceBaseShape, provider: z.literal("ashby") }).strict(),
+  z.object({ ...sourceBaseShape, provider: z.literal("workable") }).strict(),
 ]);
 
 function isAbortSignal(value: unknown): value is AbortSignal {
@@ -349,5 +355,7 @@ export async function fetchAtsSourceRecords(
       return fetchWithAdapter(leverAdapter, parsed.data, options);
     case "ashby":
       return fetchWithAdapter(ashbyAdapter, parsed.data, options);
+    case "workable":
+      return fetchWithAdapter(workableAdapter, parsed.data, options);
   }
 }

@@ -2,6 +2,7 @@ import {
   buildAshbyEndpoint,
   buildGreenhouseEndpoint,
   buildLeverEndpoint,
+  buildWorkableEndpoint,
 } from "./endpoints";
 import { atsAdapterError } from "./errors";
 import {
@@ -11,12 +12,16 @@ import {
   greenhousePayloadSchema,
   leverJobSchema,
   leverPayloadSchema,
+  workableJobSchema,
+  workablePayloadSchema,
   type AshbyJob,
   type AshbyPayload,
   type GreenhouseJob,
   type GreenhousePayload,
   type LeverJob,
   type LeverPayload,
+  type WorkableJob,
+  type WorkablePayload,
 } from "./schemas";
 import type {
   AtsAuthorizedSource,
@@ -33,6 +38,7 @@ const PROVIDER_DESTINATION_HOSTS = {
   ],
   lever: ["jobs.lever.co", "jobs.eu.lever.co"],
   ashby: ["jobs.ashbyhq.com"],
+  workable: ["apply.workable.com"],
 } as const satisfies Record<AtsProvider, readonly string[]>;
 
 function pathMatchesPrefix(pathname: string, rawPrefix: string): boolean {
@@ -75,8 +81,12 @@ function normalizedDestination<P extends AtsProvider>(
         ]
       : PROVIDER_DESTINATION_HOSTS[source.provider];
   if (providerHosts.includes(destination.hostname)) {
-    const tenantSegment = destination.pathname.split("/").filter(Boolean)[0];
-    if (tenantSegment?.toLowerCase() !== source.tenant.toLowerCase()) {
+    const firstSegment = destination.pathname.split("/").filter(Boolean)[0];
+    // Workable hosts every tenant's postings under opaque /j/<shortcode>
+    // paths; the other providers put the tenant slug first.
+    const expectedSegment =
+      source.provider === "workable" ? "j" : source.tenant.toLowerCase();
+    if (firstSegment?.toLowerCase() !== expectedSegment) {
       throw atsAdapterError("ats_normalization_failed", source.provider);
     }
     return destination;
@@ -212,6 +222,45 @@ function ashbyRecord(
   };
 }
 
+function workableLocation(job: WorkableJob): string | null {
+  const primary = job.locations?.[0];
+  const parts = [
+    optionalText(primary?.city) ?? optionalText(job.city),
+    optionalText(primary?.region) ?? optionalText(job.state),
+    optionalText(primary?.country) ?? optionalText(job.country),
+  ].filter((value): value is string => Boolean(value));
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
+function workableRecord(
+  job: WorkableJob,
+  source: AtsAuthorizedSource<"workable">,
+  checkedAt: string,
+): AtsSourceRecord {
+  const sourceUrl = normalizedDestination(job.url, source);
+  const applicationUrl = normalizedDestination(job.application_url, source);
+
+  return {
+    provider: "workable",
+    sourceKey: source.key,
+    employerName: source.employerName,
+    externalId: job.shortcode,
+    title: job.title,
+    location: workableLocation(job),
+    workplaceType: job.telecommuting === true ? "remote" : null,
+    employmentType: optionalText(job.employment_type),
+    department: optionalText(job.department),
+    team: null,
+    descriptionHtml: null,
+    descriptionText: null,
+    publishedAt: job.published_on ? `${job.published_on}T00:00:00.000Z` : null,
+    updatedAt: null,
+    sourceUrl: sourceUrl.toString(),
+    applicationUrl: applicationUrl.toString(),
+    checkedAt,
+  };
+}
+
 export const greenhouseAdapter: AtsProviderAdapter<
   "greenhouse",
   GreenhousePayload,
@@ -247,3 +296,17 @@ export const ashbyAdapter: AtsProviderAdapter<"ashby", AshbyPayload, AshbyJob> =
     providerReportedTotal: () => null,
     normalizeRecord: ashbyRecord,
   };
+
+export const workableAdapter: AtsProviderAdapter<
+  "workable",
+  WorkablePayload,
+  WorkableJob
+> = {
+  provider: "workable",
+  payloadSchema: workablePayloadSchema,
+  recordSchema: workableJobSchema,
+  buildEndpoint: buildWorkableEndpoint,
+  records: (payload) => payload.jobs,
+  providerReportedTotal: () => null,
+  normalizeRecord: workableRecord,
+};

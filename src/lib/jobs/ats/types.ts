@@ -1,6 +1,11 @@
 import type { z } from "zod";
 
-export const ATS_PROVIDERS = ["greenhouse", "lever", "ashby"] as const;
+export const ATS_PROVIDERS = [
+  "greenhouse",
+  "lever",
+  "ashby",
+  "workable",
+] as const;
 
 export type AtsProvider = (typeof ATS_PROVIDERS)[number];
 export type LeverRegion = "global" | "eu";
@@ -21,8 +26,16 @@ export interface AshbyEndpointTarget {
   tenant: string;
 }
 
+export interface WorkableEndpointTarget {
+  provider: "workable";
+  tenant: string;
+}
+
 export type AtsEndpointTarget =
-  GreenhouseEndpointTarget | LeverEndpointTarget | AshbyEndpointTarget;
+  | GreenhouseEndpointTarget
+  | LeverEndpointTarget
+  | AshbyEndpointTarget
+  | WorkableEndpointTarget;
 
 export type AtsTargetFor<P extends AtsProvider> = Extract<
   AtsEndpointTarget,
@@ -72,7 +85,8 @@ export type AtsSourceConfig =
   | AtsDisabledSource
   | AtsAuthorizedSource<"greenhouse">
   | AtsAuthorizedSource<"lever">
-  | AtsAuthorizedSource<"ashby">;
+  | AtsAuthorizedSource<"ashby">
+  | AtsAuthorizedSource<"workable">;
 
 /** A validated provider record before SalaryPadi's final Job normalization. */
 export interface AtsSourceRecord {

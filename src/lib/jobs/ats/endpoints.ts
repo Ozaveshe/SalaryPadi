@@ -6,6 +6,7 @@ import type {
   AtsEndpointTarget,
   GreenhouseEndpointTarget,
   LeverEndpointTarget,
+  WorkableEndpointTarget,
 } from "./types";
 
 export const ATS_API_HOSTS = [
@@ -13,6 +14,7 @@ export const ATS_API_HOSTS = [
   "api.lever.co",
   "api.eu.lever.co",
   "api.ashbyhq.com",
+  "apply.workable.com",
 ] as const;
 
 const tenantSchema = z
@@ -60,6 +62,13 @@ export function buildAshbyEndpoint(target: AshbyEndpointTarget): URL {
   );
 }
 
+export function buildWorkableEndpoint(target: WorkableEndpointTarget): URL {
+  const tenant = validTenant(target.tenant);
+  return new URL(
+    `https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(tenant)}`,
+  );
+}
+
 export function buildAtsEndpoint(target: AtsEndpointTarget): URL {
   switch (target.provider) {
     case "greenhouse":
@@ -68,6 +77,8 @@ export function buildAtsEndpoint(target: AtsEndpointTarget): URL {
       return buildLeverEndpoint(target);
     case "ashby":
       return buildAshbyEndpoint(target);
+    case "workable":
+      return buildWorkableEndpoint(target);
     default:
       throw atsAdapterError("ats_invalid_source");
   }

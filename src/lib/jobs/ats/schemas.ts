@@ -97,9 +97,48 @@ export const ashbyPayloadSchema = z
   })
   .passthrough();
 
+const workableLocationSchema = z
+  .object({
+    country: z.string().trim().max(200).nullable().optional(),
+    countryCode: z.string().trim().max(10).nullable().optional(),
+    city: z.string().trim().max(200).nullable().optional(),
+    region: z.string().trim().max(200).nullable().optional(),
+  })
+  .passthrough();
+
+export const workableJobSchema = z
+  .object({
+    title: shortText,
+    shortcode: z.string().trim().min(1).max(100),
+    employment_type: z.string().trim().max(100).nullable().optional(),
+    telecommuting: z.boolean().optional(),
+    department: z.string().trim().max(300).nullable().optional(),
+    url: httpsUrl,
+    application_url: httpsUrl,
+    published_on: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional(),
+    country: z.string().trim().max(200).nullable().optional(),
+    city: z.string().trim().max(200).nullable().optional(),
+    state: z.string().trim().max(200).nullable().optional(),
+    locations: z.array(workableLocationSchema).max(50).optional(),
+  })
+  .passthrough();
+
+export const workablePayloadSchema = z
+  .object({
+    name: z.string().trim().max(300).optional(),
+    jobs: z.array(z.unknown()).max(MAX_PROVIDER_RECORDS),
+  })
+  .passthrough();
+
 export type GreenhouseJob = z.infer<typeof greenhouseJobSchema>;
 export type LeverJob = z.infer<typeof leverJobSchema>;
 export type AshbyJob = z.infer<typeof ashbyJobSchema>;
+export type WorkableJob = z.infer<typeof workableJobSchema>;
+export type WorkablePayload = z.infer<typeof workablePayloadSchema>;
 export type GreenhousePayload = z.infer<typeof greenhousePayloadSchema>;
 export type LeverPayload = z.infer<typeof leverPayloadSchema>;
 export type AshbyPayload = z.infer<typeof ashbyPayloadSchema>;
