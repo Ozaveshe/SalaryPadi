@@ -166,7 +166,7 @@ describe("job search", () => {
     expect(filterAndSortJobs([future], parseJobSearch({}), now)).toEqual([]);
   });
 
-  it("requires an explicit onsite or hybrid mode for the local Nigeria path", () => {
+  it("anchors the local Nigeria path to a stated Nigerian workplace", () => {
     const locationDisplay = "Lagos, Nigeria";
     const unclear = {
       ...jobs[0]!,
@@ -174,10 +174,46 @@ describe("job search", () => {
       locationDisplay,
     };
     const hybrid = { ...unclear, workMode: "hybrid" as const };
+    const remote = { ...unclear, workMode: "remote" as const };
     const search = parseJobSearch({ path: "local_nigeria" });
 
-    expect(filterAndSortJobs([unclear], search)).toEqual([]);
+    expect(filterAndSortJobs([unclear], search)).toEqual([unclear]);
     expect(filterAndSortJobs([hybrid], search)).toEqual([hybrid]);
+    expect(filterAndSortJobs([remote], search)).toEqual([]);
+  });
+
+  it("ranks Nigeria-local and Nigeria-eligible roles first by default", () => {
+    const base = jobs[0]!;
+    const newestForeign = {
+      ...base,
+      id: "newest-foreign",
+      workMode: "remote" as const,
+      eligibility: { ...base.eligibility, nigeria: "unclear" as const },
+      postedAt: "2026-07-09T00:00:00.000Z",
+    };
+    const olderLagos = {
+      ...base,
+      id: "older-lagos",
+      workMode: "unclear" as const,
+      locationDisplay: "Lagos, Nigeria",
+      postedAt: "2026-06-01T00:00:00.000Z",
+    };
+    const olderRemoteEligible = {
+      ...base,
+      id: "older-remote-eligible",
+      workMode: "remote" as const,
+      eligibility: { ...base.eligibility, nigeria: "eligible" as const },
+      postedAt: "2026-06-15T00:00:00.000Z",
+    };
+    const now = new Date("2026-07-10T00:00:00.000Z");
+
+    expect(
+      filterAndSortJobs(
+        [newestForeign, olderLagos, olderRemoteEligible],
+        parseJobSearch({}),
+        now,
+      ).map((job) => job.id),
+    ).toEqual(["older-lagos", "older-remote-eligible", "newest-foreign"]);
   });
 
   it("uses a bounded fallback when a caller supplies an invalid page size", () => {
