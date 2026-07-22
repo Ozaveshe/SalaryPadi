@@ -27,13 +27,23 @@ const getSalaryHubResult = cache(() =>
 );
 
 /**
- * Verified benchmarks from non-market countries (for example US official
- * statistics) are reference points for evaluating remote offers. They render
- * in their own clearly labelled section and are never mixed into a market
- * country's local evidence.
+ * Verified benchmarks from non-market countries (official US and UK
+ * statistics) are reference points for evaluating remote offers. Each
+ * country renders in its own clearly labelled section and is never mixed
+ * into a market country's local evidence.
  */
-const getRemoteBenchmarkReference = cache(() =>
-  searchSalaryAggregatesResult({ country: "US" }),
+const BENCHMARK_REFERENCE_COUNTRIES = [
+  { code: "US", label: "United States" },
+  { code: "GB", label: "United Kingdom" },
+] as const;
+
+const getRemoteBenchmarkReferences = cache(() =>
+  Promise.all(
+    BENCHMARK_REFERENCE_COUNTRIES.map(async (country) => ({
+      ...country,
+      result: await searchSalaryAggregatesResult({ country: country.code }),
+    })),
+  ),
 );
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -79,10 +89,9 @@ export default async function SalariesPage({
     !company
       ? await getSalaryCellProgressResult({ role, country })
       : null;
-  const benchmarkReference = hasSearch
-    ? null
-    : await getRemoteBenchmarkReference();
-  const benchmarkRows = benchmarkReference?.data ?? [];
+  const benchmarkReferences = hasSearch
+    ? []
+    : await getRemoteBenchmarkReferences();
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -217,24 +226,33 @@ export default async function SalariesPage({
           </div>
         </section>
       ) : null}
-      {benchmarkRows.length > 0 ? (
-        <section className="stack" aria-labelledby="remote-benchmark-reference">
-          <h2 className="section-title" id="remote-benchmark-reference">
-            Remote benchmark reference — United States
-          </h2>
-          <p className="text-muted m-0 max-w-2xl text-sm">
-            Official US statistics for roles commonly hired remotely. These are
-            reference points for evaluating remote offers in their original
-            currency — they are not Nigerian pay evidence and are never mixed
-            into local cohorts.
-          </p>
-          <div className="aggregate-grid">
-            {benchmarkRows.map((aggregate) => (
-              <SalaryAggregateCard aggregate={aggregate} key={aggregate.id} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      {benchmarkReferences.map(({ code, label, result: reference }) =>
+        reference.data.length > 0 ? (
+          <section
+            className="stack"
+            aria-labelledby={`remote-benchmark-reference-${code}`}
+            key={code}
+          >
+            <h2
+              className="section-title"
+              id={`remote-benchmark-reference-${code}`}
+            >
+              Remote benchmark reference — {label}
+            </h2>
+            <p className="text-muted m-0 max-w-2xl text-sm">
+              Official {label} statistics for roles commonly hired remotely.
+              These are reference points for evaluating remote offers in their
+              original currency — they are not Nigerian pay evidence and are
+              never mixed into local cohorts.
+            </p>
+            <div className="aggregate-grid">
+              {reference.data.map((aggregate) => (
+                <SalaryAggregateCard aggregate={aggregate} key={aggregate.id} />
+              ))}
+            </div>
+          </section>
+        ) : null,
+      )}
     </div>
   );
 }
