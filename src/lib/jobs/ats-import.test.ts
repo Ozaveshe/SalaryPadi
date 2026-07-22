@@ -93,6 +93,69 @@ describe("ATS import normalization", () => {
     expect(result.filterCodes).toEqual({ geography_restricted: 2 });
   });
 
+  it("reads home-based and office-based wording as remote and onsite", () => {
+    const result = normalizeAtsImportRecords(
+      [
+        record({
+          externalId: "home-worldwide",
+          workplaceType: null,
+          location: "Home based - Worldwide",
+        }),
+        record({
+          externalId: "home-emea",
+          workplaceType: null,
+          location: "Home based - EMEA",
+        }),
+        record({
+          externalId: "office-taipei",
+          workplaceType: null,
+          location: "Office Based - Taipei, Taiwan",
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(result.jobs.map((job) => job.external_id)).toEqual([
+      "home-worldwide",
+      "home-emea",
+    ]);
+    expect(
+      result.jobs.map((job) => [job.work_arrangement, job.eligibility.scope]),
+    ).toEqual([
+      ["remote", "worldwide"],
+      ["remote", "emea"],
+    ]);
+    expect(result.filterCodes).toEqual({ geography_restricted: 1 });
+  });
+
+  it("does not widen scope from incidental anywhere wording", () => {
+    const result = normalizeAtsImportRecords(
+      [
+        record({
+          externalId: "us-remote-boilerplate",
+          workplaceType: "Remote",
+          location: "Remote in USA; South San Francisco, California, USA",
+          descriptionHtml:
+            "<p>We are on a mission to serve all humans equally by ensuring access to food, medicine and essential goods anytime, anywhere.</p>",
+        }),
+        record({
+          externalId: "genuine-work-from-anywhere",
+          workplaceType: "Remote",
+          location: null,
+          descriptionHtml:
+            "<p>This role is open to candidates who want to work from anywhere.</p>",
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(result.jobs.map((job) => job.external_id)).toEqual([
+      "genuine-work-from-anywhere",
+    ]);
+    expect(result.jobs[0]?.eligibility.scope).toBe("worldwide");
+    expect(result.filterCodes).toEqual({ geography_restricted: 1 });
+  });
+
   it("publishes onsite and hybrid roles located in an African country", () => {
     const result = normalizeAtsImportRecords(
       [
