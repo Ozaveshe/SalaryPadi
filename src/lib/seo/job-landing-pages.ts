@@ -177,8 +177,17 @@ function isNigeriaRelevant(job: Job) {
   );
 }
 
+/**
+ * A role anchored to a physical place: declared onsite/hybrid, or a
+ * non-remote role whose employer stated only a workplace location (common
+ * for ATS boards that never declare a workplace type).
+ */
 function isPhysicalWorkMode(job: Job) {
-  return job.workMode === "onsite" || job.workMode === "hybrid";
+  return (
+    job.workMode === "onsite" ||
+    job.workMode === "hybrid" ||
+    (job.workMode !== "remote" && job.locationDisplay.trim().length > 0)
+  );
 }
 
 export function matchesJobLanding(
