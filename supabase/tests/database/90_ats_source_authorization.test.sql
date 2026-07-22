@@ -213,24 +213,28 @@ select ok(
 );
 select is(
   (select count(*)::integer from private.ats_source_configs
-   where tenant_identifier <> 'moniepoint'),
+   where tenant_identifier not in ('moniepoint', 'canonical', 'flyzipline')),
   0,
-  'only the reviewed Moniepoint board configuration is seeded by migrations'
+  'only the reviewed employer board configurations are seeded by migrations'
 );
 select is(
   (select count(*)::integer
    from app.job_sources
    where status = 'active'
      and source_type = 'employer_ats'
-     and adapter_key <> 'moniepoint_greenhouse'),
+     and adapter_key not in (
+       'moniepoint_greenhouse', 'canonical_greenhouse', 'zipline_greenhouse'
+     )),
   0,
-  'only the reviewed Moniepoint board is activated by migrations'
+  'only the reviewed employer boards are activated by migrations'
 );
 select is(
-  (select status::text from app.job_sources
-   where adapter_key = 'moniepoint_greenhouse'),
-  'active',
-  'the reviewed Moniepoint board activates through the full policy chain'
+  (select count(*)::integer from app.job_sources
+   where adapter_key in (
+     'moniepoint_greenhouse', 'canonical_greenhouse', 'zipline_greenhouse'
+   ) and status = 'active'),
+  3,
+  'every reviewed employer board activates through the full policy chain'
 );
 
 select throws_ok(
