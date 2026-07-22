@@ -1641,6 +1641,56 @@ a:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.salary-range-bar {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.salary-range-track {
+  position: relative;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--surface-sunken, var(--border-default));
+}
+
+.salary-range-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: var(--interactive-primary);
+  opacity: 0.35;
+}
+
+.salary-range-median {
+  position: absolute;
+  top: -0.2rem;
+  bottom: -0.2rem;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--interactive-primary);
+  transform: translateX(-50%);
+}
+
+.salary-range-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.salary-evidence-details > summary {
+  cursor: pointer;
+  color: var(--interactive-primary);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.salary-evidence-details[open] > summary {
+  margin-bottom: 0.6rem;
+}
+
 .contribution-options {
   display: grid;
   gap: 1rem;
