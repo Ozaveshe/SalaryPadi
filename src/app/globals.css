@@ -1391,7 +1391,7 @@ a:hover {
 
 .home-proof-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 0;
   border-block: 1px solid var(--border-default);
 }
@@ -1420,6 +1420,43 @@ a:hover {
   font-size: 1rem;
   letter-spacing: 0;
   line-height: 1.35;
+}
+
+.home-hiring-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.home-hiring-label {
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.home-hiring-employer {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.home-hiring-employer:hover {
+  border-color: var(--border-strong);
+}
+
+.home-hiring-employer span {
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .home-proof-meta {

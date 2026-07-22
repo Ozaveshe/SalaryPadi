@@ -204,7 +204,7 @@ function relevanceScore(job: Job, search: JobSearch) {
  * eligibility. Used as the default browse order so verified local supply is
  * not buried under whichever remote feed refreshed last.
  */
-function nigeriaValueTier(job: Job) {
+export function nigeriaValueTier(job: Job) {
   if (job.workMode !== "remote" && /\bnigeria\b/i.test(job.locationDisplay)) {
     return 3;
   }

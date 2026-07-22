@@ -15,6 +15,7 @@ import Link from "next/link";
 import { JobCard } from "@/components/jobs/job-card";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
+import { nigeriaValueTier } from "@/lib/jobs/search";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
@@ -47,22 +48,38 @@ export default async function HomePage() {
       job.eligibility.africa === "eligible",
   );
   const recentJobs = feed.jobs
-    .toSorted((a, b) => {
-      const aRelevant =
-        a.eligibility.nigeria === "eligible" ||
-        a.eligibility.africa === "eligible"
-          ? 1
-          : 0;
-      const bRelevant =
-        b.eligibility.nigeria === "eligible" ||
-        b.eligibility.africa === "eligible"
-          ? 1
-          : 0;
-      return (
-        bRelevant - aRelevant || Date.parse(b.postedAt) - Date.parse(a.postedAt)
-      );
-    })
+    .toSorted(
+      (a, b) =>
+        nigeriaValueTier(b) - nigeriaValueTier(a) ||
+        Date.parse(b.postedAt) - Date.parse(a.postedAt),
+    )
+    .filter(
+      (job, index, sorted) =>
+        sorted.findIndex((other) => other.company.slug === job.company.slug) ===
+        index,
+    )
     .slice(0, 4);
+  const localNigeriaJobs = feed.jobs.filter(
+    (job) => nigeriaValueTier(job) === 3,
+  );
+  const employerCounts = new Map<
+    string,
+    { slug: string; name: string; roles: number }
+  >();
+  for (const job of feed.jobs) {
+    if (job.source.type !== "employer") continue;
+    const existing = employerCounts.get(job.company.slug);
+    if (existing) existing.roles += 1;
+    else
+      employerCounts.set(job.company.slug, {
+        slug: job.company.slug,
+        name: job.company.name,
+        roles: 1,
+      });
+  }
+  const hiringEmployers = [...employerCounts.values()]
+    .toSorted((a, b) => b.roles - a.roles)
+    .slice(0, 6);
   const checkedAt = new Date(feed.checkedAt);
   const checkedLabel = Number.isNaN(checkedAt.valueOf())
     ? "Freshness unavailable"
@@ -182,7 +199,41 @@ export default async function HomePage() {
                 {eligibleCountLabel}
               </dd>
             </div>
+            <div>
+              <dt>Local roles in Nigeria</dt>
+              <dd
+                className={
+                  feedIsConclusive ? undefined : "home-proof-value-state"
+                }
+              >
+                {feedIsConclusive
+                  ? String(localNigeriaJobs.length)
+                  : feed.state === "degraded"
+                    ? `${localNigeriaJobs.length} available (partial)`
+                    : "Unavailable"}
+              </dd>
+            </div>
           </dl>
+          {hiringEmployers.length > 0 ? (
+            <div
+              className="home-hiring-strip"
+              aria-label="Employers hiring now"
+            >
+              <span className="home-hiring-label">Hiring now</span>
+              {hiringEmployers.map((employer) => (
+                <Link
+                  className="home-hiring-employer"
+                  href={`/companies/${employer.slug}`}
+                  key={employer.slug}
+                >
+                  {employer.name}
+                  <span>
+                    {employer.roles} role{employer.roles === 1 ? "" : "s"}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          ) : null}
           <div className="home-proof-meta">
             <span>
               <Clock3 aria-hidden="true" size={16} />
