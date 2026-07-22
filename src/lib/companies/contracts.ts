@@ -79,6 +79,7 @@ export const companyCitationSchema = z
       "employer_description",
       "employer_benefit",
       "employer_policy",
+      "regulatory_license",
     ]),
     source_kind: z.enum([
       "official_site",
@@ -93,6 +94,18 @@ export const companyCitationSchema = z
     fact_checked_at: timestampSchema,
     review_due_at: timestampSchema,
     status: z.enum(["current", "review_due"]),
+    /**
+     * Public value payload, exposed by the view only for regulatory_license
+     * facts (e.g. { value, authority, register_name }). Null for other keys.
+     */
+    fact_value: z
+      .object({
+        value: boundedText(300),
+        authority: boundedText(300).optional(),
+        register_name: boundedText(300).optional(),
+      })
+      .nullable()
+      .optional(),
   })
   .superRefine((citation, context) => {
     const retrievedAt = Date.parse(citation.retrieved_at);

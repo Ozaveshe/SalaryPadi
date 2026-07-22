@@ -169,6 +169,10 @@ export default async function CompanyPage({
       ]),
     ).values(),
   ];
+  const regulatoryLicenses = company.citations.filter(
+    (citation) =>
+      citation.fact_key === "regulatory_license" && citation.fact_value,
+  );
   const publishedCommunityEvidence = hasPublishedCommunityEvidence({
     companyResult,
     ratingResult,
@@ -236,6 +240,32 @@ export default async function CompanyPage({
               <dd>
                 Rank {company.catalog.rank} · {company.catalog.marketCountry}{" "}
                 market · data as of {company.catalog.dataAsOf}
+              </dd>
+            </div>
+          ) : null}
+          {regulatoryLicenses.length > 0 ? (
+            <div>
+              <dt>Regulatory status</dt>
+              <dd>
+                {regulatoryLicenses.map((license) => (
+                  <span className="regulatory-license" key={license.id}>
+                    {license.fact_value!.value}
+                    {license.fact_value!.authority
+                      ? ` — ${license.fact_value!.authority}`
+                      : ""}{" "}
+                    <a
+                      className="text-link"
+                      href={license.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                    >
+                      official register
+                    </a>{" "}
+                    <span className="source-note">
+                      checked {formatDate(license.fact_checked_at)}
+                    </span>
+                  </span>
+                ))}
               </dd>
             </div>
           ) : null}
