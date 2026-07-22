@@ -88,17 +88,21 @@ describe("programmatic job landing gates", () => {
     ).toBe(true);
   });
 
-  it("requires a physical work mode for local Nigeria and Lagos landings", () => {
+  it("anchors local Nigeria and Lagos landings to a physical workplace", () => {
     const unclear = {
       ...job,
       workMode: "unclear" as const,
       locationDisplay: "Lagos, Nigeria",
     };
     const hybrid = { ...unclear, workMode: "hybrid" as const };
+    const remote = { ...unclear, workMode: "remote" as const };
+    const placeless = { ...unclear, locationDisplay: "" };
 
-    expect(matchesJobLanding(unclear, "nigeria_local")).toBe(false);
-    expect(matchesJobLanding(unclear, "city_lagos")).toBe(false);
+    expect(matchesJobLanding(unclear, "nigeria_local")).toBe(true);
+    expect(matchesJobLanding(unclear, "city_lagos")).toBe(true);
     expect(matchesJobLanding(hybrid, "nigeria_local")).toBe(true);
     expect(matchesJobLanding(hybrid, "city_lagos")).toBe(true);
+    expect(matchesJobLanding(remote, "nigeria_local")).toBe(false);
+    expect(matchesJobLanding(placeless, "nigeria_local")).toBe(false);
   });
 });
