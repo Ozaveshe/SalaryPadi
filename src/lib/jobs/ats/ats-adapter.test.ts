@@ -10,6 +10,7 @@ import {
   buildAtsEndpoint,
   buildGreenhouseEndpoint,
   buildLeverEndpoint,
+  buildWorkableEndpoint,
   fetchAtsSourceRecords,
 } from "./index";
 
@@ -68,6 +69,46 @@ function ashbySource(): AtsAuthorizedSource<"ashby"> {
     tenant: "example",
     state: "authorized",
     authorization: authorization(),
+  };
+}
+
+function workableSource(): AtsAuthorizedSource<"workable"> {
+  return {
+    key: "workable-example",
+    employerName: "Example Employer",
+    provider: "workable",
+    tenant: "example",
+    state: "authorized",
+    authorization: authorization(),
+  };
+}
+
+function workableJob(overrides: Record<string, unknown> = {}) {
+  return {
+    title: "Product Engineer",
+    shortcode: "61C3B27064",
+    code: "",
+    employment_type: "Full-time",
+    telecommuting: false,
+    department: "Engineering",
+    url: "https://apply.workable.com/j/61C3B27064",
+    shortlink: "https://apply.workable.com/j/61C3B27064",
+    application_url: "https://apply.workable.com/j/61C3B27064/apply",
+    published_on: "2026-06-08",
+    created_at: "2026-06-03",
+    country: "Nigeria",
+    city: "Abuja",
+    state: "",
+    locations: [
+      {
+        country: "Nigeria",
+        countryCode: "NG",
+        city: "Abuja",
+        region: null,
+        hidden: false,
+      },
+    ],
+    ...overrides,
   };
 }
 
@@ -186,6 +227,9 @@ describe("ATS endpoint allowlist", () => {
     expect(buildAshbyEndpoint({ provider: "ashby", tenant: "Acme" }).href).toBe(
       "https://api.ashbyhq.com/posting-api/job-board/Acme",
     );
+    expect(
+      buildWorkableEndpoint({ provider: "workable", tenant: "acme" }).href,
+    ).toBe("https://apply.workable.com/api/v1/widget/accounts/acme");
   });
 
   it.each(["https://evil.example", "../other", "acme/path", "acme.example"])(
@@ -411,6 +455,70 @@ describe("employer-authorized ATS adapter", () => {
       employmentType: "FullTime",
       team: "Platform",
     });
+  });
+
+  it("normalizes the Workable widget shape distilled from Kuda", async () => {
+    const result = await fetchAtsSourceRecords(workableSource(), {
+      fetch: fixedFetch(
+        jsonResponse({
+          name: "Example Employer",
+          description: null,
+          jobs: [
+            workableJob(),
+            workableJob({
+              shortcode: "REMOTE1",
+              url: "https://apply.workable.com/j/REMOTE1",
+              application_url: "https://apply.workable.com/j/REMOTE1/apply",
+              telecommuting: true,
+              city: "Lagos",
+              locations: [],
+            }),
+          ],
+        }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    expect(result.records).toHaveLength(2);
+    expect(result.records[0]).toMatchObject({
+      provider: "workable",
+      externalId: "61C3B27064",
+      location: "Abuja, Nigeria",
+      workplaceType: null,
+      employmentType: "Full-time",
+      publishedAt: "2026-06-08T00:00:00.000Z",
+      sourceUrl: "https://apply.workable.com/j/61C3B27064",
+      applicationUrl: "https://apply.workable.com/j/61C3B27064/apply",
+    });
+    expect(result.records[1]).toMatchObject({
+      externalId: "REMOTE1",
+      location: "Lagos, Nigeria",
+      workplaceType: "remote",
+    });
+  });
+
+  it("quarantines a Workable destination outside the apply host", async () => {
+    const result = await fetchAtsSourceRecords(workableSource(), {
+      fetch: fixedFetch(
+        jsonResponse({
+          name: "Example Employer",
+          jobs: [
+            workableJob({
+              url: "https://evil.example/j/61C3B27064",
+              application_url: "https://evil.example/j/61C3B27064/apply",
+            }),
+          ],
+        }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    expect(result.records).toHaveLength(0);
+    expect(result.invalidRecords).toMatchObject([
+      { index: 0, stage: "normalization" },
+    ]);
   });
 
   it("accepts the additive Greenhouse shape distilled from Moniepoint", async () => {
