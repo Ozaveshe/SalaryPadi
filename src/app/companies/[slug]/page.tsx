@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import { CompanyHeading } from "@/components/companies/company-heading";
+import { InterviewExperienceCard } from "@/components/companies/interview-experience-card";
 import { JobCard } from "@/components/jobs/job-card";
 import { JsonLd } from "@/components/json-ld";
 import {
@@ -513,6 +514,22 @@ export default async function CompanyPage({
             signal.
           </div>
         ) : null}
+        {interviews.length > 0 ? (
+          <div className="stack">
+            <h3 className="text-lg font-bold">Interview experiences</h3>
+            {interviews
+              .toSorted(
+                (a, b) =>
+                  Date.parse(b.published_at) - Date.parse(a.published_at),
+              )
+              .map((interview) => (
+                <InterviewExperienceCard
+                  interview={interview}
+                  key={interview.id}
+                />
+              ))}
+          </div>
+        ) : null}
         {benefits.length > 0 ? (
           <div className="stack">
             <h3 className="text-lg font-bold">Published benefits evidence</h3>
@@ -564,6 +581,9 @@ export default async function CompanyPage({
           </div>
         ) : null}
         <div className="cluster">
+          <Link className="button" href="/contribute/interview">
+            Share interview experience
+          </Link>
           <Link className="button button-secondary" href="/contribute/salary">
             Contribute salary
           </Link>
@@ -578,12 +598,6 @@ export default async function CompanyPage({
             href="/contribute/pay-reliability"
           >
             Share pay reliability
-          </Link>
-          <Link
-            className="button button-secondary"
-            href="/contribute/interview"
-          >
-            Share interview experience
           </Link>
         </div>
         <div className="cluster">

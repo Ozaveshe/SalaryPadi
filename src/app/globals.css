@@ -1431,6 +1431,27 @@ a:hover {
   display: block;
 }
 
+.interview-stage-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.interview-card .source-note {
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.interview-card p.field-help,
+.interview-card p:last-child {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .home-hiring-strip {
   display: flex;
   flex-wrap: wrap;
