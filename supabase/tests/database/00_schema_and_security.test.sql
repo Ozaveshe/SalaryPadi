@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, security, audit;
 
-select plan(37);
+select plan(38);
 
 select has_schema('api', 'api schema exists');
 select has_schema('app', 'app schema exists');
@@ -127,10 +127,17 @@ select ok(
 
 select ok(
   pg_get_viewdef('api.jobs'::regclass, true) like '%is_public_job_source%'
-  and pg_get_viewdef('api.jobs'::regclass, true) like '%public_job_provenance%'
+  and pg_get_viewdef('api.jobs'::regclass, true) like '%public_provenance%'
+  and pg_get_viewdef('api.jobs'::regclass, true) like '%public_ready_until%'
   and pg_get_viewdef('api.jobs'::regclass, true) like '%valid_through%'
   and pg_get_viewdef('api.jobs'::regclass, true) like '%is_fixture%',
   'job projection enforces current source and country permission, expiry, and fixture exclusion'
+);
+select ok(
+  pg_get_functiondef(
+    'security.refresh_job_public_provenance(uuid)'::regprocedure
+  ) ~ 'public_job_provenance',
+  'the cached provenance column is derived from the canonical provenance policy function'
 );
 
 select ok(
