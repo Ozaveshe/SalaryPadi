@@ -198,6 +198,25 @@ function relevanceScore(job: Job, search: JobSearch) {
   return best;
 }
 
+/**
+ * How directly a role serves the core audience: Nigeria-local work first,
+ * then remote roles with explicit Nigeria eligibility, then explicit Africa
+ * eligibility. Used as the default browse order so verified local supply is
+ * not buried under whichever remote feed refreshed last.
+ */
+function nigeriaValueTier(job: Job) {
+  if (job.workMode !== "remote" && /\bnigeria\b/i.test(job.locationDisplay)) {
+    return 3;
+  }
+  if (job.workMode === "remote" && job.eligibility.nigeria === "eligible") {
+    return 2;
+  }
+  if (job.workMode === "remote" && job.eligibility.africa === "eligible") {
+    return 1;
+  }
+  return 0;
+}
+
 export function filterAndSortJobs(
   jobs: Job[],
   search: JobSearch,
@@ -215,7 +234,7 @@ export function filterAndSortJobs(
       return false;
     if (
       search.path === "local_nigeria" &&
-      ((job.workMode !== "onsite" && job.workMode !== "hybrid") ||
+      (job.workMode === "remote" ||
         !includesValue(job.locationDisplay, "nigeria"))
     )
       return false;
@@ -324,7 +343,11 @@ export function filterAndSortJobs(
       );
     const scoreDifference =
       relevanceScore(b, search) - relevanceScore(a, search);
-    return scoreDifference || Date.parse(b.postedAt) - Date.parse(a.postedAt);
+    return (
+      scoreDifference ||
+      nigeriaValueTier(b) - nigeriaValueTier(a) ||
+      Date.parse(b.postedAt) - Date.parse(a.postedAt)
+    );
   });
 }
 
