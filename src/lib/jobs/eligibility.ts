@@ -270,10 +270,15 @@ export function classifyEligibilityEvidence(
   // The standalone form stays an exact match so incidental wording such as
   // "customers worldwide" cannot widen scope; the prefixed form covers the
   // common ATS location format "Home based - Worldwide" / "Remote - Worldwide".
+  // Bare "anywhere" is excluded on purpose: mission wording such as
+  // "essential goods anytime, anywhere" must not widen a role's scope.
   const worldwide =
     /^(?:(?:home[ -]?based|remote)[ -]+)?(?:world|worldwide|world wide)(?: only)?$/.test(
       normalized,
-    ) || /\b(?:anywhere|global remote|remote global)\b/.test(normalized);
+    ) ||
+    /\b(?:work from anywhere|anywhere in the world|global remote|remote global)\b/.test(
+      normalized,
+    );
 
   let scope: RemoteEligibilityScope;
   if (worldwide) scope = "worldwide";

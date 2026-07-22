@@ -25,7 +25,7 @@ export type RemotePublicationDecision =
     };
 
 const eligibilitySentencePattern =
-  /\b(?:worldwide|anywhere|global remote|remote globally)\b|\b(?:candidates?|applicants?|role|position|job|we)\b[^.!?\n]{0,180}\b(?:open to|hiring|hire|based|located|reside|work from|available in|remote in|eligible|time\s?zone|work authori[sz]ation|right to work)\b|\b(?:must|required|need)\b[^.!?\n]{0,180}\b(?:based|located|reside|work from|work authori[sz]ation|right to work|time\s?zone)\b/i;
+  /\b(?:worldwide|work from anywhere|anywhere in the world|global remote|remote globally)\b|\b(?:candidates?|applicants?|role|position|job|we)\b[^.!?\n]{0,180}\b(?:open to|hiring|hire|based|located|reside|work from|available in|remote in|eligible|time\s?zone|work authori[sz]ation|right to work)\b|\b(?:must|required|need)\b[^.!?\n]{0,180}\b(?:based|located|reside|work from|work authori[sz]ation|right to work|time\s?zone)\b/i;
 
 function boundedSentences(value: string) {
   return value

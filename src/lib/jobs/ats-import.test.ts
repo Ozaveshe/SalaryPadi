@@ -128,6 +128,34 @@ describe("ATS import normalization", () => {
     expect(result.filterCodes).toEqual({ geography_restricted: 1 });
   });
 
+  it("does not widen scope from incidental anywhere wording", () => {
+    const result = normalizeAtsImportRecords(
+      [
+        record({
+          externalId: "us-remote-boilerplate",
+          workplaceType: "Remote",
+          location: "Remote in USA; South San Francisco, California, USA",
+          descriptionHtml:
+            "<p>We are on a mission to serve all humans equally by ensuring access to food, medicine and essential goods anytime, anywhere.</p>",
+        }),
+        record({
+          externalId: "genuine-work-from-anywhere",
+          workplaceType: "Remote",
+          location: null,
+          descriptionHtml:
+            "<p>This role is open to candidates who want to work from anywhere.</p>",
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(result.jobs.map((job) => job.external_id)).toEqual([
+      "genuine-work-from-anywhere",
+    ]);
+    expect(result.jobs[0]?.eligibility.scope).toBe("worldwide");
+    expect(result.filterCodes).toEqual({ geography_restricted: 1 });
+  });
+
   it("publishes onsite and hybrid roles located in an African country", () => {
     const result = normalizeAtsImportRecords(
       [
