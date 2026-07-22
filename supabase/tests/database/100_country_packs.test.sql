@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security;
-select plan(41);
+select plan(42);
 
 select has_table('app', 'currencies', 'currency catalog exists');
 select has_table('app', 'country_locales', 'country locales exist');
@@ -161,13 +161,18 @@ select ok(
   'provider fetch claims require runnable active-country rights before network access'
 );
 select ok(
-  (select pg_get_expr(policy.polqual, policy.polrelid) ~ 'job_country_distribution_allowed'
+  (select pg_get_expr(policy.polqual, policy.polrelid) ~ 'public_provenance'
    from pg_policy policy
    join pg_class relation on relation.oid = policy.polrelid
    join pg_namespace namespace on namespace.oid = relation.relnamespace
    where namespace.nspname = 'app' and relation.relname = 'jobs'
      and policy.polname = 'jobs_public_read'),
-  'public job RLS requires country display rights'
+  'public job RLS requires the cached provenance decision'
+);
+select ok(
+  pg_get_functiondef('security.public_job_provenance(uuid)'::regprocedure)
+    ~ 'job_country_distribution_allowed',
+  'the provenance decision behind the cache requires country display rights'
 );
 select ok(
   pg_get_functiondef('security.google_indexing_job_is_eligible(uuid)'::regprocedure)
