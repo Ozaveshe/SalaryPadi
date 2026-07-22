@@ -267,9 +267,13 @@ export function classifyEligibilityEvidence(
   const hasEmea = emeaPattern.test(references.residual);
   const withoutEmea = references.residual.replace(emeaPattern, " ");
   const hasAfricaRegion = /\bafrica\b/.test(withoutEmea);
+  // The standalone form stays an exact match so incidental wording such as
+  // "customers worldwide" cannot widen scope; the prefixed form covers the
+  // common ATS location format "Home based - Worldwide" / "Remote - Worldwide".
   const worldwide =
-    /^(?:world|worldwide|world wide)(?: only)?$/.test(normalized) ||
-    /\b(?:anywhere|global remote|remote global)\b/.test(normalized);
+    /^(?:(?:home[ -]?based|remote)[ -]+)?(?:world|worldwide|world wide)(?: only)?$/.test(
+      normalized,
+    ) || /\b(?:anywhere|global remote|remote global)\b/.test(normalized);
 
   let scope: RemoteEligibilityScope;
   if (worldwide) scope = "worldwide";
