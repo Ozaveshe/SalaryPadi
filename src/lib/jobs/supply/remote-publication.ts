@@ -107,6 +107,41 @@ function hasDisqualifyingWorkAuthorization(
   );
 }
 
+/**
+ * Onsite, hybrid, and unspecified-arrangement roles are publishable when the
+ * source's stated location resolves to a named African country: the workplace
+ * itself is the eligibility evidence. Roles whose location cannot be resolved
+ * to an African country stay filtered rather than guessed at.
+ */
+export function evaluateLocalPublication(input: {
+  evidenceText: string;
+  verifiedAt: string;
+}): RemotePublicationDecision {
+  const classification = classifyEligibilityEvidence(
+    input.evidenceText,
+    input.verifiedAt,
+  );
+  if (classification.eligibility.scope === "nigeria") {
+    return {
+      eligible: true,
+      reason: "nigeria",
+      evidenceText: input.evidenceText,
+    };
+  }
+  if (classification.includedCountryCodes.some(isAfricanCountryCode)) {
+    return {
+      eligible: true,
+      reason: "named_african_country",
+      evidenceText: input.evidenceText,
+    };
+  }
+  return {
+    eligible: false,
+    reason: "geography_restricted",
+    evidenceText: input.evidenceText,
+  };
+}
+
 export function evaluateRemotePublication(input: {
   arrangement:
     | EmploymentArrangement
