@@ -66,7 +66,9 @@ export function inferRemoteArrangement(
   if (/\b(?:hybrid|on[ -]?site|office[ -]?based)\b/i.test(evidence)) {
     return /\bhybrid\b/i.test(evidence) ? "hybrid" : "onsite";
   }
-  if (/\b(?:remote|home[ -]?based|work from (?:anywhere|home))\b/i.test(evidence)) {
+  if (
+    /\b(?:remote|home[ -]?based|work from (?:anywhere|home))\b/i.test(evidence)
+  ) {
     return "remote";
   }
   return "unspecified";
