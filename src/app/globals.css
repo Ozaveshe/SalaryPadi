@@ -1427,6 +1427,10 @@ a:hover {
   line-height: 1.35;
 }
 
+.regulatory-license {
+  display: block;
+}
+
 .home-hiring-strip {
   display: flex;
   flex-wrap: wrap;
