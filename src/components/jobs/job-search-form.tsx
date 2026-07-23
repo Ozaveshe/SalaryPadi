@@ -27,7 +27,9 @@ export function JobSearchForm({
             id="job-keyword"
             name="q"
             defaultValue={search.q}
-            placeholder="e.g. product designer"
+            autoComplete="off"
+            placeholder="e.g. product designer…"
+            spellCheck={false}
           />
         </div>
         <div className="field">
@@ -37,7 +39,8 @@ export function JobSearchForm({
             id="job-location"
             name="location"
             defaultValue={search.location}
-            placeholder="e.g. Nigeria or Worldwide"
+            autoComplete="off"
+            placeholder="e.g. Nigeria or Worldwide…"
           />
         </div>
         <div className="field">
@@ -205,7 +208,8 @@ export function JobSearchForm({
               id="timezone"
               name="timezone"
               defaultValue={search.timezone}
-              placeholder="e.g. GMT+1"
+              autoComplete="off"
+              placeholder="e.g. GMT+1…"
             />
           </div>
           <div className="field">

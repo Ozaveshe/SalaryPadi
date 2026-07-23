@@ -142,7 +142,9 @@ export default async function SalariesPage({
             id="salary-role"
             name="role"
             defaultValue={role}
-            placeholder="e.g. product manager"
+            autoComplete="off"
+            placeholder="e.g. product manager…"
+            spellCheck={false}
           />
         </div>
         <div className="field">

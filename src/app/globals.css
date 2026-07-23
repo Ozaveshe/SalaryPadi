@@ -1119,6 +1119,7 @@ a:hover {
 .job-facts .job-naira-estimate {
   color: var(--interactive-primary);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .tag-list {
