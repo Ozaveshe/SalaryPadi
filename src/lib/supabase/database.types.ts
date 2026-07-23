@@ -1034,6 +1034,15 @@ export type Database = {
         };
         Relationships: [];
       };
+      role_families: {
+        Row: {
+          slug: string;
+          name: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       salary_aggregates: {
         Row: {
           arrangement: string | null;
