@@ -24,15 +24,11 @@ import {
   getSalaryCellProgressResult,
   searchSalaryAggregatesResult,
 } from "@/lib/salaries/repository";
+import { getBenchmarkReferences } from "@/lib/salaries/benchmark-references";
 import { getRoleFamiliesResult } from "@/lib/salaries/role-directory";
 import { canIndexSalaryDetail } from "@/lib/seo/indexability";
 import { buildSocialImageMetadata } from "@/lib/seo/open-graph";
 import { buildBreadcrumbStructuredData } from "@/lib/seo/structured-data";
-
-const BENCHMARK_REFERENCE_COUNTRIES = [
-  { code: "US", label: "United States" },
-  { code: "GB", label: "United Kingdom" },
-] as const;
 
 export async function generateMetadata({
   params,
@@ -108,17 +104,9 @@ export default async function SalaryRolePage({
   const family = families.data.find((entry) => entry.slug === role) ?? null;
   const roleName = family?.name ?? role.replace(/-/g, " ");
   const results = result.data;
-  const benchmarkReferences = (
-    await Promise.all(
-      BENCHMARK_REFERENCE_COUNTRIES.map(async (reference) => ({
-        ...reference,
-        result: await searchSalaryAggregatesResult({
-          country: reference.code,
-          role: roleName,
-        }),
-      })),
-    )
-  ).filter((reference) => reference.result.data.length > 0);
+  const benchmarkReferences = await getBenchmarkReferences({
+    role: roleName,
+  });
   const disclosedJobs = filterAndSortJobs(
     feed.jobs,
     parseJobSearch({ q: roleName, salaryDisclosed: "true" }),
