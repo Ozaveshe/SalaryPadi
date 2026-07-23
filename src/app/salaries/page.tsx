@@ -19,6 +19,7 @@ import {
   getSalaryCellProgressResult,
   searchSalaryAggregatesResult,
 } from "@/lib/salaries/repository";
+import { getRoleFamiliesResult } from "@/lib/salaries/role-directory";
 import { sliceSearchParam } from "@/lib/search-params";
 import { canIndexSalaryHub } from "@/lib/seo/indexability";
 
@@ -89,9 +90,12 @@ export default async function SalariesPage({
     !company
       ? await getSalaryCellProgressResult({ role, country })
       : null;
-  const benchmarkReferences = hasSearch
-    ? []
-    : await getRemoteBenchmarkReferences();
+  const [benchmarkReferences, roleFamilies] = await Promise.all([
+    hasSearch ? Promise.resolve([]) : getRemoteBenchmarkReferences(),
+    hasSearch
+      ? Promise.resolve(null)
+      : getRoleFamiliesResult().then((familyResult) => familyResult.data),
+  ]);
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -223,6 +227,26 @@ export default async function SalariesPage({
             <Link className="button button-secondary" href="/methodology">
               Read the methodology
             </Link>
+          </div>
+        </section>
+      ) : null}
+      {roleFamilies && roleFamilies.length > 0 ? (
+        <section className="stack" aria-labelledby="salary-role-directory">
+          <h2 className="section-title" id="salary-role-directory">
+            Salary pages by role — Nigeria
+          </h2>
+          <p className="text-muted m-0 max-w-2xl text-sm">
+            Each role page collects the local aggregate (when the privacy
+            threshold is met), live vacancies with disclosed pay, and official
+            remote benchmark references.
+          </p>
+          <div className="home-entry-grid">
+            {roleFamilies.map((family) => (
+              <Link href={`/salaries/ng/${family.slug}`} key={family.slug}>
+                <strong>{family.name}</strong>
+                <span>Salary evidence and live disclosed pay</span>
+              </Link>
+            ))}
           </div>
         </section>
       ) : null}
