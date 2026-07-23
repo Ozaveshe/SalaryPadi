@@ -4,11 +4,11 @@ Official Nigerian federal pay structures from the National Salaries,
 Incomes and Wages Commission (nsiwc.gov.ng — intermittently offline;
 PDFs archived in `docs/data/sources/`).
 
-| File | Circular | Effective | Contents |
-| --- | --- | --- | --- |
-| `sources/conpss2024.pdf` | SWC.04/T/140, 23 Sep 2024 | 29 Jul 2024 | CONPSS annual salary table (post ₦70,000 minimum wage), GL01–GL17 × steps 01–15, naira per annum. Scanned; no text layer. |
-| `sources/conhess2024.pdf` | (item 1 of same series) | 29 Jul 2024 | CONHESS — Consolidated Health Salary Structure, 2024 revision. |
-| `sources/conmess.pdf` | earlier circular | — | CONMESS — Consolidated Medical Salary Structure (verify revision date before use). |
+| File                      | Circular                  | Effective   | Contents                                                                                                                  |
+| ------------------------- | ------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `sources/conpss2024.pdf`  | SWC.04/T/140, 23 Sep 2024 | 29 Jul 2024 | CONPSS annual salary table (post ₦70,000 minimum wage), GL01–GL17 × steps 01–15, naira per annum. Scanned; no text layer. |
+| `sources/conhess2024.pdf` | (item 1 of same series)   | 29 Jul 2024 | CONHESS — Consolidated Health Salary Structure, 2024 revision.                                                            |
+| `sources/conmess.pdf`     | earlier circular          | —           | CONMESS — Consolidated Medical Salary Structure (verify revision date before use).                                        |
 
 Download provenance: `https://nsiwc.gov.ng/download/...?wpdmdl=40910`
 (CONPSS), `40908` (CONHESS), `37008` (CONMESS).
