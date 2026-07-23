@@ -1,10 +1,8 @@
 import "server-only";
 
 import { unstable_rethrow } from "next/navigation";
-import { z } from "zod";
 
 import { getServerEnvironment } from "@/lib/env";
-import { externalHttpsUrlSchema } from "@/lib/security/url-schema";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { buildJobFingerprintLookupKeys } from "./fingerprint";
@@ -31,6 +29,12 @@ import {
   getDatabaseJobsByFingerprintResult,
 } from "./repository-database";
 import { combineJobSources } from "./repository-reconciliation";
+import {
+  REVIEWED_POLICY_SELECT_COLUMNS,
+  reviewedPolicyMismatch,
+  reviewedPolicyRowSchema,
+  type ReviewedSourceExpectation,
+} from "./reviewed-policy";
 import {
   HIMALAYAS_ADAPTER_KEY,
   HIMALAYAS_CACHE_TAG,
@@ -100,22 +104,6 @@ async function readFreshSecondaryFeed(
     count: snapshot.catalog.jobs.length,
   };
 }
-const reviewedPolicyRowSchema = z
-  .object({
-    adapter_key: z.string().min(1).max(80),
-    source_type: z.string().min(1).max(40),
-    terms_url: externalHttpsUrlSchema,
-    terms_reviewed_at: z.iso.datetime({ offset: true }),
-    terms_version: z.string().min(1).max(160),
-    attribution_required: z.boolean(),
-    may_store_full_description: z.boolean(),
-    may_index_jobs: z.boolean(),
-    may_emit_jobposting_schema: z.boolean(),
-    allow_public_listing: z.boolean(),
-    required_destination_kind: z.string().min(1).max(40),
-    refresh_interval_seconds: z.number().int().positive().max(604_800),
-  })
-  .strict();
 
 function createRemotiveProxyFetch(): RemotiveFetch {
   const environment = getServerEnvironment();
@@ -162,78 +150,99 @@ function sourceRegistryUnavailable(
   );
 }
 
-function readRemotivePolicy(supabase: ServerSupabaseClient) {
+function readSourcePolicyRow(
+  supabase: ServerSupabaseClient,
+  adapterKey: string,
+) {
   return supabase
     .schema("api")
     .from("job_sources")
-    .select(
-      "adapter_key,source_type,terms_url,terms_reviewed_at,terms_version,attribution_required,may_store_full_description,may_index_jobs,may_emit_jobposting_schema,allow_public_listing,required_destination_kind,refresh_interval_seconds",
-    )
-    .eq("adapter_key", REMOTIVE_ADAPTER_KEY)
+    .select(REVIEWED_POLICY_SELECT_COLUMNS)
+    .eq("adapter_key", adapterKey)
     .abortSignal(AbortSignal.timeout(4_000))
     .maybeSingle();
 }
 
-function readJobicyPolicy(supabase: ServerSupabaseClient) {
-  return supabase
-    .schema("api")
-    .from("job_sources")
-    .select(
-      "adapter_key,source_type,terms_url,terms_reviewed_at,terms_version,attribution_required,may_store_full_description,may_index_jobs,may_emit_jobposting_schema,allow_public_listing,required_destination_kind,refresh_interval_seconds",
-    )
-    .eq("adapter_key", JOBICY_ADAPTER_KEY)
-    .abortSignal(AbortSignal.timeout(4_000))
-    .maybeSingle();
-}
+type SecondarySourceKey = "remotive" | "jobicy" | "himalayas";
 
-function readHimalayasPolicy(supabase: ServerSupabaseClient) {
-  return supabase
-    .schema("api")
-    .from("job_sources")
-    .select(
-      "adapter_key,source_type,terms_url,terms_reviewed_at,terms_version,attribution_required,may_store_full_description,may_index_jobs,may_emit_jobposting_schema,allow_public_listing,required_destination_kind,refresh_interval_seconds",
-    )
-    .eq("adapter_key", HIMALAYAS_ADAPTER_KEY)
-    .abortSignal(AbortSignal.timeout(4_000))
-    .maybeSingle();
+interface SecondarySourceFetchResult {
+  jobs: Job[];
+  checkedAt: string;
+  /** Present when the provider answered with a reviewed partial result. */
+  degraded?: { code: string; message: string };
 }
 
 /**
- * Public acquisition is fail-closed against the active source registry. The
- * environment flag is the emergency kill switch; the database row is the
- * reviewed operator policy. Neither one can enable the other.
+ * Everything that legitimately differs between the reviewed secondary public
+ * feeds. The shared engine below owns the gate order and freshness rules; a
+ * descriptor may only choose its reviewed policy, its provider fetch, and the
+ * operator-facing wording. Registering a new secondary source (for example
+ * ReliefWeb) means writing one of these, not a fourth bespoke pipeline.
  */
-export async function getRemotiveJobFeed(
+interface SecondarySourceDescriptor {
+  key: SecondarySourceKey;
+  /** Reviewed application policy the live registry row must still match. */
+  reviewed: ReviewedSourceExpectation;
+  /**
+   * Optional environment kill switch, checked after the application registry
+   * gate and before any registry read. Neither gate can enable the other.
+   */
+  environment?: { isEnabled: () => boolean; message: string };
+  /**
+   * Worker snapshot served ahead of the request-time fetch, or null for a
+   * source that is always fetched live at request time.
+   */
+  snapshotKey: SecondaryFeedKey | null;
+  messages: {
+    registryDisabled: string;
+    policyPaused: string;
+    snapshotStale: string;
+    snapshotFuture: string;
+    refreshFailed: string;
+  };
+  fetchJobs: (requestedAt: Date) => Promise<SecondarySourceFetchResult>;
+  /** Maps a fetch failure to its published source-status code. */
+  failureCode: (reason: unknown) => string;
+}
+
+/**
+ * Public acquisition is fail-closed against three independent gates, in
+ * order: the application source-policy registry, the per-source environment
+ * kill switch, and the reviewed operator policy row in the database. No gate
+ * can enable another, and every failure keeps the provider uncontacted.
+ */
+async function getSecondarySourceFeed(
+  descriptor: SecondarySourceDescriptor,
   suppliedClient?: ServerSupabaseClient | null,
 ): Promise<SourceFeed> {
+  const { key, reviewed, messages } = descriptor;
   const attemptedAt = new Date().toISOString();
   try {
-    openSupplyAdapter("remotive", new Date(attemptedAt));
+    openSupplyAdapter(key, new Date(attemptedAt));
   } catch (reason) {
     const code =
       reason instanceof AdapterPolicyError
-        ? `remotive_${reason.code}`
-        : "remotive_policy_invalid";
+        ? `${key}_${reason.code}`
+        : `${key}_policy_invalid`;
     return {
-      key: "remotive",
+      key,
       jobs: [],
       state: "disabled",
       checkedAt: attemptedAt,
       count: 0,
       code,
-      message:
-        "The reviewed Remotive source is disabled by the application source-policy registry.",
+      message: messages.registryDisabled,
     };
   }
-  if (!getServerEnvironment().REMOTIVE_SOURCE_ENABLED) {
+  if (descriptor.environment && !descriptor.environment.isEnabled()) {
     return {
-      key: "remotive",
+      key,
       jobs: [],
       state: "disabled",
       checkedAt: attemptedAt,
       count: 0,
-      code: "remotive_environment_disabled",
-      message: "The reviewed Remotive source is disabled in this environment.",
+      code: `${key}_environment_disabled`,
+      message: descriptor.environment.message,
     };
   }
 
@@ -243,89 +252,152 @@ export async function getRemotiveJobFeed(
   } catch (reason) {
     unstable_rethrow(reason);
     return sourceRegistryUnavailable(
-      "remotive",
+      key,
       attemptedAt,
       "source_registry_client_failed",
     );
   }
   if (!supabase) {
     return sourceUnavailable(
-      "remotive",
+      key,
       attemptedAt,
       "source_registry_unconfigured",
       "The job source registry is not configured.",
     );
   }
 
-  let policy: Awaited<ReturnType<typeof readRemotivePolicy>>;
+  let policy: Awaited<ReturnType<typeof readSourcePolicyRow>>;
   try {
-    policy = await readRemotivePolicy(supabase);
+    policy = await readSourcePolicyRow(supabase, reviewed.adapterKey);
   } catch (reason) {
     unstable_rethrow(reason);
     return sourceRegistryUnavailable(
-      "remotive",
+      key,
       attemptedAt,
       "source_registry_query_failed",
     );
   }
-
   if (policy.error) {
     return sourceRegistryUnavailable(
-      "remotive",
+      key,
       attemptedAt,
       "source_registry_query_failed",
     );
   }
   if (!policy.data) {
     return {
-      key: "remotive",
+      key,
       jobs: [],
       state: "disabled",
       checkedAt: attemptedAt,
       count: 0,
-      code: "remotive_policy_disabled",
-      message: "The reviewed Remotive source is paused or disabled.",
+      code: `${key}_policy_disabled`,
+      message: messages.policyPaused,
     };
   }
+
   const parsedPolicy = reviewedPolicyRowSchema.safeParse(policy.data);
   if (!parsedPolicy.success) {
     return sourceUnavailable(
-      "remotive",
+      key,
       attemptedAt,
-      "remotive_policy_invalid",
+      `${key}_policy_invalid`,
       "The live source policy is malformed and cannot authorize acquisition.",
     );
   }
-  const policyRow = parsedPolicy.data;
-  if (
-    policyRow.adapter_key !== REMOTIVE_ADAPTER_KEY ||
-    policyRow.source_type !== REMOTIVE_SOURCE_POLICY.type ||
-    policyRow.terms_url !== REMOTIVE_SOURCE_POLICY.termsUrl ||
-    policyRow.terms_version !== REMOTIVE_TERMS_VERSION ||
-    !policyRow.attribution_required ||
-    policyRow.may_store_full_description !==
-      REMOTIVE_SOURCE_POLICY.canStoreFullDescription ||
-    policyRow.may_index_jobs !== REMOTIVE_SOURCE_POLICY.canIndex ||
-    policyRow.may_emit_jobposting_schema !==
-      REMOTIVE_SOURCE_POLICY.canUseJobPostingStructuredData ||
-    !policyRow.allow_public_listing ||
-    policyRow.required_destination_kind !==
-      REMOTIVE_REQUIRED_DESTINATION_KIND ||
-    policyRow.refresh_interval_seconds !==
-      REMOTIVE_SOURCE_POLICY.refreshIntervalSeconds
-  ) {
+  if (reviewedPolicyMismatch(parsedPolicy.data, reviewed)) {
     return sourceUnavailable(
-      "remotive",
+      key,
       attemptedAt,
-      "remotive_policy_mismatch",
+      `${key}_policy_mismatch`,
       "The live source policy does not match the reviewed application policy.",
     );
   }
 
+  if (descriptor.snapshotKey) {
+    const snapshot = await readFreshSecondaryFeed(
+      descriptor.snapshotKey,
+      reviewed.policy.refreshIntervalSeconds,
+    );
+    if (snapshot) return snapshot;
+  }
+
   try {
+    const result = await descriptor.fetchJobs(new Date(attemptedAt));
+    const checkedAt = Date.parse(result.checkedAt);
+    const ageMs = Date.now() - checkedAt;
+    if (
+      !Number.isFinite(checkedAt) ||
+      ageMs > sourceMaxAgeMs(reviewed.policy.refreshIntervalSeconds)
+    ) {
+      return sourceUnavailable(
+        key,
+        attemptedAt,
+        `${key}_snapshot_stale`,
+        messages.snapshotStale,
+      );
+    }
+    if (ageMs < -SOURCE_MAX_FUTURE_SKEW_MS) {
+      return sourceUnavailable(
+        key,
+        attemptedAt,
+        `${key}_snapshot_future`,
+        messages.snapshotFuture,
+      );
+    }
+    return {
+      key,
+      jobs: result.jobs,
+      state: result.degraded ? "degraded" : "live",
+      checkedAt: result.checkedAt,
+      count: result.jobs.length,
+      ...(result.degraded
+        ? { code: result.degraded.code, message: result.degraded.message }
+        : {}),
+    };
+  } catch (reason) {
+    return sourceUnavailable(
+      key,
+      attemptedAt,
+      descriptor.failureCode(reason),
+      messages.refreshFailed,
+    );
+  }
+}
+
+/**
+ * Remotive's sharing terms are still under written clarification, so this
+ * descriptor keeps the environment kill switch and routes every provider
+ * request through the authenticated budgeted source proxy. It has no worker
+ * snapshot: cache misses always take the bounded proxied fetch.
+ */
+const remotiveSourceDescriptor: SecondarySourceDescriptor = {
+  key: "remotive",
+  reviewed: {
+    adapterKey: REMOTIVE_ADAPTER_KEY,
+    policy: REMOTIVE_SOURCE_POLICY,
+    termsVersion: REMOTIVE_TERMS_VERSION,
+    requiredDestinationKind: REMOTIVE_REQUIRED_DESTINATION_KIND,
+  },
+  environment: {
+    isEnabled: () => getServerEnvironment().REMOTIVE_SOURCE_ENABLED,
+    message: "The reviewed Remotive source is disabled in this environment.",
+  },
+  snapshotKey: null,
+  messages: {
+    registryDisabled:
+      "The reviewed Remotive source is disabled by the application source-policy registry.",
+    policyPaused: "The reviewed Remotive source is paused or disabled.",
+    snapshotStale: "The reviewed live source snapshot is too old to publish.",
+    snapshotFuture:
+      "The reviewed live source returned an invalid freshness time.",
+    refreshFailed:
+      "The reviewed live source could not be safely refreshed. Try again later.",
+  },
+  fetchJobs: async (requestedAt) => {
     const result = await fetchRemotiveJobs({
       fetch: createRemotiveProxyFetch(),
-      requestedAt: new Date(attemptedAt),
+      requestedAt,
       signal: AbortSignal.timeout(10_000),
       requestInit: {
         headers: { Accept: "application/json" },
@@ -335,168 +407,41 @@ export async function getRemotiveJobFeed(
         },
       },
     });
-    const checkedAt = Date.parse(result.checkedAt);
-    const ageMs = Date.now() - checkedAt;
-    if (
-      !Number.isFinite(checkedAt) ||
-      ageMs > sourceMaxAgeMs(REMOTIVE_SOURCE_POLICY.refreshIntervalSeconds)
-    ) {
-      return sourceUnavailable(
-        "remotive",
-        attemptedAt,
-        "remotive_snapshot_stale",
-        "The reviewed live source snapshot is too old to publish.",
-      );
-    }
-    if (ageMs < -SOURCE_MAX_FUTURE_SKEW_MS) {
-      return sourceUnavailable(
-        "remotive",
-        attemptedAt,
-        "remotive_snapshot_future",
-        "The reviewed live source returned an invalid freshness time.",
-      );
-    }
-    return {
-      key: "remotive",
-      jobs: result.jobs,
-      state: "live",
-      checkedAt: result.checkedAt,
-      count: result.jobs.length,
-    };
-  } catch (reason) {
-    const code =
-      reason instanceof RemotiveAdapterError
-        ? reason.code
-        : "remotive_adapter_failed";
-    return sourceUnavailable(
-      "remotive",
-      attemptedAt,
-      code,
-      "The reviewed live source could not be safely refreshed. Try again later.",
-    );
-  }
-}
+    return { jobs: result.jobs, checkedAt: result.checkedAt };
+  },
+  failureCode: (reason) =>
+    reason instanceof RemotiveAdapterError
+      ? reason.code
+      : "remotive_adapter_failed",
+};
 
 /**
- * Jobicy is authorized by both the reviewed application registry and the live
- * operator registry. Either gate can stop acquisition independently.
+ * Jobicy explicitly documents its feed for redistribution, so it needs no
+ * environment kill switch; the application registry and the live operator
+ * policy can each still stop acquisition independently.
  */
-export async function getJobicyJobFeed(
-  suppliedClient?: ServerSupabaseClient | null,
-): Promise<SourceFeed> {
-  const attemptedAt = new Date().toISOString();
-  try {
-    openSupplyAdapter("jobicy", new Date(attemptedAt));
-  } catch (reason) {
-    const code =
-      reason instanceof AdapterPolicyError
-        ? `jobicy_${reason.code}`
-        : "jobicy_policy_invalid";
-    return {
-      key: "jobicy",
-      jobs: [],
-      state: "disabled",
-      checkedAt: attemptedAt,
-      count: 0,
-      code,
-      message:
-        "The reviewed Jobicy source is disabled by the application source-policy registry.",
-    };
-  }
-
-  let supabase: ServerSupabaseClient | null;
-  try {
-    supabase = await resolveClient(suppliedClient);
-  } catch (reason) {
-    unstable_rethrow(reason);
-    return sourceRegistryUnavailable(
-      "jobicy",
-      attemptedAt,
-      "source_registry_client_failed",
-    );
-  }
-  if (!supabase) {
-    return sourceUnavailable(
-      "jobicy",
-      attemptedAt,
-      "source_registry_unconfigured",
-      "The job source registry is not configured.",
-    );
-  }
-
-  let policy: Awaited<ReturnType<typeof readJobicyPolicy>>;
-  try {
-    policy = await readJobicyPolicy(supabase);
-  } catch (reason) {
-    unstable_rethrow(reason);
-    return sourceRegistryUnavailable(
-      "jobicy",
-      attemptedAt,
-      "source_registry_query_failed",
-    );
-  }
-  if (policy.error) {
-    return sourceRegistryUnavailable(
-      "jobicy",
-      attemptedAt,
-      "source_registry_query_failed",
-    );
-  }
-  if (!policy.data) {
-    return {
-      key: "jobicy",
-      jobs: [],
-      state: "disabled",
-      checkedAt: attemptedAt,
-      count: 0,
-      code: "jobicy_policy_disabled",
-      message: "The reviewed Jobicy source is paused or disabled.",
-    };
-  }
-
-  const parsedPolicy = reviewedPolicyRowSchema.safeParse(policy.data);
-  if (!parsedPolicy.success) {
-    return sourceUnavailable(
-      "jobicy",
-      attemptedAt,
-      "jobicy_policy_invalid",
-      "The live source policy is malformed and cannot authorize acquisition.",
-    );
-  }
-  const policyRow = parsedPolicy.data;
-  if (
-    policyRow.adapter_key !== JOBICY_ADAPTER_KEY ||
-    policyRow.source_type !== JOBICY_SOURCE_POLICY.type ||
-    policyRow.terms_url !== JOBICY_SOURCE_POLICY.termsUrl ||
-    policyRow.terms_version !== JOBICY_TERMS_VERSION ||
-    !policyRow.attribution_required ||
-    policyRow.may_store_full_description !==
-      JOBICY_SOURCE_POLICY.canStoreFullDescription ||
-    policyRow.may_index_jobs !== JOBICY_SOURCE_POLICY.canIndex ||
-    policyRow.may_emit_jobposting_schema !==
-      JOBICY_SOURCE_POLICY.canUseJobPostingStructuredData ||
-    !policyRow.allow_public_listing ||
-    policyRow.required_destination_kind !== JOBICY_REQUIRED_DESTINATION_KIND ||
-    policyRow.refresh_interval_seconds !==
-      JOBICY_SOURCE_POLICY.refreshIntervalSeconds
-  ) {
-    return sourceUnavailable(
-      "jobicy",
-      attemptedAt,
-      "jobicy_policy_mismatch",
-      "The live source policy does not match the reviewed application policy.",
-    );
-  }
-
-  const jobicySnapshot = await readFreshSecondaryFeed(
-    "jobicy",
-    JOBICY_SOURCE_POLICY.refreshIntervalSeconds,
-  );
-  if (jobicySnapshot) return jobicySnapshot;
-
-  try {
+const jobicySourceDescriptor: SecondarySourceDescriptor = {
+  key: "jobicy",
+  reviewed: {
+    adapterKey: JOBICY_ADAPTER_KEY,
+    policy: JOBICY_SOURCE_POLICY,
+    termsVersion: JOBICY_TERMS_VERSION,
+    requiredDestinationKind: JOBICY_REQUIRED_DESTINATION_KIND,
+  },
+  snapshotKey: "jobicy",
+  messages: {
+    registryDisabled:
+      "The reviewed Jobicy source is disabled by the application source-policy registry.",
+    policyPaused: "The reviewed Jobicy source is paused or disabled.",
+    snapshotStale: "The reviewed Jobicy snapshot is too old to publish.",
+    snapshotFuture:
+      "The reviewed Jobicy source returned invalid freshness evidence.",
+    refreshFailed:
+      "The reviewed Jobicy source could not be safely refreshed. Try again later.",
+  },
+  fetchJobs: async (requestedAt) => {
     const result = await fetchJobicyJobs({
-      requestedAt: new Date(attemptedAt),
+      requestedAt,
       signal: AbortSignal.timeout(10_000),
       requestInit: {
         next: {
@@ -505,170 +450,42 @@ export async function getJobicyJobFeed(
         },
       },
     });
-    const checkedAt = Date.parse(result.checkedAt);
-    const ageMs = Date.now() - checkedAt;
-    if (
-      !Number.isFinite(checkedAt) ||
-      ageMs > sourceMaxAgeMs(JOBICY_SOURCE_POLICY.refreshIntervalSeconds)
-    ) {
-      return sourceUnavailable(
-        "jobicy",
-        attemptedAt,
-        "jobicy_snapshot_stale",
-        "The reviewed Jobicy snapshot is too old to publish.",
-      );
-    }
-    if (ageMs < -SOURCE_MAX_FUTURE_SKEW_MS) {
-      return sourceUnavailable(
-        "jobicy",
-        attemptedAt,
-        "jobicy_snapshot_future",
-        "The reviewed Jobicy source returned invalid freshness evidence.",
-      );
-    }
-    return {
-      key: "jobicy",
-      jobs: result.jobs,
-      state: "live",
-      checkedAt: result.checkedAt,
-      count: result.jobs.length,
-    };
-  } catch (reason) {
-    const code =
-      reason instanceof JobicyAdapterError
-        ? reason.code
-        : "jobicy_adapter_failed";
-    return sourceUnavailable(
-      "jobicy",
-      attemptedAt,
-      code,
-      "The reviewed Jobicy source could not be safely refreshed. Try again later.",
-    );
-  }
-}
+    return { jobs: result.jobs, checkedAt: result.checkedAt };
+  },
+  failureCode: (reason) =>
+    reason instanceof JobicyAdapterError
+      ? reason.code
+      : "jobicy_adapter_failed",
+};
 
 /**
- * Himalayas is authorized by the reviewed repository and live operator
- * policies. It is intentionally read-through only: records are attributed to
- * Himalayas and excluded from search indexing and downstream syndication.
+ * Himalayas is intentionally read-through only: records are attributed to
+ * Himalayas and excluded from search indexing and downstream syndication. Its
+ * paged fetch may legitimately return a partial page set, which is published
+ * as a degraded (never silently complete) snapshot.
  */
-export async function getHimalayasJobFeed(
-  suppliedClient?: ServerSupabaseClient | null,
-): Promise<SourceFeed> {
-  const attemptedAt = new Date().toISOString();
-  try {
-    openSupplyAdapter("himalayas", new Date(attemptedAt));
-  } catch (reason) {
-    const code =
-      reason instanceof AdapterPolicyError
-        ? `himalayas_${reason.code}`
-        : "himalayas_policy_invalid";
-    return {
-      key: "himalayas",
-      jobs: [],
-      state: "disabled",
-      checkedAt: attemptedAt,
-      count: 0,
-      code,
-      message:
-        "The reviewed Himalayas source is disabled by the application source-policy registry.",
-    };
-  }
-
-  let supabase: ServerSupabaseClient | null;
-  try {
-    supabase = await resolveClient(suppliedClient);
-  } catch (reason) {
-    unstable_rethrow(reason);
-    return sourceRegistryUnavailable(
-      "himalayas",
-      attemptedAt,
-      "source_registry_client_failed",
-    );
-  }
-  if (!supabase) {
-    return sourceUnavailable(
-      "himalayas",
-      attemptedAt,
-      "source_registry_unconfigured",
-      "The job source registry is not configured.",
-    );
-  }
-
-  let policy: Awaited<ReturnType<typeof readHimalayasPolicy>>;
-  try {
-    policy = await readHimalayasPolicy(supabase);
-  } catch (reason) {
-    unstable_rethrow(reason);
-    return sourceRegistryUnavailable(
-      "himalayas",
-      attemptedAt,
-      "source_registry_query_failed",
-    );
-  }
-  if (policy.error) {
-    return sourceRegistryUnavailable(
-      "himalayas",
-      attemptedAt,
-      "source_registry_query_failed",
-    );
-  }
-  if (!policy.data) {
-    return {
-      key: "himalayas",
-      jobs: [],
-      state: "disabled",
-      checkedAt: attemptedAt,
-      count: 0,
-      code: "himalayas_policy_disabled",
-      message: "The reviewed Himalayas source is paused or disabled.",
-    };
-  }
-
-  const parsedPolicy = reviewedPolicyRowSchema.safeParse(policy.data);
-  if (!parsedPolicy.success) {
-    return sourceUnavailable(
-      "himalayas",
-      attemptedAt,
-      "himalayas_policy_invalid",
-      "The live source policy is malformed and cannot authorize acquisition.",
-    );
-  }
-  const policyRow = parsedPolicy.data;
-  if (
-    policyRow.adapter_key !== HIMALAYAS_ADAPTER_KEY ||
-    policyRow.source_type !== HIMALAYAS_SOURCE_POLICY.type ||
-    policyRow.terms_url !== HIMALAYAS_SOURCE_POLICY.termsUrl ||
-    policyRow.terms_version !== HIMALAYAS_TERMS_VERSION ||
-    !policyRow.attribution_required ||
-    policyRow.may_store_full_description !==
-      HIMALAYAS_SOURCE_POLICY.canStoreFullDescription ||
-    policyRow.may_index_jobs !== HIMALAYAS_SOURCE_POLICY.canIndex ||
-    policyRow.may_emit_jobposting_schema !==
-      HIMALAYAS_SOURCE_POLICY.canUseJobPostingStructuredData ||
-    !policyRow.allow_public_listing ||
-    policyRow.required_destination_kind !==
-      HIMALAYAS_REQUIRED_DESTINATION_KIND ||
-    policyRow.refresh_interval_seconds !==
-      HIMALAYAS_SOURCE_POLICY.refreshIntervalSeconds
-  ) {
-    return sourceUnavailable(
-      "himalayas",
-      attemptedAt,
-      "himalayas_policy_mismatch",
-      "The live source policy does not match the reviewed application policy.",
-    );
-  }
-
-  const himalayasSnapshot = await readFreshSecondaryFeed(
-    "himalayas",
-    HIMALAYAS_SOURCE_POLICY.refreshIntervalSeconds,
-  );
-  if (himalayasSnapshot) return himalayasSnapshot;
-
-  try {
+const himalayasSourceDescriptor: SecondarySourceDescriptor = {
+  key: "himalayas",
+  reviewed: {
+    adapterKey: HIMALAYAS_ADAPTER_KEY,
+    policy: HIMALAYAS_SOURCE_POLICY,
+    termsVersion: HIMALAYAS_TERMS_VERSION,
+    requiredDestinationKind: HIMALAYAS_REQUIRED_DESTINATION_KIND,
+  },
+  snapshotKey: "himalayas",
+  messages: {
+    registryDisabled:
+      "The reviewed Himalayas source is disabled by the application source-policy registry.",
+    policyPaused: "The reviewed Himalayas source is paused or disabled.",
+    snapshotStale: "The reviewed Himalayas snapshot is too old to publish.",
+    snapshotFuture:
+      "The reviewed Himalayas source returned invalid freshness evidence.",
+    refreshFailed:
+      "The reviewed Himalayas source could not be safely refreshed. Try again later.",
+  },
+  fetchJobs: async (requestedAt) => {
     const result = await fetchHimalayasJobs({
-      requestedAt: new Date(attemptedAt),
+      requestedAt,
       // Six sequential paced page requests need more headroom than the
       // previous parallel fetch; this path only runs when no worker-written
       // snapshot is available.
@@ -680,52 +497,41 @@ export async function getHimalayasJobFeed(
         },
       },
     });
-    const checkedAt = Date.parse(result.checkedAt);
-    const ageMs = Date.now() - checkedAt;
-    if (
-      !Number.isFinite(checkedAt) ||
-      ageMs > sourceMaxAgeMs(HIMALAYAS_SOURCE_POLICY.refreshIntervalSeconds)
-    ) {
-      return sourceUnavailable(
-        "himalayas",
-        attemptedAt,
-        "himalayas_snapshot_stale",
-        "The reviewed Himalayas snapshot is too old to publish.",
-      );
-    }
-    if (ageMs < -SOURCE_MAX_FUTURE_SKEW_MS) {
-      return sourceUnavailable(
-        "himalayas",
-        attemptedAt,
-        "himalayas_snapshot_future",
-        "The reviewed Himalayas source returned invalid freshness evidence.",
-      );
-    }
     return {
-      key: "himalayas",
       jobs: result.jobs,
-      state: result.partial ? "degraded" : "live",
       checkedAt: result.checkedAt,
-      count: result.jobs.length,
       ...(result.partial
         ? {
-            code: "himalayas_partial_snapshot",
-            message: `Himalayas returned ${result.successfulRequestCount} of the ${HIMALAYAS_ENDPOINTS.length} reviewed result pages. Available jobs are shown as partial.`,
+            degraded: {
+              code: "himalayas_partial_snapshot",
+              message: `Himalayas returned ${result.successfulRequestCount} of the ${HIMALAYAS_ENDPOINTS.length} reviewed result pages. Available jobs are shown as partial.`,
+            },
           }
         : {}),
     };
-  } catch (reason) {
-    const code =
-      reason instanceof HimalayasAdapterError
-        ? reason.code
-        : "himalayas_adapter_failed";
-    return sourceUnavailable(
-      "himalayas",
-      attemptedAt,
-      code,
-      "The reviewed Himalayas source could not be safely refreshed. Try again later.",
-    );
-  }
+  },
+  failureCode: (reason) =>
+    reason instanceof HimalayasAdapterError
+      ? reason.code
+      : "himalayas_adapter_failed",
+};
+
+export async function getRemotiveJobFeed(
+  suppliedClient?: ServerSupabaseClient | null,
+): Promise<SourceFeed> {
+  return getSecondarySourceFeed(remotiveSourceDescriptor, suppliedClient);
+}
+
+export async function getJobicyJobFeed(
+  suppliedClient?: ServerSupabaseClient | null,
+): Promise<SourceFeed> {
+  return getSecondarySourceFeed(jobicySourceDescriptor, suppliedClient);
+}
+
+export async function getHimalayasJobFeed(
+  suppliedClient?: ServerSupabaseClient | null,
+): Promise<SourceFeed> {
+  return getSecondarySourceFeed(himalayasSourceDescriptor, suppliedClient);
 }
 
 export async function getLiveJobFeed(): Promise<JobFeedResult> {
