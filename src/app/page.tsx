@@ -145,7 +145,9 @@ export default async function HomePage() {
               className="input"
               id="home-keyword"
               name="q"
-              placeholder="e.g. data analyst"
+              autoComplete="off"
+              placeholder="e.g. data analyst…"
+              spellCheck={false}
             />
           </div>
           <div className="field">

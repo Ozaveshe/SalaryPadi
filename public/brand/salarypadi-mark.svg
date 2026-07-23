@@ -7,10 +7,10 @@
   </defs>
   <path d="M24 0 A24 24 0 0 1 48 24 A24 24 0 0 1 24 48 H5 A5 5 0 0 1 0 43 V24 A24 24 0 0 1 24 0 Z" fill="url(#sp-fill)"/>
 
-    <g stroke="#ffffff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <path d="M17.5 34.5 V13.5 L30.5 34.5 V13.5" />
-      <path d="M12.5 20.5 H35.5" />
-      <path d="M12.5 27.5 H35.5" />
+    <g stroke="#ffffff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M18 33.5 V14.5 L30 33.5 V14.5" />
+      <path d="M14.5 20.75 H33.5" />
+      <path d="M14.5 27.25 H33.5" />
     </g>
-  <circle cx="38.4" cy="9.6" r="3.1" fill="#eec75f"/>
+  <path d="M38.5 4.6 C39.35 7.6 40.4 8.65 43.4 9.5 C40.4 10.35 39.35 11.4 38.5 14.4 C37.65 11.4 36.6 10.35 33.6 9.5 C36.6 8.65 37.65 7.6 38.5 4.6 Z" fill="#eec75f"/>
 </svg>

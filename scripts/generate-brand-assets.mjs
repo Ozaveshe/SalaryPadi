@@ -60,14 +60,23 @@ function bubblePath(size = 48, corner = 5) {
   ].join(" ");
 }
 
-/** Naira glyph as strokes, centred on the 48-grid. */
-function nairaGlyph({ stroke = "#ffffff", width = 3.4 } = {}) {
+/**
+ * Naira glyph as strokes, centred on the 48-grid. The strike lines overhang
+ * the N by only 3.5 units a side — wide enough to read as ₦, contained
+ * enough to stay clean at favicon sizes.
+ */
+function nairaGlyph({ stroke = "#ffffff", width = 3.6 } = {}) {
   return `
     <g stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <path d="M17.5 34.5 V13.5 L30.5 34.5 V13.5" />
-      <path d="M12.5 20.5 H35.5" />
-      <path d="M12.5 27.5 H35.5" />
+      <path d="M18 33.5 V14.5 L30 33.5 V14.5" />
+      <path d="M14.5 20.75 H33.5" />
+      <path d="M14.5 27.25 H33.5" />
     </g>`;
+}
+
+/** The good-news spark: a soft four-point star at the bubble's top right. */
+function sparkGlyph({ fill = gold400 } = {}) {
+  return `<path d="M38.5 4.6 C39.35 7.6 40.4 8.65 43.4 9.5 C40.4 10.35 39.35 11.4 38.5 14.4 C37.65 11.4 36.6 10.35 33.6 9.5 C36.6 8.65 37.65 7.6 38.5 4.6 Z" fill="${fill}"/>`;
 }
 
 /** The core mark, parameterised so icons can drop detail at tiny sizes. */
@@ -86,7 +95,7 @@ function markSvg({
   </defs>
   <path d="${bubblePath()}" fill="url(#${gradientId})"/>
   ${nairaGlyph()}
-  ${spark ? `<circle cx="38.4" cy="9.6" r="3.1" fill="${gold400}"/>` : ""}
+  ${spark ? `${sparkGlyph()}` : ""}
 </svg>`;
 }
 
@@ -103,7 +112,7 @@ function logoSvg({ dark = false } = {}) {
   </defs>
   <path d="${bubblePath()}" fill="url(#sp-lockup)"/>
   ${nairaGlyph()}
-  <circle cx="38.4" cy="9.6" r="3.1" fill="${gold400}"/>
+  ${sparkGlyph()}
   <text x="58" y="33.5" font-family="${fontStack}" font-size="26" font-weight="700" letter-spacing="-0.5" fill="${text}">Salary<tspan fill="${padi}">Padi</tspan></text>
 </svg>`;
 }
@@ -119,6 +128,7 @@ function iconSvg() {
   </defs>
   <path d="${bubblePath()}" fill="url(#sp-ico)"/>
   ${nairaGlyph({ width: 4.4 })}
+  ${sparkGlyph()}
 </svg>`;
 }
 
@@ -139,7 +149,7 @@ function appIconSvg({ size, maskable = false }) {
   <g transform="translate(${offset} ${offset}) scale(${inner / 48})">
     <path d="${bubblePath()}" fill="${forest700}"/>
     ${nairaGlyph({ width: 3.8 })}
-    <circle cx="38.4" cy="9.6" r="3.1" fill="${gold400}"/>
+    ${sparkGlyph()}
   </g>
 </svg>`;
 }
@@ -200,7 +210,7 @@ function socialSvg({
   <g transform="translate(${pad} ${pad * 0.75}) scale(${markScale})">
     <path d="${bubblePath()}" fill="url(#sp-soc)" stroke="${forest100}" stroke-opacity="0.25" stroke-width="0.75"/>
     ${nairaGlyph()}
-    <circle cx="38.4" cy="9.6" r="3.1" fill="${gold400}"/>
+    ${sparkGlyph()}
   </g>
   <text x="${pad + markSize + 22}" y="${pad * 0.75 + markSize * 0.68}" font-family="${fontStack}" font-size="${markSize * 0.44}" font-weight="700" letter-spacing="-0.5" fill="${sand50}">Salary<tspan fill="${gold400}">Padi</tspan></text>
   <text x="${pad}" y="${titleTop}" font-family="${fontStack}" font-size="${titleSize * 0.36}" font-weight="700" letter-spacing="4" fill="${gold400}">${eyebrow.toUpperCase()}</text>
@@ -238,7 +248,7 @@ function linkedinBannerSvg() {
   <g transform="translate(76 31)">
     <path d="${bubblePath()}" fill="url(#li-mark)" stroke="${forest100}" stroke-opacity="0.25" stroke-width="0.75"/>
     ${nairaGlyph()}
-    <circle cx="38.4" cy="9.6" r="3.1" fill="${gold400}"/>
+    ${sparkGlyph()}
   </g>
   <text x="138" y="64" font-family="${fontStack}" font-size="28" font-weight="700" letter-spacing="-0.5" fill="${sand50}">Salary<tspan fill="${gold400}">Padi</tspan></text>
   <text x="76" y="129" font-family="${fontStack}" font-size="32" font-weight="800" letter-spacing="-0.6" fill="${sand50}">Jobs and salary truth for Africans.</text>

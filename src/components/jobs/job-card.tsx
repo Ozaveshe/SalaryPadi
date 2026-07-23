@@ -90,11 +90,9 @@ export function JobCard({
           </span>
           {nairaEstimate ? (
             <span className="job-naira-estimate">
-              ≈ ₦
-              {Math.round(nairaEstimate.monthlyTakeHomeNgn).toLocaleString(
-                "en-NG",
-              )}
-              /month take-home (est.)
+              {`≈ ₦${Math.round(
+                nairaEstimate.monthlyTakeHomeNgn,
+              ).toLocaleString("en-NG")}/month take-home (est.)`}
             </span>
           ) : null}
         </div>
