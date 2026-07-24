@@ -10,19 +10,25 @@ const footerGroups = [
       ["Companies", "/companies"],
       ["Salaries", "/salaries"],
       ["Tools", "/tools"],
+      ["Insights", "/insights"],
     ],
   },
   {
     label: "Contribute",
     links: [
-      ["Post a job", "/post-a-job"],
       ["Add salary", "/contribute/salary"],
       ["Add review", "/contribute/review"],
       ["Add benefits", "/contribute/benefits"],
       ["Pay reliability", "/contribute/pay-reliability"],
       ["Add interview", "/contribute/interview"],
+    ],
+  },
+  {
+    label: "For employers",
+    links: [
+      ["Post a job", "/post-a-job"],
       [
-        "Claim company",
+        "Claim your company",
         "mailto:support@salarypadi.com?subject=Company%20claim%20request",
       ],
     ],

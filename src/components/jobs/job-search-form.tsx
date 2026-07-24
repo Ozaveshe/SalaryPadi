@@ -55,7 +55,7 @@ export function JobSearchForm({
             <option value="nigeria">Nigeria explicitly eligible</option>
             <option value="africa">Africa explicitly eligible</option>
             <option value="worldwide">Worldwide</option>
-            <option value="unclear">Eligibility unclear</option>
+            <option value="unclear">Needs eligibility check</option>
           </select>
         </div>
         <button className="button" type="submit">
@@ -116,7 +116,6 @@ export function JobSearchForm({
               <option value="employee">Employee</option>
               <option value="contractor">Contractor</option>
               <option value="freelance">Freelance</option>
-              <option value="unknown">Not stated</option>
             </select>
           </div>
           <div className="field">
@@ -133,7 +132,6 @@ export function JobSearchForm({
               <option value="senior">Senior</option>
               <option value="lead">Lead / principal</option>
               <option value="executive">Executive</option>
-              <option value="unknown">Not stated</option>
             </select>
           </div>
           <div className="field">

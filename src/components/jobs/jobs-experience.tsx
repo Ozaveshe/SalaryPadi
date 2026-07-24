@@ -92,7 +92,7 @@ export async function JobsExperience({
             search.path === "remote_africa",
           ],
           [
-            "Eligibility unclear",
+            "Needs eligibility check",
             "/jobs?eligibility=unclear",
             search.eligibility === "unclear",
           ],

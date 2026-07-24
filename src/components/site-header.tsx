@@ -9,9 +9,12 @@ const navigation = [
   { href: "/companies", label: "Companies" },
   { href: "/salaries", label: "Salaries" },
   { href: "/tools", label: "Tools" },
-  { href: "/insights", label: "Insights" },
+  // Insights returns to the nav once it has real data to show.
+  ...(process.env.NEXT_PUBLIC_FEATURE_INSIGHTS === "true"
+    ? [{ href: "/insights", label: "Insights" }]
+    : []),
   { href: "/contribute", label: "Contribute" },
-] as const;
+];
 
 function AccountLinks({ viewer }: { viewer: Viewer }) {
   if (viewer.state === "unavailable") {

@@ -6,28 +6,18 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { EligibilityStatus } from "@/components/jobs/eligibility-status";
 import { MatchBadge } from "@/components/jobs/match-badge";
-import { formatDate, formatEnum } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import type { Job } from "@/lib/jobs/types";
 import type { MatchResult } from "@/lib/match/types";
-
-function jobPathLabel(job: Job) {
-  if (job.workMode !== "remote" && /\bnigeria\b/i.test(job.locationDisplay)) {
-    return "Nigeria local";
-  }
-  if (job.workMode === "remote" && job.eligibility.nigeria === "eligible") {
-    return "Remote · Nigeria eligible";
-  }
-  if (job.workMode === "remote" && job.eligibility.africa === "eligible") {
-    return "Remote · Africa eligible";
-  }
-  return job.workMode === "remote"
-    ? "Remote · eligibility unclear"
-    : formatEnum(job.workMode);
-}
+import {
+  eligibilityStatementTone,
+  publicEligibilityStatement,
+  publicEnum,
+  publicLocation,
+} from "@/lib/presentation/public-field";
 
 export function JobCard({
   job,
@@ -41,6 +31,11 @@ export function JobCard({
   nairaEstimate?: NairaTakeHomeEstimate | null;
 }) {
   const evidence = getJobEvidenceLabels(job).slice(0, 5);
+  const eligibilityStatement = publicEligibilityStatement(job);
+  const location = publicLocation(job);
+  const workMode = publicEnum(job.workMode);
+  const employmentType = publicEnum(job.employmentType);
+  const seniority = publicEnum(job.experienceLevel);
 
   return (
     <article className="job-card" data-job-id={job.id}>
@@ -55,42 +50,51 @@ export function JobCard({
             <Link href={`/jobs/${job.slug}`}>{job.title}</Link>
           </h2>
         </div>
-        <div className="job-badges" aria-label="Eligibility and arrangement">
+        <div className="job-badges" aria-label="Role summary">
           {match ? <MatchBadge result={match} /> : null}
-          <EligibilityStatus eligibility={job.eligibility} compact />
-          <span className="status status-neutral">{jobPathLabel(job)}</span>
-          <span className="status status-neutral">
-            {formatEnum(job.arrangement)}
-          </span>
-          <span className="status status-neutral">
-            {formatEnum(job.experienceLevel)}
-          </span>
-          <span
-            className={`status ${job.salary ? "status-success" : "status-neutral"}`}
-          >
-            {job.salary ? "Salary disclosed" : "Salary not stated"}
-          </span>
+          {eligibilityStatement ? (
+            <span
+              className={`status status-${eligibilityStatementTone(eligibilityStatement)}`}
+            >
+              {eligibilityStatement}
+            </span>
+          ) : null}
+          {job.salary ? (
+            <span className="status status-success">Salary disclosed</span>
+          ) : null}
         </div>
         <div className="job-facts" aria-label="Job summary">
-          <span>
-            <MapPin aria-hidden="true" size={16} />
-            {job.locationDisplay}
-          </span>
-          <span>
-            <BriefcaseBusiness aria-hidden="true" size={16} />
-            {formatEnum(job.employmentType)}
-          </span>
+          {location ? (
+            <span>
+              <MapPin aria-hidden="true" size={16} />
+              {location}
+              {workMode ? ` · ${workMode}` : ""}
+            </span>
+          ) : workMode ? (
+            <span>
+              <MapPin aria-hidden="true" size={16} />
+              {workMode}
+            </span>
+          ) : null}
+          {employmentType || seniority ? (
+            <span>
+              <BriefcaseBusiness aria-hidden="true" size={16} />
+              {[employmentType, seniority].filter(Boolean).join(" · ")}
+            </span>
+          ) : null}
           <span>
             <CalendarClock aria-hidden="true" size={16} />
             Posted {formatDate(job.postedAt)}
           </span>
-          <span>
-            <WalletCards aria-hidden="true" size={16} />
-            {job.salary?.originalText ?? "Salary not disclosed"}
-          </span>
+          {job.salary ? (
+            <span>
+              <WalletCards aria-hidden="true" size={16} />
+              {job.salary.originalText}
+            </span>
+          ) : null}
           {nairaEstimate ? (
             <span className="job-naira-estimate">
-              {`≈ ₦${Math.round(
+              {`≈ ₦${Math.round(
                 nairaEstimate.monthlyTakeHomeNgn,
               ).toLocaleString("en-NG")}/month take-home (est.)`}
             </span>
@@ -121,7 +125,7 @@ export function JobCard({
             </span>
           </div>
           <Link className="text-link" href={`/jobs/${job.slug}`}>
-            Check eligibility, pay and source
+            View role and apply
           </Link>
         </div>
       </div>
