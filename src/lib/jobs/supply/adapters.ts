@@ -69,6 +69,26 @@ export const SUPPLY_ADAPTERS = {
       "application_url",
     ] as const,
   },
+  employer_xml_json_feeds: {
+    kind: "direct_employer",
+    endpoint: null,
+    requiredFields: ["title", "company", "application_url"] as const,
+  },
+  employer_csv_import: {
+    kind: "direct_employer",
+    endpoint: null,
+    requiredFields: ["title", "company", "application_url"] as const,
+  },
+  smartrecruiters_employer_allowlist: {
+    kind: "employer_ats",
+    endpoint: "documented_smartrecruiters_posting_api",
+    requiredFields: ["title", "company", "application_url"] as const,
+  },
+  jooble_partner_api: {
+    kind: "licensed_partner",
+    endpoint: null,
+    requiredFields: ["title", "company", "application_url"] as const,
+  },
 } as const;
 
 export type SupplyAdapterKey = keyof typeof SUPPLY_ADAPTERS;

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-14T19:40:00.000Z",
+  "generatedAt": "2026-07-24T12:00:00.000Z",
   "reviewIntervalDays": 31,
   "sources": [
     {
@@ -311,6 +311,126 @@
         "no_third_party_redistribution"
       ],
       "missingDependencies": []
+    },
+    {
+      "adapterKey": "employer_xml_json_feeds",
+      "name": "Employer-authorized XML/JSON feeds",
+      "authority": "direct_employer",
+      "state": "disabled",
+      "permissionBasis": "written_employer_feed_authorization_per_feed",
+      "evidenceReference": "Connector built (src/lib/jobs/feeds); each feed needs the employer's written authorization recorded in config/employer-feed-registry.json",
+      "termsUrl": null,
+      "reviewedAt": "2026-07-24T00:00:00.000Z",
+      "reviewDueAt": "2026-08-24T00:00:00.000Z",
+      "allowedFields": [],
+      "fullDescriptionPermission": false,
+      "attribution": null,
+      "minimumPollingSeconds": 21600,
+      "maximumRequestsPerDay": 4,
+      "rawRetentionDays": 0,
+      "publicDisplayPermission": false,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": [
+        "written_employer_permission",
+        "feed_registry_entry",
+        "destination_host_allowlist"
+      ],
+      "missingDependencies": [
+        "written_employer_permission",
+        "feed_registry_entry",
+        "destination_host_allowlist"
+      ]
+    },
+    {
+      "adapterKey": "employer_csv_import",
+      "name": "Employer CSV imports",
+      "authority": "direct_employer",
+      "state": "disabled",
+      "permissionBasis": "written_employer_import_authorization_per_upload",
+      "evidenceReference": "Connector built (src/lib/jobs/feeds); uploads accepted only from an authorized employer contact with a feed-registry entry",
+      "termsUrl": null,
+      "reviewedAt": "2026-07-24T00:00:00.000Z",
+      "reviewDueAt": "2026-08-24T00:00:00.000Z",
+      "allowedFields": [],
+      "fullDescriptionPermission": false,
+      "attribution": null,
+      "minimumPollingSeconds": null,
+      "maximumRequestsPerDay": null,
+      "rawRetentionDays": 0,
+      "publicDisplayPermission": false,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": [
+        "written_employer_permission",
+        "feed_registry_entry",
+        "destination_host_allowlist"
+      ],
+      "missingDependencies": [
+        "written_employer_permission",
+        "feed_registry_entry",
+        "destination_host_allowlist"
+      ]
+    },
+    {
+      "adapterKey": "smartrecruiters_employer_allowlist",
+      "name": "Employer-authorized SmartRecruiters boards",
+      "authority": "employer_ats",
+      "state": "disabled",
+      "permissionBasis": "written_employer_permission_per_board",
+      "evidenceReference": "Public Posting API is transport documentation, not republication permission; probe found zombie boards (vendease: 2021 postings) - freshness gate mandatory",
+      "termsUrl": "https://developers.smartrecruiters.com/docs",
+      "reviewedAt": "2026-07-24T00:00:00.000Z",
+      "reviewDueAt": "2026-08-24T00:00:00.000Z",
+      "allowedFields": [],
+      "fullDescriptionPermission": false,
+      "attribution": null,
+      "minimumPollingSeconds": 7200,
+      "maximumRequestsPerDay": 12,
+      "rawRetentionDays": 0,
+      "publicDisplayPermission": false,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": [
+        "employer_allowlist",
+        "written_employer_permission",
+        "board_freshness_probe"
+      ],
+      "missingDependencies": [
+        "employer_allowlist",
+        "written_employer_permission",
+        "board_freshness_probe"
+      ]
+    },
+    {
+      "adapterKey": "jooble_partner_api",
+      "name": "Jooble partner API",
+      "authority": "licensed_partner",
+      "state": "disabled",
+      "permissionBasis": "partner_api_key_and_republication_terms_review_required",
+      "evidenceReference": "Jooble offers a partner API by application; its terms for storing and republishing results have not been obtained or reviewed - no request may be made until they are recorded here",
+      "termsUrl": "https://jooble.org/api/about",
+      "reviewedAt": "2026-07-24T00:00:00.000Z",
+      "reviewDueAt": "2026-08-24T00:00:00.000Z",
+      "allowedFields": [],
+      "fullDescriptionPermission": false,
+      "attribution": null,
+      "minimumPollingSeconds": null,
+      "maximumRequestsPerDay": null,
+      "rawRetentionDays": 0,
+      "publicDisplayPermission": false,
+      "searchIndexPermission": false,
+      "googleJobPostingPermission": false,
+      "requiredDependencies": [
+        "partner_api_key",
+        "republication_terms_review",
+        "field_and_retention_schedule"
+      ],
+      "missingDependencies": [
+        "partner_api_key",
+        "republication_terms_review",
+        "field_and_retention_schedule"
+      ]
     }
   ]
 }
