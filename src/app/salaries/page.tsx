@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cache } from "react";
 
+import { JobCard } from "@/components/jobs/job-card";
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { SalaryAggregateCard } from "@/components/salaries/salary-aggregate-card";
@@ -15,6 +16,9 @@ import {
 import { countryAlternates } from "@/lib/country-packs/routing";
 import { repositoryReady } from "@/lib/data/repository-result";
 import { getAppOrigin } from "@/lib/env";
+import { getReferenceCurrencyRates } from "@/lib/currency/repository";
+import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
+import { getLiveJobFeed } from "@/lib/jobs/repository";
 import { getBenchmarkReferences } from "@/lib/salaries/benchmark-references";
 import {
   getSalaryCellProgressResult,
@@ -79,6 +83,34 @@ export default async function SalariesPage({
       ? Promise.resolve(null)
       : getRoleFamiliesResult().then((familyResult) => familyResult.data),
   ]);
+
+  // Lane 2 of a role search: live vacancies that state pay for this role.
+  // Rendered only for a role query — real disclosed salaries, never modelled.
+  const roleQuery = role.trim().toLowerCase();
+  const [disclosedPayJobs, currencyRates, searchedFamily] =
+    hasSearch && roleQuery
+      ? await Promise.all([
+          getLiveJobFeed().then((feed) =>
+            feed.jobs
+              .filter(
+                (job) =>
+                  job.salary !== null &&
+                  (job.title.toLowerCase().includes(roleQuery) ||
+                    (job.category ?? "").toLowerCase().includes(roleQuery)),
+              )
+              .slice(0, 6),
+          ),
+          getReferenceCurrencyRates(),
+          getRoleFamiliesResult().then(
+            (familyResult) =>
+              familyResult.data?.find(
+                (family) =>
+                  family.name.toLowerCase().includes(roleQuery) ||
+                  roleQuery.includes(family.name.toLowerCase()),
+              ) ?? null,
+          ),
+        ])
+      : [[], null, null];
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -213,6 +245,48 @@ export default async function SalariesPage({
               Read the methodology
             </Link>
           </div>
+        </section>
+      ) : null}
+      {disclosedPayJobs.length > 0 ? (
+        <section className="stack" aria-labelledby="disclosed-pay-lane">
+          <h2 className="section-title" id="disclosed-pay-lane">
+            Live jobs with disclosed pay — “{role}”
+          </h2>
+          <p className="text-muted m-0 max-w-2xl text-sm">
+            Current vacancies whose source states a salary. This is what the
+            market is offering right now — a separate lane from community
+            evidence, never merged into an aggregate.
+          </p>
+          <div className="job-list">
+            {disclosedPayJobs.map((job) => (
+              <JobCard
+                job={job}
+                key={job.id}
+                nairaEstimate={estimateNairaTakeHome(
+                  job.salary,
+                  currencyRates ?? [],
+                )}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {searchedFamily ? (
+        <section className="stack" aria-labelledby="role-family-lane">
+          <h2 className="section-title" id="role-family-lane">
+            Full role page: {searchedFamily.name}
+          </h2>
+          <p className="text-muted m-0 max-w-2xl text-sm">
+            The dedicated role page collects the local aggregate (when the
+            privacy threshold is met), live disclosed-pay vacancies and official
+            international benchmark references in one place.
+          </p>
+          <Link
+            className="button button-secondary w-fit"
+            href={`/salaries/ng/${searchedFamily.slug}`}
+          >
+            Open the {searchedFamily.name} salary page
+          </Link>
         </section>
       ) : null}
       {roleFamilies && roleFamilies.length > 0 ? (
