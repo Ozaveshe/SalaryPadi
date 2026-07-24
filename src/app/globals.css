@@ -1303,6 +1303,41 @@ a:hover {
   opacity: 0.75;
 }
 
+.company-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border-default);
+  padding-bottom: 0.35rem;
+}
+
+.evidence-details {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-medium);
+  background: var(--surface-default);
+}
+
+.evidence-details > summary {
+  cursor: pointer;
+  padding: 0.8rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.evidence-details > div {
+  border-top: 1px solid var(--border-default);
+  padding: 1rem;
+}
+
+.contribute-primary {
+  border-color: var(--interactive-primary);
+  background: var(--surface-brand-soft);
+}
+
+.contribute-primary > svg {
+  color: var(--interactive-primary);
+}
+
 .trust-summary {
   display: grid;
   gap: 0.6rem;

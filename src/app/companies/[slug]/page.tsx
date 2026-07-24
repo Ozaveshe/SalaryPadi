@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import { CompanyEvidenceDetails } from "@/components/companies/company-evidence-details";
 import { CompanyHeading } from "@/components/companies/company-heading";
+import { CompanyOverview } from "@/components/companies/company-overview";
 import { InterviewExperienceCard } from "@/components/companies/interview-experience-card";
 import { JobCard } from "@/components/jobs/job-card";
 import { JsonLd } from "@/components/json-ld";
@@ -205,48 +206,30 @@ export default async function CompanyPage({
         />
       ) : null}
       <CompanyHeading company={company} />
-      <div className="company-actions" aria-label="Employer actions">
-        <Link
-          className="button button-secondary"
-          href={`/companies/${company.slug}/claim`}
+      <CompanyOverview
+        company={company}
+        counts={{
+          jobs: company.activeJobs.length,
+          salaries: salaryAggregates.length,
+          reviews: reviews.length,
+          benefits: benefits.length,
+          interviews: interviews.length,
+          rating: rating
+            ? { value: rating.overall_rating, sample: rating.sample_size }
+            : null,
+        }}
+      />
+      {regulatoryLicenses.length > 0 ? (
+        <section
+          className="rule-section stack"
+          aria-labelledby="regulatory-heading"
         >
-          Claim this company
-        </Link>
-        <Link
-          className="button button-quiet"
-          href={`/companies/${company.slug}/respond`}
-        >
-          Submit an employer response
-        </Link>
-        <span className="source-note">
-          A request starts review; it does not create automatic verification.
-        </span>
-      </div>
-      <section className="rule-section" aria-labelledby="company-facts-heading">
-        <h2 className="section-title" id="company-facts-heading">
-          What is currently known
-        </h2>
-        <dl className="data-list mt-4">
-          <div>
-            <dt>Information type</dt>
-            <dd>
-              {company.databaseId
-                ? "Reviewed company record plus labelled source evidence"
-                : "Permitted job-source facts"}
-            </dd>
-          </div>
-          {company.catalog ? (
+          <h2 className="section-title" id="regulatory-heading">
+            Regulatory status
+          </h2>
+          <dl className="data-list">
             <div>
-              <dt>2025 listed-company catalog</dt>
-              <dd>
-                Rank {company.catalog.rank} · {company.catalog.marketCountry}{" "}
-                market · data as of {company.catalog.dataAsOf}
-              </dd>
-            </div>
-          ) : null}
-          {regulatoryLicenses.length > 0 ? (
-            <div>
-              <dt>Regulatory status</dt>
+              <dt>Licensed entity</dt>
               <dd>
                 {regulatoryLicenses.map((license) => (
                   <span className="regulatory-license" key={license.id}>
@@ -269,153 +252,9 @@ export default async function CompanyPage({
                 ))}
               </dd>
             </div>
-          ) : null}
-          <div>
-            <dt>Legal entities</dt>
-            <dd>
-              {company.legalEntities.length > 0
-                ? company.legalEntities
-                    .map((entity) =>
-                      [entity.legal_name, entity.registration_country]
-                        .filter(Boolean)
-                        .join(" · "),
-                    )
-                    .join("; ")
-                : "No cited legal entity is stored"}
-            </dd>
-          </div>
-          <div>
-            <dt>Official domains</dt>
-            <dd>
-              {company.officialDomains.length > 0
-                ? company.officialDomains.map((item) => item.domain).join(", ")
-                : "No cited official domain is stored"}
-            </dd>
-          </div>
-          <div>
-            <dt>Known aliases</dt>
-            <dd>
-              {company.aliases.length > 0
-                ? company.aliases.map((item) => item.alias).join(", ")
-                : "No cited alias is stored"}
-            </dd>
-          </div>
-          {company.industry || company.categories.length > 0 ? (
-            <div>
-              <dt>Industry signals</dt>
-              <dd>{company.industry || company.categories.join(", ")}</dd>
-            </div>
-          ) : null}
-          {company.sizeBand ? (
-            <div>
-              <dt>Company size</dt>
-              <dd>{company.sizeBand}</dd>
-            </div>
-          ) : null}
-          {company.websiteUrl ? (
-            <div>
-              <dt>Website</dt>
-              <dd>
-                <a
-                  className="text-link"
-                  href={company.websiteUrl}
-                  rel="noopener noreferrer nofollow"
-                  target="_blank"
-                >
-                  Visit the published website
-                </a>
-              </dd>
-            </div>
-          ) : null}
-          <div>
-            <dt>Verification</dt>
-            <dd>
-              {formatEnum(company.verification)} — this is not employer identity
-              verification
-            </dd>
-          </div>
-          {company.remoteLocations.length > 0 ? (
-            <div>
-              <dt>Remote eligibility seen</dt>
-              <dd>{company.remoteLocations.join("; ")}</dd>
-            </div>
-          ) : null}
-          <div>
-            <dt>Last evidence check</dt>
-            <dd>{formatDate(company.lastCheckedAt)}</dd>
-          </div>
-        </dl>
-        {company.description ? (
-          <p className="text-muted mt-4 mb-0">{company.description}</p>
-        ) : null}
-      </section>
-      <section
-        className="rule-section stack"
-        aria-labelledby="company-sources-heading"
-      >
-        <div>
-          <p className="eyebrow">Citations</p>
-          <h2 className="section-title" id="company-sources-heading">
-            Sources retained for this profile
-          </h2>
-        </div>
-        {company.citations.length > 0 ||
-        citedJobSources.length > 0 ||
-        company.catalog ? (
-          <ul className="source-list">
-            {company.catalog ? (
-              <li>
-                <a
-                  href={company.catalog.selectionUrl}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                >
-                  {company.catalog.selectionTitle}
-                  <ExternalLink aria-hidden="true" size={14} />
-                </a>{" "}
-                <span className="source-note">
-                  Selection provenance only · not employer verification
-                </span>
-              </li>
-            ) : null}
-            {company.citations.map((citation) => (
-              <li key={citation.id}>
-                <a
-                  href={citation.source_url}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                >
-                  {citation.source_title}
-                  <ExternalLink aria-hidden="true" size={14} />
-                </a>{" "}
-                <span className="source-note">
-                  {formatEnum(citation.source_kind)} · fact checked{" "}
-                  {formatDate(citation.fact_checked_at)} · review due{" "}
-                  {formatDate(citation.review_due_at)}
-                </span>
-              </li>
-            ))}
-            {citedJobSources.map((source) => (
-              <li key={source.url}>
-                <a
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                >
-                  {source.name}
-                  <ExternalLink aria-hidden="true" size={14} />
-                </a>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="notice">
-            No public citation URL is stored for this profile. Structured facts
-            remain visible as reviewed records, but they should not be treated
-            as independently confirmed official facts.
-          </div>
-        )}
-      </section>
+          </dl>
+        </section>
+      ) : null}
       <section
         className="rule-section stack"
         aria-labelledby="company-jobs-heading"
@@ -466,48 +305,12 @@ export default async function CompanyPage({
             employerResponsesResult,
           ]}
         />
-        {publishedCommunityEvidence ? (
-          <dl className="data-list">
-            <div>
-              <dt>Approved reviews</dt>
-              <dd>{reviews.length}</dd>
-            </div>
-            <div>
-              <dt>Published interviews</dt>
-              <dd>{interviews.length}</dd>
-            </div>
-            <div>
-              <dt>Published salary aggregates</dt>
-              <dd>{salaryAggregates.length}</dd>
-            </div>
-            <div>
-              <dt>Community-reported benefits</dt>
-              <dd>
-                {
-                  benefits.filter(
-                    (benefit) => benefit.source_kind === "community_reported",
-                  ).length
-                }
-              </dd>
-            </div>
-            <div>
-              <dt>Overall rating</dt>
-              <dd>
-                {rating
-                  ? `${rating.overall_rating.toFixed(1)} / 5 from ${rating.sample_size} contributors (${rating.confidence_label} confidence)`
-                  : "Suppressed until the minimum sample is reached"}
-              </dd>
-            </div>
-            <div>
-              <dt>Employer responses</dt>
-              <dd>{employerResponses.length}</dd>
-            </div>
-          </dl>
-        ) : ratingResult.state === "ready" &&
-          reviewsResult.state === "ready" &&
-          interviewsResult.state === "ready" &&
-          benefitsResult.state === "ready" &&
-          salaryAggregatesResult.state === "ready" ? (
+        {!publishedCommunityEvidence &&
+        ratingResult.state === "ready" &&
+        reviewsResult.state === "ready" &&
+        interviewsResult.state === "ready" &&
+        benefitsResult.state === "ready" &&
+        salaryAggregatesResult.state === "ready" ? (
           <div className="notice">
             No approved salary, review or interview aggregate is available for
             this company yet. A missing aggregate is not a positive or negative
@@ -607,8 +410,15 @@ export default async function CompanyPage({
           <Link className="text-link" href="/privacy/requests">
             Request contribution deletion
           </Link>
+          <Link className="text-link" href="/for-employers">
+            Are you this employer?
+          </Link>
         </div>
       </section>
+      <CompanyEvidenceDetails
+        company={company}
+        citedJobSources={citedJobSources}
+      />
     </div>
   );
 }
