@@ -88,9 +88,20 @@ export type AtsSourceConfig =
   | AtsAuthorizedSource<"ashby">
   | AtsAuthorizedSource<"workable">;
 
+/**
+ * Where a source record came from: an ATS provider, or an
+ * employer-authorized generic feed (XML/JSON/CSV) that produces the same
+ * record shape and flows through the same normalization pipeline.
+ */
+export type AtsSourceRecordProvider =
+  | AtsProvider
+  | "employer_xml_feed"
+  | "employer_json_feed"
+  | "employer_csv_import";
+
 /** A validated provider record before SalaryPadi's final Job normalization. */
 export interface AtsSourceRecord {
-  provider: AtsProvider;
+  provider: AtsSourceRecordProvider;
   sourceKey: string;
   employerName: string;
   externalId: string;
