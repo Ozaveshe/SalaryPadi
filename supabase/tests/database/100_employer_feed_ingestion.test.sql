@@ -32,15 +32,15 @@ select ok(
 -- The snapshot RPCs the feed store depends on must exist with the contract
 -- the runtime calls.
 select has_function(
-  'public', 'worker_begin_ats_snapshot',
+  'api', 'worker_begin_ats_snapshot',
   'feed store can open a bounded import run'
 );
 select has_function(
-  'public', 'worker_store_ats_snapshot_batch',
+  'api', 'worker_store_ats_snapshot_batch',
   'feed store can write bounded canonical batches'
 );
 select has_function(
-  'public', 'worker_finalize_ats_snapshot',
+  'api', 'worker_finalize_ats_snapshot',
   'feed store can finalise complete vs partial snapshots'
 );
 
