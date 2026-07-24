@@ -18,6 +18,11 @@ const runProductionAcceptance =
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // Production acceptance drives several real routes per test over the public
+  // network, each waiting for streamed content to settle. The 30s default is
+  // enough locally but not on a slower CI runner, so the opted-in production
+  // run gets a realistic budget rather than flaky failures.
+  ...(runProductionAcceptance ? { timeout: 120_000 } : {}),
   testIgnore: runProductionAcceptance
     ? []
     : ["**/production-acceptance.spec.ts"],
