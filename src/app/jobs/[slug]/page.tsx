@@ -14,6 +14,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { CompanyLogo } from "@/components/companies/company-logo";
 import { JobCard } from "@/components/jobs/job-card";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import {
@@ -177,12 +178,21 @@ export default async function JobDetailPage({
         ]}
       />
       <header className="stack">
-        <p className="eyebrow">
-          <Link href={`/companies/${job.company.slug}`}>
-            {job.company.name}
-          </Link>
-        </p>
-        <h1 className="page-title">{job.title}</h1>
+        <div className="job-card-title">
+          <CompanyLogo
+            name={job.company.name}
+            size={56}
+            slug={job.company.slug}
+          />
+          <div>
+            <p className="eyebrow">
+              <Link href={`/companies/${job.company.slug}`}>
+                {job.company.name}
+              </Link>
+            </p>
+            <h1 className="page-title">{job.title}</h1>
+          </div>
+        </div>
         {(() => {
           const statement = publicEligibilityStatement(job);
           return statement ? (

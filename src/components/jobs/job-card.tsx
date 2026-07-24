@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { CompanyLogo } from "@/components/companies/company-logo";
 import { MatchBadge } from "@/components/jobs/match-badge";
 import { formatDate } from "@/lib/format";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
@@ -41,14 +42,21 @@ export function JobCard({
     <article className="job-card" data-job-id={job.id}>
       <div className="job-card-main">
         <div className="job-card-title">
-          <p className="job-company">
-            <Link href={`/companies/${job.company.slug}`}>
-              {job.company.name}
-            </Link>
-          </p>
-          <h2 className="job-title">
-            <Link href={`/jobs/${job.slug}`}>{job.title}</Link>
-          </h2>
+          <CompanyLogo
+            name={job.company.name}
+            size={40}
+            slug={job.company.slug}
+          />
+          <div>
+            <p className="job-company">
+              <Link href={`/companies/${job.company.slug}`}>
+                {job.company.name}
+              </Link>
+            </p>
+            <h2 className="job-title">
+              <Link href={`/jobs/${job.slug}`}>{job.title}</Link>
+            </h2>
+          </div>
         </div>
         <div className="job-badges" aria-label="Role summary">
           {match ? <MatchBadge result={match} /> : null}

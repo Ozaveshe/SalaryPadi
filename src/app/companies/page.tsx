@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cache } from "react";
 
+import { CompanyLogo } from "@/components/companies/company-logo";
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { getCompaniesResult } from "@/lib/companies/repository";
@@ -41,17 +42,16 @@ export default async function CompaniesPage() {
         <div className="company-list">
           {companies.map((company) => (
             <article className="company-row" key={company.slug}>
+              <CompanyLogo name={company.name} size={40} slug={company.slug} />
               <div>
                 <h2>
                   <Link href={`/companies/${company.slug}`}>
                     {company.name}
                   </Link>
                 </h2>
-                <p>
-                  {company.industry ||
-                    company.categories.join(", ") ||
-                    "Industry not stated"}
-                </p>
+                {company.industry || company.categories.length > 0 ? (
+                  <p>{company.industry || company.categories.join(", ")}</p>
+                ) : null}
               </div>
               <div className="company-row-meta">
                 <strong>{company.activeJobs.length}</strong>
