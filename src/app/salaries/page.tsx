@@ -84,6 +84,18 @@ export default async function SalariesPage({
       : getRoleFamiliesResult().then((familyResult) => familyResult.data),
   ]);
 
+  // Lane 3 is summarised, not dumped: rendering the whole US/UK catalogue as
+  // the default continuation of this page buried the local lanes.
+  const benchmarkSummary = {
+    total: benchmarkReferences.reduce(
+      (sum, entry) => sum + entry.result.data.length,
+      0,
+    ),
+    labels: benchmarkReferences
+      .filter((entry) => entry.result.data.length > 0)
+      .map((entry) => entry.label),
+  };
+
   // Lane 2 of a role search: live vacancies that state pay for this role.
   // Rendered only for a role query — real disclosed salaries, never modelled.
   const roleQuery = role.trim().toLowerCase();
@@ -118,32 +130,6 @@ export default async function SalariesPage({
         title="Compare pay with the evidence attached"
         description="Community contributions and verified online benchmarks stay in separate, clearly labelled lanes. Original currency, period, geography, source, date range and confidence remain visible."
       />
-      <section className="feature-grid" aria-label="Salary evidence methods">
-        <article className="surface surface-pad stack-sm">
-          <p className="eyebrow">Method 1</p>
-          <h2 className="m-0 text-lg font-bold">Community salary evidence</h2>
-          <p className="text-muted m-0 text-sm">
-            People submit their own pay privately. Only moderated,
-            privacy-thresholded cohorts become public; individual records never
-            do.
-          </p>
-          <Link className="text-link" href="/contribute/salary">
-            Add your salary
-          </Link>
-        </article>
-        <article className="surface surface-pad stack-sm">
-          <p className="eyebrow">Method 2</p>
-          <h2 className="m-0 text-lg font-bold">Verified online benchmarks</h2>
-          <p className="text-muted m-0 text-sm">
-            Official or licensed datasets retain their publisher, methodology,
-            source period and normalization assumptions. They are never
-            relabelled as company submissions.
-          </p>
-          <Link className="text-link" href="/methodology">
-            See the evidence rules
-          </Link>
-        </article>
-      </section>
       <form
         className="home-search"
         action="/salaries"
@@ -202,8 +188,13 @@ export default async function SalariesPage({
       {results.length > 0 ? (
         <section className="stack" aria-labelledby="salary-results">
           <h2 className="section-title" id="salary-results">
-            Published aggregates
+            Lane 1 — Local salary evidence
           </h2>
+          <p className="text-muted m-0 max-w-2xl text-sm">
+            Published only when at least three similar approved contributions
+            from different people form a cohort. Individual figures are never
+            shown.
+          </p>
           <div className="aggregate-grid">
             {results.map((aggregate) => (
               <SalaryAggregateCard aggregate={aggregate} key={aggregate.id} />
@@ -250,7 +241,7 @@ export default async function SalariesPage({
       {disclosedPayJobs.length > 0 ? (
         <section className="stack" aria-labelledby="disclosed-pay-lane">
           <h2 className="section-title" id="disclosed-pay-lane">
-            Live jobs with disclosed pay — “{role}”
+            Lane 2 — Jobs with disclosed pay for “{role}”
           </h2>
           <p className="text-muted m-0 max-w-2xl text-sm">
             Current vacancies whose source states a salary. This is what the
@@ -309,33 +300,41 @@ export default async function SalariesPage({
           </div>
         </section>
       ) : null}
-      {benchmarkReferences.map(({ code, label, result: reference }) =>
-        reference.data.length > 0 ? (
-          <section
-            className="stack"
-            aria-labelledby={`remote-benchmark-reference-${code}`}
-            key={code}
-          >
-            <h2
-              className="section-title"
-              id={`remote-benchmark-reference-${code}`}
-            >
-              Remote benchmark reference — {label}
-            </h2>
-            <p className="text-muted m-0 max-w-2xl text-sm">
-              Official {label} statistics for roles commonly hired remotely.
-              These are reference points for evaluating remote offers in their
-              original currency — they are not Nigerian pay evidence and are
-              never mixed into local cohorts.
-            </p>
-            <div className="aggregate-grid">
-              {reference.data.map((aggregate) => (
-                <SalaryAggregateCard aggregate={aggregate} key={aggregate.id} />
-              ))}
-            </div>
-          </section>
-        ) : null,
-      )}
+      {benchmarkSummary.total > 0 ? (
+        <section className="stack" aria-labelledby="international-lane">
+          <h2 className="section-title" id="international-lane">
+            Lane 3 — International remote benchmarks
+          </h2>
+          <p className="text-muted m-0 max-w-2xl text-sm">
+            Official {benchmarkSummary.labels.join(" and ")} statistics for
+            roles commonly hired remotely — {benchmarkSummary.total} reference
+            points. They help you judge a remote offer in its own currency. They
+            are not Nigerian pay evidence and are never mixed into local
+            cohorts.
+          </p>
+          <p className="text-muted m-0 max-w-2xl text-sm">
+            Search a role above, or open a role page, to see the benchmark that
+            applies to it instead of the whole catalogue.
+          </p>
+        </section>
+      ) : null}
+      <details className="evidence-details">
+        <summary>How SalaryPadi builds these numbers</summary>
+        <div className="stack">
+          <p className="text-muted m-0 text-sm">
+            Local evidence is published only when at least three sufficiently
+            similar approved contributions from distinct accounts form a cohort;
+            individual submissions are never shown and sub-threshold counts are
+            never exposed. Disclosed-pay jobs quote the employer&apos;s own
+            stated figure in its original currency and period. International
+            benchmarks retain their publisher, dataset reference period and
+            normalisation assumptions.
+          </p>
+          <Link className="text-link" href="/methodology">
+            Read the full methodology
+          </Link>
+        </div>
+      </details>
     </div>
   );
 }
