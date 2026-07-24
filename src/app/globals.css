@@ -1272,6 +1272,37 @@ a:hover {
   font-weight: 600;
 }
 
+.pulse-bars {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 42rem;
+}
+
+.pulse-bars li {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.pulse-bars li > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pulse-bar {
+  display: block;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: var(--interactive-primary);
+  opacity: 0.75;
+}
+
 .trust-summary {
   display: grid;
   gap: 0.6rem;
