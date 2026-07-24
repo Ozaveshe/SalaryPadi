@@ -47,6 +47,8 @@ jobs:
     timeout-minutes: 30
     env:
       BASE_URL: ${{ inputs.base_url || 'https://salarypadi.com' }}
+      # On schedule/workflow_run these inputs do not exist and arrive as empty
+      # strings; the suite treats blank as "use the pinned default".
       PRODUCTION_ACCEPTANCE_JOB_SLUG: ${{ inputs.job_slug }}
       PRODUCTION_ACCEPTANCE_COMPANY_SLUG: ${{ inputs.company_slug }}
     steps:

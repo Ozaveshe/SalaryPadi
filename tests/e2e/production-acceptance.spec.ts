@@ -27,11 +27,25 @@ import {
  *   PRODUCTION_ACCEPTANCE_COMPANY_SLUG
  */
 
-const PINNED_JOB =
-  process.env.PRODUCTION_ACCEPTANCE_JOB_SLUG ??
-  "warehouse-operations-excellence-lead-africa-754b93ae3f815241";
-const PINNED_COMPANY =
-  process.env.PRODUCTION_ACCEPTANCE_COMPANY_SLUG ?? "zipline";
+/**
+ * An unset workflow input arrives as an empty string, not as undefined, so
+ * `??` alone would pin the target to "" and silently audit the listing page
+ * at /jobs/ or /companies/ instead of the intended detail page. Blank always
+ * means "use the default".
+ */
+function pinnedSlug(value: string | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : fallback;
+}
+
+const PINNED_JOB = pinnedSlug(
+  process.env.PRODUCTION_ACCEPTANCE_JOB_SLUG,
+  "warehouse-operations-excellence-lead-africa-754b93ae3f815241",
+);
+const PINNED_COMPANY = pinnedSlug(
+  process.env.PRODUCTION_ACCEPTANCE_COMPANY_SLUG,
+  "zipline",
+);
 
 const REPLACE_TARGET_HINT =
   "Replace the acceptance target: set PRODUCTION_ACCEPTANCE_JOB_SLUG / " +
@@ -111,6 +125,12 @@ test("pinned job detail is live and customer-ready", async ({ page }) => {
     response?.status(),
     `Pinned job /jobs/${PINNED_JOB} did not return 200. ${REPLACE_TARGET_HINT}`,
   ).toBe(200);
+  // A blank or redirected target lands on the listing page, which would then
+  // be audited as if it were the job detail. Fail on the wrong page, loudly.
+  expect(
+    new URL(page.url()).pathname.replace(/\/$/, ""),
+    `Expected a job detail page, landed on ${page.url()}. ${REPLACE_TARGET_HINT}`,
+  ).toBe(`/jobs/${PINNED_JOB}`);
   await settle(page);
   // An expired posting renders the "unavailable" shell with a 200; treat that
   // as an expired pin, not a pass.
@@ -183,6 +203,10 @@ test("pinned company profile is live with all six tabs", async ({ page }) => {
     `Pinned company /companies/${PINNED_COMPANY} did not return 200. ${REPLACE_TARGET_HINT}`,
   ).toBe(200);
 
+  expect(
+    new URL(page.url()).pathname.replace(/\/$/, ""),
+    `Expected a company profile, landed on ${page.url()}. ${REPLACE_TARGET_HINT}`,
+  ).toBe(`/companies/${PINNED_COMPANY}`);
   await settle(page);
   await auditRoute(page, `/companies/${PINNED_COMPANY}`, "pinned-company");
 
