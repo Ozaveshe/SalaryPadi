@@ -16,7 +16,10 @@ import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JobCard } from "@/components/jobs/job-card";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
-import { JobTruthCard } from "@/components/jobs/job-truth-card";
+import {
+  JobQuickFacts,
+  JobTrustSummary,
+} from "@/components/jobs/job-trust-summary";
 import { JsonLd } from "@/components/json-ld";
 import { PageHeading } from "@/components/page-heading";
 import { CombinedRepositoryNotice } from "@/components/repository-notice";
@@ -30,6 +33,11 @@ import {
   getInterviewExperiencesResult,
 } from "@/lib/companies/repository";
 import { formatDate, formatEnum } from "@/lib/format";
+import {
+  eligibilityStatementTone,
+  publicEligibilityStatement,
+  publicLocation,
+} from "@/lib/presentation/public-field";
 import { getAppOrigin } from "@/lib/env";
 import { getReferenceCurrencyRates } from "@/lib/currency/repository";
 import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
@@ -53,7 +61,14 @@ export async function generateMetadata({
   if (!job)
     return { title: "Job unavailable", robots: { index: false, follow: true } };
   const title = `${job.title} at ${job.company.name}`;
-  const description = `${job.locationDisplay}. ${job.salary?.originalText ?? "Salary not disclosed"}. Check eligibility and source evidence before applying.`;
+  const location = publicLocation(job);
+  const description = [
+    location,
+    job.salary?.originalText,
+    "Check eligibility and source evidence before applying on SalaryPadi.",
+  ]
+    .filter(Boolean)
+    .join(". ");
   const socialImage = buildSocialImageMetadata(
     `/jobs/${job.slug}/opengraph-image`,
     `${title} on SalaryPadi`,
@@ -69,7 +84,7 @@ export async function generateMetadata({
     robots: { index: canIndexJobDetail(job), follow: true },
     openGraph: {
       title,
-      description: `${job.locationDisplay} · ${job.eligibility.evidenceText}`,
+      description,
       type: "article",
       images: socialImage.openGraphImages,
     },
@@ -162,15 +177,26 @@ export default async function JobDetailPage({
         ]}
       />
       <header className="stack">
-        <p className="eyebrow">{job.company.name}</p>
+        <p className="eyebrow">
+          <Link href={`/companies/${job.company.slug}`}>
+            {job.company.name}
+          </Link>
+        </p>
         <h1 className="page-title">{job.title}</h1>
-        <div className="job-facts">
-          <span>{job.locationDisplay}</span>
-          <span>{formatEnum(job.employmentType)}</span>
-          <span>{formatEnum(job.workMode)}</span>
-          <span>Posted {formatDate(job.postedAt)}</span>
-        </div>
-        <div className="job-actions" aria-label="Job actions">
+        {(() => {
+          const statement = publicEligibilityStatement(job);
+          return statement ? (
+            <p className="m-0">
+              <span
+                className={`status status-${eligibilityStatementTone(statement)}`}
+              >
+                {statement}
+              </span>
+            </p>
+          ) : null;
+        })()}
+        <JobQuickFacts job={job} nairaEstimate={nairaEstimate} />
+        <div className="job-actions job-apply-bar" aria-label="Job actions">
           <a
             className="button"
             href={job.applicationUrl}
@@ -232,7 +258,7 @@ export default async function JobDetailPage({
           The job could not be saved. Try again.
         </div>
       ) : null}
-      <JobTruthCard job={job} nairaEstimate={nairaEstimate} />
+      <JobTrustSummary job={job} nairaEstimate={nairaEstimate} />
       <nav className="decision-path" aria-label="Continue this job decision">
         <div>
           <p className="eyebrow">Continue your decision</p>

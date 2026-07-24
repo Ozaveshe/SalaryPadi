@@ -1191,42 +1191,84 @@ a:hover {
   justify-self: end;
 }
 
-.truth-card {
+.quick-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.9rem 1.25rem;
+  margin: 0.35rem 0 0;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-medium);
   background: var(--surface-default);
-  padding-block: 1.25rem;
-}
-
-.truth-card-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding-inline: 1rem;
-}
-
-.truth-grid {
-  display: grid;
-  margin-top: 1rem;
-  border-top: 1px solid var(--border-default);
-}
-
-.truth-grid > section {
   padding: 1rem;
 }
 
-.truth-grid > section + section {
-  border-top: 1px solid var(--border-default);
+.quick-facts dt {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.truth-grid h3 {
+.quick-facts dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.trust-summary {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.trust-summary-line {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
-  margin: 0 0 0.8rem;
-  font-size: 1rem;
+  gap: 0.35rem;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.trust-summary-line > svg {
+  color: var(--interactive-primary);
+}
+
+.trust-summary-line a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: inherit;
+}
+
+.trust-drawer {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-medium);
+  background: var(--surface-default);
+}
+
+.trust-drawer > summary {
+  cursor: pointer;
+  padding: 0.8rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.trust-drawer > div {
+  border-top: 1px solid var(--border-default);
+  padding: 1rem;
+}
+
+@media (max-width: 47.9rem) {
+  .job-apply-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin-inline: -0.5rem;
+    border-top: 1px solid var(--border-default);
+    background: var(--surface-page);
+    padding: 0.6rem 0.5rem;
+  }
 }
 
 .truth-caution {
