@@ -65,7 +65,7 @@ test.describe("repository-backed public states", () => {
   }) => {
     await page.goto("/insights");
     await expect(
-      page.getByRole("heading", { name: "Job data briefs" }),
+      page.getByRole("heading", { name: "Job market insights" }),
     ).toBeVisible();
     await expectOneHonestState({
       data: page.locator(".card-grid"),
