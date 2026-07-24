@@ -1,0 +1,172 @@
+name: Production acceptance
+
+# Proves that the DEPLOYED customer surface matches the expected commit and
+# exposes no internal diagnostics. The suite never skips a data-dependent
+# assertion against a real deployment, and the run refuses to report a result
+# unless the tested commit matches the expected one.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Target base URL
+        required: false
+        default: https://salarypadi.com
+      expected_commit:
+        description: Expected commit SHA (defaults to current main)
+        required: false
+      job_slug:
+        description: Pinned acceptance job slug (optional override)
+        required: false
+      company_slug:
+        description: Pinned acceptance company slug (optional override)
+        required: false
+  schedule:
+    # Once daily; production data changes under us, so drift shows up here.
+    - cron: "35 6 * * *"
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: production-acceptance-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    name: Verify deployed production surface
+    runs-on: ubuntu-latest
+    # After a CI run, only proceed when that run succeeded.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    timeout-minutes: 30
+    env:
+      BASE_URL: ${{ inputs.base_url || 'https://salarypadi.com' }}
+      PRODUCTION_ACCEPTANCE_JOB_SLUG: ${{ inputs.job_slug }}
+      PRODUCTION_ACCEPTANCE_COMPANY_SLUG: ${{ inputs.company_slug }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Determine expected commit
+        id: expected
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.expected_commit }}" ]; then
+            EXPECTED="${{ inputs.expected_commit }}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            EXPECTED="${{ github.event.workflow_run.head_sha }}"
+          else
+            EXPECTED="$(git rev-parse HEAD)"
+          fi
+          SHORT="$(printf '%s' "$EXPECTED" | cut -c1-7 | tr 'A-Z' 'a-z')"
+          echo "sha=$EXPECTED" >> "$GITHUB_OUTPUT"
+          echo "short=$SHORT" >> "$GITHUB_OUTPUT"
+          echo "Expected production commit: $SHORT"
+
+      - name: Wait for production to serve the expected commit
+        id: match
+        run: |
+          set -euo pipefail
+          EXPECTED="${{ steps.expected.outputs.short }}"
+          ATTEMPTS=40          # 40 x 30s = 20 minutes maximum
+          SLEEP=30
+          DEPLOYED=""
+          for i in $(seq 1 "$ATTEMPTS"); do
+            BODY="$(curl -fsS --max-time 20 "$BASE_URL/api/build-info" || echo '{}')"
+            DEPLOYED="$(printf '%s' "$BODY" | jq -r '.commit // empty')"
+            CONTEXT="$(printf '%s' "$BODY" | jq -r '.context // "unknown"')"
+            echo "attempt $i/$ATTEMPTS: deployed=${DEPLOYED:-none} context=$CONTEXT expected=$EXPECTED"
+            if [ "$DEPLOYED" = "$EXPECTED" ]; then
+              echo "deployed=$DEPLOYED" >> "$GITHUB_OUTPUT"
+              echo "context=$CONTEXT" >> "$GITHUB_OUTPUT"
+              echo "matched=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep "$SLEEP"
+          done
+          echo "deployed=${DEPLOYED:-none}" >> "$GITHUB_OUTPUT"
+          echo "matched=false" >> "$GITHUB_OUTPUT"
+          echo "::error::Production never reached the expected commit $EXPECTED (last seen: ${DEPLOYED:-none}). Not reporting acceptance."
+          exit 1
+
+      - name: Run production acceptance suite
+        id: acceptance
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ env.BASE_URL }}
+          PRODUCTION_ACCEPTANCE: "true"
+        run: |
+          npx playwright test tests/e2e/production-acceptance.spec.ts \
+            --project=mobile-360 --project=desktop-chromium
+
+      - name: Record tested environment
+        if: always()
+        run: |
+          mkdir -p output/acceptance
+          cat > output/acceptance/production-run.json <<JSON
+          {
+            "targetUrl": "${{ env.BASE_URL }}",
+            "expectedCommit": "${{ steps.expected.outputs.short }}",
+            "testedCommit": "${{ steps.match.outputs.deployed }}",
+            "deployContext": "${{ steps.match.outputs.context }}",
+            "commitMatched": ${{ steps.match.outputs.matched || false }},
+            "testedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflowRun": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          JSON
+          cat output/acceptance/production-run.json
+
+      - name: Upload acceptance artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-acceptance-${{ steps.expected.outputs.short }}
+          path: |
+            output/acceptance/**
+            output/playwright/**
+            playwright-report/**
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Publish job summary
+        if: always()
+        run: |
+          {
+            echo "## Production acceptance"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Target | ${{ env.BASE_URL }} |"
+            echo "| Expected commit | \`${{ steps.expected.outputs.short }}\` |"
+            echo "| Tested commit | \`${{ steps.match.outputs.deployed }}\` |"
+            echo "| Commit matched | ${{ steps.match.outputs.matched || 'false' }} |"
+            echo "| Deploy context | ${{ steps.match.outputs.context }} |"
+            echo "| Suite result | ${{ steps.acceptance.outcome }} |"
+            echo "| Projects | mobile-360, desktop-chromium |"
+            echo
+            if [ "${{ steps.match.outputs.matched }}" != "true" ]; then
+              echo "> Acceptance was NOT reported: production did not reach the expected commit."
+            elif [ "${{ steps.acceptance.outcome }}" != "success" ]; then
+              echo "> Acceptance FAILED against the matching production commit. See artifacts for HTML, screenshots and traces."
+            else
+              echo "> Acceptance passed against the matching production commit. No test was skipped."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
