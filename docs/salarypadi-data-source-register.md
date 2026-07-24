@@ -8,16 +8,17 @@ register. Nothing publishes without an active rights basis.
 
 ## Job sources — live
 
-| Source                               | Connector       | Rights basis                                          | Constraints                                                    | State    |
-| ------------------------------------ | --------------- | ----------------------------------------------------- | -------------------------------------------------------------- | -------- |
-| Moniepoint (Greenhouse `moniepoint`) | ats/greenhouse  | documented_public_api (employer's own public board)   | metadata only, attribution, employer apply URL, 6h poll, 4/day | active   |
-| Canonical (Greenhouse `canonical`)   | ats/greenhouse  | documented_public_api                                 | same                                                           | active   |
-| Zipline (Greenhouse `flyzipline`)    | ats/greenhouse  | documented_public_api; apply URLs on employer site    | same                                                           | active   |
-| Kuda (Workable `kuda`)               | ats/workable    | documented_public_api (public widget API)             | same; destinations pinned to apply.workable.com/j              | active   |
-| FairMoney (Workable `fairmoney`)     | ats/workable    | documented_public_api                                 | same                                                           | active   |
-| Jobicy                               | feed descriptor | permitted public API                                  | ≤4 fetches/day, attribution, no full descriptions              | active   |
-| Himalayas                            | feed descriptor | permitted public API                                  | 1/day, paced multi-page, partial tolerated                     | active   |
-| Remotive                             | feed descriptor | REVOKED — awaiting written republication confirmation | env kill switch off                                            | disabled |
+| Source                               | Connector       | Rights basis                                          | Constraints                                                                         | State    |
+| ------------------------------------ | --------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------- | -------- |
+| Moniepoint (Greenhouse `moniepoint`) | ats/greenhouse  | documented_public_api (employer's own public board)   | metadata only, attribution, employer apply URL, 6h poll, 4/day                      | active   |
+| Canonical (Greenhouse `canonical`)   | ats/greenhouse  | documented_public_api                                 | same                                                                                | active   |
+| Zipline (Greenhouse `flyzipline`)    | ats/greenhouse  | documented_public_api; apply URLs on employer site    | same                                                                                | active   |
+| Kuda (Workable `kuda`)               | ats/workable    | documented_public_api (public widget API)             | same; destinations pinned to apply.workable.com/j                                   | active   |
+| FairMoney (Workable `fairmoney`)     | ats/workable    | documented_public_api                                 | same                                                                                | active   |
+| Jumia (Greenhouse `jumia`)           | ats/greenhouse  | documented_public_api; EU board instance              | same; pan-African employer — non-NG roles held pending until country packs activate | active   |
+| Jobicy                               | feed descriptor | permitted public API                                  | ≤4 fetches/day, attribution, no full descriptions                                   | active   |
+| Himalayas                            | feed descriptor | permitted public API                                  | 1/day, paced multi-page, partial tolerated                                          | active   |
+| Remotive                             | feed descriptor | REVOKED — awaiting written republication confirmation | env kill switch off                                                                 | disabled |
 
 ## Job sources — pending / planned
 
