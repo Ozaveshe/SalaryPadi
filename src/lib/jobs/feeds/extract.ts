@@ -19,7 +19,9 @@ import {
  */
 
 function assertPayloadSize(payload: string) {
-  if (payload.length > MAX_FEED_PAYLOAD_BYTES) {
+  // Measured in UTF-8 bytes, not UTF-16 string length: a feed of multi-byte
+  // characters must be bounded by its real transfer/parse cost.
+  if (Buffer.byteLength(payload, "utf8") > MAX_FEED_PAYLOAD_BYTES) {
     throw new EmployerFeedError("feed_payload_too_large");
   }
 }
@@ -167,6 +169,9 @@ export function parseCsv(payload: string): string[][] {
   let row: string[] = [];
   let field = "";
   let inQuotes = false;
+  // After a field's closing quote, only a delimiter, row break or EOF is
+  // valid — anything else (e.g. `"abc"def`) is a malformed record.
+  let justClosedQuote = false;
   for (let index = 0; index < payload.length; index += 1) {
     const character = payload[index];
     if (inQuotes) {
@@ -176,21 +181,32 @@ export function parseCsv(payload: string): string[][] {
           index += 1;
         } else {
           inQuotes = false;
+          justClosedQuote = true;
         }
       } else {
         field += character;
       }
       continue;
     }
+    if (
+      justClosedQuote &&
+      character !== "," &&
+      character !== "\n" &&
+      character !== "\r"
+    ) {
+      throw new EmployerFeedError("feed_malformed");
+    }
     if (character === '"' && field === "") {
       inQuotes = true;
     } else if (character === ",") {
       row.push(field);
       field = "";
+      justClosedQuote = false;
     } else if (character === "\n" || character === "\r") {
       if (character === "\r" && payload[index + 1] === "\n") index += 1;
       row.push(field);
       field = "";
+      justClosedQuote = false;
       if (row.some((cell) => cell.trim() !== "")) rows.push(row);
       row = [];
     } else {
