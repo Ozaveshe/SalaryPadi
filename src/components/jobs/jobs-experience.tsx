@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { JobCard } from "@/components/jobs/job-card";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
+import { JobPreviewPanel } from "@/components/jobs/job-preview-panel";
 import { JobSearchForm } from "@/components/jobs/job-search-form";
 import { Pagination } from "@/components/jobs/pagination";
 import { PageHeading } from "@/components/page-heading";
@@ -63,6 +64,16 @@ export async function JobsExperience({
     ),
   ].toSorted();
   const serializedSearch = serializeJobSearch(search);
+  const selectedInput = Array.isArray(input.selected)
+    ? input.selected[0]
+    : input.selected;
+  const selectedJob =
+    result.items.find((job) => job.slug === selectedInput) ?? result.items[0];
+  const selectHref = (slug: string) => {
+    const params = new URLSearchParams(serializedSearch);
+    params.set("selected", slug);
+    return `/jobs?${params.toString()}`;
+  };
   const feedIsConclusive = feed.state === "live";
   const resultCountLabel = feedIsConclusive
     ? `${result.totalItems} ${result.totalItems === 1 ? "job" : "jobs"}`
@@ -156,19 +167,37 @@ export async function JobsExperience({
           </div>
         </div>
         {result.items.length > 0 ? (
-          <div className="job-list">
-            {result.items.map((job) => (
-              <JobCard
-                job={job}
-                key={job.id}
-                match={
-                  matchProfile
-                    ? scoreJobMatch(matchProfile, toJobFacts(job))
-                    : undefined
-                }
-                nairaEstimate={estimateNairaTakeHome(job.salary, currencyRates)}
-              />
-            ))}
+          <div className="jobs-split">
+            <div className="job-list">
+              {result.items.map((job) => (
+                <JobCard
+                  job={job}
+                  key={job.id}
+                  match={
+                    matchProfile
+                      ? scoreJobMatch(matchProfile, toJobFacts(job))
+                      : undefined
+                  }
+                  nairaEstimate={estimateNairaTakeHome(
+                    job.salary,
+                    currencyRates,
+                  )}
+                  selectHref={selectHref(job.slug)}
+                  isSelected={selectedJob?.slug === job.slug}
+                />
+              ))}
+            </div>
+            {selectedJob ? (
+              <aside className="jobs-preview-column">
+                <JobPreviewPanel
+                  job={selectedJob}
+                  nairaEstimate={estimateNairaTakeHome(
+                    selectedJob.salary,
+                    currencyRates,
+                  )}
+                />
+              </aside>
+            ) : null}
           </div>
         ) : (
           <div className="empty-state">
