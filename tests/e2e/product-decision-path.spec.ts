@@ -77,14 +77,26 @@ test.describe("continuous job decision path", () => {
   test("keeps contribution and employer paths discoverable while demoting empty community areas", async ({
     page,
   }) => {
+    // Candidate contribution leads with one primary action; the workplace
+    // lane then selects its shape. Employer paths live on /for-employers.
     await page.goto("/contribute");
+    await expect(
+      page.getByRole("heading", {
+        name: "Share your salary anonymously",
+        exact: true,
+      }),
+    ).toBeVisible();
+    for (const name of ["Review", "Benefits", "Pay reliability", "Interview"]) {
+      await expect(
+        page.getByRole("main").getByText(name, { exact: true }).first(),
+      ).toBeVisible();
+    }
+
+    await page.goto("/for-employers");
     for (const name of [
       "Post a job",
-      "Claim company",
+      "Claim your company",
       "Request a right of reply",
-      "Add salary",
-      "Add review",
-      "Add interview experience",
     ]) {
       await expect(
         page.getByRole("main").getByText(name, { exact: true }).first(),
