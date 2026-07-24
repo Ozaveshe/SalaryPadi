@@ -322,27 +322,28 @@ export default async function JobDetailPage({
             </h2>
             <p className="description-copy">{job.description}</p>
           </section>
-          <section
-            className="rule-section"
-            aria-labelledby="requirements-heading"
-          >
-            <h2 className="section-title" id="requirements-heading">
-              Requirements
-            </h2>
-            <p className="text-muted">
-              {job.requirements ??
-                "This source does not provide requirements as a separate structured field. Review the role details and original posting carefully."}
-            </p>
-          </section>
-          <section className="rule-section" aria-labelledby="benefits-heading">
-            <h2 className="section-title" id="benefits-heading">
-              Benefits
-            </h2>
-            <p className="text-muted">
-              {job.benefits ??
-                "This source does not provide benefits as a separate structured field. Do not infer benefits from the company name or role."}
-            </p>
-          </section>
+          {job.requirements ? (
+            <section
+              className="rule-section"
+              aria-labelledby="requirements-heading"
+            >
+              <h2 className="section-title" id="requirements-heading">
+                Requirements
+              </h2>
+              <p className="text-muted">{job.requirements}</p>
+            </section>
+          ) : null}
+          {job.benefits ? (
+            <section
+              className="rule-section"
+              aria-labelledby="benefits-heading"
+            >
+              <h2 className="section-title" id="benefits-heading">
+                Benefits
+              </h2>
+              <p className="text-muted">{job.benefits}</p>
+            </section>
+          ) : null}
         </div>
         <aside className="stack">
           <section
@@ -364,14 +365,6 @@ export default async function JobDetailPage({
               <div>
                 <dt>Attribution</dt>
                 <dd>Required and shown</dd>
-              </div>
-              <div>
-                <dt>Structured data</dt>
-                <dd>
-                  {jobPosting
-                    ? "JobPosting permitted and published"
-                    : "Not permitted for this source"}
-                </dd>
               </div>
             </dl>
             <a
@@ -404,18 +397,24 @@ export default async function JobDetailPage({
                 <dt>Employer evidence</dt>
                 <dd>{formatEnum(job.company.verification)}</dd>
               </div>
-              <div>
-                <dt>Approved reviews</dt>
-                <dd>{companyReviews.length}</dd>
-              </div>
-              <div>
-                <dt>Interview experiences</dt>
-                <dd>{companyInterviews.length}</dd>
-              </div>
-              <div>
-                <dt>Published benefits</dt>
-                <dd>{companyBenefits.length}</dd>
-              </div>
+              {companyReviews.length > 0 ? (
+                <div>
+                  <dt>Approved reviews</dt>
+                  <dd>{companyReviews.length}</dd>
+                </div>
+              ) : null}
+              {companyInterviews.length > 0 ? (
+                <div>
+                  <dt>Interview experiences</dt>
+                  <dd>{companyInterviews.length}</dd>
+                </div>
+              ) : null}
+              {companyBenefits.length > 0 ? (
+                <div>
+                  <dt>Published benefits</dt>
+                  <dd>{companyBenefits.length}</dd>
+                </div>
+              ) : null}
               {companyRating ? (
                 <div>
                   <dt>Community rating</dt>

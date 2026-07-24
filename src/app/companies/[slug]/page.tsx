@@ -300,22 +300,22 @@ export default async function CompanyPage({
                 : "No cited alias is stored"}
             </dd>
           </div>
-          <div>
-            <dt>Industry signals</dt>
-            <dd>
-              {company.industry ||
-                company.categories.join(", ") ||
-                "Not stated"}
-            </dd>
-          </div>
-          <div>
-            <dt>Company size</dt>
-            <dd>{company.sizeBand ?? "Not provided by the source"}</dd>
-          </div>
-          <div>
-            <dt>Website</dt>
-            <dd>
-              {company.websiteUrl ? (
+          {company.industry || company.categories.length > 0 ? (
+            <div>
+              <dt>Industry signals</dt>
+              <dd>{company.industry || company.categories.join(", ")}</dd>
+            </div>
+          ) : null}
+          {company.sizeBand ? (
+            <div>
+              <dt>Company size</dt>
+              <dd>{company.sizeBand}</dd>
+            </div>
+          ) : null}
+          {company.websiteUrl ? (
+            <div>
+              <dt>Website</dt>
+              <dd>
                 <a
                   className="text-link"
                   href={company.websiteUrl}
@@ -324,11 +324,9 @@ export default async function CompanyPage({
                 >
                   Visit the published website
                 </a>
-              ) : (
-                "Not provided by the source"
-              )}
-            </dd>
-          </div>
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt>Verification</dt>
             <dd>
@@ -336,10 +334,12 @@ export default async function CompanyPage({
               verification
             </dd>
           </div>
-          <div>
-            <dt>Remote eligibility seen</dt>
-            <dd>{company.remoteLocations.join("; ") || "Not stated"}</dd>
-          </div>
+          {company.remoteLocations.length > 0 ? (
+            <div>
+              <dt>Remote eligibility seen</dt>
+              <dd>{company.remoteLocations.join("; ")}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>Last evidence check</dt>
             <dd>{formatDate(company.lastCheckedAt)}</dd>

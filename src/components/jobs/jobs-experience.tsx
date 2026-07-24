@@ -130,9 +130,7 @@ export async function JobsExperience({
             <h2 className="section-title" id="job-results-heading">
               Current results
             </h2>
-            <span className="results-count">
-              {resultCountLabel} · bounded to 10 per page
-            </span>
+            <span className="results-count">{resultCountLabel}</span>
           </div>
           <div className="cluster result-actions">
             <form action="/jobs" method="get">
@@ -236,12 +234,6 @@ export async function JobsExperience({
           searchParams={serializedSearch}
         />
       </section>
-      <aside className="source-policy-note">
-        <strong>Result balance:</strong> Repeated employer and location variants
-        are interleaved before pagination so one cluster does not hide other
-        choices. Every result still keeps its own source, eligibility evidence,
-        destination, freshness and indexing permissions.
-      </aside>
     </div>
   );
 }
