@@ -103,8 +103,37 @@ Releases 1–5). Companion docs: `salarypadi-current-state-audit.md`,
 
 ## Verification posture
 
-Every PR merged with the full gate green (1,513 tests across 173
+Every PR merged with the full gate green (1,536 tests across 175
 files, typecheck, eslint --max-warnings=0, prettier, npm audit, pgTAP,
 public browser journeys) plus live dev-server verification of the
 changed surface. The prohibited-label regression test now guards the
 presentation boundary permanently.
+
+### Production acceptance (automated, non-skippable)
+
+Pre-merge gates prove the repository, not the deployment. The
+`Production acceptance` workflow proves the deployed surface, and refuses
+to report a result unless the commit it tested matches the expected one:
+`/api/build-info` publishes the deployed commit, context, branch and
+build id, and the workflow polls it until it matches before any test
+runs. The suite contains no data-dependent skips against a real
+deployment — "no job to audit" is a failure, not a quiet pass.
+
+Latest passing run, against the matching deployed `main` commit:
+
+| Field           | Value                                                                                                |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| Run             | [30129894193](https://github.com/Ozaveshe/SalaryPadi/actions/runs/30129894193) — success             |
+| Expected commit | `735b126`                                                                                            |
+| Tested commit   | `735b126` (`/api/build-info`: context `production`, branch `main`, build `6a63e14bed558a00087f61e8`) |
+| Result          | 30 passed, 0 failed, **0 skipped** (15 tests × `mobile-360`, `desktop-chromium`)                     |
+| Artifact        | `production-acceptance-735b126` (8.6 MB, 14-day retention)                                           |
+| Coverage        | 14 customer routes, pinned job + pinned company (all six tabs and tab routes), axe on 5 surfaces     |
+
+Every disclosure (`<details>`) is opened before the surface is scanned,
+so prohibited language cannot hide behind a collapsed panel.
+
+Known limitation: the pinned targets are live postings. When one expires
+the suite fails with an explicit replacement hint rather than skipping,
+and the workflow's `job_slug` / `company_slug` inputs repoint it without
+a code change.
