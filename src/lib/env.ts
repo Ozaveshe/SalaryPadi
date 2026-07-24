@@ -105,6 +105,11 @@ const serverEnvironmentSchema = z
       .enum(["true", "false"])
       .default("false")
       .transform((value) => value === "true"),
+    RELIEFWEB_SOURCE_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    RELIEFWEB_APP_NAME: optionalCredential,
     EDITORIAL_AUTOMATION_ENABLED: z
       .enum(["true", "false"])
       .default("false")
@@ -248,6 +253,8 @@ export function parseServerEnvironment(
     TRANSACTIONAL_EMAIL_FROM: environment.TRANSACTIONAL_EMAIL_FROM,
     TRANSACTIONAL_EMAIL_REPLY_TO: environment.TRANSACTIONAL_EMAIL_REPLY_TO,
     REMOTIVE_SOURCE_ENABLED: environment.REMOTIVE_SOURCE_ENABLED,
+    RELIEFWEB_SOURCE_ENABLED: environment.RELIEFWEB_SOURCE_ENABLED,
+    RELIEFWEB_APP_NAME: environment.RELIEFWEB_APP_NAME,
     EDITORIAL_AUTOMATION_ENABLED: environment.EDITORIAL_AUTOMATION_ENABLED,
     ALLOW_DEMO_DATA: environment.ALLOW_DEMO_DATA,
     ANALYTICS_PROVIDER: environment.ANALYTICS_PROVIDER,

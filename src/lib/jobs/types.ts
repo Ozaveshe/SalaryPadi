@@ -117,7 +117,7 @@ export interface JobFeedResult {
 }
 
 export interface JobFeedSourceStatus {
-  key: "remotive" | "jobicy" | "himalayas" | "database";
+  key: "remotive" | "jobicy" | "himalayas" | "reliefweb" | "database";
   state: "live" | "degraded" | "disabled" | "unavailable";
   checkedAt: string;
   count: number;
