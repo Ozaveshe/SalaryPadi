@@ -62,6 +62,25 @@ export const employerFeedConfigSchema = z
       .optional(),
     /** JSON: dot-separated path to the record array (e.g. "data.jobs"). */
     recordsPath: z.string().min(1).max(200).optional(),
+    /**
+     * XML: the required container/root element. Confirming it is what makes
+     * a zero-record XML document an authoritative zero rather than a parse
+     * failure, so it is mandatory for XML feeds.
+     */
+    expectedRootElement: z
+      .string()
+      .regex(/^[A-Za-z][\w.-]*$/)
+      .max(80)
+      .optional(),
+    /** XML: accept `prefix:name` element names. Rejected unless opted in. */
+    allowNamespacePrefixes: z.boolean().default(false),
+    /**
+     * Whether a structurally valid empty snapshot may close previously
+     * published jobs. Off by default: for most employer exports an empty
+     * file is far more likely to be a broken export than a real "no open
+     * roles" statement.
+     */
+    allowAuthoritativeEmpty: z.boolean().default(false),
     fieldMap: feedFieldMapSchema,
     /**
      * Registrable hosts an application/source URL may point to — normally the
@@ -104,6 +123,14 @@ export const employerFeedConfigSchema = z
         code: "custom",
         path: ["recordElement"],
         message: "XML feeds must name their repeated record element.",
+      });
+    }
+    if (config.kind === "xml" && !config.expectedRootElement) {
+      context.addIssue({
+        code: "custom",
+        path: ["expectedRootElement"],
+        message:
+          "XML feeds must name their expected root/container element so an empty document can be told apart from a failed parse.",
       });
     }
     if (config.kind === "json" && !config.recordsPath) {
@@ -188,7 +215,10 @@ export interface ExtractedFeedRecord {
 export class EmployerFeedError extends Error {
   constructor(
     public readonly code:
-      "feed_payload_too_large" | "feed_malformed" | "feed_records_missing",
+      | "feed_payload_too_large"
+      | "feed_malformed"
+      | "feed_records_missing"
+      | "feed_record_limit_exceeded",
   ) {
     super(code);
     this.name = "EmployerFeedError";

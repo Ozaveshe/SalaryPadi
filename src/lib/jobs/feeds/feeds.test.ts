@@ -21,8 +21,9 @@ function xmlConfig(
     employerSlug: "acme-nigeria",
     employerName: "Acme Nigeria",
     kind: "xml",
-    url: "https://careers.acme.example/jobs.xml",
+    url: "https://careers.acme.com/jobs.xml",
     recordElement: "job",
+    expectedRootElement: "jobs",
     fieldMap: {
       externalId: "id",
       title: "title",
@@ -32,7 +33,7 @@ function xmlConfig(
       publishedAt: "published",
       sourceUrl: "url",
     },
-    allowedDestinationHosts: ["acme.example"],
+    allowedDestinationHosts: ["acme.com"],
     rightsBasis: "written_employer_authorization",
     rightsEvidenceRef: "test-fixture-authorization",
     authorizedAt: "2026-07-24T00:00:00.000Z",
@@ -45,12 +46,12 @@ const XML_FIXTURE = `<?xml version="1.0"?>
 <jobs>
   <job>
     <id>101</id>
-    <title><![CDATA[Accountant &amp; Payroll Officer]]></title>
+    <title>Accountant &amp; Payroll Officer</title>
     <location>Lagos, Nigeria</location>
     <type>Full-time</type>
     <description><![CDATA[<p>Prepare statutory accounts.</p>]]></description>
     <published>2026-07-20T00:00:00+00:00</published>
-    <url>https://careers.acme.example/jobs/101</url>
+    <url>https://careers.acme.com/jobs/101</url>
   </job>
   <job>
     <id>102</id>
@@ -59,7 +60,7 @@ const XML_FIXTURE = `<?xml version="1.0"?>
     <type>Contract</type>
     <description>Maintain field equipment.</description>
     <published>2026-07-21T00:00:00+00:00</published>
-    <url>https://evil.example/jobs/102</url>
+    <url>https://evil.test/jobs/102</url>
   </job>
 </jobs>`;
 
@@ -78,12 +79,12 @@ describe("employer feed registry", () => {
 
 describe("XML feed extraction", () => {
   it("extracts records, decodes CDATA and entities, and pins destinations", () => {
-    const { records, droppedDestinationCount } = extractEmployerFeedRecords(
+    const { records, destinationDroppedCount } = extractEmployerFeedRecords(
       xmlConfig(),
       XML_FIXTURE,
       checkedAt,
     );
-    expect(droppedDestinationCount).toBe(1);
+    expect(destinationDroppedCount).toBe(1);
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({
       provider: "employer_xml_feed",
@@ -93,8 +94,8 @@ describe("XML feed extraction", () => {
       title: "Accountant & Payroll Officer",
       location: "Lagos, Nigeria",
       employmentType: "Full-time",
-      sourceUrl: "https://careers.acme.example/jobs/101",
-      applicationUrl: "https://careers.acme.example/jobs/101",
+      sourceUrl: "https://careers.acme.com/jobs/101",
+      applicationUrl: "https://careers.acme.com/jobs/101",
       checkedAt,
     });
   });
@@ -125,10 +126,20 @@ describe("XML feed extraction", () => {
     expect(result.jobs[0]?.content_hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("fails closed when the record element never appears", () => {
+  it("treats a confirmed empty container as an authoritative zero", () => {
+    const result = extractEmployerFeedRecords(
+      xmlConfig(),
+      "<jobs></jobs>",
+      checkedAt,
+    );
+    expect(result.records).toHaveLength(0);
+    expect(result.extraction.authoritativeEmpty).toBe(true);
+  });
+
+  it("fails closed when the document root is not the expected container", () => {
     expect(() =>
-      extractEmployerFeedRecords(xmlConfig(), "<jobs></jobs>", checkedAt),
-    ).toThrow("feed_records_missing");
+      extractEmployerFeedRecords(xmlConfig(), "<vacancies/>", checkedAt),
+    ).toThrow("feed_malformed");
   });
 });
 
@@ -156,8 +167,8 @@ describe("JSON feed extraction", () => {
             title: "Data Analyst",
             location: { name: "Lagos, Nigeria" },
             links: {
-              self: "https://careers.acme.example/jobs/7",
-              apply: "https://careers.acme.example/jobs/7/apply",
+              self: "https://careers.acme.com/jobs/7",
+              apply: "https://careers.acme.com/jobs/7/apply",
             },
           },
           { title: "No identifier" },
@@ -169,7 +180,7 @@ describe("JSON feed extraction", () => {
     expect(records[0]).toMatchObject({
       provider: "employer_json_feed",
       externalId: "7",
-      applicationUrl: "https://careers.acme.example/jobs/7/apply",
+      applicationUrl: "https://careers.acme.com/jobs/7/apply",
     });
   });
 
@@ -210,7 +221,7 @@ describe("CSV import extraction", () => {
   it("maps header names case-insensitively into records", () => {
     const payload = [
       "Reference,Job Title,Location,Posting URL",
-      'ACME-9,"Warehouse Supervisor","Kano, Nigeria",https://careers.acme.example/jobs/9',
+      'ACME-9,"Warehouse Supervisor","Kano, Nigeria",https://careers.acme.com/jobs/9',
     ].join("\n");
     const { records } = extractEmployerFeedRecords(config, payload, checkedAt);
     expect(records).toHaveLength(1);
