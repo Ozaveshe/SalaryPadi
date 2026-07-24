@@ -6,8 +6,21 @@ const requireLiveAfroTools = process.env.REQUIRE_LIVE_AFROTOOLS === "true";
 
 if (!externalBaseURL) process.env.PLAYWRIGHT_BASE_URL = localBaseURL;
 
+/**
+ * The production acceptance suite asserts against a real deployment with real
+ * data and never skips. It must NOT run in the env-less CI browser-journeys
+ * job, where there is no data by design — it is opted into explicitly by the
+ * production-acceptance workflow.
+ */
+const runProductionAcceptance =
+  process.env.PRODUCTION_ACCEPTANCE === "true" ||
+  process.env.PLAYWRIGHT_SUITE === "production";
+
 export default defineConfig({
   testDir: "./tests/e2e",
+  testIgnore: runProductionAcceptance
+    ? []
+    : ["**/production-acceptance.spec.ts"],
   outputDir: "./output/playwright/results",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),

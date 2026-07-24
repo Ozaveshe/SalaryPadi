@@ -112,6 +112,7 @@ jobs:
         id: acceptance
         env:
           PLAYWRIGHT_BASE_URL: ${{ env.BASE_URL }}
+          PRODUCTION_ACCEPTANCE: "true"
         run: |
           npx playwright test tests/e2e/production-acceptance.spec.ts \
             --project=mobile-360 --project=desktop-chromium
