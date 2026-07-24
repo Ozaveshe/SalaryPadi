@@ -28,8 +28,12 @@ export function ContributionShell({
       />
       <div className="notice">
         <strong>Moderated, not auto-published.</strong> Your account link
-        remains private and is used for ownership, deletion and abuse controls.
-        Employers never receive it.
+        remains private and is used only for ownership, deletion and abuse
+        controls — employers never receive it. Individual records are never
+        shown publicly: salary evidence only appears once at least three
+        sufficiently similar approved contributions from distinct accounts form
+        a cohort, and sub-threshold counts are never exposed. You can delete
+        your contribution at any time.
       </div>
       {children}
     </div>
