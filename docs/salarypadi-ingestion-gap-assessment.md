@@ -171,35 +171,35 @@ authorizations. The number is supply-gated, not code-gated.
 
 ## 3. Gaps and dispositions
 
-| Brief requirement                    | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Generic XML feed connector           | **Built now**: `src/lib/jobs/feeds/` — strict flat-record extractor (CDATA/entities), per-feed field map                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Generic JSON feed connector          | **Built now**: dot-path record extraction                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Employer CSV import                  | **Built now**: RFC 4180 parser + header mapping                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Feed authorization registry          | **Built now**: `config/employer-feed-registry.json` (zod-validated; a feed cannot enable without a recorded rights basis; destination hosts pinned per feed). Empty until real employers authorize — no invented feeds                                                                                                                                                                                                                                                                                       |
-| Single connector interface           | Feeds emit `AtsSourceRecord` and reuse `normalizeAtsImportRecords` — one canonical pipeline, no second path. The runtime (`src/lib/jobs/feeds/runtime.ts`) adds eligibility gates + absence semantics + durable metrics over an injectable store; provider-constraint migration `20260724130000` (applied) admits the feed providers into `ats_source_configs`. Remaining: bind the production `FeedRunStore` + register the dispatcher worker — gated on a real employer authorization (no feed is enabled) |
-| SmartRecruiters                      | **Registry entry added (disabled)**: transport docs ≠ republication permission; zombie-board freshness gate mandatory                                                                                                                                                                                                                                                                                                                                                                                        |
-| Jooble                               | **Registry entry added (disabled)**: no request until partner terms are obtained and recorded                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Board registry + 1,500-board tooling | **Built now**: `config/employer-board-registry.json` (31 evidence-backed rows: 6 registered, rejects with reasons, probed-zero cohort, candidates) + `scripts/validate-board-registry.mjs` (`--check` structural, `--probe N` rate-limited public-API probe that never registers)                                                                                                                                                                                                                            |
-| Occupation-family taxonomy on jobs   | Partial: 23 role families exist for salaries; job records carry source `category`. Mapping jobs→families is future work, tracked, not blocking publication                                                                                                                                                                                                                                                                                                                                                   |
-| Dedicated search service             | Deliberately deferred: current Postgres+in-process search is fast at current scale; reassess with pg full-text (`tsvector` on title/description) at ~2–5k active jobs, dedicated service only if p95 degrades                                                                                                                                                                                                                                                                                                |
-| Conditional requests (ETag)          | Partial: response `Date`-based freshness + per-source budgets exist; ETag/If-Modified-Since is a cheap future add per adapter                                                                                                                                                                                                                                                                                                                                                                                |
-| Brand colours on logos               | Not stored; logo.dev serves images only. Future enrichment                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Brief requirement                    | Disposition                                                                                                                                                                                                                                                                       |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Generic XML feed connector           | **Built now**: `src/lib/jobs/feeds/` — strict flat-record extractor (CDATA/entities), per-feed field map                                                                                                                                                                          |
+| Generic JSON feed connector          | **Built now**: dot-path record extraction                                                                                                                                                                                                                                         |
+| Employer CSV import                  | **Built now**: RFC 4180 parser + header mapping                                                                                                                                                                                                                                   |
+| Feed authorization registry          | **Built now**: `config/employer-feed-registry.json` (zod-validated; a feed cannot enable without a recorded rights basis; destination hosts pinned per feed). Empty until real employers authorize — no invented feeds                                                            |
+| Single connector interface           | Feeds emit `AtsSourceRecord` and reuse `normalizeAtsImportRecords` — one canonical pipeline, no second path. See the generic-feed status section below for exactly what is and is not operational.                                                                                |
+| SmartRecruiters                      | **Registry entry added (disabled)**: transport docs ≠ republication permission; zombie-board freshness gate mandatory                                                                                                                                                             |
+| Jooble                               | **Registry entry added (disabled)**: no request until partner terms are obtained and recorded                                                                                                                                                                                     |
+| Board registry + 1,500-board tooling | **Built now**: `config/employer-board-registry.json` (31 evidence-backed rows: 6 registered, rejects with reasons, probed-zero cohort, candidates) + `scripts/validate-board-registry.mjs` (`--check` structural, `--probe N` rate-limited public-API probe that never registers) |
+| Occupation-family taxonomy on jobs   | Partial: 23 role families exist for salaries; job records carry source `category`. Mapping jobs→families is future work, tracked, not blocking publication                                                                                                                        |
+| Dedicated search service             | Deliberately deferred: current Postgres+in-process search is fast at current scale; reassess with pg full-text (`tsvector` on title/description) at ~2–5k active jobs, dedicated service only if p95 degrades                                                                     |
+| Conditional requests (ETag)          | Partial: response `Date`-based freshness + per-source budgets exist; ETag/If-Modified-Since is a cheap future add per adapter                                                                                                                                                     |
+| Brand colours on logos               | Not stored; logo.dev serves images only. Future enrichment                                                                                                                                                                                                                        |
 
 ## 4. Acceptance-target status (honest)
 
-| Target                                      | Status                                                                                                      |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| ≥20,000 active unique jobs                  | ~338 public + banked pending. Supply-gated (see §2); machinery complete                                     |
-| ≥95% valid application destinations         | Structurally enforced (destination pinning per tenant/feed + link checker); ops metric on dashboard         |
-| <5% visible duplicates                      | Enforced by 4-layer dedup + fuzzy review queue                                                              |
-| ≥95% company-domain resolution              | Met for current inventory (ATS tenants are domain-verified at registration)                                 |
-| ≥90% logo coverage                          | 100% render coverage (monogram floor); permitted-API coverage grows with the catalog                        |
-| 100% attribution / 100% active rights basis | Enforced by the three gates; nothing publishes otherwise                                                    |
-| ≥98% explicit location or remote scope      | Enforced: records without either are filtered/pending, not published                                        |
-| No raw null-state labels                    | Enforced by the prohibited-label regression test                                                            |
-| Expired-rate <2%                            | Absence-tracking + 6h cadence keeps public rows current; provenance cache withdraws lapses same-transaction |
-| Auditable provenance per field              | Worker run → snapshot → raw record (hash) → occurrence → job → public provenance JSON                       |
+| Target                                      | Status                                                                                                                                          |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| ≥20,000 active unique jobs                  | ~338 public + banked pending. Far below target. Growth depends on external approvals and per-employer authorizations, not on further code alone |
+| ≥95% valid application destinations         | Structurally enforced (destination pinning per tenant/feed + link checker); ops metric on dashboard                                             |
+| <5% visible duplicates                      | Enforced by 4-layer dedup + fuzzy review queue                                                                                                  |
+| ≥95% company-domain resolution              | Met for current inventory (ATS tenants are domain-verified at registration)                                                                     |
+| ≥90% logo coverage                          | 100% render coverage (monogram floor); permitted-API coverage grows with the catalog                                                            |
+| 100% attribution / 100% active rights basis | Enforced by the three gates; nothing publishes otherwise                                                                                        |
+| ≥98% explicit location or remote scope      | Enforced: records without either are filtered/pending, not published                                                                            |
+| No raw null-state labels                    | Enforced by the prohibited-label regression test                                                                                                |
+| Expired-rate <2%                            | Absence-tracking + 6h cadence keeps public rows current; provenance cache withdraws lapses same-transaction                                     |
+| Auditable provenance per field              | Worker run → snapshot → raw record (hash) → occurrence → job → public provenance JSON                                                           |
 
 ## 5. Runbooks
 
@@ -216,3 +216,73 @@ authorizations. The number is supply-gated, not code-gated.
 - **Board discovery cadence**: `node scripts/validate-board-registry.mjs
 --probe 10` periodically; promote hits through the registration
   recipe; probed-zero boards are re-probed, never registered dormant.
+
+## 6. Generic employer feeds — actual status (2026-07-24)
+
+Stated precisely, because this area is easy to overclaim.
+
+**Implemented and unit-tested**
+
+- Extraction for XML, JSON and CSV, returning structured metadata
+  (source/parsed/invalid counts, `parseComplete`, `authoritativeEmpty`,
+  warnings). Record limits are enforced by REJECTING the snapshot; there is
+  no silent truncation anywhere.
+- A bounded, fail-closed XML reader (`src/lib/jobs/feeds/xml.ts`): a real
+  tokenizer, not a regular expression. DOCTYPE/ENTITY are rejected outright
+  (no DTD processing, no entity expansion, no external/remote resolution);
+  input, depth, node count and record count are bounded; the expected root
+  container must be confirmed; CDATA is literal; unknown entity references
+  fail the parse; namespace prefixes are rejected unless configured.
+- Destination authorization using the real Public Suffix List via `tldts`:
+  HTTPS only, no credentials, no unexpected port, no IP literals, no
+  localhost, no bare public suffix, canonical lower-case ASCII comparison,
+  exact host or authorized subdomain only.
+- A snapshot-completeness invariant matching the established ATS worker
+  rule. Absence closure is authorized ONLY by a proven-complete snapshot;
+  quarantined, invalid, truncated, destination-dropped, unreconciled and
+  unproven-empty snapshots are all forced PARTIAL and close nothing.
+- The global source-policy gate (`employer_xml_json_feeds`,
+  `employer_csv_import`) is enforced before any fetch or CSV processing. A
+  per-feed `enabled` record cannot override it.
+- Immutable per-source-record evidence envelopes captured BEFORE
+  normalization, retaining only policy-permitted fields, with the extraction
+  and normalization outcome and reason for every record — including records
+  that were filtered, quarantined or destination-rejected.
+- A Supabase-backed `FeedRunStore` built on the existing ATS snapshot RPCs
+  (`worker_begin_ats_snapshot` / `worker_store_ats_snapshot_batch` /
+  `worker_finalize_ats_snapshot`), so feeds inherit the existing lifecycle,
+  idempotent upsert, absence handling and per-snapshot rows rather than a
+  second ingestion architecture.
+- A scheduled Netlify worker (`employer_feed_sync`, registered in
+  `private.worker_schedules`) with a bounded streaming fetcher, a per-run
+  feed cap and a time budget.
+- An operator-only CSV import boundary
+  (`POST /api/admin/employer-feed-import`): admin-authenticated,
+  same-origin, bounded body read, CSV type/extension checks, no arbitrary
+  feed key, gated by the same eligibility check as the worker, and staged
+  for explicit operator confirmation rather than processed synchronously.
+
+**Not yet true**
+
+- **No employer feed has been authorized.** `config/employer-feed-registry.json`
+  contains zero feeds.
+- **No production pilot has run. Zero production generic-feed records have
+  been processed.** Nothing has been fetched, stored, published or closed
+  through this path.
+- The persistence path is exercised by unit tests against the RPC contract
+  and by pgTAP structural assertions; it has **not** been exercised
+  end-to-end against a live database with a real feed, because there is no
+  authorized feed to run.
+- Feed-run metrics are persisted through the existing snapshot rows and
+  worker-run summaries. That reporting has not been observed with real feed
+  data for the same reason.
+
+**Remaining blockers, in order**
+
+1. A real employer authorization: written permission, a feed-registry entry
+   with `rightsBasis`, `rightsEvidenceRef`, `authorizedAt` and a review pair.
+2. Enabling the global source policy for the relevant feed kind, with its
+   dependencies satisfied and allowed fields recorded.
+3. Registering the feed as a source row plus an `ats_source_configs` row.
+4. A supervised first pilot run, verified against the acceptance list in
+   §4 before the feed is left on a schedule.

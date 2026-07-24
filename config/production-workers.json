@@ -17,6 +17,7 @@
     "editorial_queue",
     "editorial_topic_candidates",
     "editorial_weekly_audit",
+    "employer_feed_sync",
     "google_indexing_notifications",
     "job_dedupe_review",
     "job_lifecycle",
