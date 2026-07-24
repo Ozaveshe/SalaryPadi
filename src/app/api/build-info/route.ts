@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  * This returns only non-sensitive build metadata that Netlify injects at build
  * time — never environment configuration, credentials or provider state.
  *
- * Netlify build variables used:
+ * Netlify build variables used (inlined at build time by next.config.ts):
  * - COMMIT_REF  : full commit SHA of the deployed build
  * - CONTEXT     : "production" | "deploy-preview" | "branch-deploy" | "dev"
  * - BRANCH      : source branch
@@ -35,11 +35,14 @@ function safeToken(value: string | undefined, max = 64): string | null {
 }
 
 export async function GET() {
+  // Read the build-time inlined values (see next.config.ts). Netlify's own
+  // COMMIT_REF/CONTEXT are build variables and are absent from the function
+  // runtime, so reading them directly here would always report null.
   return noStoreJson({
-    commit: shortSha(process.env.COMMIT_REF),
-    context: safeToken(process.env.CONTEXT) ?? "unknown",
-    branch: safeToken(process.env.BRANCH),
-    buildId: safeToken(process.env.BUILD_ID),
+    commit: shortSha(process.env.SALARYPADI_BUILD_COMMIT),
+    context: safeToken(process.env.SALARYPADI_BUILD_CONTEXT) ?? "unknown",
+    branch: safeToken(process.env.SALARYPADI_BUILD_BRANCH),
+    buildId: safeToken(process.env.SALARYPADI_BUILD_ID),
     // Set at module evaluation on the server instance; useful for spotting a
     // stale warm instance during acceptance polling.
     startedAt: new Date().toISOString(),
