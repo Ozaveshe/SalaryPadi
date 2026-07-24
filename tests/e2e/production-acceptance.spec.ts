@@ -9,6 +9,7 @@ import {
   captureRoute,
   findViolations,
   scanCustomerSurface,
+  settle,
   visit,
 } from "./support/public-surface";
 
@@ -110,6 +111,7 @@ test("pinned job detail is live and customer-ready", async ({ page }) => {
     response?.status(),
     `Pinned job /jobs/${PINNED_JOB} did not return 200. ${REPLACE_TARGET_HINT}`,
   ).toBe(200);
+  await settle(page);
   // An expired posting renders the "unavailable" shell with a 200; treat that
   // as an expired pin, not a pass.
   await expect(
@@ -181,6 +183,7 @@ test("pinned company profile is live with all six tabs", async ({ page }) => {
     `Pinned company /companies/${PINNED_COMPANY} did not return 200. ${REPLACE_TARGET_HINT}`,
   ).toBe(200);
 
+  await settle(page);
   await auditRoute(page, `/companies/${PINNED_COMPANY}`, "pinned-company");
 
   for (const tab of [

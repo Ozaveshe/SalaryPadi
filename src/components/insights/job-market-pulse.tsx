@@ -1,6 +1,30 @@
 import { getLiveJobFeed } from "@/lib/jobs/repository";
 import { formatDate } from "@/lib/format";
+import {
+  HIMALAYAS_SOURCE_POLICY,
+  JOBICY_SOURCE_POLICY,
+  RELIEFWEB_SOURCE_POLICY,
+  REMOTIVE_SOURCE_POLICY,
+} from "@/lib/jobs/source-policy";
+import type { JobFeedSourceStatus } from "@/lib/jobs/types";
 import { publicEnum } from "@/lib/presentation/public-field";
+
+/**
+ * Internal feed keys are not customer-facing names. Reuse each source's own
+ * published policy name where one exists, and give the database lane a plain
+ * description of what it actually contains.
+ */
+const SOURCE_DISPLAY_NAMES: Record<JobFeedSourceStatus["key"], string> = {
+  database: "Verified employer and approved source records",
+  jobicy: JOBICY_SOURCE_POLICY.name,
+  himalayas: HIMALAYAS_SOURCE_POLICY.name,
+  remotive: REMOTIVE_SOURCE_POLICY.name,
+  reliefweb: RELIEFWEB_SOURCE_POLICY.name,
+};
+
+function sourceDisplayName(key: JobFeedSourceStatus["key"]): string {
+  return SOURCE_DISPLAY_NAMES[key] ?? key;
+}
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1_000;
 
@@ -67,7 +91,7 @@ export async function JobMarketPulse() {
 
   const sourceMix = feed.sources
     .filter((source) => source.count > 0)
-    .map((source) => [source.key, source.count] as const)
+    .map((source) => [sourceDisplayName(source.key), source.count] as const)
     .toSorted((a, b) => b[1] - a[1]);
 
   const africaEligibleRemote = jobs.filter(
@@ -102,6 +126,9 @@ export async function JobMarketPulse() {
         counts of what SalaryPadi can verify — not an estimate of the whole
         market, and not a forecast.
       </p>
+      <h3 className="m-0 text-base font-bold">
+        Market size within SalaryPadi&apos;s verified snapshot
+      </h3>
       <div className="feature-grid" aria-label="Snapshot counts">
         <article className="surface surface-pad stack-sm">
           <p className="eyebrow">Active verified jobs</p>
@@ -132,11 +159,12 @@ export async function JobMarketPulse() {
           </p>
         </article>
       </div>
+      <h3 className="m-0 text-base font-bold">Hiring patterns</h3>
       {statedWorkModes.length > 0 ? (
         <div className="stack-sm">
-          <h3 className="m-0 text-base font-bold">
+          <h4 className="m-0 text-sm font-bold">
             Work mode, where the source states one
-          </h3>
+          </h4>
           <ul className="pulse-bars">
             {statedWorkModes.map(([label, count]) => (
               <li key={label}>
@@ -156,9 +184,9 @@ export async function JobMarketPulse() {
       ) : null}
       {topLocations.length > 0 ? (
         <div className="stack-sm">
-          <h3 className="m-0 text-base font-bold">
+          <h4 className="m-0 text-sm font-bold">
             Most common stated locations
-          </h3>
+          </h4>
           <ul className="pulse-bars">
             {topLocations.map(([label, count]) => (
               <li key={label}>
@@ -178,9 +206,9 @@ export async function JobMarketPulse() {
       ) : null}
       {topCategories.length > 0 ? (
         <div className="stack-sm">
-          <h3 className="m-0 text-base font-bold">
+          <h4 className="m-0 text-sm font-bold">
             Most common categories, where the source states one
-          </h3>
+          </h4>
           <ul className="pulse-bars">
             {topCategories.map(([label, count]) => (
               <li key={label}>
@@ -220,6 +248,9 @@ export async function JobMarketPulse() {
           </ul>
         </div>
       ) : null}
+      <h3 className="m-0 text-base font-bold">
+        Remote eligibility, pay disclosure and deadlines
+      </h3>
       <div className="feature-grid" aria-label="Eligibility and deadlines">
         <article className="surface surface-pad stack-sm">
           <p className="eyebrow">Remote and explicitly open to Africa</p>

@@ -7,8 +7,6 @@ import { cache } from "react";
 import { CompanyEvidenceDetails } from "@/components/companies/company-evidence-details";
 import { CompanyHeading } from "@/components/companies/company-heading";
 import { CompanyOverview } from "@/components/companies/company-overview";
-import { InterviewExperienceCard } from "@/components/companies/interview-experience-card";
-import { JobCard } from "@/components/jobs/job-card";
 import { JsonLd } from "@/components/json-ld";
 import {
   CombinedRepositoryNotice,
@@ -25,7 +23,7 @@ import {
 } from "@/lib/companies/repository";
 import { countryAlternates } from "@/lib/country-packs/routing";
 import { getAppOrigin } from "@/lib/env";
-import { formatDate, formatEnum } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { searchSalaryAggregatesResult } from "@/lib/salaries/repository";
 import { canIndexCompanyDetail } from "@/lib/seo/indexability";
 import { buildSocialImageMetadata } from "@/lib/seo/open-graph";
@@ -161,7 +159,6 @@ export default async function CompanyPage({
   const reviews = reviewsResult.data;
   const interviews = interviewsResult.data;
   const benefits = benefitsResult.data;
-  const employerResponses = employerResponsesResult.data;
   const salaryAggregates = salaryAggregatesResult.data;
   const citedJobSources = [
     ...new Map(
@@ -175,16 +172,6 @@ export default async function CompanyPage({
     (citation) =>
       citation.fact_key === "regulatory_license" && citation.fact_value,
   );
-  const publishedCommunityEvidence = hasPublishedCommunityEvidence({
-    companyResult,
-    ratingResult,
-    ratingMinimumResult,
-    reviewsResult,
-    interviewsResult,
-    benefitsResult,
-    employerResponsesResult,
-    salaryAggregatesResult,
-  });
   const canonicalUrl = new URL(
     `/companies/${company.slug}`,
     getAppOrigin(),
@@ -257,42 +244,10 @@ export default async function CompanyPage({
       ) : null}
       <section
         className="rule-section stack"
-        aria-labelledby="company-jobs-heading"
+        aria-labelledby="company-requests-heading"
       >
-        <div className="split">
-          <h2 className="section-title" id="company-jobs-heading">
-            Active jobs
-          </h2>
-          <span className="results-count">
-            {companyResult.state === "ready"
-              ? `${company.activeJobs.length} source-listed`
-              : `${company.activeJobs.length} available (partial)`}
-          </span>
-        </div>
-        {company.activeJobs.length > 0 ? (
-          <div className="job-list">
-            {company.activeJobs.map((job) => (
-              <JobCard job={job} key={job.id} />
-            ))}
-          </div>
-        ) : companyResult.state === "ready" ? (
-          <div className="notice">
-            No active source-listed job is available for this company right now.
-            SalaryPadi does not create openings to fill this section.
-          </div>
-        ) : (
-          <div className="notice notice-warning" role="status">
-            Active jobs could not be fully checked. The empty list is not
-            confirmation that this company has no current openings.
-          </div>
-        )}
-      </section>
-      <section
-        className="rule-section stack"
-        aria-labelledby="community-evidence-heading"
-      >
-        <h2 className="section-title" id="community-evidence-heading">
-          Community evidence
+        <h2 className="section-title" id="company-requests-heading">
+          Corrections and requests
         </h2>
         <CombinedRepositoryNotice
           resource="Company intelligence"
@@ -305,104 +260,6 @@ export default async function CompanyPage({
             employerResponsesResult,
           ]}
         />
-        {!publishedCommunityEvidence &&
-        ratingResult.state === "ready" &&
-        reviewsResult.state === "ready" &&
-        interviewsResult.state === "ready" &&
-        benefitsResult.state === "ready" &&
-        salaryAggregatesResult.state === "ready" ? (
-          <div className="notice">
-            No approved salary, review or interview aggregate is available for
-            this company yet. A missing aggregate is not a positive or negative
-            signal.
-          </div>
-        ) : null}
-        {interviews.length > 0 ? (
-          <div className="stack">
-            <h3 className="text-lg font-bold">Interview experiences</h3>
-            {interviews
-              .toSorted(
-                (a, b) =>
-                  Date.parse(b.published_at) - Date.parse(a.published_at),
-              )
-              .map((interview) => (
-                <InterviewExperienceCard
-                  interview={interview}
-                  key={interview.id}
-                />
-              ))}
-          </div>
-        ) : null}
-        {benefits.length > 0 ? (
-          <div className="stack">
-            <h3 className="text-lg font-bold">Published benefits evidence</h3>
-            <ul>
-              {benefits.map((benefit) => (
-                <li key={benefit.id}>
-                  <strong>{benefit.label}</strong>
-                  {benefit.description ? ` — ${benefit.description}` : ""}
-                  {` (${formatEnum(benefit.source_kind)}`}
-                  {benefit.country_code ? ` / ${benefit.country_code}` : ""}
-                  {benefit.sample_size ? ` / n=${benefit.sample_size}` : ""}
-                  {benefit.confidence_label
-                    ? ` / ${benefit.confidence_label} confidence`
-                    : ""}
-                  {benefit.source_month_from && benefit.source_month_to
-                    ? ` / ${benefit.source_month_from} to ${benefit.source_month_to}`
-                    : ""}
-                  {`)`}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {employerResponses.length > 0 ? (
-          <div className="stack">
-            <h3 className="text-lg font-bold">Employer responses</h3>
-            {employerResponses.map((response) => (
-              <article className="surface surface-pad stack" key={response.id}>
-                <div className="split">
-                  <strong>{formatEnum(response.response_kind)}</strong>
-                  <span className="source-note">
-                    Published {formatDate(response.published_at)}
-                  </span>
-                </div>
-                <p className="m-0">{response.statement}</p>
-                {response.source_url ? (
-                  <a
-                    className="text-link w-fit"
-                    href={response.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
-                  >
-                    Employer citation
-                  </a>
-                ) : null}
-                <p className="source-note m-0">{response.provenance_label}</p>
-              </article>
-            ))}
-          </div>
-        ) : null}
-        <div className="cluster">
-          <Link className="button" href="/contribute/interview">
-            Share interview experience
-          </Link>
-          <Link className="button button-secondary" href="/contribute/salary">
-            Contribute salary
-          </Link>
-          <Link className="button button-secondary" href="/contribute/review">
-            Share workplace experience
-          </Link>
-          <Link className="button button-secondary" href="/contribute/benefits">
-            Add benefits
-          </Link>
-          <Link
-            className="button button-secondary"
-            href="/contribute/pay-reliability"
-          >
-            Share pay reliability
-          </Link>
-        </div>
         <div className="cluster">
           <Link className="text-link" href="/company-intelligence/requests">
             Report, correct, appeal or request takedown
