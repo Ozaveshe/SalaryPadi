@@ -124,7 +124,7 @@ export default async function ReviewContributionPage() {
               >
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
-                <option value="unclear">Unclear</option>
+                <option value="unclear">Not sure</option>
                 <option value="not_applicable">Not applicable</option>
               </select>
             </div>
@@ -133,7 +133,7 @@ export default async function ReviewContributionPage() {
               <select className="select" id="health_cover" name="health_cover">
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
-                <option value="unclear">Unclear</option>
+                <option value="unclear">Not sure</option>
                 <option value="not_applicable">Not applicable</option>
               </select>
             </div>
@@ -147,7 +147,7 @@ export default async function ReviewContributionPage() {
                 <option value="rare">Rare</option>
                 <option value="sometimes">Sometimes</option>
                 <option value="frequent">Frequent</option>
-                <option value="unclear">Unclear</option>
+                <option value="unclear">Not sure</option>
               </select>
             </div>
             <div className="field">
@@ -156,7 +156,7 @@ export default async function ReviewContributionPage() {
                 <option value="never">Never</option>
                 <option value="sometimes">Sometimes</option>
                 <option value="frequent">Frequent</option>
-                <option value="unclear">Unclear</option>
+                <option value="unclear">Not sure</option>
               </select>
             </div>
             <div className="field">

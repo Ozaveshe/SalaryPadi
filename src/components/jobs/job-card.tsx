@@ -24,12 +24,18 @@ export function JobCard({
   job,
   match,
   nairaEstimate,
+  selectHref,
+  isSelected = false,
 }: {
   job: Job;
   /** Present only for a signed-in viewer who has saved a match profile. */
   match?: MatchResult;
   /** Estimated monthly naira take-home for the disclosed salary, if computable. */
   nairaEstimate?: NairaTakeHomeEstimate | null;
+  /** URL that selects this job into the desktop quick-view pane. */
+  selectHref?: string;
+  /** Whether this job is currently shown in the quick-view pane. */
+  isSelected?: boolean;
 }) {
   const evidence = getJobEvidenceLabels(job).slice(0, 5);
   const eligibilityStatement = publicEligibilityStatement(job);
@@ -39,7 +45,10 @@ export function JobCard({
   const seniority = publicEnum(job.experienceLevel);
 
   return (
-    <article className="job-card" data-job-id={job.id}>
+    <article
+      className={isSelected ? "job-card is-selected" : "job-card"}
+      data-job-id={job.id}
+    >
       <div className="job-card-main">
         <div className="job-card-title">
           <CompanyLogo
@@ -132,9 +141,20 @@ export function JobCard({
               Checked {formatDate(job.lastCheckedAt)}
             </span>
           </div>
-          <Link className="text-link" href={`/jobs/${job.slug}`}>
-            View role and apply
-          </Link>
+          <div className="cluster">
+            {selectHref ? (
+              <Link
+                className="text-link job-card-quick-view"
+                href={selectHref}
+                scroll={false}
+              >
+                Quick view
+              </Link>
+            ) : null}
+            <Link className="text-link" href={`/jobs/${job.slug}`}>
+              View role and apply
+            </Link>
+          </div>
         </div>
       </div>
     </article>

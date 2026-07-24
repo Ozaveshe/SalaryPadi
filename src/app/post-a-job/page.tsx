@@ -222,7 +222,7 @@ export default async function PostAJobPage({
                 <option value="emea">EMEA</option>
                 <option value="named_countries">Named countries</option>
                 <option value="restricted_region">Restricted region</option>
-                <option value="unclear">Unclear</option>
+                <option value="unclear">Not sure</option>
               </select>
             </div>
             <div className="field">
@@ -272,7 +272,7 @@ export default async function PostAJobPage({
               >
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
-                <option value="unclear">Unclear</option>
+                <option value="unclear">Not sure</option>
               </select>
             </div>
             <div className="field">
@@ -283,7 +283,7 @@ export default async function PostAJobPage({
                 name="relocation_support"
                 defaultValue="unclear"
               >
-                <option value="unclear">Not stated</option>
+                <option value="unclear">Prefer not to say</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
               </select>
@@ -339,7 +339,7 @@ export default async function PostAJobPage({
             <div className="field">
               <label htmlFor="pay_period">Pay period</label>
               <select className="select" id="pay_period" name="pay_period">
-                <option value="unknown">Not stated</option>
+                <option value="unknown">Prefer not to say</option>
                 <option value="hourly">Hourly</option>
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
@@ -350,7 +350,7 @@ export default async function PostAJobPage({
             <div className="field">
               <label htmlFor="gross_net">Gross or net</label>
               <select className="select" id="gross_net" name="gross_net">
-                <option value="unknown">Not stated</option>
+                <option value="unknown">Prefer not to say</option>
                 <option value="gross">Gross</option>
                 <option value="net">Net</option>
               </select>

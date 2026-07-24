@@ -130,7 +130,7 @@ export default async function AlertsPage({
             <option value="nigeria">Nigeria explicitly eligible</option>
             <option value="africa">Africa explicitly eligible</option>
             <option value="worldwide">Worldwide</option>
-            <option value="unclear">Unclear</option>
+            <option value="unclear">Needs eligibility check</option>
             <option value="all">Any evidence</option>
           </select>
         </div>
@@ -254,7 +254,7 @@ export default async function AlertsPage({
                           Africa explicitly eligible
                         </option>
                         <option value="worldwide">Worldwide</option>
-                        <option value="unclear">Unclear</option>
+                        <option value="unclear">Needs eligibility check</option>
                         <option value="all">Any evidence</option>
                       </select>
                     </div>
