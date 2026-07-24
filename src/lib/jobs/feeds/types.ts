@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isValidDestinationHost } from "./domain";
+
 /**
  * Employer-authorized generic feeds (XML, JSON, CSV upload). Every feed is a
  * per-employer authorization record: the employer grants SalaryPadi the
@@ -62,14 +64,37 @@ export const employerFeedConfigSchema = z
     recordsPath: z.string().min(1).max(200).optional(),
     fieldMap: feedFieldMapSchema,
     /**
-     * Hosts an application/source URL may point to — normally the
-     * employer's own domains. Records pointing anywhere else are dropped.
+     * Registrable hosts an application/source URL may point to — normally the
+     * employer's own domains. Bare public suffixes ("com", "co.uk") are
+     * rejected so a feed can never authorize an entire TLD. Records pointing
+     * outside these hosts are dropped.
      */
-    allowedDestinationHosts: z.array(z.string().min(3).max(200)).min(1).max(10),
+    allowedDestinationHosts: z
+      .array(
+        z
+          .string()
+          .min(3)
+          .max(200)
+          .refine((host) => isValidDestinationHost(host), {
+            message:
+              "Destination hosts must be registrable domains, not bare public suffixes.",
+          }),
+      )
+      .min(1)
+      .max(10),
     /** Written authorization evidence; a feed without it cannot enable. */
     rightsBasis: z.string().min(3).max(200).nullable(),
     rightsEvidenceRef: z.string().min(3).max(500).nullable(),
     authorizedAt: z.string().datetime({ offset: true }).nullable(),
+    /** When the recorded authorization was last reviewed and is next due. */
+    reviewedAt: z.string().datetime({ offset: true }).nullable().default(null),
+    reviewDueAt: z.string().datetime({ offset: true }).nullable().default(null),
+    /** Hard expiry of the authorization; past this the feed cannot run. */
+    authorizationExpiresAt: z
+      .string()
+      .datetime({ offset: true })
+      .nullable()
+      .default(null),
     enabled: z.boolean().default(false),
   })
   .strict()
@@ -95,12 +120,31 @@ export const employerFeedConfigSchema = z
         message: "Fetched feeds require an https URL.",
       });
     }
-    if (config.enabled && (!config.rightsBasis || !config.authorizedAt)) {
+    if (
+      config.enabled &&
+      (!config.rightsBasis ||
+        !config.rightsEvidenceRef ||
+        !config.authorizedAt ||
+        !config.reviewedAt ||
+        !config.reviewDueAt)
+    ) {
       context.addIssue({
         code: "custom",
         path: ["enabled"],
         message:
-          "A feed cannot enable without a recorded rights basis and authorization date.",
+          "An enabled feed requires a rights basis, evidence reference, authorization date and a review pair.",
+      });
+    }
+    const reviewPairPresent =
+      config.reviewedAt !== null && config.reviewDueAt !== null;
+    if (
+      (config.reviewedAt === null) !== (config.reviewDueAt === null) ||
+      (reviewPairPresent && config.reviewedAt! >= config.reviewDueAt!)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["reviewDueAt"],
+        message: "Review dates must form an increasing pair.",
       });
     }
   });
