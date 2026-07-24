@@ -1075,6 +1075,12 @@ a:hover {
   background: var(--surface-brand-soft);
 }
 
+.job-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .job-company {
   margin: 0 0 0.15rem;
   color: var(--text-muted);
@@ -1669,6 +1675,14 @@ a:hover {
   gap: 0.75rem;
   border-bottom: 1px solid var(--border-default);
   padding-block: 1rem;
+}
+
+@media (min-width: 48rem) {
+  .company-row {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 1rem;
+  }
 }
 
 .company-row h2,

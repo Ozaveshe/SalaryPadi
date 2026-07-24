@@ -13,9 +13,22 @@
   flex: 0 0 auto;
   border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
   border-radius: 0.85rem;
-  background: color-mix(in srgb, currentColor 7%, transparent);
   font-weight: 750;
   line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.size40.fallback {
+  font-size: 0.85rem;
+}
+
+.size56.fallback {
+  font-size: 1.15rem;
+}
+
+.size72.fallback {
+  font-size: 1.5rem;
 }
 
 .size40 {
