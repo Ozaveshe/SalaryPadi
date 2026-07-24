@@ -90,7 +90,7 @@ export function SalaryAggregateCard({
       </p>
       <div>
         <span className="text-faint block text-sm">
-          Approximate median · annualised · {aggregate.grossNet}
+          Typical pay · per year · {aggregate.grossNet}
         </span>
         <strong className="text-2xl">
           {approximateAmount(aggregate.medianAnnual, aggregate.currency)}
@@ -106,7 +106,7 @@ export function SalaryAggregateCard({
             currency={aggregate.currency}
           />
           <p className="text-muted m-0 text-sm">
-            Approximate middle range:{" "}
+            Most people earn between{" "}
             {approximateAmount(
               aggregate.percentile25Annual,
               aggregate.currency,
@@ -126,7 +126,7 @@ export function SalaryAggregateCard({
         </p>
       )}
       <details className="salary-evidence-details">
-        <summary>Full evidence detail</summary>
+        <summary>How this number was calculated</summary>
         <dl className="data-list">
           <div>
             <dt>Role</dt>

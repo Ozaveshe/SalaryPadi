@@ -6,7 +6,6 @@ import { JobCard } from "@/components/jobs/job-card";
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { SalaryAggregateCard } from "@/components/salaries/salary-aggregate-card";
-import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { SalaryProgress } from "@/components/salaries/salary-progress";
 import {
   COUNTRY_PACKS,
@@ -77,11 +76,11 @@ export default async function SalariesPage({
     !company
       ? await getSalaryCellProgressResult({ role, country })
       : null;
+  // Both lanes load unconditionally: a role search must never make the
+  // international benchmark lane disappear.
   const [benchmarkReferences, roleFamilies] = await Promise.all([
-    hasSearch ? Promise.resolve([]) : getRemoteBenchmarkReferences(),
-    hasSearch
-      ? Promise.resolve(null)
-      : getRoleFamiliesResult().then((familyResult) => familyResult.data),
+    getRemoteBenchmarkReferences(),
+    getRoleFamiliesResult().then((familyResult) => familyResult.data),
   ]);
 
   // Lane 3 is summarised, not dumped: rendering the whole US/UK catalogue as
@@ -95,6 +94,10 @@ export default async function SalariesPage({
       .filter((entry) => entry.result.data.length > 0)
       .map((entry) => entry.label),
   };
+
+  // Lane 3 for a role search: only the benchmarks that match the searched
+  // role, capped. The full catalogue is never dumped.
+  const MATCHED_BENCHMARK_LIMIT = 4;
 
   // Lane 2 of a role search: live vacancies that state pay for this role.
   // Rendered only for a role query — real disclosed salaries, never modelled.
@@ -123,6 +126,23 @@ export default async function SalariesPage({
           ),
         ])
       : [[], null, null];
+
+  // Only benchmarks whose role family matches the search, capped. With no
+  // search this stays empty and the lane shows its reference-count state
+  // rather than dumping the catalogue.
+  const allBenchmarks = benchmarkReferences.flatMap(
+    (entry) => entry.result.data,
+  );
+  const matchedBenchmarks = roleQuery
+    ? allBenchmarks
+        .filter((aggregate) =>
+          `${aggregate.roleFamily} ${aggregate.sourceRoleLabel ?? ""}`
+            .toLowerCase()
+            .includes(roleQuery),
+        )
+        .slice(0, MATCHED_BENCHMARK_LIMIT)
+    : [];
+
   return (
     <div className="site-shell stack-lg">
       <PageHeading
@@ -185,69 +205,64 @@ export default async function SalariesPage({
         </button>
       </form>
       <RepositoryNotice result={result} resource="Salary aggregates" />
-      {results.length > 0 ? (
-        <section className="stack" aria-labelledby="salary-results">
-          <h2 className="section-title" id="salary-results">
-            Lane 1 — Local salary evidence
-          </h2>
-          <p className="text-muted m-0 max-w-2xl text-sm">
-            Published only when at least three similar approved contributions
-            from different people form a cohort. Individual figures are never
-            shown.
-          </p>
+
+      {/* Lane 1 — Local salary evidence. Always present, so the information
+          architecture does not change shape between searches. */}
+      <section
+        className="stack salary-lane"
+        aria-labelledby="salary-lane-local"
+      >
+        <h2 className="section-title" id="salary-lane-local">
+          Local salary evidence
+        </h2>
+        <p className="text-muted m-0 max-w-2xl text-sm">
+          What people doing this work in {countryPack?.name ?? "this market"}{" "}
+          report earning. Published only when at least three similar approved
+          contributions from different people form a cohort; individual figures
+          are never shown.
+        </p>
+        {results.length > 0 ? (
           <div className="aggregate-grid">
             {results.map((aggregate) => (
               <SalaryAggregateCard aggregate={aggregate} key={aggregate.id} />
             ))}
           </div>
-        </section>
-      ) : result.state === "ready" ? (
-        <section className="empty-state">
-          <h2 className="section-title">
-            {!countryAvailable
-              ? `${countryPack?.name ?? "This country"} is not live yet`
-              : hasSearch
-                ? "No safe aggregate matches yet"
-                : "No safe aggregate is published yet"}
-          </h2>
-          <p>
-            {!countryAvailable
-              ? "This country pack remains private until authorized supply, reviewed rules, unique local content, moderation readiness, and first-party evidence pass the activation gates."
-              : hasSearch
-                ? "The data may be too sparse, still pending moderation, or absent. SalaryPadi does not invent a market number."
-                : "Employer-role-country cells require at least three sufficiently similar approved contributions from distinct accounts. SalaryPadi does not invent a market number."}
-          </p>
-          {progressResult?.state === "ready" && progressResult.data ? (
-            <SalaryProgress progress={progressResult.data} />
-          ) : null}
-          {company ? (
-            <p className="text-muted m-0 text-sm">
-              Company-level sub-threshold counts are never exposed because they
-              could identify a contributor.
+        ) : (
+          <div className="surface surface-pad stack-sm">
+            <p className="m-0">
+              {!countryAvailable
+                ? `${countryPack?.name ?? "This country"} is not live yet.`
+                : hasSearch
+                  ? "Not enough contributions yet for this search."
+                  : "Salary information is still limited."}
             </p>
-          ) : null}
-          <SalaryContributionCta
-            company={company}
-            role={role}
-            country={country}
-          />
-          <div className="cluster">
-            <Link className="button button-secondary" href="/methodology">
-              Read the methodology
+            {progressResult?.state === "ready" && progressResult.data ? (
+              <SalaryProgress progress={progressResult.data} />
+            ) : null}
+            <Link
+              className="button button-secondary w-fit"
+              href={`/contribute/salary${role ? `?role=${encodeURIComponent(role)}` : ""}`}
+            >
+              Share your salary anonymously
             </Link>
           </div>
-        </section>
-      ) : null}
-      {disclosedPayJobs.length > 0 ? (
-        <section className="stack" aria-labelledby="disclosed-pay-lane">
-          <h2 className="section-title" id="disclosed-pay-lane">
-            Lane 2 — Jobs with disclosed pay for “{role}”
-          </h2>
-          <p className="text-muted m-0 max-w-2xl text-sm">
-            Current vacancies whose source states a salary. This is what the
-            market is offering right now — a separate lane from community
-            evidence, never merged into an aggregate.
-          </p>
+        )}
+      </section>
+
+      {/* Lane 2 — Jobs with disclosed pay. */}
+      <section
+        className="stack salary-lane"
+        aria-labelledby="salary-lane-disclosed"
+      >
+        <h2 className="section-title" id="salary-lane-disclosed">
+          Jobs with disclosed pay
+        </h2>
+        <p className="text-muted m-0 max-w-2xl text-sm">
+          Current vacancies whose source states a salary — what employers are
+          offering right now. Kept separate from community evidence and never
+          merged into an aggregate.
+        </p>
+        {disclosedPayJobs.length > 0 ? (
           <div className="job-list">
             {disclosedPayJobs.map((job) => (
               <JobCard
@@ -260,36 +275,74 @@ export default async function SalariesPage({
               />
             ))}
           </div>
-        </section>
-      ) : null}
-      {searchedFamily ? (
-        <section className="stack" aria-labelledby="role-family-lane">
-          <h2 className="section-title" id="role-family-lane">
-            Full role page: {searchedFamily.name}
-          </h2>
-          <p className="text-muted m-0 max-w-2xl text-sm">
-            The dedicated role page collects the local aggregate (when the
-            privacy threshold is met), live disclosed-pay vacancies and official
-            international benchmark references in one place.
-          </p>
-          <Link
-            className="button button-secondary w-fit"
-            href={`/salaries/ng/${searchedFamily.slug}`}
-          >
-            Open the {searchedFamily.name} salary page
-          </Link>
-        </section>
-      ) : null}
+        ) : (
+          <div className="surface surface-pad stack-sm">
+            <p className="m-0">
+              {hasSearch
+                ? "No live vacancy states a salary for this search right now."
+                : "Search a role to see live vacancies that state their pay."}
+            </p>
+            <Link className="text-link" href="/jobs?salaryDisclosed=true">
+              Browse all jobs with disclosed pay
+            </Link>
+          </div>
+        )}
+      </section>
+
+      {/* Lane 3 — International remote benchmarks. Present for a search too:
+          the relevant role benchmark, the closest role family, or an honest
+          no-match. Never the full catalogue. */}
+      <section
+        className="stack salary-lane"
+        aria-labelledby="salary-lane-benchmarks"
+      >
+        <h2 className="section-title" id="salary-lane-benchmarks">
+          International remote benchmarks
+        </h2>
+        <p className="text-muted m-0 max-w-2xl text-sm">
+          Official{" "}
+          {benchmarkSummary.labels.length > 0
+            ? benchmarkSummary.labels.join(" and ")
+            : "international"}{" "}
+          statistics for roles commonly hired remotely, to judge a remote offer
+          in its own currency. They are not {countryPack?.name ?? "local"} pay
+          evidence and are never mixed into local cohorts.
+        </p>
+        {matchedBenchmarks.length > 0 ? (
+          <div className="aggregate-grid">
+            {matchedBenchmarks.map((aggregate) => (
+              <SalaryAggregateCard aggregate={aggregate} key={aggregate.id} />
+            ))}
+          </div>
+        ) : searchedFamily ? (
+          <div className="surface surface-pad stack-sm">
+            <p className="m-0">
+              No international benchmark matches “{role}” directly. The closest
+              role family is {searchedFamily.name}.
+            </p>
+            <Link
+              className="button button-secondary w-fit"
+              href={`/salaries/ng/${searchedFamily.slug}`}
+            >
+              Open the {searchedFamily.name} salary page
+            </Link>
+          </div>
+        ) : (
+          <div className="surface surface-pad stack-sm">
+            <p className="m-0">
+              {hasSearch
+                ? `No international benchmark matches “${role}”.`
+                : `${benchmarkSummary.total} reference points are available. Search a role, or open a role page, to see the benchmark that applies to it.`}
+            </p>
+          </div>
+        )}
+      </section>
+
       {roleFamilies && roleFamilies.length > 0 ? (
         <section className="stack" aria-labelledby="salary-role-directory">
           <h2 className="section-title" id="salary-role-directory">
             Salary pages by role — Nigeria
           </h2>
-          <p className="text-muted m-0 max-w-2xl text-sm">
-            Each role page collects the local aggregate (when the privacy
-            threshold is met), live vacancies with disclosed pay, and official
-            remote benchmark references.
-          </p>
           <div className="home-entry-grid">
             {roleFamilies.map((family) => (
               <Link href={`/salaries/ng/${family.slug}`} key={family.slug}>
@@ -298,24 +351,6 @@ export default async function SalariesPage({
               </Link>
             ))}
           </div>
-        </section>
-      ) : null}
-      {benchmarkSummary.total > 0 ? (
-        <section className="stack" aria-labelledby="international-lane">
-          <h2 className="section-title" id="international-lane">
-            Lane 3 — International remote benchmarks
-          </h2>
-          <p className="text-muted m-0 max-w-2xl text-sm">
-            Official {benchmarkSummary.labels.join(" and ")} statistics for
-            roles commonly hired remotely — {benchmarkSummary.total} reference
-            points. They help you judge a remote offer in its own currency. They
-            are not Nigerian pay evidence and are never mixed into local
-            cohorts.
-          </p>
-          <p className="text-muted m-0 max-w-2xl text-sm">
-            Search a role above, or open a role page, to see the benchmark that
-            applies to it instead of the whole catalogue.
-          </p>
         </section>
       ) : null}
       <details className="evidence-details">

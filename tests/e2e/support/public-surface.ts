@@ -90,6 +90,9 @@ export interface SurfaceScan {
   text: string;
   /** Normalised text of every leaf element, for standalone-value checks. */
   leaves: string[];
+  /** Leaf text exactly as rendered, for case-sensitive checks (e.g. telling
+   * the brand name "Jobicy" apart from the internal key "jobicy"). */
+  rawLeaves: string[];
   html: string;
   disclosuresOpened: number;
 }
@@ -151,6 +154,7 @@ export async function scanCustomerSurface(page: Page): Promise<SurfaceScan> {
   return {
     text: normalize(raw.chunks.join(" ")),
     leaves: raw.leaves.map(normalize),
+    rawLeaves: raw.leaves.map((value) => value.replace(/\s+/g, " ").trim()),
     html: raw.html,
     disclosuresOpened,
   };
@@ -204,6 +208,23 @@ export async function captureRoute(
  */
 export async function visit(page: Page, route: string): Promise<void> {
   await page.goto(route, { waitUntil: "domcontentloaded" });
+  await settle(page);
+}
+
+/**
+ * Waits for the shell AND for streamed Suspense content to arrive. Pages that
+ * stream (company profiles, job lists) briefly render a "Loading …"
+ * placeholder; asserting against that is a race, and it fails first on slower
+ * viewports. Waiting for every placeholder to detach makes the audit
+ * deterministic.
+ */
+export async function settle(page: Page): Promise<void> {
   await page.locator("main, .site-shell").first().waitFor({ timeout: 20_000 });
+  const loading = page.getByText(/^Loading .*…$/);
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    if ((await loading.count()) === 0) break;
+    await page.waitForTimeout(250);
+  }
   await page.waitForTimeout(400);
 }
