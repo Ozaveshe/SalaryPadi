@@ -52,6 +52,44 @@ export async function JobMarketPulse() {
   const topLocations = [...locations.entries()]
     .toSorted((a, b) => b[1] - a[1])
     .slice(0, 6);
+
+  // Categories, source mix, Africa-eligible remote and closing dates: all
+  // plain counts over the same snapshot, each omitted when the underlying
+  // field is unstated rather than guessed.
+  const categories = new Map<string, number>();
+  for (const job of jobs) {
+    const category = job.category?.trim();
+    if (category) categories.set(category, (categories.get(category) ?? 0) + 1);
+  }
+  const topCategories = [...categories.entries()]
+    .toSorted((a, b) => b[1] - a[1])
+    .slice(0, 6);
+
+  const sourceMix = feed.sources
+    .filter((source) => source.count > 0)
+    .map((source) => [source.key, source.count] as const)
+    .toSorted((a, b) => b[1] - a[1]);
+
+  const africaEligibleRemote = jobs.filter(
+    (job) =>
+      job.workMode === "remote" &&
+      (job.eligibility.nigeria === "eligible" ||
+        job.eligibility.africa === "eligible"),
+  ).length;
+
+  const withClosingDate = jobs.filter(
+    (job) => job.validThrough !== null,
+  ).length;
+  const closingWithin30Days = jobs.filter((job) => {
+    if (!job.validThrough) return false;
+    const closes = Date.parse(job.validThrough);
+    return (
+      Number.isFinite(closes) &&
+      closes >= reference &&
+      closes - reference <= 30 * 24 * 60 * 60 * 1_000
+    );
+  }).length;
+
   return (
     <section className="stack" aria-labelledby="job-market-pulse">
       <h2 className="section-title" id="job-market-pulse">
@@ -138,11 +176,85 @@ export async function JobMarketPulse() {
           </ul>
         </div>
       ) : null}
+      {topCategories.length > 0 ? (
+        <div className="stack-sm">
+          <h3 className="m-0 text-base font-bold">
+            Most common categories, where the source states one
+          </h3>
+          <ul className="pulse-bars">
+            {topCategories.map(([label, count]) => (
+              <li key={label}>
+                <span>{label}</span>
+                <span
+                  className="pulse-bar"
+                  style={{
+                    width: `${Math.max(4, Math.round((count / jobs.length) * 100))}%`,
+                  }}
+                  aria-hidden="true"
+                />
+                <span>{count.toLocaleString("en-NG")}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {sourceMix.length > 0 ? (
+        <div className="stack-sm">
+          <h3 className="m-0 text-base font-bold">
+            Where these jobs come from
+          </h3>
+          <ul className="pulse-bars">
+            {sourceMix.map(([label, count]) => (
+              <li key={label}>
+                <span>{label}</span>
+                <span
+                  className="pulse-bar"
+                  style={{
+                    width: `${Math.max(4, Math.round((count / jobs.length) * 100))}%`,
+                  }}
+                  aria-hidden="true"
+                />
+                <span>{count.toLocaleString("en-NG")}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <div className="feature-grid" aria-label="Eligibility and deadlines">
+        <article className="surface surface-pad stack-sm">
+          <p className="eyebrow">Remote and explicitly open to Africa</p>
+          <p className="m-0 text-3xl font-bold">
+            {africaEligibleRemote.toLocaleString("en-NG")}
+          </p>
+          <p className="text-muted m-0 text-sm">
+            Remote roles whose source names Nigeria or Africa as eligible.
+            Generic &quot;remote&quot; wording is never counted here.
+          </p>
+        </article>
+        <article className="surface surface-pad stack-sm">
+          <p className="eyebrow">State a closing date</p>
+          <p className="m-0 text-3xl font-bold">
+            {withClosingDate.toLocaleString("en-NG")}
+          </p>
+          <p className="text-muted m-0 text-sm">
+            {closingWithin30Days.toLocaleString("en-NG")} of them close within
+            30 days of the last check. Most sources publish no deadline.
+          </p>
+        </article>
+      </div>
       <p className="text-muted m-0 max-w-2xl text-xs">
-        Limitations: only jobs from reviewed, authorized sources are counted;
-        jobs whose source does not state a work mode or location are excluded
-        from those breakdowns rather than guessed; counts change as sources are
-        checked and roles close.
+        <strong>Scope:</strong> every figure is a count over the one verified
+        snapshot described above — {jobs.length} active jobs from reviewed,
+        authorized sources. <strong>Period:</strong> the snapshot as last
+        checked {formatDate(checkedAt)}; &quot;posted in the last 7 days&quot;
+        and the closing-date window are measured from that check, so the figures
+        are stable for a given snapshot. <strong>Limitations:</strong> jobs
+        whose source does not state a work mode, location, category or closing
+        date are excluded from those breakdowns rather than guessed; this is not
+        an estimate of the whole market and not a forecast; counts change as
+        sources are re-checked and roles close. Expired jobs and skills
+        extraction are not reported here because SalaryPadi does not yet hold
+        those to a publishable standard.
       </p>
     </section>
   );

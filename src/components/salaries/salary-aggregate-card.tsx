@@ -177,7 +177,11 @@ export function SalaryAggregateCard({
             </dd>
           </div>
           <div>
-            <dt>Evidence date range</dt>
+            <dt>
+              {isOnline
+                ? "Dataset reference period"
+                : "Contributions collected"}
+            </dt>
             <dd>
               {aggregate.submissionMonthStart} to {aggregate.submissionMonthEnd}
             </dd>
@@ -191,11 +195,11 @@ export function SalaryAggregateCard({
             <dd>{formatEnum(aggregate.confidence)}</dd>
           </div>
           <div>
-            <dt>Evidence lane</dt>
+            <dt>Based on</dt>
             <dd>
               {isOnline
-                ? "Reviewed online benchmark"
-                : "First-party contributions"}
+                ? "Reviewed official statistics"
+                : "Contributions from people doing this job"}
             </dd>
           </div>
           <div>
