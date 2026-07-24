@@ -5,10 +5,12 @@ import { classifyEligibility } from "./eligibility";
 import { buildJobFingerprint } from "./fingerprint";
 import { himalayasJobSchema, type HimalayasJob } from "./himalayas-schema";
 import { jobicyJobSchema, type JobicyJob } from "./jobicy-schema";
+import { reliefWebJobSchema, type ReliefWebJob } from "./reliefweb-schema";
 import { remotiveJobSchema, type RemotiveJob } from "./remotive-schema";
 import {
   HIMALAYAS_SOURCE_POLICY,
   JOBICY_SOURCE_POLICY,
+  RELIEFWEB_SOURCE_POLICY,
   REMOTIVE_SOURCE_POLICY,
 } from "./source-policy";
 import { extractCompleteEligibilityEvidence } from "./supply/eligibility-evidence";
@@ -472,6 +474,102 @@ export function normalizeJobicyJob(
         label: "Employer not verified by SalaryPadi",
         explanation:
           "This listing comes from Jobicy's documented public feed. Verify the vacancy on the employer's own website before sharing information.",
+        severity: "caution",
+      },
+    ],
+    fingerprint,
+  };
+}
+
+/**
+ * ReliefWeb records are humanitarian-sector vacancies with named duty-station
+ * countries. Only registry-permitted metadata is retained: the work mode is
+ * left uncertain rather than guessed, eligibility is classified from the
+ * stated countries, and readers are always sent to ReliefWeb for the full
+ * posting because the body carries the original partner's rights.
+ */
+export function normalizeReliefWebJob(
+  input: ReliefWebJob,
+  checkedAt = new Date().toISOString(),
+): Job {
+  const source = reliefWebJobSchema.parse(input);
+  const { fields } = source;
+  const sourceUrl = new URL(fields.url);
+  if (
+    sourceUrl.protocol !== "https:" ||
+    sourceUrl.username ||
+    sourceUrl.password ||
+    (sourceUrl.port && sourceUrl.port !== "443") ||
+    (sourceUrl.hostname !== "reliefweb.int" &&
+      !sourceUrl.hostname.endsWith(".reliefweb.int"))
+  ) {
+    throw new Error(
+      "ReliefWeb returned a destination outside its allowed HTTPS host.",
+    );
+  }
+
+  const organisation = fields.source[0]?.name;
+  if (!organisation) {
+    throw new Error("ReliefWeb returned a job without a named organisation.");
+  }
+  const countries = fields.country.map((country) => country.name);
+  const location = countries.join("; ");
+  if (!location) {
+    throw new Error("ReliefWeb returned a job without a duty-station country.");
+  }
+  const companySlug = slugify(organisation);
+  const titleSlug = slugify(fields.title);
+  const employmentType = parseEmploymentType(
+    fields.type.map((term) => term.name).join(" "),
+  );
+  const eligibility = classifyEligibility(location, checkedAt);
+  const fingerprint = buildJobFingerprint({
+    title: fields.title,
+    company: organisation,
+    location,
+    arrangement: inferArrangement(employmentType),
+    destination: sourceUrl.toString(),
+  });
+
+  return {
+    id: `reliefweb-${source.id}`,
+    databaseId: null,
+    slug: `${titleSlug}-at-${companySlug}-${source.id}`,
+    externalId: source.id,
+    source: RELIEFWEB_SOURCE_POLICY,
+    sourceUrl: sourceUrl.toString(),
+    applicationUrl: sourceUrl.toString(),
+    title: fields.title,
+    company: {
+      name: organisation,
+      slug: companySlug,
+      verification: "source_listed",
+    },
+    locationDisplay: location,
+    workMode: "unclear",
+    employmentType,
+    arrangement: inferArrangement(employmentType),
+    experienceLevel: inferExperienceLevel(
+      fields.title,
+      fields.career_categories.map((term) => term.name),
+    ),
+    category: fields.career_categories[0]?.name ?? null,
+    skills: [],
+    salary: null,
+    eligibility,
+    description: "Open the attributed source listing for full details.",
+    requirements: null,
+    benefits: null,
+    postedAt: fields.date.created,
+    lastCheckedAt: checkedAt,
+    validThrough: fields.date.closing ?? null,
+    status: "open",
+    riskIndicators: [
+      {
+        code: "source-not-employer-verified",
+        label: "Employer not verified by SalaryPadi",
+        explanation:
+          "This listing comes from ReliefWeb's documented public API on behalf of a named information partner. Verify the vacancy on the organisation's own website before sharing information.",
         severity: "caution",
       },
     ],

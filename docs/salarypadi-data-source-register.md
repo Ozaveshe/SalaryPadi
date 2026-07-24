@@ -21,12 +21,12 @@ register. Nothing publishes without an active rights basis.
 
 ## Job sources — pending / planned
 
-| Source                                       | Status                                                                         | Blocker                                                   |
-| -------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------- |
-| ReliefWeb API                                | Application submitted 2026-07-21 (support@salarypadi.com)                      | Await approval; connector = one feed descriptor           |
-| SmartRecruiters (per-employer)               | Probed; zombie-board freshness rule applies (Vendease rejected: 2021 postings) | Record rights + freshness gate before enabling            |
-| More Workable/Greenhouse/Ashby boards        | Continuous discovery; many NG tenants currently at 0 open roles                | Probe real postings (location + dates) before registering |
-| Employer CSV upload / generic XML/JSON feeds | Release 3 build                                                                | Employer authorization recorded per feed                  |
+| Source                                       | Status                                                                                                                         | Blocker                                                                                                                                             |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ReliefWeb API                                | Connector built, ships dark (adapter + schema + descriptor + tests); application submitted 2026-07-21 (support@salarypadi.com) | Await approval. Activate: set `RELIEFWEB_APP_NAME`, flip registry entry to enabled, add reviewed DB policy row, set `RELIEFWEB_SOURCE_ENABLED=true` |
+| SmartRecruiters (per-employer)               | Probed; zombie-board freshness rule applies (Vendease rejected: 2021 postings)                                                 | Record rights + freshness gate before enabling                                                                                                      |
+| More Workable/Greenhouse/Ashby boards        | Continuous discovery; many NG tenants currently at 0 open roles                                                                | Probe real postings (location + dates) before registering                                                                                           |
+| Employer CSV upload / generic XML/JSON feeds | Release 3 build                                                                                                                | Employer authorization recorded per feed                                                                                                            |
 
 **Prohibited:** LinkedIn, Indeed, Glassdoor, authenticated boards,
 CAPTCHA-protected pages, any source whose terms bar automated access or

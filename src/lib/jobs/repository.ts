@@ -12,6 +12,7 @@ import {
   HimalayasAdapterError,
 } from "./himalayas-adapter";
 import { fetchJobicyJobs, JobicyAdapterError } from "./jobicy-adapter";
+import { fetchReliefWebJobs, ReliefWebAdapterError } from "./reliefweb-adapter";
 import {
   fetchRemotiveJobs,
   RemotiveAdapterError,
@@ -46,6 +47,11 @@ import {
   JOBICY_REQUIRED_DESTINATION_KIND,
   JOBICY_SOURCE_POLICY,
   JOBICY_TERMS_VERSION,
+  RELIEFWEB_ADAPTER_KEY,
+  RELIEFWEB_CACHE_TAG,
+  RELIEFWEB_REQUIRED_DESTINATION_KIND,
+  RELIEFWEB_SOURCE_POLICY,
+  RELIEFWEB_TERMS_VERSION,
   REMOTIVE_ADAPTER_KEY,
   REMOTIVE_CACHE_TAG,
   REMOTIVE_REQUIRED_DESTINATION_KIND,
@@ -163,7 +169,7 @@ function readSourcePolicyRow(
     .maybeSingle();
 }
 
-type SecondarySourceKey = "remotive" | "jobicy" | "himalayas";
+type SecondarySourceKey = "remotive" | "jobicy" | "himalayas" | "reliefweb";
 
 interface SecondarySourceFetchResult {
   jobs: Job[];
@@ -516,6 +522,61 @@ const himalayasSourceDescriptor: SecondarySourceDescriptor = {
       : "himalayas_adapter_failed",
 };
 
+/**
+ * ReliefWeb ships dark: the registry entry is disabled pending the approved
+ * appname, the environment kill switch defaults off, and no database policy
+ * row exists. All three must independently open before a request is made,
+ * and the adapter itself refuses to run without the appname credential.
+ */
+const reliefWebSourceDescriptor: SecondarySourceDescriptor = {
+  key: "reliefweb",
+  reviewed: {
+    adapterKey: RELIEFWEB_ADAPTER_KEY,
+    policy: RELIEFWEB_SOURCE_POLICY,
+    termsVersion: RELIEFWEB_TERMS_VERSION,
+    requiredDestinationKind: RELIEFWEB_REQUIRED_DESTINATION_KIND,
+  },
+  environment: {
+    isEnabled: () => getServerEnvironment().RELIEFWEB_SOURCE_ENABLED,
+    message: "The reviewed ReliefWeb source is disabled in this environment.",
+  },
+  snapshotKey: null,
+  messages: {
+    registryDisabled:
+      "The reviewed ReliefWeb source is disabled by the application source-policy registry.",
+    policyPaused: "The reviewed ReliefWeb source is paused or disabled.",
+    snapshotStale: "The reviewed ReliefWeb snapshot is too old to publish.",
+    snapshotFuture:
+      "The reviewed ReliefWeb source returned invalid freshness evidence.",
+    refreshFailed:
+      "The reviewed ReliefWeb source could not be safely refreshed. Try again later.",
+  },
+  fetchJobs: async (requestedAt) => {
+    const result = await fetchReliefWebJobs({
+      appName: getServerEnvironment().RELIEFWEB_APP_NAME,
+      requestedAt,
+      signal: AbortSignal.timeout(10_000),
+      requestInit: {
+        next: {
+          revalidate: RELIEFWEB_SOURCE_POLICY.refreshIntervalSeconds,
+          tags: [RELIEFWEB_CACHE_TAG],
+        },
+      },
+    });
+    return { jobs: result.jobs, checkedAt: result.checkedAt };
+  },
+  failureCode: (reason) =>
+    reason instanceof ReliefWebAdapterError
+      ? reason.code
+      : "reliefweb_adapter_failed",
+};
+
+export async function getReliefWebJobFeed(
+  suppliedClient?: ServerSupabaseClient | null,
+): Promise<SourceFeed> {
+  return getSecondarySourceFeed(reliefWebSourceDescriptor, suppliedClient);
+}
+
 export async function getRemotiveJobFeed(
   suppliedClient?: ServerSupabaseClient | null,
 ): Promise<SourceFeed> {
@@ -535,13 +596,14 @@ export async function getHimalayasJobFeed(
 }
 
 export async function getLiveJobFeed(): Promise<JobFeedResult> {
-  const [himalayas, jobicy, remotive, database] = await Promise.all([
+  const [himalayas, jobicy, remotive, reliefweb, database] = await Promise.all([
     getHimalayasJobFeed(),
     getJobicyJobFeed(),
     getRemotiveJobFeed(),
+    getReliefWebJobFeed(),
     getDatabaseJobFeed(),
   ]);
-  return combineJobSources([himalayas, jobicy, remotive, database]);
+  return combineJobSources([himalayas, jobicy, remotive, reliefweb, database]);
 }
 
 export async function getJobBySlug(
@@ -553,14 +615,18 @@ export async function getJobBySlug(
     return { feed, job: feed.jobs[0] ?? null };
   }
 
-  const [himalayas, jobicy, remotive] = await Promise.all([
+  const [himalayas, jobicy, remotive, reliefweb] = await Promise.all([
     getHimalayasJobFeed(),
     getJobicyJobFeed(),
     getRemotiveJobFeed(),
+    getReliefWebJobFeed(),
   ]);
-  const candidate = [...himalayas.jobs, ...jobicy.jobs, ...remotive.jobs].find(
-    (job) => job.slug === slugOrId || job.id === slugOrId,
-  );
+  const candidate = [
+    ...himalayas.jobs,
+    ...jobicy.jobs,
+    ...remotive.jobs,
+    ...reliefweb.jobs,
+  ].find((job) => job.slug === slugOrId || job.id === slugOrId);
   let databaseSource = databaseDetailSource(databaseResult);
   if (candidate && databaseResult.state === "ready") {
     const fingerprintKeys = buildJobFingerprintLookupKeys({
@@ -574,7 +640,13 @@ export async function getJobBySlug(
       await getDatabaseJobsByFingerprintResult(fingerprintKeys),
     );
   }
-  const feed = combineJobSources([himalayas, jobicy, remotive, databaseSource]);
+  const feed = combineJobSources([
+    himalayas,
+    jobicy,
+    remotive,
+    reliefweb,
+    databaseSource,
+  ]);
   return {
     feed,
     job:

@@ -32,6 +32,7 @@ const environment = {
   TRANSACTIONAL_EMAIL_FROM: "SalaryPadi <updates@mail.salarypadi.com>",
   TRANSACTIONAL_EMAIL_REPLY_TO: "support@salarypadi.com",
   REMOTIVE_SOURCE_ENABLED: true,
+  RELIEFWEB_SOURCE_ENABLED: false,
   EDITORIAL_AUTOMATION_ENABLED: true,
   ALLOW_DEMO_DATA: false,
   ANALYTICS_PROVIDER: "supabase_first_party" as const,

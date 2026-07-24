@@ -77,6 +77,36 @@ export const HIMALAYAS_SOURCE_POLICY: JobSourcePolicy = {
   refreshIntervalSeconds: 86_400,
 };
 
+/**
+ * ReliefWeb's API is documented and free but its content carries the original
+ * information partners' rights, and API access above trial volume requires a
+ * pre-approved appname. SalaryPadi's application is submitted and pending;
+ * until it is granted this policy stays behind the disabled registry entry,
+ * the environment kill switch, and the absent database policy row. Metadata
+ * only, always attributed to ReliefWeb and the named partner.
+ */
+export const RELIEFWEB_SOURCE_POLICY: JobSourcePolicy = {
+  id: "reliefweb-jobs-api",
+  name: "ReliefWeb",
+  type: "permitted_api",
+  termsUrl: "https://apidoc.reliefweb.int/",
+  termsReviewedAt: "2026-07-14",
+  attributionRequired:
+    'Show "Source: ReliefWeb" with the named information partner and link to the returned ReliefWeb URL.',
+  canStoreFullDescription: false,
+  canIndex: false,
+  canUseJobPostingStructuredData: false,
+  canEmail: false,
+  destinationRequirement: "Use the ReliefWeb URL returned by the API.",
+  refreshIntervalSeconds: 21_600,
+};
+
+export const RELIEFWEB_ADAPTER_KEY = "reliefweb" as const;
+export const RELIEFWEB_REQUIRED_DESTINATION_KIND = "source_url" as const;
+export const RELIEFWEB_CACHE_TAG = "salarypadi-job-source-reliefweb" as const;
+export const RELIEFWEB_TERMS_VERSION =
+  "reliefweb-api-terms-reviewed-2026-07-14" as const;
+
 export const HIMALAYAS_ADAPTER_KEY = "himalayas" as const;
 export const HIMALAYAS_REQUIRED_DESTINATION_KIND = "source_url" as const;
 export const HIMALAYAS_CACHE_TAG = "salarypadi-job-source-himalayas" as const;
