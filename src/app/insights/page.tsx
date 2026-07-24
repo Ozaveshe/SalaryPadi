@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { JobMarketPulse } from "@/components/insights/job-market-pulse";
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { getPublishedEditorialResult } from "@/lib/editorial/repository";
@@ -8,8 +9,9 @@ import { getPublishedEditorialResult } from "@/lib/editorial/repository";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Job data briefs",
-  description: "Timestamped, deterministic SalaryPadi job-data briefs.",
+  title: "Job market insights",
+  description:
+    "Deterministic counts from SalaryPadi's verified job snapshot, plus timestamped job-data briefs.",
   alternates: { canonical: "/insights" },
 };
 
@@ -22,9 +24,10 @@ export default async function InsightsPage() {
     <div className="site-shell stack-lg">
       <PageHeading
         eyebrow="Evidence, not volume"
-        title="Job data briefs"
-        description="Each brief is generated from a timestamped active-job snapshot. It is not a market forecast and does not claim completeness."
+        title="Job market insights"
+        description="Deterministic counts from the current verified job snapshot, and briefs generated from timestamped snapshots. Nothing here is a market forecast or claims completeness."
       />
+      <JobMarketPulse />
       <RepositoryNotice result={result} resource="Editorial briefs" />
       {briefs.length > 0 ? (
         <div className="card-grid">
