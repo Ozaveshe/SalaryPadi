@@ -35,15 +35,33 @@ const sourceJob: RemotiveJob = {
   description: "<p>Build APIs.</p>",
 };
 
+/**
+ * The COMPLETE row api.worker_get_job_source_policy returns, copied from the
+ * live production response.
+ *
+ * This fixture previously carried only the thirteen fields the worker asserts
+ * on, while the function returns nineteen. Because the worker's row schema is
+ * `.strict()`, the missing six made every real run fail with
+ * `jobicy_source_policy_invalid` — but the tests passed, because the fixture
+ * mirrored the wrong schema instead of the real RPC contract. Keep this shape
+ * in step with the function's `returns table (...)` signature.
+ */
 const jobicyPolicy = {
+  source_id: "f8a5669e-42b5-47c1-b35f-717ba6915ac0",
   adapter_key: "jobicy",
+  source_name: "Jobicy public API",
   source_type: "permitted_api",
   status: "active",
+  homepage_url: "https://jobicy.com/",
   terms_url: "https://jobicy.com/jobs-rss-feed",
   terms_reviewed_at: "2026-07-14T00:00:00+00:00",
+  terms_reviewed_by: null,
   terms_version: "jobicy-public-feed-reviewed-2026-07-14",
-  allow_public_listing: true,
+  review_requested_at: null,
   attribution_required: true,
+  attribution_text:
+    "Source: Jobicy; preserve a clickable link to the returned Jobicy URL",
+  allow_public_listing: true,
   may_store_full_description: false,
   may_index_jobs: false,
   may_emit_jobposting_schema: false,
@@ -53,10 +71,15 @@ const jobicyPolicy = {
 
 const himalayasPolicy = {
   ...jobicyPolicy,
+  source_id: "b31c0f2e-6d54-4a71-9c88-1f0b5a2d7e34",
   adapter_key: "himalayas",
+  source_name: "Himalayas public API",
+  homepage_url: "https://himalayas.app/",
   terms_url: "https://himalayas.app/api",
   terms_reviewed_at: "2026-07-15T00:00:00+00:00",
   terms_version: "himalayas-public-api-reviewed-2026-07-15",
+  attribution_text:
+    "Source: Himalayas; preserve a clickable link to the returned Himalayas URL",
   refresh_interval_seconds: 86_400,
 };
 
@@ -207,6 +230,55 @@ describe("secondary feed sync worker", () => {
     expect(result.summary).toMatchObject({
       stored_count: 1,
       failed_count: 1,
+    });
+  });
+
+  it("fails closed when the policy contract grows an unrecognised column", async () => {
+    // The row schema stays `.strict()` on purpose: an unknown column means the
+    // policy contract moved and the worker must not sync against a shape it
+    // does not understand. This is the guard that made the real incident fail
+    // closed — correct behaviour on the wrong schema. Widening the declared
+    // shape to the true 19 columns must not have weakened it.
+    const checkedAt = new Date().toISOString();
+    const storeSnapshot = vi.fn();
+    const rpc = vi.fn(async (_name, parameters?: Record<string, unknown>) =>
+      parameters?.p_adapter_key === "jobicy"
+        ? [{ ...jobicyPolicy, unexpected_new_column: "surprise" }]
+        : [himalayasPolicy],
+    );
+
+    const result = await runSecondaryFeedSync(execution(), {
+      rpc,
+      readSnapshot: async () => missing,
+      storeSnapshot: storeSnapshot as never,
+      fetchJobs: async () => ({ jobs: [feedJob(checkedAt)], checkedAt }),
+    });
+
+    expect(result.summary).toMatchObject({
+      jobicy_outcome: "failed",
+      jobicy_code: "jobicy_source_policy_invalid",
+      himalayas_outcome: "stored",
+    });
+  });
+
+  it("accepts the complete production policy row for both sources", async () => {
+    // Regression: the fixture used to omit six columns the RPC really returns,
+    // so `.strict()` rejected every live row and secondary_feed_sync failed on
+    // every scheduled run while the unit tests stayed green.
+    const checkedAt = new Date().toISOString();
+    const storeSnapshot = vi.fn();
+
+    const result = await runSecondaryFeedSync(execution(), {
+      rpc: policyRpc(),
+      readSnapshot: async () => missing,
+      storeSnapshot: storeSnapshot as never,
+      fetchJobs: async () => ({ jobs: [feedJob(checkedAt)], checkedAt }),
+    });
+
+    expect(result.summary).toMatchObject({
+      jobicy_outcome: "stored",
+      himalayas_outcome: "stored",
+      failed_count: 0,
     });
   });
 

@@ -203,20 +203,11 @@ describe("operational health", () => {
     });
   });
 
-  it("returns 503 when the database omits a required worker", async () => {
-    mockWorkerResult(healthyWorkers.slice(0, 3));
-
-    const response = await GET();
-    const body = await response.json();
-
-    expect(response.status).toBe(503);
-    expect(body).toMatchObject({
-      status: "degraded",
-      checks: { worker_health_complete: false },
-    });
-  });
-
-  it("returns 503 when the worker registry contains an unknown task", async () => {
+  it("returns 503 and names an unknown task without losing worker visibility", async () => {
+    // Regression: the production incident. An unregistered schedule row
+    // (employer_feed_sync) failed the whole strict-enum array parse, so every
+    // healthy worker vanished from the payload and the freshness workflow
+    // reported all 27 as "missing". Drift must be named, not erased.
     mockWorkerResult([
       ...healthyWorkers,
       { ...healthyWorkers[0]!, task_key: "unreviewed_worker" },
@@ -228,8 +219,113 @@ describe("operational health", () => {
     expect(response.status).toBe(503);
     expect(body).toMatchObject({
       status: "degraded",
-      checks: { worker_health_complete: false, workers: [] },
+      checks: {
+        worker_health_complete: false,
+        unregistered_workers: ["unreviewed_worker"],
+        missing_workers: [],
+      },
     });
+    // The healthy workers are still reported, unlike before the fix.
+    expect(body.checks.workers).toHaveLength(healthyWorkers.length + 1);
+  });
+
+  it("stays healthy when a disabled schedule is parked ahead of its worker", async () => {
+    // The exact production shape after the fix: private.worker_schedules holds
+    // an employer_feed_sync row that no deployed worker serves. Disabled, it
+    // asks nothing of the platform, so it is reported as parked rather than
+    // failing health — while an ENABLED unknown schedule still fails (above).
+    mockWorkerResult([
+      ...healthyWorkers,
+      {
+        task_key: "employer_feed_sync",
+        owner_label: "SalaryPadi ingestion operations",
+        last_status: null,
+        last_started_at: null,
+        last_success_at: null,
+        freshness: "disabled",
+      },
+    ]);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      status: "ok",
+      checks: {
+        worker_health_complete: true,
+        unregistered_workers: [],
+        parked_workers: ["employer_feed_sync"],
+        unhealthy_workers: [],
+      },
+    });
+  });
+
+  it("names which registered workers the database omitted", async () => {
+    mockWorkerResult(healthyWorkers.slice(0, 3));
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.checks.worker_health_complete).toBe(false);
+    expect(body.checks.missing_workers).toEqual(EXPECTED_WORKER_KEYS.slice(3));
+    expect(body.checks.workers).toHaveLength(3);
+  });
+
+  it("treats a deliberately disabled worker as complete and healthy", async () => {
+    mockWorkerResult([
+      {
+        ...healthyWorkers[0]!,
+        last_status: null,
+        last_started_at: null,
+        last_success_at: null,
+        freshness: "disabled",
+      },
+      ...healthyWorkers.slice(1),
+    ]);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      status: "ok",
+      checks: { worker_health_complete: true, unhealthy_workers: [] },
+    });
+  });
+
+  it("returns 503 when a registered worker has never run", async () => {
+    mockWorkerResult([
+      {
+        ...healthyWorkers[0]!,
+        last_status: null,
+        last_started_at: null,
+        last_success_at: null,
+        freshness: "never",
+      },
+      ...healthyWorkers.slice(1),
+    ]);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.checks.worker_health_complete).toBe(true);
+    expect(body.checks.unhealthy_workers).toEqual([EXPECTED_WORKER_KEYS[0]]);
+  });
+
+  it("returns 503 when a registered worker is stale", async () => {
+    mockWorkerResult([
+      { ...healthyWorkers[0]!, freshness: "stale" },
+      ...healthyWorkers.slice(1),
+    ]);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.checks.unhealthy_workers).toEqual([EXPECTED_WORKER_KEYS[0]]);
   });
 
   it("returns 503 when worker timestamps are malformed", async () => {
@@ -246,7 +342,16 @@ describe("operational health", () => {
     });
   });
 
-  it("returns 503 when workers are healthy but users have zero eligible jobs", async () => {
+  /**
+   * Supply capacity is reported truthfully but does NOT drive the HTTP status.
+   * `authorized_daily_capacity` sums recorded capacity evidence over runnable
+   * source policies, so with sources intentionally unauthorised it is
+   * legitimately 0 and no correct worker execution can raise it. The freshness
+   * workflow asserts it as its own `supply:capacity` check
+   * (scripts/verify-production-freshness.mjs), which is what keeps an
+   * unauthorised supply base a visible failure.
+   */
+  it("reports zero eligible supply honestly without masking worker health", async () => {
     mockWorkerResult(healthyWorkers, null, {
       ...readyJobSupply,
       visible_remote_jobs: 0,
@@ -258,9 +363,9 @@ describe("operational health", () => {
     const response = await GET();
     const body = await response.json();
 
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
     expect(body).toMatchObject({
-      status: "degraded",
+      status: "ok",
       checks: {
         worker_health_complete: true,
         job_supply_ready: false,
@@ -274,6 +379,20 @@ describe("operational health", () => {
     });
   });
 
+  it("never reports supply as ready while capacity is unproven", async () => {
+    mockWorkerResult(healthyWorkers, null, {
+      ...readyJobSupply,
+      visible_remote_jobs: 216,
+      authorized_daily_capacity: 0,
+      state: "capacity_unproven",
+    });
+
+    const body = await (await GET()).json();
+    expect(body.checks.job_supply_ready).toBe(false);
+    expect(body.checks.job_supply.authorized_daily_capacity).toBe(0);
+    expect(body.checks.job_supply.state).toBe("capacity_unproven");
+  });
+
   it("rejects a canary that claims readiness without supply evidence", async () => {
     mockWorkerResult(healthyWorkers, null, {
       ...readyJobSupply,
@@ -283,10 +402,7 @@ describe("operational health", () => {
       state: "ready",
     });
 
-    const response = await GET();
-    expect(response.status).toBe(503);
-    expect(await response.json()).toMatchObject({
-      status: "degraded",
+    expect(await (await GET()).json()).toMatchObject({
       checks: {
         job_supply_ready: false,
         job_supply: { state: "unavailable" },
@@ -300,27 +416,21 @@ describe("operational health", () => {
       last_canonical_created_at: "2026-07-10T12:05:02.001Z",
     });
 
-    const response = await GET();
-    expect(response.status).toBe(503);
-    expect(await response.json()).toMatchObject({
-      status: "degraded",
+    expect(await (await GET()).json()).toMatchObject({
       checks: { job_supply_ready: false },
     });
   });
 
-  it("returns 503 when supply evidence is absent or below capacity", async () => {
+  it("reports supply as not ready when evidence is absent or below capacity", async () => {
     mockWorkerResult(healthyWorkers, null, {
       ...readyJobSupply,
       authorized_daily_capacity: 100,
       state: "capacity_unproven",
     });
-    const belowTarget = await GET();
-    expect(belowTarget.status).toBe(503);
+    expect((await (await GET()).json()).checks.job_supply_ready).toBe(false);
 
     mockWorkerResult(healthyWorkers, null, null, new Error("missing RPC"));
-    const missingEvidence = await GET();
-    expect(missingEvidence.status).toBe(503);
-    expect(await missingEvidence.json()).toMatchObject({
+    expect(await (await GET()).json()).toMatchObject({
       checks: {
         job_supply_ready: false,
         job_supply: { state: "unavailable" },
