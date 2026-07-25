@@ -3,6 +3,7 @@ import type {
   AtsSourceRecordProvider,
 } from "@/lib/jobs/ats/types";
 
+import { isAuthorizedDestination } from "./domain";
 import {
   extractCsvFeedRecords,
   extractJsonFeedRecords,
@@ -11,7 +12,8 @@ import {
 import {
   employerFeedRegistrySchema,
   type EmployerFeedConfig,
-  type ExtractedFeedRecord,
+  type FeedExtractionReasonCode,
+  type FeedExtractionResult,
 } from "./types";
 
 export {
@@ -21,6 +23,17 @@ export {
   parseCsv,
 } from "./extract";
 export * from "./types";
+export {
+  computeFeedSnapshotCompleteness,
+  type FeedCompleteness,
+  type FeedCompletenessInput,
+  type FeedIncompletenessReason,
+} from "./completeness";
+export {
+  isAuthorizedDestination,
+  isValidDestinationHost,
+  registrableDomain,
+} from "./domain";
 
 const PROVIDER_BY_KIND: Record<
   EmployerFeedConfig["kind"],
@@ -31,62 +44,47 @@ const PROVIDER_BY_KIND: Record<
   csv: "employer_csv_import",
 };
 
-function hostAllowed(url: string, allowedHosts: readonly string[]): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return false;
-  }
-  if (
-    parsed.protocol !== "https:" ||
-    parsed.username ||
-    parsed.password ||
-    (parsed.port && parsed.port !== "443")
-  ) {
-    return false;
-  }
-  return allowedHosts.some(
-    (host) => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`),
-  );
-}
-
-export interface EmployerFeedExtractionResult {
-  records: AtsSourceRecord[];
-  /** Extracted records dropped because a URL left the authorized hosts. */
-  droppedDestinationCount: number;
-}
-
 /**
  * The generic-feed connector boundary: payload in, provider-agnostic
- * AtsSourceRecords out. Everything downstream — publication gates,
- * eligibility classification, quarantine codes, content hashes,
- * fingerprints and the bounded worker store — is the existing
+ * AtsSourceRecords out, together with the counts that decide whether the
+ * resulting snapshot may close absent jobs.
+ *
+ * Everything downstream — publication gates, eligibility classification,
+ * quarantine codes, content hashes, fingerprints — is the existing
  * normalizeAtsImportRecords pipeline; generic feeds add no second path.
  *
- * Records whose source or application URL points outside the feed's
- * authorized destination hosts are dropped and counted, never repaired.
+ * Records whose source or application URL points outside the feed's authorized
+ * destination hosts are dropped, counted and reasoned, never repaired.
  */
 export function extractEmployerFeedRecords(
   config: EmployerFeedConfig,
   payload: string,
   checkedAt: string,
-): EmployerFeedExtractionResult {
-  const extracted: ExtractedFeedRecord[] =
+): FeedExtractionResult {
+  const raw =
     config.kind === "xml"
       ? extractXmlFeedRecords(payload, config)
       : config.kind === "json"
         ? extractJsonFeedRecords(payload, config)
         : extractCsvFeedRecords(payload, config);
 
+  const reasonCodes = new Set<FeedExtractionReasonCode>(raw.reasonCodes);
   const records: AtsSourceRecord[] = [];
-  let droppedDestinationCount = 0;
-  for (const record of extracted) {
+  let destinationDroppedCount = 0;
+
+  for (const record of raw.records) {
     if (
-      !hostAllowed(record.sourceUrl, config.allowedDestinationHosts) ||
-      !hostAllowed(record.applicationUrl, config.allowedDestinationHosts)
+      !isAuthorizedDestination(
+        record.sourceUrl,
+        config.allowedDestinationHosts,
+      ) ||
+      !isAuthorizedDestination(
+        record.applicationUrl,
+        config.allowedDestinationHosts,
+      )
     ) {
-      droppedDestinationCount += 1;
+      destinationDroppedCount += 1;
+      reasonCodes.add("destination_not_authorized");
       continue;
     }
     records.push({
@@ -109,7 +107,42 @@ export function extractEmployerFeedRecords(
       checkedAt,
     });
   }
-  return { records, droppedDestinationCount };
+
+  /**
+   * A zero-record result is authoritative only when the feed's authorization
+   * permits it AND the structure proves the source really answered "none":
+   * the container was found, parsing completed, nothing was truncated, no
+   * record was invalid, and the source itself held zero records.
+   *
+   * This is what separates "the employer has no open roles" from "the employer
+   * renamed a field and every record silently failed to map".
+   */
+  const authoritativeEmpty =
+    config.allowAuthoritativeEmpty &&
+    raw.containerFound &&
+    !raw.truncated &&
+    raw.sourceRecordCount === 0 &&
+    raw.invalidRecordCount === 0 &&
+    destinationDroppedCount === 0;
+
+  if (raw.sourceRecordCount === 0 && !authoritativeEmpty) {
+    reasonCodes.add("empty_not_authoritative");
+  }
+
+  return {
+    records,
+    sourceRecordCount: raw.sourceRecordCount,
+    mappedRecordCount: raw.mappedRecordCount,
+    invalidRecordCount: raw.invalidRecordCount,
+    destinationDroppedCount,
+    truncated: raw.truncated,
+    // Reaching this point means the payload parsed; structural failures throw.
+    parseComplete: true,
+    containerFound: raw.containerFound,
+    authoritativeEmpty,
+    providerReportedCount: raw.providerReportedCount,
+    reasonCodes: [...reasonCodes].toSorted(),
+  };
 }
 
 /** Parses and validates the employer feed registry file contents. */

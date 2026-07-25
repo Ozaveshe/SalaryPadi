@@ -1,10 +1,11 @@
 # Job-Ingestion System — Current State, Gap Assessment and Acquisition Matrix
 
-Date: 2026-07-24. Scope: the 20,000-active-jobs ingestion mandate.
-Verdict up front: the platform already implements ~85% of the mandate;
-this assessment documents where each requirement lives, and the
-remainder (generic XML/JSON/CSV connectors, SmartRecruiters/Jooble
-rights records, board-registry tooling) ships alongside this document.
+Date: 2026-07-24, generic-feed section updated 2026-07-25. Scope: the
+20,000-active-jobs ingestion mandate. This assessment documents where each
+requirement lives. The ATS and secondary-feed paths run in production; the
+generic XML/JSON/CSV employer-feed path has extraction and safety
+orchestration only, and is not connected to production persistence — see §5,
+which is the authoritative statement of its status.
 
 ## 1. Current architecture (what exists, verified against code and prod)
 
@@ -190,7 +191,7 @@ authorizations. The number is supply-gated, not code-gated.
 
 | Target                                      | Status                                                                                                      |
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| ≥20,000 active unique jobs                  | ~338 public + banked pending. Supply-gated (see §2); machinery complete                                     |
+| ≥20,000 active unique jobs                  | ~216 public. Not met, and not only supply-gated — see §5 for the generic-feed path that is still unbuilt    |
 | ≥95% valid application destinations         | Structurally enforced (destination pinning per tenant/feed + link checker); ops metric on dashboard         |
 | <5% visible duplicates                      | Enforced by 4-layer dedup + fuzzy review queue                                                              |
 | ≥95% company-domain resolution              | Met for current inventory (ATS tenants are domain-verified at registration)                                 |
@@ -216,3 +217,52 @@ authorizations. The number is supply-gated, not code-gated.
 - **Board discovery cadence**: `node scripts/validate-board-registry.mjs
 --probe 10` periodically; promote hits through the registration
   recipe; probed-zero boards are re-probed, never registered dormant.
+
+## 5. Generic employer feeds — honest status
+
+Updated 2026-07-25, after the snapshot-safety work.
+
+### What exists
+
+- **Extraction** for XML, JSON and CSV payloads (`src/lib/jobs/feeds/`),
+  returning a structured result that counts every source record and never
+  discards one silently.
+- **A bounded XML reader** (`xml.ts`) that refuses DTDs, entity declarations
+  and unresolvable custom entity references, so entity-expansion
+  ("billion laughs") exposure is removed rather than bounded.
+- **One snapshot-completeness contract** (`completeness.ts`). The same computed
+  boolean drives `snapshot.complete`, the `snapshotComplete` metric, absence
+  handling and logging, so persistence and metrics cannot drift apart.
+- **Destination authorization** validated against the real Public Suffix List
+  via `tldts`, so a bare suffix (`com.au`, `co.jp`) can never authorize a whole
+  suffix and `employer.com` can never authorize `not-employer.com`.
+- **Both authorization gates enforced in code**: the global source policy
+  (`employer_xml_json_feeds` / `employer_csv_import`) is evaluated before any
+  network request or payload processing, and a per-feed `enabled` record cannot
+  override it.
+
+### What does NOT exist
+
+- **No production persistence.** `FeedRunStore` has one implementation, an
+  in-memory store used by the tests. Nothing writes to Supabase.
+- **No scheduled generic-feed worker.** No Netlify function loads or runs these
+  feeds; the runtime is not reachable from any deployed entry point.
+- **No authenticated CSV surface.** `uploadedPayload` is a function parameter,
+  not an endpoint. There is no upload route, no authentication and no
+  authorization binding an uploader to an employer.
+- **No durable metrics.** `FeedRunMetrics` is returned to the caller and
+  discarded; no table, no source-health integration.
+- **No rights-compliant source evidence.** The raw record is still derived
+  after normalization and is not a faithful pre-normalization artifact.
+
+### Current state
+
+`config/employer-feed-registry.json` contains zero feeds. Both global source
+policies are `disabled` with unmet dependencies. **No employer feed has
+processed a production record, and none can.**
+
+The first production pilot remains blocked on: a real employer authorization,
+the production store, the scheduled worker, the authenticated CSV surface and
+durable metrics. This layer is extraction and safety orchestration only — it is
+not production-ready, not code complete, and the 20,000-active-jobs target is
+not merely supply-gated.
