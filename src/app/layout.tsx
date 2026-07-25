@@ -78,7 +78,7 @@ export default async function RootLayout({
             name: "SalaryPadi",
             url: getAppOrigin(),
             description:
-              "Source-attributed job discovery and privacy-thresholded career intelligence for Africans.",
+              "Job discovery with every source named, and salary information that keeps individual contributions private. Built for Africans.",
             areaServed: {
               "@type": "Country",
               name: defaultCountryPack.name,

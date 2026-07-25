@@ -215,7 +215,7 @@ export function buildSalaryOpenGraphModel(
   const roleName = aggregate?.roleFamily ?? role.replace(/-/g, " ");
   const salaryFact = aggregate ? aggregateSalaryFact(aggregate) : null;
   return {
-    eyebrow: "Privacy-thresholded salary",
+    eyebrow: "Salary information",
     title: boundedText(roleName, 100),
     subtitle: countryName(country),
     facts: salaryFact ? [salaryFact] : [],

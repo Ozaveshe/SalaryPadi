@@ -49,7 +49,7 @@ export async function generateMetadata({
   });
   const roleName = role.replace(/-/g, " ");
   const title = `${roleName} salary in ${country.toUpperCase()}`;
-  const description = `Privacy-thresholded ${roleName} salary aggregates for ${country.toUpperCase()} on SalaryPadi.`;
+  const description = `What people earn as a ${roleName} in ${country.toUpperCase()}, from community contributions and reviewed statistics. Individual pay stays private.`;
   const socialImage = buildSocialImageMetadata(
     `/salaries/${country.toLowerCase()}/${role.toLowerCase()}/opengraph-image`,
     `${title} on SalaryPadi`,
