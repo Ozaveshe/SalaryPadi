@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(16);
+select plan(17);
 
 -- The generic-feed production path: shared snapshot lifecycle, separate
 -- authorization helper, durable metrics and pre-normalization evidence.
