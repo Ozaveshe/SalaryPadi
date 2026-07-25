@@ -22,17 +22,25 @@ const SOURCE_DISPLAY_NAMES: Record<JobFeedSourceStatus["key"], string> = {
   reliefweb: RELIEFWEB_SOURCE_POLICY.name,
 };
 
+/**
+ * Never renders an internal feed key. A key with no mapped public name is
+ * described generically rather than leaked, because `SOURCE_DISPLAY_NAMES` is
+ * keyed on a union that a new source silently widens.
+ */
 function sourceDisplayName(key: JobFeedSourceStatus["key"]): string {
-  return SOURCE_DISPLAY_NAMES[key] ?? key;
+  return SOURCE_DISPLAY_NAMES[key] ?? "Approved source records";
 }
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1_000;
 
 /**
- * Deterministic counts computed from the current verified job snapshot at
- * request time. No modelling, no extrapolation: every number is a count over
- * the same feed the public jobs page renders, and the section states its
- * scope and limitations alongside the figures.
+ * Plain counts over the same verified job feed the public jobs page renders,
+ * computed at request time. No modelling, no extrapolation; the section states
+ * its scope, period and limitations alongside the figures.
+ *
+ * Customer-facing wording here is deliberately non-technical — "snapshot",
+ * "deterministic" and similar implementation vocabulary belong in this comment,
+ * not on the page.
  */
 export async function JobMarketPulse() {
   const feed = await getLiveJobFeed();
@@ -120,16 +128,15 @@ export async function JobMarketPulse() {
         Job market pulse
       </h2>
       <p className="text-muted m-0 max-w-2xl text-sm">
-        Counts over the current verified snapshot ({jobs.length} active jobs
-        across {feed.sources.filter((s) => s.state === "live").length} live
-        sources, most recently checked {formatDate(checkedAt)}). These are
-        counts of what SalaryPadi can verify — not an estimate of the whole
-        market, and not a forecast.
+        Based on the {jobs.length} jobs SalaryPadi has verified across{" "}
+        {feed.sources.filter((s) => s.state === "live").length} live sources,
+        last checked {formatDate(checkedAt)}. These are counts of roles we can
+        check — not an estimate of the whole market, and not a forecast.
       </p>
       <h3 className="m-0 text-base font-bold">
-        Market size within SalaryPadi&apos;s verified snapshot
+        How many jobs SalaryPadi is tracking
       </h3>
-      <div className="feature-grid" aria-label="Snapshot counts">
+      <div className="feature-grid" aria-label="Job market figures">
         <article className="surface surface-pad stack-sm">
           <p className="eyebrow">Active verified jobs</p>
           <p className="m-0 text-3xl font-bold">
@@ -274,15 +281,15 @@ export async function JobMarketPulse() {
         </article>
       </div>
       <p className="text-muted m-0 max-w-2xl text-xs">
-        <strong>Scope:</strong> every figure is a count over the one verified
-        snapshot described above — {jobs.length} active jobs from reviewed,
-        authorized sources. <strong>Period:</strong> the snapshot as last
-        checked {formatDate(checkedAt)}; &quot;posted in the last 7 days&quot;
-        and the closing-date window are measured from that check, so the figures
-        are stable for a given snapshot. <strong>Limitations:</strong> jobs
-        whose source does not state a work mode, location, category or closing
-        date are excluded from those breakdowns rather than guessed; this is not
-        an estimate of the whole market and not a forecast; counts change as
+        <strong>Scope:</strong> every figure counts the same set of checked jobs
+        described above — {jobs.length} active jobs from reviewed, authorized
+        sources. <strong>Period:</strong> as last checked{" "}
+        {formatDate(checkedAt)}; &quot;posted in the last 7 days&quot; and the
+        closing-date window are measured from that check, so the figures do not
+        drift between checks. <strong>Limitations:</strong> jobs whose source
+        does not state a work mode, location, category or closing date are
+        excluded from those breakdowns rather than guessed; this is not an
+        estimate of the whole market and not a forecast; counts change as
         sources are re-checked and roles close. Expired jobs and skills
         extraction are not reported here because SalaryPadi does not yet hold
         those to a publishable standard.

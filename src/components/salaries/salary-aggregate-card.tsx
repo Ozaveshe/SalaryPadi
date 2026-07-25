@@ -155,7 +155,7 @@ export function SalaryAggregateCard({
                 ? aggregate.sourcePayPeriod
                   ? formatEnum(aggregate.sourcePayPeriod)
                   : "Not specified by the source"
-                : "Retained per contribution; not exposed in this aggregate"}
+                : "Individual pay periods remain private; this result is shown as an annual comparison."}
             </dd>
           </div>
           <div>

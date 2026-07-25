@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Job market insights",
   description:
-    "Deterministic counts from SalaryPadi's verified job snapshot, plus timestamped job-data briefs.",
+    "See what SalaryPadi's currently verified jobs show about hiring, remote access, salary disclosure and deadlines.",
   alternates: { canonical: "/insights" },
 };
 
@@ -23,9 +23,9 @@ export default async function InsightsPage() {
   return (
     <div className="site-shell stack-lg">
       <PageHeading
-        eyebrow="Evidence, not volume"
+        eyebrow="What the jobs show"
         title="Job market insights"
-        description="Deterministic counts from the current verified job snapshot, and briefs generated from timestamped snapshots. Nothing here is a market forecast or claims completeness."
+        description="See what SalaryPadi's currently verified jobs show about hiring, remote access, salary disclosure and deadlines. These are counts of roles we can check — not a forecast, and not the whole market."
       />
       <JobMarketPulse />
       <RepositoryNotice result={result} resource="Editorial briefs" />

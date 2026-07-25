@@ -152,7 +152,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Production acceptance"
+            echo "## Customer surface"
             echo
             echo "| Field | Value |"
             echo "| --- | --- |"
@@ -170,5 +170,111 @@ jobs:
               echo "> Acceptance FAILED against the matching production commit. See artifacts for HTML, screenshots and traces."
             else
               echo "> Acceptance passed against the matching production commit. No test was skipped."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Customer-surface acceptance and operational health stay conceptually
+  # separate — a page can read perfectly on a degraded platform. But the
+  # workflow as a whole must not report a healthy release while /api/health is
+  # returning 503, which is exactly what happened on 53318fa: acceptance went
+  # green while every worker-health row was invisible and the jobs canary was
+  # failing on the same commit.
+  platform-health:
+    name: Verify deployed platform health
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    timeout-minutes: 30
+    env:
+      BASE_URL: ${{ inputs.base_url || 'https://salarypadi.com' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Determine expected commit
+        id: expected
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.expected_commit }}" ]; then
+            EXPECTED="${{ inputs.expected_commit }}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            EXPECTED="${{ github.event.workflow_run.head_sha }}"
+          else
+            EXPECTED="$(git rev-parse HEAD)"
+          fi
+          echo "short=$(printf '%s' "$EXPECTED" | cut -c1-7 | tr 'A-Z' 'a-z')" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for production to serve the expected commit
+        id: match
+        run: |
+          set -euo pipefail
+          EXPECTED="${{ steps.expected.outputs.short }}"
+          for i in $(seq 1 40); do
+            BODY="$(curl -fsS --max-time 20 "$BASE_URL/api/build-info" || echo '{}')"
+            DEPLOYED="$(printf '%s' "$BODY" | jq -r '.commit // empty')"
+            echo "attempt $i/40: deployed=${DEPLOYED:-none} expected=$EXPECTED"
+            if [ "$DEPLOYED" = "$EXPECTED" ]; then
+              echo "deployed=$DEPLOYED" >> "$GITHUB_OUTPUT"
+              echo "matched=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "deployed=${DEPLOYED:-none}" >> "$GITHUB_OUTPUT"
+          echo "matched=false" >> "$GITHUB_OUTPUT"
+          echo "::error::Production never reached $EXPECTED. Not reporting platform health."
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The gate itself lives in scripts/verify-platform-health.mjs so the
+      # decision is unit-tested rather than existing only as workflow shell.
+      - name: Verify platform health
+        id: health
+        run: |
+          set -uo pipefail
+          OUTPUT="$(node scripts/verify-platform-health.mjs "$BASE_URL" 2>&1)"
+          CODE=$?
+          printf '%s\n' "$OUTPUT"
+          SUMMARY="$(printf '%s\n' "$OUTPUT" | grep '^RESULT ' || echo 'RESULT platform_health=fail')"
+          read_field() {
+            printf '%s' "$SUMMARY" | tr ' ' '\n' | grep "^$1=" | cut -d= -f2- || true
+          }
+          {
+            echo "http_status=$(read_field http)"
+            echo "worker_health_complete=$(read_field worker_health_complete)"
+            echo "job_supply=$(read_field job_supply)"
+            echo "supply_state=$(read_field supply_state)"
+            echo "capacity=$(read_field authorized_daily_capacity)"
+            echo "target=$(read_field target_daily_new_canonical)"
+            echo "missing_count=$(read_field missing_workers)"
+            echo "unhealthy_count=$(read_field unhealthy_workers)"
+          } >> "$GITHUB_OUTPUT"
+          exit "$CODE"
+
+      - name: Publish platform-health summary
+        if: always()
+        run: |
+          {
+            echo "## Platform health"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Tested production commit | \`${{ steps.match.outputs.deployed }}\` |"
+            echo "| Commit matched | ${{ steps.match.outputs.matched || 'false' }} |"
+            echo "| /api/health | HTTP ${{ steps.health.outputs.http_status }} |"
+            echo "| Worker health complete | ${{ steps.health.outputs.worker_health_complete }} |"
+            echo "| Missing workers | ${{ steps.health.outputs.missing_count }} |"
+            echo "| Unhealthy workers | ${{ steps.health.outputs.unhealthy_count }} |"
+            echo "| Platform health | ${{ steps.health.outcome }} |"
+            echo "| Job-supply capacity | ${{ steps.health.outputs.job_supply }} — ${{ steps.health.outputs.supply_state }} (authorized ${{ steps.health.outputs.capacity }}/day vs target ${{ steps.health.outputs.target }}/day) |"
+            echo
+            if [ "${{ steps.health.outputs.job_supply }}" != "ready" ]; then
+              echo "> Job-supply capacity is UNPROVEN and reported honestly. SalaryPadi does not hold authorised capacity for the daily target; this does not gate platform health, and is asserted by the production-freshness workflow."
             fi
           } >> "$GITHUB_STEP_SUMMARY"

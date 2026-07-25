@@ -40,6 +40,18 @@ export const PROHIBITED_PHRASES = [
   "result balance",
   "does not provide requirements as a separate structured field",
   "does not provide benefits as a separate structured field",
+  // Implementation vocabulary found on the live customer surface by the
+  // 2026-07 audit. "confidence" alone is deliberately NOT banned: it is
+  // legitimate plain language when it helps a reader judge statistical
+  // reliability. Only the engineering compounds are.
+  "deterministic counts",
+  "snapshot counts",
+  "verified job snapshot",
+  "timestamped snapshots",
+  "privacy-thresholded",
+  "confidence-labelled",
+  "retained per contribution",
+  "not exposed in this aggregate",
 ] as const;
 
 /**
@@ -58,8 +70,23 @@ export const PROHIBITED_STANDALONE_LABELS = [
   "undefined",
 ] as const;
 
+/**
+ * Normalises text for matching: collapses whitespace, folds the punctuation
+ * variants a CMS or typographic transform introduces (curly quotes, en/em
+ * dashes, non-breaking hyphens and spaces), and lower-cases. Without the
+ * punctuation folding, "privacy‑thresholded" written with a non-breaking
+ * hyphen would slip past a denylist entry spelled with an ASCII hyphen.
+ */
 export function normalize(value: string): string {
-  return value.replace(/\s+/g, " ").trim().toLowerCase();
+  return value
+    .replace(/[‘’‛′]/g, "'")
+    .replace(/[“”‟″]/g, '"')
+    .replace(/[‐-―−]/g, "-")
+    .replace(/[   ]/g, " ")
+    .replace(/…/g, "...")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 /**
@@ -93,6 +120,23 @@ export interface SurfaceScan {
   /** Leaf text exactly as rendered, for case-sensitive checks (e.g. telling
    * the brand name "Jobicy" apart from the internal key "jobicy"). */
   rawLeaves: string[];
+  /**
+   * Customer-facing text that is NOT body copy: meta/OG/Twitter descriptions,
+   * JSON-LD descriptions, aria-labels, user-facing title attributes and
+   * accessible names. A search result, a screen reader and an AI crawler all
+   * read these, so implementation vocabulary hiding here still reaches people.
+   */
+  metadataText: string;
+  /** The individual metadata strings, for precise assertions. */
+  metadata: {
+    metaDescription: string | null;
+    openGraphDescription: string | null;
+    twitterDescription: string | null;
+    jsonLdDescriptions: string[];
+    ariaLabels: string[];
+    titleAttributes: string[];
+    accessibleNames: string[];
+  };
   html: string;
   disclosuresOpened: number;
 }
@@ -144,24 +188,141 @@ export async function scanCustomerSurface(page: Page): Promise<SurfaceScan> {
       if (value) leaves.push(value);
     }
 
+    const attribute = (selector: string, name: string): string | null =>
+      document.querySelector(selector)?.getAttribute(name)?.trim() || null;
+
+    /**
+     * JSON-LD carries customer-facing prose into search results. Only
+     * description-shaped values are collected — identifiers, URLs and types are
+     * implementation detail no reader sees as language.
+     */
+    const jsonLdDescriptions: string[] = [];
+    const collectDescriptions = (node: unknown, depth: number): void => {
+      if (depth > 6 || node === null || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        for (const item of node) collectDescriptions(item, depth + 1);
+        return;
+      }
+      for (const [key, value] of Object.entries(
+        node as Record<string, unknown>,
+      )) {
+        if (
+          typeof value === "string" &&
+          /^(description|abstract|headline|caption|disambiguatingDescription)$/i.test(
+            key,
+          )
+        ) {
+          jsonLdDescriptions.push(value);
+        } else {
+          collectDescriptions(value, depth + 1);
+        }
+      }
+    };
+    for (const script of Array.from(
+      document.querySelectorAll('script[type="application/ld+json"]'),
+    )) {
+      try {
+        collectDescriptions(JSON.parse(script.textContent ?? ""), 0);
+      } catch {
+        // A malformed JSON-LD block is a separate concern; skip it here.
+      }
+    }
+
+    const ariaLabels = Array.from(
+      document.querySelectorAll("[aria-label]"),
+    ).flatMap((element) => {
+      const value = element.getAttribute("aria-label")?.trim();
+      return value ? [value] : [];
+    });
+
+    // `title` on an element the user can reach is a tooltip they will read.
+    // `title` on <head> elements or SVG internals is not user-facing copy.
+    const titleAttributes = Array.from(
+      document.body.querySelectorAll("[title]"),
+    ).flatMap((element) => {
+      if (EXCLUDED.has(element.tagName.toUpperCase())) return [];
+      const value = element.getAttribute("title")?.trim();
+      return value ? [value] : [];
+    });
+
+    /**
+     * Accessible names of the interactive and landmark elements a screen
+     * reader announces. Computed the pragmatic way — explicit label wins,
+     * otherwise the element's own text — rather than reimplementing accname.
+     */
+    const accessibleNames = Array.from(
+      document.querySelectorAll(
+        'a, button, [role="button"], [role="link"], [role="region"], section, nav, figure, figcaption, img, [role="img"]',
+      ),
+    ).flatMap((element) => {
+      const labelledBy = element.getAttribute("aria-labelledby");
+      const labelled = labelledBy
+        ? labelledBy
+            .split(/\s+/)
+            .map((id) => document.getElementById(id)?.textContent ?? "")
+            .join(" ")
+        : "";
+      const value = (
+        element.getAttribute("aria-label") ||
+        labelled ||
+        element.getAttribute("alt") ||
+        (element.textContent ?? "")
+      ).trim();
+      return value ? [value] : [];
+    });
+
     return {
       chunks,
       leaves,
+      metaDescription: attribute('meta[name="description"]', "content"),
+      openGraphDescription: attribute(
+        'meta[property="og:description"]',
+        "content",
+      ),
+      twitterDescription:
+        attribute('meta[name="twitter:description"]', "content") ??
+        attribute('meta[property="twitter:description"]', "content"),
+      jsonLdDescriptions,
+      ariaLabels,
+      titleAttributes,
+      accessibleNames,
       html: document.documentElement.outerHTML,
     };
   });
+
+  const metadata = {
+    metaDescription: raw.metaDescription,
+    openGraphDescription: raw.openGraphDescription,
+    twitterDescription: raw.twitterDescription,
+    jsonLdDescriptions: raw.jsonLdDescriptions,
+    ariaLabels: raw.ariaLabels,
+    titleAttributes: raw.titleAttributes,
+    accessibleNames: raw.accessibleNames,
+  };
 
   return {
     text: normalize(raw.chunks.join(" ")),
     leaves: raw.leaves.map(normalize),
     rawLeaves: raw.leaves.map((value) => value.replace(/\s+/g, " ").trim()),
+    metadataText: normalize(
+      [
+        raw.metaDescription ?? "",
+        raw.openGraphDescription ?? "",
+        raw.twitterDescription ?? "",
+        ...raw.jsonLdDescriptions,
+        ...raw.ariaLabels,
+        ...raw.titleAttributes,
+        ...raw.accessibleNames,
+      ].join("   "),
+    ),
+    metadata,
     html: raw.html,
     disclosuresOpened,
   };
 }
 
 export interface SurfaceViolation {
-  kind: "phrase" | "standalone";
+  kind: "phrase" | "standalone" | "metadata";
   value: string;
 }
 
@@ -171,6 +332,11 @@ export function findViolations(scan: SurfaceScan): SurfaceViolation[] {
   for (const phrase of PROHIBITED_PHRASES) {
     if (scan.text.includes(phrase)) {
       violations.push({ kind: "phrase", value: phrase });
+    }
+    // Metadata is reported separately so a failure says whether the language
+    // is in the page or in what search engines and screen readers see.
+    if (scan.metadataText.includes(phrase)) {
+      violations.push({ kind: "metadata", value: phrase });
     }
   }
   for (const label of PROHIBITED_STANDALONE_LABELS) {
