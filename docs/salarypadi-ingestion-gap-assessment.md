@@ -240,20 +240,46 @@ Updated 2026-07-25, after the snapshot-safety work.
   (`employer_xml_json_feeds` / `employer_csv_import`) is evaluated before any
   network request or payload processing, and a per-feed `enabled` record cannot
   override it.
+- **Production persistence** via `SupabaseFeedRunStore`, which reuses the
+  existing ATS snapshot lifecycle (begin → bounded batches → finalize), so
+  feeds inherit its idempotency, acknowledgement checks, absence handling and
+  audit trail instead of getting a second ingestion system. A partial snapshot
+  is forwarded verbatim and can never close a job.
+- **Rights-compliant source evidence** captured before normalization
+  (`evidence.ts`), retaining the full payload only where the source policy
+  permits it — and the database re-checks that independently, so a caller
+  cannot widen it. Records excluded before normalization still leave evidence.
+- **Durable run metrics** in `private.feed_run_metrics`, recorded for every
+  attempt including those that never open a snapshot (policy blocked,
+  authorization expired, fetch failed).
 
 ### What does NOT exist
 
-- **No production persistence.** `FeedRunStore` has one implementation, an
-  in-memory store used by the tests. Nothing writes to Supabase.
 - **No scheduled generic-feed worker.** No Netlify function loads or runs these
-  feeds; the runtime is not reachable from any deployed entry point.
+  feeds, so nothing invokes the runtime on a schedule. The store is reachable
+  only from a caller that does not yet exist.
+- **No bounded streaming fetcher.** The runtime accepts an injected fetcher;
+  the production SSRF-safe, byte-counted, redirect-policed implementation is
+  not written.
 - **No authenticated CSV surface.** `uploadedPayload` is a function parameter,
   not an endpoint. There is no upload route, no authentication and no
   authorization binding an uploader to an employer.
-- **No durable metrics.** `FeedRunMetrics` is returned to the caller and
-  discarded; no table, no source-health integration.
-- **No rights-compliant source evidence.** The raw record is still derived
-  after normalization and is not a faithful pre-normalization artifact.
+- **No admin source-health surface for feeds.** Metrics are persisted but not
+  yet rendered at /admin/source-health.
+
+### What the verified-employer chain actually supports
+
+`security.can_manage_company(company_id)` exists and reads
+`private.company_memberships` where `status = 'verified'` and `revoked_at is
+null`. The chain that populates it is complete: `submit_company_claim` →
+moderation case → `transition_company_claim(..., 'verify', ...)` by a
+`data_quality` or `admin` role → membership insert, with revocation handled and
+every transition audited.
+
+It has never run. As of 2026-07-25 production holds **0 company claims and 0
+company memberships**, and no application code calls `can_manage_company`.
+The primitive is sufficient in principle for employer self-service; it is
+unexercised in practice, which is why the CSV path is not built on it yet.
 
 ### Current state
 
@@ -262,7 +288,8 @@ policies are `disabled` with unmet dependencies. **No employer feed has
 processed a production record, and none can.**
 
 The first production pilot remains blocked on: a real employer authorization,
-the production store, the scheduled worker, the authenticated CSV surface and
-durable metrics. This layer is extraction and safety orchestration only — it is
-not production-ready, not code complete, and the 20,000-active-jobs target is
-not merely supply-gated.
+the scheduled worker, the bounded streaming fetcher and the authenticated CSV
+surface. The persistence, evidence and metrics layers exist but have never
+processed a production record, because nothing invokes them on a schedule and
+no feed is authorized. This is not production-ready, not code complete, and the
+20,000-active-jobs target is not merely supply-gated.
