@@ -252,15 +252,19 @@ Updated 2026-07-25, after the snapshot-safety work.
 - **Durable run metrics** in `private.feed_run_metrics`, recorded for every
   attempt including those that never open a snapshot (policy blocked,
   authorization expired, fetch failed).
+- **A scheduled worker** (`netlify/functions/employer-feed-sync.mts`, six-hourly)
+  that loads only feeds passing both gates, bounds how many it attempts per
+  invocation, rotates fairly, respects a time budget, and records a durable
+  terminal outcome for every attempt. With no feed authorized it reports an
+  honest `skipped`, never a success.
+- **A bounded streaming fetcher** — HTTPS only, no credentials, no IP literals
+  or internal hosts, manually-followed redirects re-validated per hop and
+  refused off-domain, byte-counted body cancelled at the cap, bounded
+  `Retry-After`. A cut-short body is reported incomplete so it can never be
+  treated as authoritative.
 
 ### What does NOT exist
 
-- **No scheduled generic-feed worker.** No Netlify function loads or runs these
-  feeds, so nothing invokes the runtime on a schedule. The store is reachable
-  only from a caller that does not yet exist.
-- **No bounded streaming fetcher.** The runtime accepts an injected fetcher;
-  the production SSRF-safe, byte-counted, redirect-policed implementation is
-  not written.
 - **No authenticated CSV surface.** `uploadedPayload` is a function parameter,
   not an endpoint. There is no upload route, no authentication and no
   authorization binding an uploader to an employer.
@@ -287,9 +291,13 @@ unexercised in practice, which is why the CSV path is not built on it yet.
 policies are `disabled` with unmet dependencies. **No employer feed has
 processed a production record, and none can.**
 
-The first production pilot remains blocked on: a real employer authorization,
-the scheduled worker, the bounded streaming fetcher and the authenticated CSV
-surface. The persistence, evidence and metrics layers exist but have never
-processed a production record, because nothing invokes them on a schedule and
-no feed is authorized. This is not production-ready, not code complete, and the
-20,000-active-jobs target is not merely supply-gated.
+The first production pilot remains blocked on **a real employer authorization**
+and the authenticated CSV surface. The end-to-end machine path now exists —
+worker, fetcher, extraction, safety contract, persistence, evidence, metrics —
+and runs on a schedule, but it has **processed zero production records and
+cannot process any**, because no employer has authorized a feed and both global
+source policies are disabled. Every scheduled invocation reports `skipped`.
+
+This is not complete and not production-ready: nothing has been proven against
+a real employer feed. The 20,000-active-jobs target remains unmet, and current
+authorized daily capacity is 0 against a target of 500/day.
