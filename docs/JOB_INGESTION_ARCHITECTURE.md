@@ -152,11 +152,23 @@ demonstrated the gap — `canonical_greenhouse` backfilled 140 roles on its firs
 fetch and produced zero new roles in the four days after it.
 
 `scripts/measure-source-capacity.mjs` measures the rate from
-`audit.canonical_job_events`, excluding each source's first observed day and
-counting only publicly remote-eligible jobs so the measurement population
-matches what `api.get_job_supply_canary()` reports. The observed rate is
-floored, so a source posting less than one new role per day is credited zero
-rather than one. A source qualifies only after a full
+`audit.canonical_job_events`, counting only publicly remote-eligible jobs so the
+measurement population matches what `api.get_job_supply_canary()` reports. It
+reads the rate two ways and prefers the first:
+
+1. **By posting date** — roles the board itself says were posted on or after we
+   first saw it. This is the definition we want and it does not care how long
+   our own ingestion took. It needs `posted_at`, which the Workable adapters
+   populate and the Greenhouse adapters currently leave null.
+2. **By ingestion day** — roles first ingested after the first observed day.
+   This is the fallback for sources without posting dates, and it assumes the
+   backfill finished within one day. Production has already violated that
+   assumption: `moniepoint_greenhouse` ingested 22 pre-existing roles on 7/21
+   and another 49 on 7/22, so the fallback reads 52 new roles where the board
+   actually published none.
+
+The observed rate is floored, so a source posting less than one new role per day
+is credited zero rather than one. A source qualifies only after a full
 `private.job_supply_targets.pilot_days` window of post-backfill observation; the
 script emits reviewable `docs/data/` SQL for qualifying sources only and never
 writes to the database itself.

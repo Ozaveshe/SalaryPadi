@@ -57,17 +57,33 @@ where security.job_source_policy_is_runnable(id);
  * `api.get_job_supply_canary()` applies when it reports the target. Measuring a
  * broader population than the target counts would credit capacity the canary
  * will never see.
+ *
+ * Reports two independent readings of the same question, because neither works
+ * everywhere:
+ *
+ * - `new_by_posted_at` counts roles the board says were posted on or after we
+ *   first saw it. This is the definition we actually want and it is immune to
+ *   how long our own ingestion took. It requires `posted_at`, which the Workable
+ *   adapters populate and the Greenhouse adapters leave null.
+ * - `new_by_day` counts roles first ingested after the first observed day. It
+ *   works without `posted_at` but assumes the backfill completed within one day,
+ *   which production has already violated: moniepoint_greenhouse ingested 22
+ *   roles on 7/21 and another 49 on 7/22, all of them pre-existing.
+ *
+ * `classifySource` prefers the posted_at reading and falls back to the day
+ * reading only when the source has no posting dates at all.
  */
 export const MEASUREMENT_QUERY = `
 with events as (
-  select job.source_id, event.created_at
+  select job.source_id, job.posted_at, event.created_at
   from audit.canonical_job_events event
   join app.jobs job on job.id = event.canonical_job_id
   where event.event_type = 'canonical_created'
     and security.job_is_public_remote_eligible(job.id)
 ),
-first_day as (
-  select source_id, min(created_at)::date as backfill_day
+first_seen as (
+  select source_id, min(created_at) as first_seen_at,
+    min(created_at)::date as backfill_day
   from events
   group by source_id
 )
@@ -75,23 +91,28 @@ select
   source.adapter_key,
   source.expected_daily_new_canonical as recorded_expected,
   source.expected_capacity_evidence_ref as recorded_evidence,
-  first_day.backfill_day,
-  (current_date - first_day.backfill_day)::integer as observation_days,
+  first_seen.backfill_day,
+  (current_date - first_seen.backfill_day)::integer as observation_days,
+  count(events.created_at)::integer as total_count,
+  count(events.posted_at)::integer as with_posted_at,
   count(events.created_at) filter (
-    where events.created_at::date = first_day.backfill_day
+    where events.created_at::date = first_seen.backfill_day
   )::integer as backfill_count,
   count(events.created_at) filter (
-    where events.created_at::date > first_day.backfill_day
-  )::integer as steady_state_count
+    where events.created_at::date > first_seen.backfill_day
+  )::integer as new_by_day,
+  count(events.created_at) filter (
+    where events.posted_at >= first_seen.first_seen_at
+  )::integer as new_by_posted_at
 from app.job_sources source
-join first_day on first_day.source_id = source.id
+join first_seen on first_seen.source_id = source.id
 left join events on events.source_id = source.id
 where security.job_source_policy_is_runnable(source.id)
 group by
   source.adapter_key,
   source.expected_daily_new_canonical,
   source.expected_capacity_evidence_ref,
-  first_day.backfill_day
+  first_seen.backfill_day
 order by source.adapter_key;
 `;
 
@@ -111,13 +132,28 @@ export function observedDailyRate(steadyStateCount, observationDays) {
   return Math.floor(steadyStateCount / observationDays);
 }
 
+/**
+ * Prefers the board's own posting dates over our ingestion dates. The day-based
+ * reading counts anything ingested after day one as new, so a backfill spread
+ * across two days is credited as steady-state supply that does not exist.
+ */
+export function selectMeasurement(row) {
+  if (row.with_posted_at === row.total_count && row.total_count > 0) {
+    return { method: "posted_at", steady_state_count: row.new_by_posted_at };
+  }
+  return { method: "observed_day", steady_state_count: row.new_by_day };
+}
+
 export function classifySource(row, pilotDays) {
   if (!Number.isInteger(pilotDays) || pilotDays < 1) {
     throw new Error("pilotDays must be a positive integer");
   }
+  const { method, steady_state_count } = selectMeasurement(row);
   if (row.observation_days < pilotDays) {
     return {
       ...row,
+      method,
+      steady_state_count,
       qualifies: false,
       reason: `observed ${row.observation_days}d of ${pilotDays}d pilot window`,
       observed_daily: null,
@@ -125,12 +161,14 @@ export function classifySource(row, pilotDays) {
   }
   return {
     ...row,
+    method,
+    steady_state_count,
     qualifies: true,
-    reason: "full pilot window observed",
-    observed_daily: observedDailyRate(
-      row.steady_state_count,
-      row.observation_days,
-    ),
+    reason:
+      method === "posted_at"
+        ? "full pilot window observed, measured by posting date"
+        : "full pilot window observed, measured by ingestion day (no posting dates)",
+    observed_daily: observedDailyRate(steady_state_count, row.observation_days),
   };
 }
 
@@ -204,7 +242,8 @@ export function formatReportRow(row) {
     `backfill=${String(row.backfill_count).padStart(4)} ` +
     `new=${String(row.steady_state_count).padStart(4)} ` +
     `days=${String(row.observation_days).padStart(3)} ` +
-    `rate=${rate.padStart(8)}  ${row.reason}`
+    `rate=${rate.padStart(8)} ` +
+    `via=${row.method.padEnd(12)} ${row.reason}`
   );
 }
 

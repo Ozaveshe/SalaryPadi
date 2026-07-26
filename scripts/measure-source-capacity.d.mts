@@ -1,11 +1,16 @@
+export type MeasurementMethod = "posted_at" | "observed_day";
+
 export type MeasuredSourceRow = {
   adapter_key: string;
   recorded_expected: number | null;
   recorded_evidence: string | null;
   backfill_day: string;
   observation_days: number;
+  total_count: number;
+  with_posted_at: number;
   backfill_count: number;
-  steady_state_count: number;
+  new_by_day: number;
+  new_by_posted_at: number;
 };
 
 export type SupplyTarget = {
@@ -14,6 +19,8 @@ export type SupplyTarget = {
 };
 
 export type ClassifiedSourceRow = MeasuredSourceRow & {
+  method: MeasurementMethod;
+  steady_state_count: number;
   qualifies: boolean;
   reason: string;
   observed_daily: number | null;
@@ -41,6 +48,11 @@ export function observedDailyRate(
   steadyStateCount: number,
   observationDays: number,
 ): number;
+
+export function selectMeasurement(row: MeasuredSourceRow): {
+  method: MeasurementMethod;
+  steady_state_count: number;
+};
 
 export function classifySource(
   row: MeasuredSourceRow,

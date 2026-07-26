@@ -6,6 +6,7 @@ import {
   observedDailyRate,
   registrationSql,
   runCli,
+  selectMeasurement,
   summarize,
 } from "../../../scripts/measure-source-capacity.mjs";
 
@@ -13,13 +14,16 @@ const target = { target_daily_new_canonical: 500, pilot_days: 14 };
 
 function row(overrides: Record<string, unknown> = {}) {
   return {
-    adapter_key: "example_greenhouse",
+    adapter_key: "example_workable",
     recorded_expected: null,
     recorded_evidence: null,
     backfill_day: "2026-07-01",
     observation_days: 20,
+    total_count: 180,
+    with_posted_at: 180,
     backfill_count: 140,
-    steady_state_count: 40,
+    new_by_day: 40,
+    new_by_posted_at: 40,
     ...overrides,
   };
 }
@@ -37,19 +41,35 @@ describe("observedDailyRate", () => {
   });
 });
 
-describe("classifySource", () => {
-  // The failure this whole script exists to prevent: a board's first fetch
-  // backfills every role it already had open. Crediting that spike as a daily
-  // rate overstates capacity by one to two orders of magnitude.
-  it("excludes the first-fetch backfill from the measured rate", () => {
-    const classified = classifySource(
-      row({
-        backfill_count: 140,
-        steady_state_count: 40,
-        observation_days: 20,
-      }),
-      14,
+describe("selectMeasurement", () => {
+  it("prefers posting dates when the source reports them for every job", () => {
+    expect(
+      selectMeasurement(row({ new_by_posted_at: 5, new_by_day: 60 })),
+    ).toEqual({ method: "posted_at", steady_state_count: 5 });
+  });
+
+  it("falls back to ingestion day when the source has no posting dates", () => {
+    expect(
+      selectMeasurement(
+        row({ with_posted_at: 0, new_by_posted_at: 0, new_by_day: 60 }),
+      ),
+    ).toEqual({ method: "observed_day", steady_state_count: 60 });
+  });
+
+  // moniepoint_greenhouse ingested 22 pre-existing roles on 7/21 and another 49
+  // on 7/22. Reading only the ingestion day credits those 49 as new supply.
+  it("does not credit a backfill that spilled into a second day", () => {
+    const measured = selectMeasurement(
+      row({ backfill_count: 22, new_by_day: 49, new_by_posted_at: 0 }),
     );
+    expect(measured.method).toBe("posted_at");
+    expect(measured.steady_state_count).toBe(0);
+  });
+});
+
+describe("classifySource", () => {
+  it("excludes the first-fetch backfill from the measured rate", () => {
+    const classified = classifySource(row(), 14);
     expect(classified.qualifies).toBe(true);
     expect(classified.observed_daily).toBe(2);
   });
@@ -63,11 +83,25 @@ describe("classifySource", () => {
 
   it("measures a board that backfilled but has posted nothing since as zero", () => {
     const classified = classifySource(
-      row({ backfill_count: 206, steady_state_count: 0, observation_days: 30 }),
+      row({
+        backfill_count: 206,
+        new_by_day: 0,
+        new_by_posted_at: 0,
+        observation_days: 30,
+      }),
       14,
     );
     expect(classified.qualifies).toBe(true);
     expect(classified.observed_daily).toBe(0);
+  });
+
+  it("names the fallback method when a source has no posting dates", () => {
+    const classified = classifySource(
+      row({ with_posted_at: 0, new_by_day: 40, new_by_posted_at: 0 }),
+      14,
+    );
+    expect(classified.method).toBe("observed_day");
+    expect(classified.reason).toContain("no posting dates");
   });
 });
 
@@ -75,8 +109,13 @@ describe("summarize", () => {
   it("sums only sources that completed the pilot window", () => {
     const summary = summarize(
       [
-        row({ adapter_key: "a", steady_state_count: 40, observation_days: 20 }),
-        row({ adapter_key: "b", steady_state_count: 900, observation_days: 2 }),
+        row({ adapter_key: "a" }),
+        row({
+          adapter_key: "b",
+          new_by_posted_at: 900,
+          new_by_day: 900,
+          observation_days: 2,
+        }),
       ],
       target,
     );
@@ -91,7 +130,7 @@ describe("registrationSql", () => {
     const sql = registrationSql(summary.qualifying, "2026-08-15", target);
     expect(sql).toContain("expected_daily_new_canonical = 2");
     expect(sql).toContain(
-      "'measured:2026-08-15:example_greenhouse:40-new-over-20d'",
+      "'measured:2026-08-15:example_workable:40-new-over-20d'",
     );
     expect(sql).toContain("-- Credited capacity from this file: 2/day.");
   });
@@ -121,7 +160,9 @@ describe("runCli", () => {
       read: async () => ({
         target,
         counts: { runnable: 108, with_evidence: 0 },
-        measured: [row({ observation_days: 1, steady_state_count: 0 })],
+        measured: [
+          row({ observation_days: 1, new_by_day: 0, new_by_posted_at: 0 }),
+        ],
       }),
     });
     expect(exitCode).toBe(EXIT_CODES.no_qualifying_sources);
