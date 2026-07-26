@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "note": "Third-party platform domains that employers sometimes put in an ATS 'website' field. Board discovery must never record one of these as a company's own website_domain, because doing so would assert the employer owns the platform. This is an identity guard for registration only. It is not a data source, and nothing here is ingested, ranked, or displayed.",
+  "domains": [
+    "linkedin.com",
+    "facebook.com",
+    "twitter.com",
+    "x.com",
+    "instagram.com",
+    "youtube.com",
+    "google.com",
+    "sites.google.com",
+    "notion.site",
+    "medium.com",
+    "wixsite.com",
+    "wordpress.com",
+    "blogspot.com",
+    "bit.ly",
+    "linktr.ee",
+    "workable.com",
+    "apply.workable.com",
+    "jobs.workable.com"
+  ]
+}

@@ -131,9 +131,14 @@ export function assertAtsFinalizeAcknowledgement(
     throw new OperationalError("ats_import_finalize_ack_mismatch");
   }
 }
+// Bounds the registry the worker will read, NOT how much it does per run --
+// MAX_SOURCES_PER_RUN still claims exactly one source per invocation. The cap
+// was 50, which silently failed every run with `ats_source_registry_invalid`
+// once the authorized board count passed it, so it is sized well clear of the
+// current roster while still refusing an implausibly large registry.
 const authorizedPoliciesEnvelopeSchema = z
   .array(z.record(z.string(), z.unknown()))
-  .max(50);
+  .max(400);
 const claimedPolicyEnvelopeSchema = z.record(z.string(), z.unknown());
 const rpcShapeErrorCodes: Record<string, string> = {
   worker_list_authorized_ats_sources: "ats_source_registry_invalid",
