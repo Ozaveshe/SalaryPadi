@@ -103,7 +103,11 @@ async function getJson(url) {
       signal: AbortSignal.timeout(20_000),
     });
     if (!response.ok) return { ok: false, status: response.status, json: null };
-    return { ok: true, status: response.status, json: await readBoundedJson(response) };
+    return {
+      ok: true,
+      status: response.status,
+      json: await readBoundedJson(response),
+    };
   } catch {
     return { ok: false, status: 0, json: null };
   }
@@ -162,7 +166,13 @@ async function searchMarket(market, companies) {
   console.log(
     `  ${market.location.padEnd(14)} totalSize=${String(totalSize ?? "?").padStart(5)} pages=${String(pages).padStart(3)} jobsSeen=${String(seen).padStart(5)} distinctBoards=${companies.size}`,
   );
-  return { market: market.code, location: market.location, totalSize, pages, seen };
+  return {
+    market: market.code,
+    location: market.location,
+    totalSize,
+    pages,
+    seen,
+  };
 }
 
 function summarizeWidget(payload) {
@@ -176,7 +186,8 @@ function summarizeWidget(payload) {
     if (country) countries.add(country);
     if (AFRICAN_COUNTRIES.has(country.toLowerCase())) africanRoles += 1;
     const published = job.published_on ?? null;
-    if (published && (newest === null || published > newest)) newest = published;
+    if (published && (newest === null || published > newest))
+      newest = published;
   }
   return {
     totalRoles: jobs.length,
@@ -190,11 +201,19 @@ function summarizeWidget(payload) {
 
 function classify(board) {
   const evidence = board.evidence;
-  if (!evidence) return { status: "unreachable", reason: "widget endpoint did not return a job array" };
+  if (!evidence)
+    return {
+      status: "unreachable",
+      reason: "widget endpoint did not return a job array",
+    };
   if (KNOWN_AGGREGATORS.has(board.boardIdentifier)) {
-    return { status: "probed_rejected", reason: "aggregator_board: republishes other employers' postings" };
+    return {
+      status: "probed_rejected",
+      reason: "aggregator_board: republishes other employers' postings",
+    };
   }
-  if (evidence.totalRoles === 0) return { status: "probed_zero", reason: "no open roles at probe" };
+  if (evidence.totalRoles === 0)
+    return { status: "probed_zero", reason: "no open roles at probe" };
   if (
     evidence.totalRoles >= AGGREGATOR_ROLE_FLOOR &&
     evidence.countryCount >= AGGREGATOR_COUNTRY_FLOOR
@@ -205,7 +224,8 @@ function classify(board) {
     };
   }
   if (evidence.newestPostingDate) {
-    const ageDays = (Date.now() - Date.parse(evidence.newestPostingDate)) / 86_400_000;
+    const ageDays =
+      (Date.now() - Date.parse(evidence.newestPostingDate)) / 86_400_000;
     if (ageDays > ZOMBIE_AGE_DAYS) {
       return {
         status: "probed_rejected",
@@ -214,7 +234,10 @@ function classify(board) {
     }
   }
   if (evidence.africanRoles === 0) {
-    return { status: "probed_zero", reason: "no African roles on the board at probe" };
+    return {
+      status: "probed_zero",
+      reason: "no African roles on the board at probe",
+    };
   }
   return { status: "ready_for_rights_review", reason: null };
 }
@@ -254,9 +277,12 @@ async function main() {
   const markets = only
     ? MARKETS.filter((m) => only.split(",").includes(m.code))
     : MARKETS;
-  const verifyLimit = Number.parseInt(arg("--verify", "0") ?? "0", 10) || Infinity;
+  const verifyLimit =
+    Number.parseInt(arg("--verify", "0") ?? "0", 10) || Infinity;
 
-  console.log(`Searching ${markets.length} markets on Workable's public job search:`);
+  console.log(
+    `Searching ${markets.length} markets on Workable's public job search:`,
+  );
   const companies = new Map();
   const marketStats = [];
   for (const market of markets) {
@@ -267,7 +293,9 @@ async function main() {
   const boards = [...companies.values()].sort(
     (a, b) => b.searchHits - a.searchHits,
   );
-  console.log(`\nDistinct boards discovered: ${boards.length}. Verifying against the widget endpoint...\n`);
+  console.log(
+    `\nDistinct boards discovered: ${boards.length}. Verifying against the widget endpoint...\n`,
+  );
 
   let verified = 0;
   for (const board of boards) {
@@ -297,7 +325,9 @@ async function main() {
     ...board,
     markets: [...board.markets],
   }));
-  const ready = serializable.filter((b) => b.status === "ready_for_rights_review");
+  const ready = serializable.filter(
+    (b) => b.status === "ready_for_rights_review",
+  );
   const counts = serializable.reduce((acc, b) => {
     acc[b.status] = (acc[b.status] ?? 0) + 1;
     return acc;
@@ -313,11 +343,18 @@ async function main() {
     toCsv(ready.filter((b) => b.canonicalDomain)),
   );
 
-  const africanRoleTotal = ready.reduce((sum, b) => sum + (b.evidence?.africanRoles ?? 0), 0);
+  const africanRoleTotal = ready.reduce(
+    (sum, b) => sum + (b.evidence?.africanRoles ?? 0),
+    0,
+  );
   console.log(`\n=== Discovery summary ===`);
   console.log(JSON.stringify(counts, null, 2));
-  console.log(`Ready for rights review: ${ready.length} boards, ${africanRoleTotal} African roles.`);
-  console.log(`Wrote output/workable-discovery.json and output/workable-candidates.csv.`);
+  console.log(
+    `Ready for rights review: ${ready.length} boards, ${africanRoleTotal} African roles.`,
+  );
+  console.log(
+    `Wrote output/workable-discovery.json and output/workable-candidates.csv.`,
+  );
 }
 
 await main();

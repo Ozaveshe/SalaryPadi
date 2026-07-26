@@ -47,7 +47,10 @@ function adapterKey(slug) {
 // match. The list is data, so it lives in config/ next to the board registry.
 const NON_CORPORATE_DOMAINS = new Set(
   JSON.parse(
-    readFileSync(resolve(process.cwd(), "config/non-corporate-domains.json"), "utf8"),
+    readFileSync(
+      resolve(process.cwd(), "config/non-corporate-domains.json"),
+      "utf8",
+    ),
   ).domains,
 );
 
@@ -78,7 +81,10 @@ async function readBoundedText(response) {
 // a real check with recorded evidence, not an assumed verification.
 async function verifyDomain(board) {
   if (!board.canonicalDomain || !board.website) {
-    return { verified: false, evidence: "no official website on the board record" };
+    return {
+      verified: false,
+      evidence: "no official website on the board record",
+    };
   }
   if (NON_CORPORATE_DOMAINS.has(board.canonicalDomain)) {
     return {
@@ -93,11 +99,22 @@ async function verifyDomain(board) {
       signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) {
-      return { verified: false, evidence: `site returned HTTP ${response.status}` };
+      return {
+        verified: false,
+        evidence: `site returned HTTP ${response.status}`,
+      };
     }
-    const finalHost = new URL(response.url).hostname.toLowerCase().replace(/^www\./, "");
-    if (finalHost !== board.canonicalDomain && !finalHost.endsWith(`.${board.canonicalDomain}`)) {
-      return { verified: false, evidence: `redirects off-domain to ${finalHost}` };
+    const finalHost = new URL(response.url).hostname
+      .toLowerCase()
+      .replace(/^www\./, "");
+    if (
+      finalHost !== board.canonicalDomain &&
+      !finalHost.endsWith(`.${board.canonicalDomain}`)
+    ) {
+      return {
+        verified: false,
+        evidence: `redirects off-domain to ${finalHost}`,
+      };
     }
     const html = (await readBoundedText(response)).toLowerCase();
     const tokens = board.companyName
@@ -106,7 +123,10 @@ async function verifyDomain(board) {
       .filter((t) => t.length >= 4);
     const matched = tokens.length === 0 || tokens.some((t) => html.includes(t));
     if (!matched) {
-      return { verified: false, evidence: "official site does not mention the company name" };
+      return {
+        verified: false,
+        evidence: "official site does not mention the company name",
+      };
     }
     return {
       verified: true,
@@ -145,11 +165,16 @@ async function main() {
 
   const ready = discovery.boards
     .filter((b) => b.status === "ready_for_rights_review")
-    .filter((b) => b.canonicalDomain && (b.evidence?.africanRoles ?? 0) >= minAfrican)
+    .filter(
+      (b) => b.canonicalDomain && (b.evidence?.africanRoles ?? 0) >= minAfrican,
+    )
     // A board whose stated site is a third-party platform has no domain we can
     // honestly record on the company row, so it is not registered at all.
     .filter((b) => !NON_CORPORATE_DOMAINS.has(b.canonicalDomain))
-    .sort((a, b) => (b.evidence?.africanRoles ?? 0) - (a.evidence?.africanRoles ?? 0))
+    .sort(
+      (a, b) =>
+        (b.evidence?.africanRoles ?? 0) - (a.evidence?.africanRoles ?? 0),
+    )
     .slice(0, limit);
 
   console.log(`Checking employer domains for ${ready.length} boards...\n`);
@@ -162,8 +187,12 @@ async function main() {
   }
 
   const verified = ready.filter((b) => b.domainCheck.verified);
-  const keys = ready.map((b) => `'${adapterKey(b.boardIdentifier)}'`).join(", ");
-  const automaticKeys = verified.map((b) => `'${adapterKey(b.boardIdentifier)}'`).join(", ");
+  const keys = ready
+    .map((b) => `'${adapterKey(b.boardIdentifier)}'`)
+    .join(", ");
+  const automaticKeys = verified
+    .map((b) => `'${adapterKey(b.boardIdentifier)}'`)
+    .join(", ");
 
   const sql = `-- Register ${ready.length} employer Workable boards discovered by
 -- scripts/discover-workable-tenants.mjs on ${discovery.discoveredAt}, verified ${TODAY}.
@@ -367,9 +396,14 @@ order by row.adapter_key;
 `;
 
   mkdirSync(resolve(process.cwd(), "docs/data"), { recursive: true });
-  const outPath = resolve(process.cwd(), `docs/data/${TODAY.replaceAll("-", "")}_register_workable_boards.sql`);
+  const outPath = resolve(
+    process.cwd(),
+    `docs/data/${TODAY.replaceAll("-", "")}_register_workable_boards.sql`,
+  );
   writeFileSync(outPath, sql);
-  console.log(`\n${ready.length} boards (${verified.length} domain-verified -> automatic, ${ready.length - verified.length} -> review).`);
+  console.log(
+    `\n${ready.length} boards (${verified.length} domain-verified -> automatic, ${ready.length - verified.length} -> review).`,
+  );
   console.log(`Automatic keys: ${automaticKeys || "(none)"}`);
   console.log(`Wrote ${outPath}`);
 }
