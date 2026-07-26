@@ -1,0 +1,16 @@
+-- Recorded-only migration. Intentionally a no-op.
+--
+-- This version exists in the production migration ledger with an EMPTY
+-- statements array: it was recorded by `supabase migration repair`, never
+-- replayed. It is the drift that caused the July 2026 worker-health outage —
+-- it left an `employer_feed_sync` row in private.worker_schedules with no
+-- deployed worker, and /api/health could not report a task_key its registry
+-- did not know.
+--
+-- The row it created is now managed explicitly by
+-- 20260725120000 (disable, no worker) and 20260726090000 (enable, worker
+-- shipped). This file exists so local and remote migration histories agree,
+-- so `supabase db push` works without a destructive `migration repair`.
+--
+-- Do not add statements here. Change the schedule in a later migration.
+select 1;

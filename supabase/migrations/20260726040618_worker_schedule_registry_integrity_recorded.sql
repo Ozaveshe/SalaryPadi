@@ -1,0 +1,12 @@
+-- Recorded-only migration. Intentionally a no-op.
+--
+-- On 2026-07-26 the contents of 20260725120000_worker_schedule_registry_integrity
+-- were applied to production through the Supabase management API, which stamped
+-- the ledger with its own version (20260726040618) rather than the file's.
+--
+-- The effect is identical and already applied; 20260725120000 is idempotent, so
+-- replaying it changes nothing. This file exists so local and remote migration
+-- histories agree.
+--
+-- Do not add statements here.
+select 1;
