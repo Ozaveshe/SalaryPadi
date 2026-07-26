@@ -38,7 +38,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Salary intelligence",
     description:
-      "Search privacy-thresholded, confidence-labelled salary evidence by role, company and country.",
+      "Compare salary information from anonymous community contributions, disclosed-pay jobs and reviewed international statistics.",
     alternates: {
       canonical: "/salaries",
       languages: countryAlternates(getAppOrigin(), "/salaries").languages,
@@ -148,7 +148,7 @@ export default async function SalariesPage({
       <PageHeading
         eyebrow="Salary intelligence"
         title="Compare pay with the evidence attached"
-        description="Community contributions and verified online benchmarks stay in separate, clearly labelled lanes. Original currency, period, geography, source, date range and confidence remain visible."
+        description="Compare salary information from anonymous community contributions, disclosed-pay jobs and reviewed international statistics. Each is shown separately and clearly labelled, with its original currency, period, place, source and dates."
       />
       <form
         className="home-search"

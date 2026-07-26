@@ -242,24 +242,39 @@ export default async function CompanyPage({
           </dl>
         </section>
       ) : null}
+      {/* Data-availability notices stay with the candidate content they
+          describe; the governance actions below do not. */}
+      <CombinedRepositoryNotice
+        resource="Company intelligence"
+        results={[
+          ratingResult,
+          reviewsResult,
+          interviewsResult,
+          benefitsResult,
+          salaryAggregatesResult,
+          employerResponsesResult,
+        ]}
+      />
+      <CompanyEvidenceDetails
+        company={company}
+        citedJobSources={citedJobSources}
+      />
+      {/*
+        Corrections, appeals and takedown are demoted beneath the evidence
+        drawer. They remain fully reachable — no route is removed — but a
+        candidate deciding whether to apply should not meet takedown actions
+        before the company's jobs, salaries and reviews.
+      */}
       <section
-        className="rule-section stack"
+        className="company-governance-links"
         aria-labelledby="company-requests-heading"
       >
-        <h2 className="section-title" id="company-requests-heading">
+        <h2
+          className="text-muted m-0 text-sm font-bold"
+          id="company-requests-heading"
+        >
           Corrections and requests
         </h2>
-        <CombinedRepositoryNotice
-          resource="Company intelligence"
-          results={[
-            ratingResult,
-            reviewsResult,
-            interviewsResult,
-            benefitsResult,
-            salaryAggregatesResult,
-            employerResponsesResult,
-          ]}
-        />
         <div className="cluster">
           <Link className="text-link" href="/company-intelligence/requests">
             Report, correct, appeal or request takedown
@@ -272,10 +287,6 @@ export default async function CompanyPage({
           </Link>
         </div>
       </section>
-      <CompanyEvidenceDetails
-        company={company}
-        citedJobSources={citedJobSources}
-      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   ARTIFACT_DIR,
   captureRoute,
   findViolations,
+  normalize,
   scanCustomerSurface,
   settle,
   visit,
@@ -228,6 +229,47 @@ test("pinned company profile is live with all six tabs", async ({ page }) => {
   const drawer = page.locator("details.evidence-details");
   await expect(drawer).toHaveCount(1);
 
+  // Governance actions (correct, appeal, takedown) sit BELOW the candidate
+  // decision content and the evidence drawer, never above it.
+  const order = await page.evaluate(() => {
+    const governance = document.querySelector(
+      '[aria-labelledby="company-requests-heading"]',
+    );
+    const evidence = document.querySelector("details.evidence-details");
+    const overview = document.querySelector("main h1, .page-title");
+    if (!governance || !evidence || !overview) return null;
+    const position = (node: Element) =>
+      overview.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING
+        ? 1
+        : -1;
+    return {
+      governanceAfterOverview: position(governance) === 1,
+      governanceAfterEvidence: Boolean(
+        evidence.compareDocumentPosition(governance) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    };
+  });
+  expect(order, "Company page structure could not be resolved.").not.toBeNull();
+  expect(
+    order?.governanceAfterOverview,
+    "Governance links appear above the company overview.",
+  ).toBe(true);
+  expect(
+    order?.governanceAfterEvidence,
+    "Governance links appear above the evidence drawer.",
+  ).toBe(true);
+
+  // Demoted, not removed: every correction route stays reachable.
+  await expect(
+    page.getByRole("link", {
+      name: /Report, correct, appeal or request takedown/i,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /Request contribution deletion/i }),
+  ).toBeVisible();
+
   // The employer path leaves the candidate profile.
   await expect(
     page.getByRole("link", { name: /Are you this employer/i }),
@@ -265,6 +307,19 @@ test("salary surface keeps its lanes and reference-period wording", async ({
   expect(hub.text).not.toContain("evidence date range");
   expect(hub.text).not.toContain("evidence lane");
 
+  // The three lanes are stable: they render regardless of search state, so the
+  // information architecture never changes shape between queries.
+  for (const lane of [
+    "Local salary evidence",
+    "Jobs with disclosed pay",
+    "International remote benchmarks",
+  ]) {
+    await expect(
+      page.getByRole("heading", { name: lane, exact: true }),
+      `Salary lane "${lane}" is missing.`,
+    ).toBeVisible();
+  }
+
   // A role page is part of the customer surface too.
   const roleHref = await firstHref(page, 'a[href^="/salaries/ng/"]');
   expect(roleHref, "/salaries exposes no role page to audit.").toBeTruthy();
@@ -288,6 +343,67 @@ test("insights shows the pulse with scope, period and limitations", async ({
       `Insights is missing its "${marker}" statement.`,
     ).toContain(marker);
   }
+
+  // Internal feed keys are never customer-facing names.
+  for (const key of ["jobicy", "himalayas", "reliefweb", "database"]) {
+    expect(
+      scan.rawLeaves,
+      `Insights rendered the raw source key "${key}".`,
+    ).not.toContain(key);
+  }
+});
+
+/* ------------------- metadata and accessible-name language -------------- */
+
+/**
+ * Implementation vocabulary in a meta description reaches search results, and
+ * in an aria-label it reaches screen-reader users. Neither is body copy, so
+ * neither was scanned before; both are customer-facing.
+ */
+test("customer-facing metadata carries no implementation language", async ({
+  page,
+}) => {
+  for (const route of ["/", "/jobs", "/salaries", "/insights", "/companies"]) {
+    await visit(page, route);
+    const scan = await scanCustomerSurface(page);
+    const violations = findViolations(scan).filter(
+      (violation) => violation.kind === "metadata",
+    );
+    expect(
+      violations,
+      `${route}: prohibited language in metadata ${JSON.stringify(violations)}`,
+    ).toEqual([]);
+    expect(
+      scan.metadata.metaDescription,
+      `${route} has no meta description to audit.`,
+    ).toBeTruthy();
+  }
+});
+
+test("aria-labels and JSON-LD descriptions use customer language", async ({
+  page,
+}) => {
+  await visit(page, "/insights");
+  const scan = await scanCustomerSurface(page);
+  const labels = scan.metadata.ariaLabels.map((value) => value.toLowerCase());
+  expect(labels).not.toContain("snapshot counts");
+  expect(scan.metadata.ariaLabels.length).toBeGreaterThan(0);
+
+  for (const description of scan.metadata.jsonLdDescriptions) {
+    expect(normalize(description)).not.toContain("privacy-thresholded");
+  }
+});
+
+test("opened disclosures are part of the audited surface", async ({ page }) => {
+  // A prohibited label inside a collapsed <details> is still shipped. This
+  // asserts the scanner really opens them rather than reporting zero.
+  await visit(page, `/companies/${PINNED_COMPANY}`);
+  const scan = await scanCustomerSurface(page);
+  expect(
+    scan.disclosuresOpened,
+    "No disclosure was opened; collapsed content would go unaudited.",
+  ).toBeGreaterThan(0);
+  expect(findViolations(scan)).toEqual([]);
 });
 
 /* ----------------------------- contribute ------------------------------ */

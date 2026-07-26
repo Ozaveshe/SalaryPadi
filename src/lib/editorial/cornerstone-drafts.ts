@@ -134,7 +134,7 @@ Use scenarios for uncertain exchange rates or bonuses. The “better” offer ma
     status: "draft",
     humanApprovalRequired: true,
     evidenceRequirements: [
-      "Privacy-thresholded salary methodology",
+      "Salary methodology, including the minimum-cohort privacy rule",
       "Current role and location evidence",
     ],
     internalLinks: ["/salaries", "/tools/offer-compare", "/companies"],
@@ -291,7 +291,7 @@ An empty interview section is an honest state, not evidence of a good or bad pro
     slug: "how-salarypadi-builds-company-intelligence",
     title: "How SalaryPadi builds company intelligence",
     description:
-      "The separation between cited official facts and privacy-thresholded community evidence.",
+      "The separation between cited official facts and community contributions, which are only published as a group.",
     status: "draft",
     humanApprovalRequired: true,
     evidenceRequirements: [
