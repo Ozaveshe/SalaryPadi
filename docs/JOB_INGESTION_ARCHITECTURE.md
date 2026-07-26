@@ -142,6 +142,25 @@ The target is 500 distinct, validated `canonical_created` events per UTC day aft
 
 The 15-minute ATS dispatcher removes the previous twelve-claims/day global ceiling and permits up to 96 bounded source claims/day. This is scheduling capacity, not data capacity or permission. An adapter contributes to `authorized_daily_capacity` only after a current rights record and a source-specific evidence reference support its expected distinct canonical yield. The planned portfolio must exceed 500/day after measured duplicate and rejection rates; no placeholder projection is credited.
 
+### Measuring a source's expected daily yield
+
+`expected_daily_new_canonical` is the steady-state rate of new postings a source
+produces. It is not what a board's first fetch shows: the first fetch backfills
+every role the board already had open, so crediting that spike as a daily rate
+overstates capacity by one to two orders of magnitude. Production has already
+demonstrated the gap — `canonical_greenhouse` backfilled 140 roles on its first
+fetch and produced zero new roles in the four days after it.
+
+`scripts/measure-source-capacity.mjs` measures the rate from
+`audit.canonical_job_events`, excluding each source's first observed day and
+counting only publicly remote-eligible jobs so the measurement population
+matches what `api.get_job_supply_canary()` reports. The observed rate is
+floored, so a source posting less than one new role per day is credited zero
+rather than one. A source qualifies only after a full
+`private.job_supply_targets.pilot_days` window of post-backfill observation; the
+script emits reviewable `docs/data/` SQL for qualifying sources only and never
+writes to the database itself.
+
 Operational activation order is: direct employer submissions, licensed remote-job partner feeds, then individually authorized Greenhouse/Lever/Ashby boards, followed by reviewed humanitarian/public APIs. Add one source at a time, run a disabled dry run, inspect accepted/filtered/quarantined counts, then enable it only after current permission, retention, attribution, indexing and email rights are recorded. Remotive remains outside this capacity until its republication conflict is resolved in writing.
 
 An HTML adapter, if later approved, additionally requires a named SalaryPadi crawler user agent, DNS/private-network SSRF protection, one concurrent request per domain, `Retry-After` support, jittered backoff, robots caching/drift detection, extractor versioning, hostile-HTML tests, and automatic quarantine when terms/robots change. The same two-complete-omission rule applies; failed, partial, and quarantined runs never close jobs.
