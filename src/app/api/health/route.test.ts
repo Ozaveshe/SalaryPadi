@@ -229,15 +229,44 @@ describe("operational health", () => {
     expect(body.checks.workers).toHaveLength(healthyWorkers.length + 1);
   });
 
-  it("stays healthy when a disabled schedule is parked ahead of its worker", async () => {
-    // The exact production shape after the fix: private.worker_schedules holds
-    // an employer_feed_sync row that no deployed worker serves. Disabled, it
-    // asks nothing of the platform, so it is reported as parked rather than
-    // failing health — while an ENABLED unknown schedule still fails (above).
+  it("stays healthy when a REGISTERED worker is deliberately disabled", async () => {
+    // employer_feed_sync is registered now that a worker ships for it. A
+    // registered schedule reporting `disabled` is honest state, not a fault,
+    // and it is not "parked" — parked means the registry does not know it.
+    mockWorkerResult([
+      {
+        ...healthyWorkers[0]!,
+        last_status: null,
+        last_started_at: null,
+        last_success_at: null,
+        freshness: "disabled",
+      },
+      ...healthyWorkers.slice(1),
+    ]);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      status: "ok",
+      checks: {
+        worker_health_complete: true,
+        unregistered_workers: [],
+        parked_workers: [],
+        unhealthy_workers: [],
+      },
+    });
+  });
+
+  it("stays healthy when an UNREGISTERED schedule is parked ahead of its worker", async () => {
+    // A schedule row this deployment has no worker for. Disabled, it asks
+    // nothing of the platform, so it is reported as parked rather than failing
+    // health — while an enabled unknown schedule still fails (below).
     mockWorkerResult([
       ...healthyWorkers,
       {
-        task_key: "employer_feed_sync",
+        task_key: "future_feed_sync",
         owner_label: "SalaryPadi ingestion operations",
         last_status: null,
         last_started_at: null,
@@ -255,7 +284,7 @@ describe("operational health", () => {
       checks: {
         worker_health_complete: true,
         unregistered_workers: [],
-        parked_workers: ["employer_feed_sync"],
+        parked_workers: ["future_feed_sync"],
         unhealthy_workers: [],
       },
     });
