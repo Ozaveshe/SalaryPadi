@@ -182,7 +182,7 @@
       "maximumRequestsPerDay": 1000,
       "rawRetentionDays": 30,
       "publicDisplayPermission": true,
-      "searchIndexPermission": true,
+      "searchIndexPermission": false,
       "googleJobPostingPermission": false,
       "requiredDependencies": [
         "preapproved_reliefweb_app_name",
