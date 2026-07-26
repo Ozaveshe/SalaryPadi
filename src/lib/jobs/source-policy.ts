@@ -94,7 +94,13 @@ export const RELIEFWEB_SOURCE_POLICY: JobSourcePolicy = {
   attributionRequired:
     'Show "Source: ReliefWeb" with the named information partner and link to the returned ReliefWeb URL.',
   canStoreFullDescription: false,
-  canIndex: false,
+  canIndex: true,
+  // Deliberately false and NOT a policy choice: Google's JobPosting markup
+  // requires a `description`, and the ReliefWeb allowlist carries no body
+  // field at all (the adapter requests seven metadata fields and sets
+  // body: null). Emitting JobPosting here would ship structured data with an
+  // empty description, which is invalid. Enabling it needs description rights
+  // from ReliefWeb first.
   canUseJobPostingStructuredData: false,
   canEmail: false,
   destinationRequirement: "Use the ReliefWeb URL returned by the API.",
