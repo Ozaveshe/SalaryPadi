@@ -458,3 +458,85 @@ export async function getJobSupplyHealth(
   }
   throw new Error("Job supply health evidence is unavailable.");
 }
+
+/**
+ * Employer-feed operator view.
+ *
+ * Lists every feed-shaped source config, authorized or not, with the reason it
+ * is not running. A feed that silently fails to appear is exactly the failure
+ * this surface exists to prevent, so `authorization_state` is required on every
+ * row rather than inferred from an absence.
+ */
+export const employerFeedHealthSchema = z
+  .object({
+    generated_at: timestamp,
+    feeds: z
+      .array(
+        z
+          .object({
+            adapter_key: z.string().min(2).max(80),
+            source_name: z.string().min(1).max(200),
+            employer_name: z.string().min(1).max(200),
+            feed_kind: z.enum([
+              "employer_xml_feed",
+              "employer_json_feed",
+              "employer_csv_import",
+            ]),
+            config_enabled: z.boolean(),
+            publication_mode: z.string().min(2).max(40),
+            authorization_state: z.string().min(2).max(60),
+            next_rights_review: timestamp.nullable(),
+            authorization_expires_at: timestamp.nullable(),
+            current_job_count: z.number().int().nonnegative(),
+            last_attempt_at: timestamp.nullable(),
+            last_outcome: z.string().min(2).max(60).nullable(),
+            last_error_code: z.string().min(2).max(80).nullable(),
+            last_snapshot_complete: z.boolean().nullable(),
+            last_complete_snapshot_at: timestamp.nullable(),
+            fetched: z.number().int().nonnegative().nullable(),
+            accepted: z.number().int().nonnegative().nullable(),
+            filtered: z.number().int().nonnegative().nullable(),
+            quarantined: z.number().int().nonnegative().nullable(),
+            destination_dropped: z.number().int().nonnegative().nullable(),
+            invalid_records: z.number().int().nonnegative().nullable(),
+            inserted: z.number().int().nonnegative().nullable(),
+            updated: z.number().int().nonnegative().nullable(),
+            unchanged: z.number().int().nonnegative().nullable(),
+            closed: z.number().int().nonnegative().nullable(),
+            truncated: z.boolean().nullable(),
+            incompleteness_reasons: z.array(z.string().max(60)).max(20),
+          })
+          .strict(),
+      )
+      .max(500),
+    global_policies: z
+      .array(
+        z
+          .object({
+            adapter_key: z.string().min(2).max(80),
+            status: z.string().min(2).max(40),
+            authorization_basis: z.string().min(2).max(80).nullable(),
+          })
+          .strict(),
+      )
+      .max(10),
+  })
+  .strict();
+
+export type EmployerFeedHealth = z.infer<typeof employerFeedHealthSchema>;
+
+export function getEmployerFeedHealthResult(
+  suppliedClient?: OperationsSupabaseClient,
+): Promise<RepositoryResult<EmployerFeedHealth | null>> {
+  return readOperationsEvidence({
+    suppliedClient,
+    operation: "operations.employer_feed_health",
+    rpc: "admin_get_employer_feed_health",
+    schema: employerFeedHealthSchema,
+    codes: {
+      unconfigured: "employer_feed_health_backend_unconfigured",
+      queryFailed: "employer_feed_health_query_failed",
+      invalid: "employer_feed_health_invalid",
+    },
+  });
+}

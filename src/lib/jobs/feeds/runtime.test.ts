@@ -474,7 +474,10 @@ describe("truncation never authorizes closure", () => {
     expect(result.metrics?.closed).toBe(0);
     // The originally seeded job is absent from the truncated view yet open.
     expect(store.openCount("acme_xml")).toBe(MAX_FEED_RECORDS + 1);
-  });
+    // Explicit timeout: this deliberately drives MAX_FEED_RECORDS + 1 records
+    // through full normalization, which is genuinely slow and exceeded the
+    // default under parallel suite load.
+  }, 30_000);
 });
 
 describe("authoritative empty versus mapping failure", () => {

@@ -262,14 +262,16 @@ Updated 2026-07-25, after the snapshot-safety work.
   refused off-domain, byte-counted body cancelled at the cap, bounded
   `Retry-After`. A cut-short body is reported incomplete so it can never be
   treated as authoritative.
+- **Operator visibility** at `/admin/source-health`, listing every feed-shaped
+  source config — authorized or not — with the reason an unauthorized one is
+  not running, the global policy state, and the latest run counts. A feed that
+  silently fails to appear is the failure mode this surface prevents.
 
 ### What does NOT exist
 
 - **No authenticated CSV surface.** `uploadedPayload` is a function parameter,
   not an endpoint. There is no upload route, no authentication and no
   authorization binding an uploader to an employer.
-- **No admin source-health surface for feeds.** Metrics are persisted but not
-  yet rendered at /admin/source-health.
 
 ### What the verified-employer chain actually supports
 
