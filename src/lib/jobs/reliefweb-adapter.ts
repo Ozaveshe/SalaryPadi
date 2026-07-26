@@ -14,7 +14,10 @@ import type { Job } from "./types";
  * until the pending application is granted.
  */
 export function reliefWebEndpoint(appName: string): string {
-  const url = new URL("https://api.reliefweb.int/v1/jobs");
+  // v2, not v1: ReliefWeb decommissioned v1, which now answers every request
+  // with HTTP 410 "The API version 'v1' has been decommissioned." The response
+  // shape is unchanged for the fields this adapter requests.
+  const url = new URL("https://api.reliefweb.int/v2/jobs");
   url.searchParams.set("appname", appName);
   url.searchParams.set("limit", "200");
   url.searchParams.append("fields[include][]", "title");
