@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * ReliefWeb jobs API v1 payload shapes, restricted to the fields the
+ * ReliefWeb jobs API v2 payload shapes, restricted to the fields the
  * application source-policy registry permits (id, url, title, source,
  * country, closing date, job type, career category). Everything else the
  * provider returns is ignored at the schema boundary.

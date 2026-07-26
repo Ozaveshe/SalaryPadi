@@ -81,6 +81,11 @@ describe("ReliefWeb adapter", () => {
     const requestedUrl = new URL(String(fetch.mock.calls[0]?.[0]));
     expect(requestedUrl.origin).toBe("https://api.reliefweb.int");
     expect(requestedUrl.searchParams.get("appname")).toBe("salarypadi");
+    // Pin the API version. ReliefWeb decommissioned v1, which answers every
+    // request with HTTP 410, and nothing in the suite caught it because no
+    // test asserted the version. A live probe found it instead.
+    expect(requestedUrl.pathname).toBe("/v2/jobs");
+    expect(requestedUrl.origin).toBe("https://api.reliefweb.int");
     expect(reliefWebEndpoint("salarypadi")).toContain("appname=salarypadi");
   });
 
