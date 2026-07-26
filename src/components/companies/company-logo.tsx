@@ -1,13 +1,15 @@
 import Image from "next/image";
 
 import { getAfricanCompanyCatalogEntry } from "@/lib/companies/catalog";
+import { companyLogoStaticPath } from "@/lib/companies/logo";
 
 import styles from "./company-logo.module.css";
 
 /**
- * Logo resolution order: verified/permitted logo from the company catalog,
+ * Logo resolution order: the self-hosted logo named by the company catalog,
  * then the deterministic monogram. A logo slot is never an empty box and
- * never a fabricated logo.
+ * never a fabricated logo. The static path is used directly rather than the
+ * public API route so a page of job cards costs no function invocations.
  */
 
 const MONOGRAM_PALETTE = [
@@ -50,9 +52,10 @@ export function CompanyLogo({
   size?: 40 | 56 | 72;
 }) {
   const catalogEntry = getAfricanCompanyCatalogEntry(slug);
+  const logoPath = catalogEntry ? companyLogoStaticPath(catalogEntry) : null;
   const sizeClass =
     size === 40 ? styles.size40 : size === 72 ? styles.size72 : styles.size56;
-  if (!catalogEntry) {
+  if (!logoPath) {
     const palette = monogramPalette(name);
     return (
       <span
@@ -70,7 +73,7 @@ export function CompanyLogo({
       aria-hidden="true"
       className={`${styles.logo} ${sizeClass}`}
       height={size}
-      src={`/api/company-logos/${catalogEntry.slug}`}
+      src={logoPath}
       unoptimized
       width={size}
     />

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { JsonLd } from "@/components/json-ld";
+import { EditorialCover } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { getPublishedArticleResult } from "@/lib/editorial/repository";
@@ -90,6 +91,7 @@ export default async function InsightPage({
         title={article.title}
         description={article.description}
       />
+      <EditorialCover slug={article.slug} />
       <div className="rule-section stack">
         {article.body_markdown.split(/\n\s*\n/).map((paragraph) => (
           <p key={paragraph}>{paragraph}</p>

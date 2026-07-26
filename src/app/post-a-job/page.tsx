@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { requireViewer } from "@/lib/auth/dal";
 
@@ -26,6 +27,7 @@ export default async function PostAJobPage({
         title="Publish a vacancy with the eligibility made clear"
         description="Every submission starts pending. A fee can never bypass moderation, and sponsorship never changes ratings or trust decisions."
       />
+      <BrandArt className="page-art" id="post-a-job" />
       {submitted === "true" ? (
         <div className="notice" role="status">
           <strong>Submitted for moderation.</strong> The vacancy is not public

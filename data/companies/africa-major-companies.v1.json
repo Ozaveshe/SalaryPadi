@@ -9,11 +9,12 @@
     "methodology": "Ranks 1-100 by market capitalisation in the publisher's 2025 listed-company table. This is selection provenance only, not employer verification."
   },
   "logoStrategy": {
-    "provider": "logo.dev",
-    "lookup": "official_domain",
+    "provider": "self_hosted",
+    "lookup": "catalog_logo_record",
     "publicRoute": "/api/company-logos/{slug}",
+    "staticPath": "/logos/{file}",
     "fallback": "deterministic_monogram",
-    "verification": "A returned provider image is a presentation aid, not proof of company identity."
+    "verification": "A logo is served only for a company carrying a logo record naming where the file was obtained and when. A served logo is a presentation aid, not proof of company identity."
   },
   "companies": [
     {

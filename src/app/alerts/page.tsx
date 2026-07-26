@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { CompanyEvidenceInvitation } from "@/components/companies/company-evidence-invitation";
 import { PrivateDataStatus } from "@/components/private-data-status";
@@ -281,6 +282,7 @@ export default async function AlertsPage({
         </section>
       ) : (
         <div className="empty-state">
+          <BrandArt id="empty-alerts" />
           <h2 className="section-title">No alerts yet</h2>
           <p>
             Create one focused alert above. SalaryPadi will not match vague

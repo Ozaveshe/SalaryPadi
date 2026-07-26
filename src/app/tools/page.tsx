@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ArrowUpRight, ShieldCheck, Wrench } from "lucide-react";
 import Link from "next/link";
 
+import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { getCareerToolCatalog } from "@/lib/afrotools/catalog-repository";
 import { groupCareerTools } from "@/lib/afrotools/tool-presentation";
@@ -25,6 +26,7 @@ export default async function ToolsPage() {
         title="Start with the decision you need to make"
         description="Use two calculation experiences inside SalaryPadi or continue to thirteen reviewed AfroTools destinations. Each card describes the outcome, not the plumbing."
       />
+      <BrandArt className="page-art" id="tools-index" />
       {snapshot ? (
         <div
           className={
