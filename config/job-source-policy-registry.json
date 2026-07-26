@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-24T12:00:00.000Z",
+  "generatedAt": "2026-07-26T12:00:00.000Z",
   "reviewIntervalDays": 31,
   "sources": [
     {
@@ -160,12 +160,12 @@
       "adapterKey": "reliefweb",
       "name": "ReliefWeb jobs API",
       "authority": "secondary_feed",
-      "state": "disabled",
+      "state": "enabled",
       "permissionBasis": "documented_public_api_subject_to_original_rights",
-      "evidenceReference": "https://apidoc.reliefweb.int/",
+      "evidenceReference": "ReliefWeb API appname approval email 2026-07-26 (appname salarypadi-jobs-7k3q9x, ref 00D6g022nMK/500PZ0so0Aj); https://reliefweb.int/help/api",
       "termsUrl": "https://apidoc.reliefweb.int/",
-      "reviewedAt": "2026-07-14T00:00:00.000Z",
-      "reviewDueAt": "2026-08-14T00:00:00.000Z",
+      "reviewedAt": "2026-07-26T00:00:00.000Z",
+      "reviewDueAt": "2026-08-26T00:00:00.000Z",
       "allowedFields": [
         "id",
         "url",
@@ -181,17 +181,14 @@
       "minimumPollingSeconds": 7200,
       "maximumRequestsPerDay": 1000,
       "rawRetentionDays": 30,
-      "publicDisplayPermission": false,
-      "searchIndexPermission": false,
+      "publicDisplayPermission": true,
+      "searchIndexPermission": true,
       "googleJobPostingPermission": false,
       "requiredDependencies": [
         "preapproved_reliefweb_app_name",
         "original_content_field_review"
       ],
-      "missingDependencies": [
-        "preapproved_reliefweb_app_name",
-        "original_content_field_review"
-      ]
+      "missingDependencies": []
     },
     {
       "adapterKey": "remotive",

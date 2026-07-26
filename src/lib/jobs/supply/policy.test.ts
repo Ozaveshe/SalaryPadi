@@ -139,11 +139,28 @@ describe("job source policy registry", () => {
       "feed_credentials",
       "field_and_retention_schedule",
     ]);
+    // ReliefWeb's appname was approved on 2026-07-26, so its dependencies are
+    // now genuinely satisfied. The guard still applies: a source may only
+    // report zero missing dependencies when it carries a real, recorded
+    // evidence reference for how access was obtained.
+    const reliefweb = jobSourcePolicyRegistry.sources.find(
+      (policy) => policy.adapterKey === "reliefweb",
+    );
+    expect(reliefweb?.missingDependencies).toEqual([]);
+    expect(reliefweb?.evidenceReference).toMatch(/appname/i);
+    expect(reliefweb?.state).toBe("enabled");
+
+    // A source with no evidence must still declare what it lacks, so nothing
+    // can quietly claim access it does not have.
     expect(
       jobSourcePolicyRegistry.sources.find(
-        (policy) => policy.adapterKey === "reliefweb",
+        (policy) => policy.adapterKey === "jooble_partner_api",
       )?.missingDependencies,
-    ).toContain("preapproved_reliefweb_app_name");
+    ).toEqual([
+      "partner_api_key",
+      "republication_terms_review",
+      "field_and_retention_schedule",
+    ]);
   });
 
   it("rejects duplicate adapters and contradictory rights evidence", () => {
