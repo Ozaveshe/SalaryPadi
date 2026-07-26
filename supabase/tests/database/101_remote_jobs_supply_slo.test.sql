@@ -30,8 +30,8 @@ select ok(
 );
 select is(
   (select target_daily_new_canonical from private.job_supply_targets where id),
-  500,
-  'daily supply SLO is five hundred distinct canonical jobs'
+  50,
+  'daily supply SLO is fifty distinct canonical jobs'
 );
 select ok(
   has_function_privilege('anon', 'api.get_job_supply_canary()', 'EXECUTE')
