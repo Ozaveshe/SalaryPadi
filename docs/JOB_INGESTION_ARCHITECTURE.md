@@ -136,11 +136,13 @@ Use this order:
 
 Do not build a generic crawler. Do not scrape LinkedIn, Indeed, Glassdoor, authenticated pages, search-result pages, anti-bot challenges, or any source without explicit authorization. Public reachability is not republication permission.
 
-## 500-new-canonical-jobs/day operating target
+## 50-new-canonical-jobs/day operating target
 
-The target is 500 distinct, validated `canonical_created` events per UTC day after remote/eligibility filtering and exact deduplication. Provider rows, repeated occurrences, filtered geography, quarantines and updates do not count. The count-only supply canary reports `unavailable` when no eligible jobs are public, `capacity_unproven` when authorized evidence-backed capacity is below 500/day, `stale` when capacity exists but creation evidence is old, and `ready` only when all three conditions are satisfied.
+The target is 50 distinct, validated `canonical_created` events per UTC day after remote/eligibility filtering and exact deduplication. Provider rows, repeated occurrences, filtered geography, quarantines and updates do not count. The count-only supply canary reports `unavailable` when no eligible jobs are public, `capacity_unproven` when authorized evidence-backed capacity is below 50/day, `stale` when capacity exists but creation evidence is old, and `ready` only when all three conditions are satisfied.
 
-The 15-minute ATS dispatcher removes the previous twelve-claims/day global ceiling and permits up to 96 bounded source claims/day. This is scheduling capacity, not data capacity or permission. An adapter contributes to `authorized_daily_capacity` only after a current rights record and a source-specific evidence reference support its expected distinct canonical yield. The planned portfolio must exceed 500/day after measured duplicate and rejection rates; no placeholder projection is credited.
+The 15-minute ATS dispatcher removes the previous twelve-claims/day global ceiling and permits up to 96 bounded source claims/day. This is scheduling capacity, not data capacity or permission. An adapter contributes to `authorized_daily_capacity` only after a current rights record and a source-specific evidence reference support its expected distinct canonical yield. The planned portfolio must exceed 50/day after measured duplicate and rejection rates; no placeholder projection is credited.
+
+The target was 500/day from 2026-07-14 until 2026-07-26. Nothing recorded a basis for that figure, and measurement did not support it: a fully cycled 108-board roster yields roughly 15-45 new canonical jobs/day, so the gate could never pass and stopped working as an alarm. 50/day sits just above today's measured ceiling, so reaching it needs modest roster growth and breaching it means something is actually wrong.
 
 ### Measuring a source's expected daily yield
 
@@ -167,8 +169,15 @@ reads the rate two ways and prefers the first:
    and another 49 on 7/22, so the fallback reads 52 new roles where the board
    actually published none.
 
-The observed rate is floored, so a source posting less than one new role per day
-is credited zero rather than one. A source qualifies only after a full
+Capacity is recorded in `expected_new_canonical_per_30d`, not per day. An
+employer board holds ~25 open roles that stay open for months, so it yields
+roughly 0.15-0.4 new roles/day; an integer daily column rounds every board to
+zero and sums 108 zeros into no capacity at all. The 30-day unit keeps the
+column an honest integer. The three readers sum the 30-day figures and divide by
+30 once at the aggregate, flooring there, so capacity is still never overstated.
+
+The observed rate is floored, so a source is never credited more than it
+demonstrated. A source qualifies only after a full
 `private.job_supply_targets.pilot_days` window of post-backfill observation; the
 script emits reviewable `docs/data/` SQL for qualifying sources only and never
 writes to the database itself.

@@ -52,7 +52,7 @@ select ok(
 );
 select is(
   (select target_daily_new_canonical from private.job_supply_targets where id),
-  500,
+  50,
   'supply target counts new canonical jobs'
 );
 select is(

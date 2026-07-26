@@ -1,9 +1,9 @@
 /**
  * Measures observed per-source canonical yield so
- * `app.job_sources.expected_daily_new_canonical` can be recorded from evidence
+ * `app.job_sources.expected_new_canonical_per_30d` can be recorded from evidence
  * instead of projection.
  *
- * `authorized_daily_capacity` sums `expected_daily_new_canonical` over runnable
+ * `authorized_daily_capacity` sums `expected_new_canonical_per_30d` over runnable
  * sources that carry an `expected_capacity_evidence_ref`. That column is the
  * steady-state rate of NEW postings a board produces, which is not what a
  * board's first fetch shows: the first fetch backfills every role the board
@@ -89,7 +89,7 @@ first_seen as (
 )
 select
   source.adapter_key,
-  source.expected_daily_new_canonical as recorded_expected,
+  source.expected_new_canonical_per_30d as recorded_expected,
   source.expected_capacity_evidence_ref as recorded_evidence,
   first_seen.backfill_day,
   (current_date - first_seen.backfill_day)::integer as observation_days,
@@ -110,26 +110,27 @@ left join events on events.source_id = source.id
 where security.job_source_policy_is_runnable(source.id)
 group by
   source.adapter_key,
-  source.expected_daily_new_canonical,
+  source.expected_new_canonical_per_30d,
   source.expected_capacity_evidence_ref,
   first_seen.backfill_day
 order by source.adapter_key;
 `;
 
 /**
- * Floors the observed rate so a partial posting never rounds up into credited
- * capacity. A source that produced fewer new roles than its window has days
- * measures as 0/day, which is the honest reading: its steady-state contribution
- * is below one per day and must not be credited as one.
+ * Scales the observed rate to 30 days and floors it. Per 30 days rather than
+ * per day because an employer board yields well under one new role a day: a
+ * board holding ~25 roles that stay open ~60 days produces about 0.4/day, which
+ * an integer daily figure would record as 0. Flooring still applies, so a
+ * source is never credited more than it demonstrated.
  */
-export function observedDailyRate(steadyStateCount, observationDays) {
+export function observedRatePer30Days(steadyStateCount, observationDays) {
   if (!Number.isInteger(steadyStateCount) || steadyStateCount < 0) {
     throw new Error("steadyStateCount must be a non-negative integer");
   }
   if (!Number.isInteger(observationDays) || observationDays < 1) {
     throw new Error("observationDays must be a positive integer");
   }
-  return Math.floor(steadyStateCount / observationDays);
+  return Math.floor((steadyStateCount * 30) / observationDays);
 }
 
 /**
@@ -156,7 +157,7 @@ export function classifySource(row, pilotDays) {
       steady_state_count,
       qualifies: false,
       reason: `observed ${row.observation_days}d of ${pilotDays}d pilot window`,
-      observed_daily: null,
+      observed_per_30d: null,
     };
   }
   return {
@@ -168,7 +169,10 @@ export function classifySource(row, pilotDays) {
       method === "posted_at"
         ? "full pilot window observed, measured by posting date"
         : "full pilot window observed, measured by ingestion day (no posting dates)",
-    observed_daily: observedDailyRate(steady_state_count, row.observation_days),
+    observed_per_30d: observedRatePer30Days(
+      steady_state_count,
+      row.observation_days,
+    ),
   };
 }
 
@@ -177,13 +181,18 @@ export function summarize(measured, target) {
     classifySource(row, target.pilot_days),
   );
   const qualifying = classified.filter((row) => row.qualifies);
+  const creditablePer30d = qualifying.reduce(
+    (sum, row) => sum + row.observed_per_30d,
+    0,
+  );
   return {
     classified,
     qualifying,
-    creditable_daily_capacity: qualifying.reduce(
-      (sum, row) => sum + row.observed_daily,
-      0,
-    ),
+    creditable_per_30d: creditablePer30d,
+    // Matches how the three SQL readers derive authorized_daily_capacity: sum
+    // the 30-day figures, then divide and floor once at the aggregate. Flooring
+    // per source is what made every board count as zero.
+    creditable_daily_capacity: Math.floor(creditablePer30d / 30),
     target_daily_new_canonical: target.target_daily_new_canonical,
   };
 }
@@ -204,25 +213,30 @@ export function registrationSql(qualifying, measuredOn, target) {
       `-- ${row.adapter_key}: ${row.steady_state_count} new canonical over ${row.observation_days}d`,
       `--   (first-fetch backfill of ${row.backfill_count} on ${row.backfill_day} excluded)`,
       `update app.job_sources`,
-      `set expected_daily_new_canonical = ${row.observed_daily},`,
+      `set expected_new_canonical_per_30d = ${row.observed_per_30d},`,
       `    expected_capacity_evidence_ref = ${sqlLiteral(evidenceRef)},`,
       `    updated_at = now()`,
       `where adapter_key = ${sqlLiteral(row.adapter_key)};`,
     ].join("\n");
   });
 
-  const credited = qualifying.reduce((sum, row) => sum + row.observed_daily, 0);
+  const creditedPer30d = qualifying.reduce(
+    (sum, row) => sum + row.observed_per_30d,
+    0,
+  );
+  const creditedDaily = Math.floor(creditedPer30d / 30);
 
   return [
     `-- Recorded source capacity measured on ${measuredOn}.`,
     `--`,
     `-- Produced by scripts/measure-source-capacity.mjs. Each figure is the`,
-    `-- floor of observed new canonical jobs per day over a completed`,
+    `-- floor of observed new canonical jobs per 30 days over a completed`,
     `-- ${target.pilot_days}-day pilot window, excluding the first-fetch backfill.`,
     `-- No projection is credited: a source absent from this file has not`,
     `-- completed its window and is deliberately left without capacity evidence.`,
     `--`,
-    `-- Credited capacity from this file: ${credited}/day.`,
+    `-- Credited capacity from this file: ${creditedPer30d} per 30d`,
+    `--   which is ${creditedDaily}/day after the aggregate divide.`,
     `-- Daily canonical target: ${target.target_daily_new_canonical}/day.`,
     ``,
     `begin;`,
@@ -235,7 +249,8 @@ export function registrationSql(qualifying, measuredOn, target) {
 }
 
 export function formatReportRow(row) {
-  const rate = row.observed_daily === null ? "--" : `${row.observed_daily}/day`;
+  const rate =
+    row.observed_per_30d === null ? "--" : `${row.observed_per_30d}/30d`;
   const status = row.qualifies ? "QUALIFIES" : "PENDING  ";
   return (
     `${status} ${row.adapter_key.padEnd(34)} ` +
@@ -311,7 +326,8 @@ export async function runCli({
   );
   write(
     `Evidence-backed capacity available to credit: ` +
-      `${summary.creditable_daily_capacity}/day against a ` +
+      `${summary.creditable_per_30d} per 30d ` +
+      `(${summary.creditable_daily_capacity}/day) against a ` +
       `${summary.target_daily_new_canonical}/day target`,
   );
 

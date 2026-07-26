@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   EXIT_CODES,
   classifySource,
-  observedDailyRate,
+  observedRatePer30Days,
   registrationSql,
   runCli,
   selectMeasurement,
@@ -28,16 +28,21 @@ function row(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe("observedDailyRate", () => {
-  it("floors so a partial posting never rounds up into credited capacity", () => {
-    expect(observedDailyRate(40, 20)).toBe(2);
-    expect(observedDailyRate(29, 20)).toBe(1);
-    expect(observedDailyRate(19, 20)).toBe(0);
+describe("observedRatePer30Days", () => {
+  it("scales to 30 days and floors", () => {
+    expect(observedRatePer30Days(40, 20)).toBe(60);
+    expect(observedRatePer30Days(19, 20)).toBe(28);
+  });
+
+  // The whole reason the unit changed: a board yielding well under one role a
+  // day used to floor to 0/day and contribute nothing to authorized capacity.
+  it("keeps a sub-daily board from rounding away to nothing", () => {
+    expect(observedRatePer30Days(8, 20)).toBe(12);
   });
 
   it("rejects a non-positive observation window", () => {
-    expect(() => observedDailyRate(10, 0)).toThrow();
-    expect(() => observedDailyRate(-1, 10)).toThrow();
+    expect(() => observedRatePer30Days(10, 0)).toThrow();
+    expect(() => observedRatePer30Days(-1, 10)).toThrow();
   });
 });
 
@@ -71,13 +76,13 @@ describe("classifySource", () => {
   it("excludes the first-fetch backfill from the measured rate", () => {
     const classified = classifySource(row(), 14);
     expect(classified.qualifies).toBe(true);
-    expect(classified.observed_daily).toBe(2);
+    expect(classified.observed_per_30d).toBe(60);
   });
 
   it("credits nothing to a source short of its pilot window", () => {
     const classified = classifySource(row({ observation_days: 1 }), 14);
     expect(classified.qualifies).toBe(false);
-    expect(classified.observed_daily).toBeNull();
+    expect(classified.observed_per_30d).toBeNull();
     expect(classified.reason).toContain("1d of 14d");
   });
 
@@ -92,7 +97,7 @@ describe("classifySource", () => {
       14,
     );
     expect(classified.qualifies).toBe(true);
-    expect(classified.observed_daily).toBe(0);
+    expect(classified.observed_per_30d).toBe(0);
   });
 
   it("names the fallback method when a source has no posting dates", () => {
@@ -120,6 +125,7 @@ describe("summarize", () => {
       target,
     );
     expect(summary.qualifying).toHaveLength(1);
+    expect(summary.creditable_per_30d).toBe(60);
     expect(summary.creditable_daily_capacity).toBe(2);
   });
 });
@@ -128,11 +134,11 @@ describe("registrationSql", () => {
   it("records the measured rate with an evidence ref naming the window", () => {
     const summary = summarize([row()], target);
     const sql = registrationSql(summary.qualifying, "2026-08-15", target);
-    expect(sql).toContain("expected_daily_new_canonical = 2");
+    expect(sql).toContain("expected_new_canonical_per_30d = 60");
     expect(sql).toContain(
       "'measured:2026-08-15:example_workable:40-new-over-20d'",
     );
-    expect(sql).toContain("-- Credited capacity from this file: 2/day.");
+    expect(sql).toContain("Credited capacity from this file: 60 per 30d");
   });
 
   it("escapes quotes in an adapter key", () => {
