@@ -65,9 +65,11 @@ begin
           end,
           'next_rights_review', s.authorization_reviewed_at,
           'authorization_expires_at', s.authorization_expires_at,
+          -- app.job_status is (draft, pending, published, expired, removed,
+          -- rejected); 'published' is the live state an operator cares about.
           'current_job_count', (
             select count(*) from app.jobs job
-            where job.source_id = s.id and job.status = 'open'
+            where job.source_id = s.id and job.status = 'published'
           ),
           'last_attempt_at', latest.run_at,
           'last_outcome', latest.outcome,
