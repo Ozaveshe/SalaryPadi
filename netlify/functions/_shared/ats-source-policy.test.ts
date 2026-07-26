@@ -112,6 +112,21 @@ describe("authorized ATS runtime policy", () => {
     ).toThrow("ats_source_policy_duplicate");
   });
 
+  // A cap below the real board roster fails every scheduled run with
+  // ats_source_policy_invalid before a single source is claimed, and the
+  // registry only grows. This pins a roster far larger than the current one so
+  // the ceiling is raised deliberately rather than discovered in production.
+  it("parses a registry far larger than the current board roster", () => {
+    const registry = Array.from({ length: 300 }, (_, index) =>
+      row({
+        adapter_key: `employer_ats_example_${index}`,
+        tenant_identifier: `example${index}`,
+      }),
+    );
+    const policies = parseAuthorizedAtsRuntimePolicies(registry, currentTime);
+    expect(policies).toHaveLength(300);
+  });
+
   it("parses the exact policy returned by an atomic fetch claim", () => {
     expect(
       parseClaimedAuthorizedAtsRuntimePolicy(
