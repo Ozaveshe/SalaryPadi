@@ -2,66 +2,106 @@ import {
   normalizeAtsImportRecords,
   type AtsImportJob,
 } from "@/lib/jobs/ats-import";
+import {
+  openSupplyAdapter,
+  type SupplyAdapterKey,
+} from "@/lib/jobs/supply/adapters";
+import { AdapterPolicyError } from "@/lib/jobs/supply/policy";
 
 import registryConfig from "../../../../config/employer-feed-registry.json";
+import {
+  computeFeedSnapshotCompleteness,
+  type FeedIncompletenessReason,
+} from "./completeness";
 import { extractEmployerFeedRecords, parseEmployerFeedRegistry } from "./index";
 import {
+  AUTHORIZATION_CLOCK_SKEW_MS,
   EmployerFeedError,
   MAX_FEED_PAYLOAD_BYTES,
   type EmployerFeedConfig,
+  type FeedExtractionReasonCode,
 } from "./types";
 
 /**
- * The employer-feed runtime: the end-to-end path from an authorized registry
- * record to persisted canonical jobs and durable metrics. It owns the order
- * of the gates and the absence semantics; persistence is injected so the full
- * lifecycle is provable without a live database and the same runtime binds to
- * the real store in production.
+ * The employer-feed runtime: the path from an authorized registry record to
+ * canonical jobs and metrics. It owns the order of the gates and the absence
+ * semantics; persistence is injected so the lifecycle is provable without a
+ * live database and the same runtime binds to the real store in production.
  *
  * Order (fail-closed at each step):
- *   eligibility (enabled + policy runnable + authorization current)
+ *   global source policy (kill switch)
+ *   → per-feed eligibility (enabled + authorization current)
  *   → bounded retrieval / authenticated upload
- *   → immutable raw snapshot
- *   → extraction (destination-pinned)
+ *   → extraction (destination-pinned, fully counted)
  *   → normalizeAtsImportRecords
+ *   → ONE completeness decision
  *   → persistence
  *   → absence handling (complete snapshots only)
  *   → metrics
  */
 
-/**
- * Runtime registry loader: parses the committed feed registry and returns the
- * feeds that are eligible to run at `now`. An empty result (the current
- * state — no employer has authorized a feed) means the dispatcher does
- * nothing, which is correct.
- */
-export function loadRunnableEmployerFeeds(now: Date): EmployerFeedConfig[] {
-  return parseEmployerFeedRegistry(registryConfig).feeds.filter(
-    (feed) => feedRunEligibility(feed, now).runnable,
-  );
-}
+/** Global policy adapter keys backing the generic feed kinds. */
+const POLICY_ADAPTER_BY_KIND: Record<
+  EmployerFeedConfig["kind"],
+  SupplyAdapterKey
+> = {
+  xml: "employer_xml_json_feeds",
+  json: "employer_xml_json_feeds",
+  csv: "employer_csv_import",
+};
 
 export type FeedRunReason =
   | "disabled"
   | "authorization_incomplete"
   | "authorization_expired"
+  | "authorization_not_yet_valid"
   | "review_overdue"
+  | "policy_blocked"
   | "no_payload";
 
 export interface FeedRunEligibility {
   runnable: boolean;
   reason?: FeedRunReason;
+  /** The AdapterPolicyError code when the global policy blocked the run. */
+  policyCode?: string;
 }
 
+/** Injection point so policy behaviour is testable without editing the
+ * committed global policy registry. */
+export type SourcePolicyGate = (
+  adapterKey: SupplyAdapterKey,
+  now: Date,
+) => void;
+
+const defaultPolicyGate: SourcePolicyGate = (adapterKey, now) => {
+  openSupplyAdapter(adapterKey, now);
+};
+
 /**
- * Whether the feed may run at `now`. A disabled feed, incomplete
- * authorization, expired authorization or overdue review all keep it from
- * making any request.
+ * Whether the feed may run at `now`.
+ *
+ * Both gates must pass. A per-feed `enabled: true` record can never override a
+ * globally disabled, expired, review-overdue, dependency-missing or
+ * field-restricted source policy — the global policy is evaluated first and
+ * short-circuits before any network request or payload processing.
  */
 export function feedRunEligibility(
   config: EmployerFeedConfig,
   now: Date,
+  policyGate: SourcePolicyGate = defaultPolicyGate,
 ): FeedRunEligibility {
+  // Global kill switch first: cheapest, and the one an operator reaches for.
+  try {
+    policyGate(POLICY_ADAPTER_BY_KIND[config.kind], now);
+  } catch (reason) {
+    return {
+      runnable: false,
+      reason: "policy_blocked",
+      policyCode:
+        reason instanceof AdapterPolicyError ? reason.code : "policy_missing",
+    };
+  }
+
   if (!config.enabled) return { runnable: false, reason: "disabled" };
   if (
     !config.rightsBasis ||
@@ -72,7 +112,17 @@ export function feedRunEligibility(
   ) {
     return { runnable: false, reason: "authorization_incomplete" };
   }
+
   const nowValue = now.valueOf();
+  const skewLimit = nowValue + AUTHORIZATION_CLOCK_SKEW_MS;
+  // A future-dated authorization or review has not happened yet and cannot
+  // authorize anything today.
+  if (
+    Date.parse(config.authorizedAt) > skewLimit ||
+    Date.parse(config.reviewedAt) > skewLimit
+  ) {
+    return { runnable: false, reason: "authorization_not_yet_valid" };
+  }
   if (
     config.authorizationExpiresAt &&
     Date.parse(config.authorizationExpiresAt) <= nowValue
@@ -83,6 +133,20 @@ export function feedRunEligibility(
     return { runnable: false, reason: "review_overdue" };
   }
   return { runnable: true };
+}
+
+/**
+ * Runtime registry loader: the feeds eligible to run at `now`. An empty result
+ * (the current state — no employer has authorized a feed) means the dispatcher
+ * does nothing, which is correct.
+ */
+export function loadRunnableEmployerFeeds(
+  now: Date,
+  policyGate: SourcePolicyGate = defaultPolicyGate,
+): EmployerFeedConfig[] {
+  return parseEmployerFeedRegistry(registryConfig).feeds.filter(
+    (feed) => feedRunEligibility(feed, now, policyGate).runnable,
+  );
 }
 
 /** One immutable raw record handed to the store before normalization. */
@@ -99,11 +163,13 @@ export interface FeedSnapshot {
   feedKey: string;
   runAt: string;
   /**
-   * A complete snapshot authorises absence handling: jobs previously seen
-   * for this feed but not in `seenExternalIds` are closed. A partial or
-   * failed snapshot must never close an existing job.
+   * A complete snapshot authorises absence handling: jobs previously seen for
+   * this feed but not in `seenExternalIds` are closed. Always the value
+   * returned by computeFeedSnapshotCompleteness — never a literal.
    */
   complete: boolean;
+  /** Why the snapshot is partial, when it is. */
+  incompletenessReasons: FeedIncompletenessReason[];
   seenExternalIds: string[];
   raw: FeedRawRecord[];
   jobs: AtsImportJob[];
@@ -116,8 +182,8 @@ export interface FeedPersistResult {
 }
 
 /** Persistence boundary. The in-memory implementation backs the tests; the
- * production implementation writes ingest.raw_job_records + the canonical
- * store + absence handling through the existing bounded worker RPC. */
+ * production implementation is not yet connected (see the ingestion gap
+ * assessment). */
 export interface FeedRunStore {
   applySnapshot(snapshot: FeedSnapshot): Promise<FeedPersistResult>;
 }
@@ -127,6 +193,8 @@ export interface FeedRunStore {
 export interface FeedFetchResult {
   ok: boolean;
   text: string;
+  /** False when the body was cut short (deadline, byte cap, aborted stream). */
+  complete?: boolean;
 }
 
 export type FeedFetcher = (url: string) => Promise<FeedFetchResult>;
@@ -138,15 +206,20 @@ export interface FeedRunMetrics {
   filtered: number;
   quarantined: number;
   destinationDropped: number;
+  invalidRecords: number;
+  truncated: boolean;
   inserted: number;
   updated: number;
   closed: number;
   snapshotComplete: boolean;
+  incompletenessReasons: FeedIncompletenessReason[];
+  extractionReasonCodes: FeedExtractionReasonCode[];
 }
 
 export interface FeedRunOutcome {
   ran: boolean;
-  reason?: FeedRunReason | "fetch_failed" | "feed_error";
+  reason?: FeedRunReason | "fetch_failed" | "feed_error" | "payload_too_large";
+  policyCode?: string;
   metrics?: FeedRunMetrics;
 }
 
@@ -158,28 +231,51 @@ export interface RunEmployerFeedOptions {
   uploadedPayload?: string;
   store: FeedRunStore;
   mayStoreFullDescription?: boolean;
+  policyGate?: SourcePolicyGate;
+}
+
+/** A partial snapshot: records the attempt, closes nothing. */
+async function recordPartial(
+  store: FeedRunStore,
+  feedKey: string,
+  runAt: string,
+  reasons: FeedIncompletenessReason[],
+): Promise<void> {
+  await store.applySnapshot({
+    feedKey,
+    runAt,
+    complete: false,
+    incompletenessReasons: reasons,
+    seenExternalIds: [],
+    raw: [],
+    jobs: [],
+  });
 }
 
 /**
  * Runs one authorized feed end to end. Returns `{ran:false, reason}` without
- * contacting the network whenever the feed is not eligible. A fetch failure
- * or malformed payload yields a partial (incomplete) snapshot that cannot
- * close existing jobs.
+ * contacting the network whenever either gate refuses. Any retrieval, parsing
+ * or normalization problem yields a partial snapshot that cannot close jobs.
  */
 export async function runEmployerFeed(
   config: EmployerFeedConfig,
   options: RunEmployerFeedOptions,
 ): Promise<FeedRunOutcome> {
   const now = options.now ?? new Date();
-  const eligibility = feedRunEligibility(config, now);
+  const eligibility = feedRunEligibility(config, now, options.policyGate);
   if (!eligibility.runnable) {
-    return { ran: false, reason: eligibility.reason };
+    return {
+      ran: false,
+      reason: eligibility.reason,
+      ...(eligibility.policyCode ? { policyCode: eligibility.policyCode } : {}),
+    };
   }
 
   const runAt = now.toISOString();
 
   // Retrieval / upload.
   let payload: string;
+  let retrievalComplete = true;
   if (config.kind === "csv") {
     if (!options.uploadedPayload) return { ran: false, reason: "no_payload" };
     payload = options.uploadedPayload;
@@ -189,22 +285,22 @@ export async function runEmployerFeed(
     }
     const fetched = await options.fetcher(config.url).catch(() => null);
     if (!fetched || !fetched.ok) {
-      // Failed retrieval → partial snapshot, no closures.
-      await options.store.applySnapshot({
-        feedKey: config.feedKey,
-        runAt,
-        complete: false,
-        seenExternalIds: [],
-        raw: [],
-        jobs: [],
-      });
+      await recordPartial(options.store, config.feedKey, runAt, [
+        "retrieval_incomplete",
+      ]);
       return { ran: true, reason: "fetch_failed" };
     }
     payload = fetched.text;
+    retrievalComplete = fetched.complete !== false;
   }
 
-  if (Buffer.byteLength(payload, "utf8") > MAX_FEED_PAYLOAD_BYTES) {
-    return { ran: false, reason: "feed_error" };
+  const withinByteLimit =
+    Buffer.byteLength(payload, "utf8") <= MAX_FEED_PAYLOAD_BYTES;
+  if (!withinByteLimit) {
+    await recordPartial(options.store, config.feedKey, runAt, [
+      "payload_too_large",
+    ]);
+    return { ran: true, reason: "payload_too_large" };
   }
 
   // Extraction (destination-pinned) → canonical normalization.
@@ -213,15 +309,11 @@ export async function runEmployerFeed(
     extraction = extractEmployerFeedRecords(config, payload, runAt);
   } catch (error) {
     if (error instanceof EmployerFeedError) {
-      // Malformed payload → partial snapshot, no closures.
-      await options.store.applySnapshot({
-        feedKey: config.feedKey,
-        runAt,
-        complete: false,
-        seenExternalIds: [],
-        raw: [],
-        jobs: [],
-      });
+      await recordPartial(options.store, config.feedKey, runAt, [
+        error.code === "feed_payload_too_large"
+          ? "payload_too_large"
+          : "parse_incomplete",
+      ]);
       return { ran: true, reason: "feed_error" };
     }
     throw error;
@@ -237,6 +329,25 @@ export async function runEmployerFeed(
     now,
   );
 
+  const quarantined = Object.values(normalized.quarantineCodes).reduce(
+    (sum, count) => sum + (count ?? 0),
+    0,
+  );
+  const filtered = Object.values(normalized.filterCodes).reduce(
+    (sum, count) => sum + (count ?? 0),
+    0,
+  );
+
+  // THE single completeness decision. Persistence, metrics, absence handling
+  // and logging all read this one boolean.
+  const completeness = computeFeedSnapshotCompleteness({
+    retrievalComplete,
+    withinByteLimit,
+    extraction,
+    quarantinedCount: quarantined,
+    acceptedCount: normalized.jobs.length,
+  });
+
   const raw: FeedRawRecord[] = normalized.jobs.map((job) => ({
     feedKey: config.feedKey,
     externalId: job.external_id,
@@ -249,34 +360,30 @@ export async function runEmployerFeed(
   const persisted = await options.store.applySnapshot({
     feedKey: config.feedKey,
     runAt,
-    complete: true,
+    complete: completeness.complete,
+    incompletenessReasons: completeness.reasons,
     seenExternalIds: normalized.jobs.map((job) => job.external_id),
     raw,
     jobs: normalized.jobs,
   });
 
-  const filtered = Object.values(normalized.filterCodes).reduce(
-    (sum, count) => sum + (count ?? 0),
-    0,
-  );
-  const quarantined = Object.values(normalized.quarantineCodes).reduce(
-    (sum, count) => sum + (count ?? 0),
-    0,
-  );
-
   return {
     ran: true,
     metrics: {
       feedKey: config.feedKey,
-      fetched: extraction.records.length + extraction.droppedDestinationCount,
+      fetched: extraction.sourceRecordCount,
       accepted: normalized.jobs.length,
       filtered,
       quarantined,
-      destinationDropped: extraction.droppedDestinationCount,
+      destinationDropped: extraction.destinationDroppedCount,
+      invalidRecords: extraction.invalidRecordCount,
+      truncated: extraction.truncated,
       inserted: persisted.inserted,
       updated: persisted.updated,
       closed: persisted.closed,
-      snapshotComplete: true,
+      snapshotComplete: completeness.complete,
+      incompletenessReasons: completeness.reasons,
+      extractionReasonCodes: extraction.reasonCodes,
     },
   };
 }

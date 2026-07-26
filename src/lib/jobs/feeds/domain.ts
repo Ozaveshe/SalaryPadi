@@ -1,102 +1,114 @@
+import { parse as parseHost } from "tldts";
+
 /**
- * Registrable-domain validation for feed destination allowlists.
+ * Destination-host validation for employer feed authorizations.
  *
- * A feed authorizes republication of an employer's own vacancies, so its
- * allowed destination hosts must be real registrable domains the employer
- * controls — never a bare public suffix like "com" or "co.uk", which would
- * authorize the entire TLD. Without a bundled Public Suffix List (no network
- * at runtime, no heavy dependency), this uses a curated set of the suffixes
- * that matter for African and global employer domains. It is intentionally
- * conservative: an unknown two-label host is treated as registrable, but any
- * host that IS a known public suffix, or has no label before one, is
- * rejected. Documented limitation: not a full PSL; extend KNOWN_SUFFIXES as
- * needed.
+ * A feed authorizes republication of one employer's own vacancies, so its
+ * allowed destination hosts must be real registrable domains that the employer
+ * controls. This previously used a hand-curated 40-entry suffix table, which
+ * accepted genuine public suffixes outside that table — `com.au`, `co.jp`,
+ * `com.br`, `co.in`, `org.au` all passed as "registrable", and a registry entry
+ * naming one would have authorized every domain under that suffix.
+ *
+ * It now uses `tldts` (already a production dependency, also used by
+ * company-claim, employer-submission and scam-signal validation), which carries
+ * the real Public Suffix List.
  */
 
-const KNOWN_SUFFIXES = new Set<string>([
-  // Generic
-  "com",
-  "org",
-  "net",
-  "io",
-  "co",
-  "app",
-  "dev",
-  "ai",
-  "info",
-  "biz",
-  "jobs",
-  "careers",
-  "africa",
-  // Multi-label generic
-  "co.uk",
-  "org.uk",
-  "ac.uk",
-  "gov.uk",
-  // Nigeria
-  "ng",
-  "com.ng",
-  "org.ng",
-  "gov.ng",
-  "edu.ng",
-  "net.ng",
-  // Other African markets
-  "co.za",
-  "org.za",
-  "co.ke",
-  "or.ke",
-  "com.gh",
-  "com.eg",
-  "co.tz",
-  "co.ug",
-  "rw",
-  "sn",
-  "ci",
-  "ma",
-  "gh",
-  "ke",
-  "za",
-  "eg",
-  "tz",
-  "ug",
-]);
-
-const HOSTNAME_PATTERN =
-  /^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?:\.[a-z0-9-]{1,63})*$/;
-
-/**
- * The registrable domain for a host (eTLD+1), or null when the host is not a
- * valid registrable domain — i.e. it is itself a public suffix, or has no
- * label before its suffix.
- */
-export function registrableDomain(host: string): string | null {
-  const normalized = host.trim().toLowerCase().replace(/\.$/, "");
-  if (!normalized || !HOSTNAME_PATTERN.test(normalized)) return null;
-  if (normalized.startsWith("-") || normalized.includes("..")) return null;
-  const labels = normalized.split(".");
-
-  // Find the longest known public suffix matching the trailing labels.
-  let suffixLabels = 0;
-  for (let i = 0; i < labels.length; i += 1) {
-    const candidate = labels.slice(i).join(".");
-    if (KNOWN_SUFFIXES.has(candidate)) {
-      suffixLabels = labels.length - i;
-      break;
-    }
+/** Small helper: IDNA/punycode normalisation via the URL parser. */
+function normalizeHostname(host: string): string | null {
+  const trimmed = host.trim().toLowerCase().replace(/\.+$/, "");
+  if (!trimmed || trimmed.length > 253) return null;
+  // Reject anything carrying scheme, credentials, port, path or whitespace
+  // before it reaches the URL parser, so only a bare hostname is accepted.
+  if (/[\s/\\@:?#]/.test(trimmed)) return null;
+  try {
+    // The URL parser performs IDNA conversion, so a Unicode host normalises to
+    // its punycode form and can be compared against a punycode authorization.
+    const { hostname } = new URL(`https://${trimmed}`);
+    return hostname || null;
+  } catch {
+    return null;
   }
-
-  if (suffixLabels === 0) {
-    // Unknown suffix: accept a plausible registrable domain (>= 2 labels),
-    // reject a single bare label.
-    return labels.length >= 2 ? normalized : null;
-  }
-  // A known suffix with no registrable label before it (e.g. "com",
-  // "co.uk") is a bare public suffix — reject it.
-  if (labels.length <= suffixLabels) return null;
-  return labels.slice(labels.length - suffixLabels - 1).join(".");
 }
 
-/** Whether `host` is a valid registrable destination host (not a bare TLD). */
+/**
+ * The registrable domain (eTLD+1) for a host, or null when the host is not a
+ * valid registrable domain — i.e. it is itself a public suffix, an IP literal,
+ * localhost, or otherwise unusable as an authorization boundary.
+ */
+export function registrableDomain(host: string): string | null {
+  const normalized = normalizeHostname(host);
+  if (!normalized) return null;
+
+  const parsed = parseHost(normalized, {
+    allowPrivateDomains: false,
+    detectIp: true,
+  });
+
+  // An IP literal cannot express "this employer's domain and its subdomains".
+  if (parsed.isIp) return null;
+  // localhost and other single-label hosts have no registrable boundary.
+  if (!parsed.domain || !parsed.publicSuffix) return null;
+  // The host IS a public suffix ("com", "co.uk", "com.ng", "com.au"): there is
+  // no registrable label in front of it, so it authorizes an entire suffix.
+  if (normalized === parsed.publicSuffix) return null;
+  return parsed.domain;
+}
+
+/** Whether `host` is usable as a feed destination authorization. */
 export function isValidDestinationHost(host: string): boolean {
   return registrableDomain(host) !== null;
+}
+
+/**
+ * Whether a candidate URL's host falls inside an authorized destination host.
+ *
+ * Authorization for `employer.com` covers `employer.com` and any subdomain of
+ * it, and nothing else. Suffix string matching is deliberately avoided: it
+ * would let `employer.com` authorize `not-employer.com`.
+ */
+export function isAuthorizedDestination(
+  url: string,
+  allowedHosts: readonly string[],
+): boolean {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    return false;
+  }
+  if (
+    parsedUrl.protocol !== "https:" ||
+    parsedUrl.username ||
+    parsedUrl.password ||
+    (parsedUrl.port && parsedUrl.port !== "443")
+  ) {
+    return false;
+  }
+
+  const candidate = normalizeHostname(parsedUrl.hostname);
+  if (!candidate) return false;
+  const candidateParsed = parseHost(candidate, {
+    allowPrivateDomains: false,
+    detectIp: true,
+  });
+  if (candidateParsed.isIp || !candidateParsed.domain) return false;
+
+  return allowedHosts.some((allowed) => {
+    const allowedHost = normalizeHostname(allowed);
+    if (!allowedHost) return false;
+    // Exact host match is always sufficient.
+    if (candidate === allowedHost) return true;
+    // Otherwise the candidate must be a true subdomain of the authorized host,
+    // AND share its registrable domain. The label-boundary check alone rejects
+    // "not-employer.com"; the registrable-domain check additionally prevents an
+    // authorization for a public suffix from ever widening.
+    const allowedRegistrable = registrableDomain(allowedHost);
+    if (!allowedRegistrable) return false;
+    return (
+      candidate.endsWith(`.${allowedHost}`) &&
+      candidateParsed.domain === allowedRegistrable
+    );
+  });
 }
