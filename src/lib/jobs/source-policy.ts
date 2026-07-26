@@ -94,7 +94,15 @@ export const RELIEFWEB_SOURCE_POLICY: JobSourcePolicy = {
   attributionRequired:
     'Show "Source: ReliefWeb" with the named information partner and link to the returned ReliefWeb URL.',
   canStoreFullDescription: false,
-  canIndex: true,
+  // False because it is the truth, not a restriction. ReliefWeb jobs are
+  // served live from the API and never stored canonically, so canIndexJobDetail
+  // (which requires a databaseId) already refuses them — the pages render
+  // noindex either way. Leaving this true would assert a right we do not
+  // exercise, and would silently begin indexing description-less pages the
+  // moment these jobs were ever persisted. Thin pages at that volume damage
+  // the whole site's search standing, and that should never arrive as a side
+  // effect. Turning it on needs description rights from ReliefWeb first.
+  canIndex: false,
   // Deliberately false and NOT a policy choice: Google's JobPosting markup
   // requires a `description`, and the ReliefWeb allowlist carries no body
   // field at all (the adapter requests seven metadata fields and sets
