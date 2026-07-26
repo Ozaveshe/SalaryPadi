@@ -178,11 +178,21 @@ function runtimeSource(
   }
 }
 
+// Must stay in step with authorizedPoliciesEnvelopeSchema in
+// ats-source-sync.mts. These are two caps on the same registry: raising only
+// the envelope moved the failure from ats_source_registry_invalid to
+// ats_source_policy_invalid without ingesting anything. Neither cap governs
+// per-run work, which MAX_SOURCES_PER_RUN still fixes at one source.
+const MAX_AUTHORIZED_SOURCE_ROWS = 400;
+
 export function parseAuthorizedAtsRuntimePolicies(
   value: unknown,
   now: Date = new Date(),
 ): AuthorizedAtsRuntimePolicy[] {
-  const parsed = z.array(authorizedSourceRowSchema).max(50).safeParse(value);
+  const parsed = z
+    .array(authorizedSourceRowSchema)
+    .max(MAX_AUTHORIZED_SOURCE_ROWS)
+    .safeParse(value);
   if (!parsed.success || !Number.isFinite(now.valueOf())) {
     throw new OperationalError("ats_source_policy_invalid");
   }
