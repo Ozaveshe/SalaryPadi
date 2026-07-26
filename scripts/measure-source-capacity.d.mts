@@ -23,12 +23,13 @@ export type ClassifiedSourceRow = MeasuredSourceRow & {
   steady_state_count: number;
   qualifies: boolean;
   reason: string;
-  observed_daily: number | null;
+  observed_per_30d: number | null;
 };
 
 export type CapacitySummary = {
   classified: ClassifiedSourceRow[];
   qualifying: ClassifiedSourceRow[];
+  creditable_per_30d: number;
   creditable_daily_capacity: number;
   target_daily_new_canonical: number;
 };
@@ -44,7 +45,7 @@ export const TARGET_QUERY: string;
 export const RUNNABLE_COUNT_QUERY: string;
 export const MEASUREMENT_QUERY: string;
 
-export function observedDailyRate(
+export function observedRatePer30Days(
   steadyStateCount: number,
   observationDays: number,
 ): number;
