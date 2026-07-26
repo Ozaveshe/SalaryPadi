@@ -505,4 +505,122 @@ describe("scheduled worker runtime", () => {
       }),
     );
   });
+
+  it("still records a terminal failure when the worker budget is exhausted", async () => {
+    // Regression: the terminal worker_finish call reused the worker-budget
+    // signal. When the operation consumed that budget the signal was already
+    // aborted, the finish RPC failed instantly, and the run stayed 'running'
+    // forever with no durable failure — exactly the case that most needs one.
+    const exhausted = AbortSignal.abort(
+      new DOMException("deadline", "TimeoutError"),
+    );
+    // The worker and operation budgets are spent; only the terminal budget
+    // (RPC_TIMEOUT_MS) is still live. A terminal write must draw on that one.
+    const timeoutSignal = (timeoutMs: number) =>
+      timeoutMs === RPC_TIMEOUT_MS ? AbortSignal.timeout(timeoutMs) : exhausted;
+    const terminalCalls: Record<string, unknown>[] = [];
+    const fakeRpc = async <T>(
+      functionName: string,
+      _resultSchema: z.ZodType<T>,
+      parameters: Record<string, unknown> = {},
+      options: { signal?: AbortSignal } = {},
+    ): Promise<T> => {
+      if (functionName === "worker_start") {
+        return [
+          { run_id: "00000000-0000-4000-8000-000000000009", should_run: true },
+        ] as T;
+      }
+      // A terminal write must never be handed an already-aborted signal.
+      if (options.signal?.aborted) {
+        throw new OperationalError("supabase_rpc_aborted");
+      }
+      terminalCalls.push(parameters);
+      return true as T;
+    };
+
+    await expect(
+      runTrackedWorker(
+        "test_worker",
+        scheduledRequest(),
+        {} as Context,
+        async () => {
+          throw new OperationalError("upstream_unavailable");
+        },
+        { rpc: fakeRpc, timeoutSignal },
+      ),
+    ).rejects.toMatchObject({ code: "upstream_unavailable" });
+
+    expect(terminalCalls).toContainEqual(
+      expect.objectContaining({
+        p_status: "failed",
+        p_error_code: "upstream_unavailable",
+      }),
+    );
+  });
+
+  it("logs a structured start failure when worker_start cannot be reached", async () => {
+    // Before worker_start returns a run id there is no row to finish, so the
+    // only available evidence is the function log. Without it, a worker that
+    // cannot reach Supabase is indistinguishable from one never invoked.
+    const errorLog = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const fakeRpc = async <T>(): Promise<T> => {
+      throw new OperationalError("supabase_rpc_503");
+    };
+
+    await expect(
+      runTrackedWorker(
+        "test_worker",
+        scheduledRequest(),
+        {} as Context,
+        async () => workerSucceeded({}),
+        { rpc: fakeRpc },
+      ),
+    ).rejects.toMatchObject({ code: "supabase_rpc_503" });
+
+    expect(errorLog).toHaveBeenCalledWith(
+      JSON.stringify({
+        task: "test_worker",
+        status: "start_failed",
+        code: "supabase_rpc_503",
+      }),
+    );
+    errorLog.mockRestore();
+  });
+
+  it("records a safe failure when worker_start returns an invalid shape", async () => {
+    const errorLog = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const fakeRpc = async <T>(
+      functionName: string,
+      resultSchema: z.ZodType<T>,
+    ): Promise<T> => {
+      if (functionName === "worker_start") {
+        // An empty result is schema-valid but carries no run to track.
+        return resultSchema.parse([]);
+      }
+      return true as T;
+    };
+
+    await expect(
+      runTrackedWorker(
+        "test_worker",
+        scheduledRequest(),
+        {} as Context,
+        async () => workerSucceeded({}),
+        { rpc: fakeRpc },
+      ),
+    ).rejects.toMatchObject({ code: "worker_start_missing" });
+
+    expect(errorLog).toHaveBeenCalledWith(
+      JSON.stringify({
+        task: "test_worker",
+        status: "start_failed",
+        code: "worker_start_missing",
+      }),
+    );
+    errorLog.mockRestore();
+  });
 });

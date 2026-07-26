@@ -11,11 +11,25 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Task keys are validated by SHAPE, not against the expected registry.
+ *
+ * This schema previously used `z.enum(EXPECTED_WORKER_KEYS)`. Because a Zod
+ * array parse is all-or-nothing, a single schedule row whose key was not yet
+ * in config/production-workers.json failed the entire array, so `workers`
+ * collapsed to `[]` and every real worker became invisible — reported as
+ * "missing" by the freshness workflow even while it was running healthily.
+ * Registry drift must be *reported*, never allowed to erase observability, so
+ * unknown keys are now parsed and surfaced explicitly as `unregistered_workers`
+ * (which still fails `worker_health_complete` and still returns 503).
+ */
+const workerTaskKeySchema = z.string().regex(/^[a-z][a-z0-9_]{1,79}$/);
+
 const workerHealthSchema = z
   .array(
     z
       .object({
-        task_key: z.enum(EXPECTED_WORKER_KEYS),
+        task_key: workerTaskKeySchema,
         owner_label: z.string().trim().min(1).max(160),
         last_status: z
           .enum(["running", "succeeded", "failed", "skipped"])
@@ -166,21 +180,76 @@ export async function GET() {
   const parsedSupply = jobSupplyCanarySchema.safeParse(supplyResult.data);
   const workers = parsedWorkers.success ? parsedWorkers.data : [];
   const workerKeys = new Set(workers.map((worker) => worker.task_key));
+  const expectedKeys = new Set<string>(EXPECTED_WORKER_KEYS);
+  /** Registered workers the database did not report at all. */
+  const missingWorkers = EXPECTED_WORKER_KEYS.filter(
+    (taskKey) => !workerKeys.has(taskKey),
+  );
+  const unknownToRegistry = workers.filter(
+    (worker) => !expectedKeys.has(worker.task_key),
+  );
+  /**
+   * An ACTIVE schedule this deployment has no worker for. Real drift: the
+   * database will expect runs nothing can produce, so it fails health.
+   */
+  const unregisteredWorkers = [
+    ...new Set(
+      unknownToRegistry
+        .filter((worker) => worker.freshness !== "disabled")
+        .map((worker) => worker.task_key),
+    ),
+  ].toSorted();
+  /**
+   * A DISABLED schedule this deployment has no worker for — a schedule parked
+   * ahead of the worker that will use it. Reported for visibility, but not a
+   * fault: a disabled schedule asks nothing of the platform.
+   */
+  const parkedWorkers = [
+    ...new Set(
+      unknownToRegistry
+        .filter((worker) => worker.freshness === "disabled")
+        .map((worker) => worker.task_key),
+    ),
+  ].toSorted();
   const workerHealthComplete =
     parsedWorkers.success &&
-    workers.length === EXPECTED_WORKER_KEYS.length &&
     workerKeys.size === workers.length &&
-    EXPECTED_WORKER_KEYS.every((taskKey) => workerKeys.has(taskKey));
+    missingWorkers.length === 0 &&
+    unregisteredWorkers.length === 0;
+  /**
+   * A deliberately disabled schedule is a known, honest state, not a fault.
+   * Every other non-healthy freshness (never, stale, degraded) is a fault and
+   * keeps the endpoint at 503 so the canary and freshness workflows still see
+   * it.
+   */
   const unhealthyWorkers = workers.filter(
-    (worker) => worker.freshness !== "healthy",
+    (worker) =>
+      worker.freshness !== "healthy" && worker.freshness !== "disabled",
   );
+  /**
+   * Worker health and source-supply capacity are separate concerns.
+   *
+   * `authorized_daily_capacity` is a RIGHTS state: it sums
+   * `expected_daily_new_canonical` over sources whose policy is runnable and
+   * that carry recorded capacity evidence. With every high-volume source
+   * intentionally unauthorised it is legitimately 0, and no amount of correct
+   * worker execution can raise it. Letting that permanently pin the service to
+   * 503 made the endpoint unable to ever report the thing it exists to report:
+   * whether the deployment and its workers are functioning.
+   *
+   * Supply capacity therefore stays fully visible in the payload
+   * (`job_supply_ready`, `job_supply.state`) and is asserted separately by the
+   * freshness workflow, but it no longer masks worker health in the HTTP
+   * status. No worker check is relaxed: a missing, never-run, stale or failed
+   * worker still returns 503.
+   */
+  const workersOperational =
+    !workerResult.error &&
+    parsedWorkers.success &&
+    workerHealthComplete &&
+    unhealthyWorkers.length === 0;
   const status =
-    workerResult.error ||
-    supplyResult.error ||
-    !parsedSupply.success ||
-    parsedSupply.data.state !== "ready" ||
-    !workerHealthComplete ||
-    unhealthyWorkers.length > 0 ||
+    !workersOperational ||
     !backendConfigured ||
     !afroToolsConfigured ||
     !operationsConfigured
@@ -198,6 +267,19 @@ export async function GET() {
         afrotools_configured: afroToolsConfigured,
         operations_configured: operationsConfigured,
         worker_health_complete: workerHealthComplete,
+        /** Registered workers the database did not report. */
+        missing_workers: missingWorkers,
+        /** Active schedule rows this deployment has no worker for. */
+        unregistered_workers: unregisteredWorkers,
+        /** Disabled schedule rows parked ahead of their worker. */
+        parked_workers: parkedWorkers,
+        /** Reported workers that are neither healthy nor deliberately disabled. */
+        unhealthy_workers: unhealthyWorkers.map((worker) => worker.task_key),
+        /**
+         * Source-supply capacity, reported truthfully and independently of
+         * worker health. False here means SalaryPadi does not hold authorised
+         * capacity for the daily target — not that a worker failed.
+         */
         job_supply_ready:
           parsedSupply.success && parsedSupply.data.state === "ready",
         job_supply: parsedSupply.success

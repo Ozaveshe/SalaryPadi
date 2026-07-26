@@ -427,24 +427,59 @@ export async function runTrackedWorker(
     timeoutSignal(WORKER_OPERATION_BUDGET_MS),
   ]);
   const callRpc = runtimeOptions.rpc ?? rpc;
+  /**
+   * A fresh signal for terminal (worker_finish) writes only. Terminal recording
+   * must never inherit a signal that the operation may already have exhausted,
+   * otherwise the very runs that most need a durable outcome — timeouts — are
+   * the ones that record nothing.
+   */
+  const terminalSignal = () => timeoutSignal(RPC_TIMEOUT_MS);
   const schedule = await readSchedule(request);
   const deployId = context.deploy?.id?.trim();
   const runKey = deployId
     ? `${schedule.runKey}:deploy:${deployId}`
     : schedule.runKey;
-  const started = await callRpc(
-    "worker_start",
-    workerStartResultSchema,
-    {
-      p_task_key: taskKey,
-      p_run_key: runKey,
-      p_scheduled_for: schedule.scheduledFor,
-      p_deploy_id: deployId ?? null,
-    },
-    { signal: workerSignal },
-  );
+  /**
+   * Before worker_start returns a run id there is nothing to attach a terminal
+   * record to, so a failure here is structurally unrecordable in worker_runs.
+   * It must at least be loudly observable in the function log with its task key
+   * and error code, otherwise a worker that cannot reach Supabase looks
+   * identical to one that was never invoked.
+   */
+  let started: z.infer<typeof workerStartResultSchema>;
+  try {
+    started = await callRpc(
+      "worker_start",
+      workerStartResultSchema,
+      {
+        p_task_key: taskKey,
+        p_run_key: runKey,
+        p_scheduled_for: schedule.scheduledFor,
+        p_deploy_id: deployId ?? null,
+      },
+      { signal: workerSignal },
+    );
+  } catch (reason) {
+    console.error(
+      JSON.stringify({
+        task: taskKey,
+        status: "start_failed",
+        code: errorCode(reason),
+      }),
+    );
+    throw reason;
+  }
   const run = started[0];
-  if (!run) throw new OperationalError("worker_start_missing");
+  if (!run) {
+    console.error(
+      JSON.stringify({
+        task: taskKey,
+        status: "start_failed",
+        code: "worker_start_missing",
+      }),
+    );
+    throw new OperationalError("worker_start_missing");
+  }
   if (!run.should_run) {
     console.info(JSON.stringify({ task: taskKey, status: "duplicate" }));
     return new Response(null, { status: 204 });
@@ -470,7 +505,13 @@ export async function runTrackedWorker(
           p_summary: summary,
           p_error_code: code,
         },
-        { signal: workerSignal },
+        // Deliberately NOT workerSignal. When the operation exhausted the
+        // worker budget (or the platform aborted it) workerSignal is already
+        // aborted, so reusing it made the terminal write fail instantly and the
+        // run stayed 'running' forever — a timed-out worker left no durable
+        // failure at all. The terminal record gets its own budget, drawn from
+        // the reserve held back from the platform limit.
+        { signal: terminalSignal(), timeoutMs: RPC_TIMEOUT_MS },
       );
       if (!finished) throw new OperationalError("worker_finish_rejected");
     } catch (finishReason) {
@@ -496,7 +537,7 @@ export async function runTrackedWorker(
         p_summary: outcome.summary,
         p_error_code: null,
       },
-      { signal: workerSignal },
+      { signal: terminalSignal(), timeoutMs: RPC_TIMEOUT_MS },
     );
     if (!finished) throw new OperationalError("worker_finish_rejected");
   } catch (finishReason) {

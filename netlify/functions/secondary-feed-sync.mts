@@ -41,16 +41,35 @@ import {
  * this worker inside each provider's request budget even across retries.
  */
 
+/**
+ * The full row shape of api.worker_get_job_source_policy.
+ *
+ * This schema is `.strict()` on purpose — an unrecognised column means the
+ * policy contract moved underneath the worker and it must fail closed rather
+ * than sync against a shape it does not understand. It must therefore declare
+ * EVERY column the function returns. It previously declared only the thirteen
+ * fields the worker asserts on, while the function returns nineteen, so every
+ * run failed with `<source>_source_policy_invalid` before fetching anything.
+ * The six descriptive columns below are declared so the contract check works;
+ * the authorization decisions further down still read only the fields they
+ * validate.
+ */
 const sourcePolicyRowSchema = z
   .object({
+    source_id: z.string().uuid(),
     adapter_key: z.string().min(1).max(80),
+    source_name: z.string().min(1).max(200),
     source_type: z.string().min(1).max(40),
     status: z.enum(["draft", "active", "paused", "disabled"]),
+    homepage_url: z.string().min(1).nullable(),
     terms_url: z.string().min(1),
     terms_reviewed_at: z.string().datetime({ offset: true }).nullable(),
+    terms_reviewed_by: z.string().nullable(),
     terms_version: z.string().min(1).max(160),
-    allow_public_listing: z.boolean(),
+    review_requested_at: z.string().datetime({ offset: true }).nullable(),
     attribution_required: z.boolean(),
+    attribution_text: z.string().nullable(),
+    allow_public_listing: z.boolean(),
     may_store_full_description: z.boolean(),
     may_index_jobs: z.boolean(),
     may_emit_jobposting_schema: z.boolean(),

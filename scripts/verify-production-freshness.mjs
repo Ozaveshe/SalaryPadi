@@ -14,6 +14,7 @@ export const EXIT_CODES = Object.freeze({
   worker_unhealthy: 22,
   worker_never_run: 23,
   deploy_freshness: 24,
+  supply_capacity: 25,
   route: 30,
 });
 
@@ -325,6 +326,41 @@ function workerMap(payload) {
   return workers;
 }
 
+/**
+ * Asserts authorized source-supply capacity as its own check, independent of
+ * worker health. Fails when SalaryPadi does not hold proven capacity for the
+ * daily canonical target, and names the reported state so the reason is legible
+ * without opening the payload.
+ */
+export function checkSupplyCapacity(payload) {
+  const id = "supply:capacity";
+  if (!isRecord(payload) || !isRecord(payload.checks)) {
+    return skippedCheck(id, "health payload unavailable");
+  }
+  const checks = payload.checks;
+  if (checks.job_supply_ready === true) {
+    return passedCheck(id, "authorized capacity meets the daily target");
+  }
+  const supply = isRecord(checks.job_supply) ? checks.job_supply : null;
+  const state =
+    supply &&
+    typeof supply.state === "string" &&
+    /^[a-z][a-z0-9_]{0,39}$/.test(supply.state)
+      ? supply.state
+      : "unknown";
+  const detail =
+    supply &&
+    Number.isInteger(supply.authorized_daily_capacity) &&
+    Number.isInteger(supply.target_daily_new_canonical)
+      ? ` authorized_daily_capacity=${supply.authorized_daily_capacity} target=${supply.target_daily_new_canonical}`
+      : "";
+  return failedCheck(
+    id,
+    `job supply is not ready state=${state}${detail}`,
+    EXIT_CODES.supply_capacity,
+  );
+}
+
 function checkWorker(taskKey, worker, deployStartedAt, checkedAt) {
   const id = `worker:${taskKey}`;
   if (!worker) {
@@ -416,6 +452,7 @@ export async function verifyProductionFreshness({
     : null;
   const checks = [];
   let workers = null;
+  let healthPayload = null;
   const checkedAt = now();
   if (!(checkedAt instanceof Date) || !Number.isFinite(checkedAt.valueOf())) {
     throw new UsageError("Verification clock must be a valid date.");
@@ -462,6 +499,7 @@ export async function verifyProductionFreshness({
       );
     } else {
       workers = workerMap(parsed.payload);
+      healthPayload = parsed.payload;
       if (parsed.payload.status !== "ok") {
         addCheck(
           checks,
@@ -511,6 +549,14 @@ export async function verifyProductionFreshness({
         : skippedCheck(`worker:${taskKey}`, "health payload unavailable"),
     );
   }
+
+  // Source-supply capacity is asserted HERE rather than through the health
+  // status. /api/health deliberately reports worker/service health in its HTTP
+  // code and reports supply capacity as data, because capacity is a rights
+  // state that correct worker execution cannot raise. Keeping this check
+  // explicit means an unauthorised supply base still fails the freshness
+  // workflow loudly instead of disappearing when health returns 200.
+  addCheck(checks, checkSupplyCapacity(healthPayload));
 
   for (const pathname of VERIFIED_ROUTES) {
     const expectsFeed = pathname.endsWith(".xml");
