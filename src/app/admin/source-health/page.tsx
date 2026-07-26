@@ -3,6 +3,7 @@ import { CombinedRepositoryNotice } from "@/components/repository-notice";
 import { requireAdmin } from "@/lib/auth/dal";
 import { formatDate, formatEnum } from "@/lib/format";
 import {
+  getEmployerFeedHealthResult,
   getJobSupplyHealthResult,
   getProductionHealthResult,
 } from "@/lib/operations/production-health";
@@ -13,12 +14,14 @@ function recorded(value: number | null) {
 
 export default async function SourceHealthPage() {
   await requireAdmin();
-  const [healthResult, supplyResult] = await Promise.all([
+  const [healthResult, supplyResult, feedResult] = await Promise.all([
     getProductionHealthResult(),
     getJobSupplyHealthResult(),
+    getEmployerFeedHealthResult(),
   ]);
   const health = healthResult.data;
   const supply = supplyResult.data;
+  const feedHealth = feedResult.data;
 
   return (
     <div className="stack-lg">
@@ -29,9 +32,106 @@ export default async function SourceHealthPage() {
       />
 
       <CombinedRepositoryNotice
-        results={[healthResult, supplyResult]}
+        results={[healthResult, supplyResult, feedResult]}
         resource="Operational evidence"
       />
+
+      {feedHealth ? (
+        <section className="stack" aria-labelledby="employer-feed-health">
+          <h2 className="section-title" id="employer-feed-health">
+            Employer feeds
+          </h2>
+          <p className="text-muted m-0 max-w-3xl text-sm">
+            Every feed-shaped source config, authorized or not, with the reason
+            it is not running. Global policies:{" "}
+            {feedHealth.global_policies.length === 0
+              ? "not registered"
+              : feedHealth.global_policies
+                  .map((policy) => `${policy.adapter_key} ${policy.status}`)
+                  .join(", ")}
+            .
+          </p>
+          {feedHealth.feeds.length === 0 ? (
+            <p className="surface surface-pad m-0">
+              No employer feed is configured. No employer has authorized a feed,
+              so nothing runs and no record has been processed by this path.
+            </p>
+          ) : (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Feed</th>
+                    <th>Employer</th>
+                    <th>Kind</th>
+                    <th>Authorization</th>
+                    <th>Next review</th>
+                    <th>Open jobs</th>
+                    <th>Last attempt</th>
+                    <th>Outcome</th>
+                    <th>Last complete</th>
+                    <th>Fetched</th>
+                    <th>Accepted</th>
+                    <th>Filtered</th>
+                    <th>Quarantined</th>
+                    <th>Dropped</th>
+                    <th>Inserted</th>
+                    <th>Updated</th>
+                    <th>Unchanged</th>
+                    <th>Closed</th>
+                    <th>Last error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {feedHealth.feeds.map((feed) => (
+                    <tr key={feed.adapter_key}>
+                      <td>{feed.source_name}</td>
+                      <td>{feed.employer_name}</td>
+                      <td>{formatEnum(feed.feed_kind)}</td>
+                      <td>{formatEnum(feed.authorization_state)}</td>
+                      <td>
+                        {feed.next_rights_review
+                          ? formatDate(feed.next_rights_review)
+                          : "Not recorded"}
+                      </td>
+                      <td>{feed.current_job_count.toLocaleString("en-NG")}</td>
+                      <td>
+                        {feed.last_attempt_at
+                          ? formatDate(feed.last_attempt_at)
+                          : "Never run"}
+                      </td>
+                      <td>
+                        {feed.last_outcome
+                          ? `${formatEnum(feed.last_outcome)}${
+                              feed.last_snapshot_complete === false
+                                ? " (partial)"
+                                : ""
+                            }`
+                          : "Never run"}
+                      </td>
+                      <td>
+                        {feed.last_complete_snapshot_at
+                          ? formatDate(feed.last_complete_snapshot_at)
+                          : "None"}
+                      </td>
+                      <td>{recorded(feed.fetched)}</td>
+                      <td>{recorded(feed.accepted)}</td>
+                      <td>{recorded(feed.filtered)}</td>
+                      <td>{recorded(feed.quarantined)}</td>
+                      <td>{recorded(feed.destination_dropped)}</td>
+                      <td>{recorded(feed.inserted)}</td>
+                      <td>{recorded(feed.updated)}</td>
+                      <td>{recorded(feed.unchanged)}</td>
+                      <td>{recorded(feed.closed)}</td>
+                      <td>{feed.last_error_code ?? "None"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {supply ? (
         <>

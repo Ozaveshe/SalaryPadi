@@ -240,20 +240,52 @@ Updated 2026-07-25, after the snapshot-safety work.
   (`employer_xml_json_feeds` / `employer_csv_import`) is evaluated before any
   network request or payload processing, and a per-feed `enabled` record cannot
   override it.
+- **Production persistence** via `SupabaseFeedRunStore`, which reuses the
+  existing ATS snapshot lifecycle (begin → bounded batches → finalize), so
+  feeds inherit its idempotency, acknowledgement checks, absence handling and
+  audit trail instead of getting a second ingestion system. A partial snapshot
+  is forwarded verbatim and can never close a job.
+- **Rights-compliant source evidence** captured before normalization
+  (`evidence.ts`), retaining the full payload only where the source policy
+  permits it — and the database re-checks that independently, so a caller
+  cannot widen it. Records excluded before normalization still leave evidence.
+- **Durable run metrics** in `private.feed_run_metrics`, recorded for every
+  attempt including those that never open a snapshot (policy blocked,
+  authorization expired, fetch failed).
+- **A scheduled worker** (`netlify/functions/employer-feed-sync.mts`, six-hourly)
+  that loads only feeds passing both gates, bounds how many it attempts per
+  invocation, rotates fairly, respects a time budget, and records a durable
+  terminal outcome for every attempt. With no feed authorized it reports an
+  honest `skipped`, never a success.
+- **A bounded streaming fetcher** — HTTPS only, no credentials, no IP literals
+  or internal hosts, manually-followed redirects re-validated per hop and
+  refused off-domain, byte-counted body cancelled at the cap, bounded
+  `Retry-After`. A cut-short body is reported incomplete so it can never be
+  treated as authoritative.
+- **Operator visibility** at `/admin/source-health`, listing every feed-shaped
+  source config — authorized or not — with the reason an unauthorized one is
+  not running, the global policy state, and the latest run counts. A feed that
+  silently fails to appear is the failure mode this surface prevents.
 
 ### What does NOT exist
 
-- **No production persistence.** `FeedRunStore` has one implementation, an
-  in-memory store used by the tests. Nothing writes to Supabase.
-- **No scheduled generic-feed worker.** No Netlify function loads or runs these
-  feeds; the runtime is not reachable from any deployed entry point.
 - **No authenticated CSV surface.** `uploadedPayload` is a function parameter,
   not an endpoint. There is no upload route, no authentication and no
   authorization binding an uploader to an employer.
-- **No durable metrics.** `FeedRunMetrics` is returned to the caller and
-  discarded; no table, no source-health integration.
-- **No rights-compliant source evidence.** The raw record is still derived
-  after normalization and is not a faithful pre-normalization artifact.
+
+### What the verified-employer chain actually supports
+
+`security.can_manage_company(company_id)` exists and reads
+`private.company_memberships` where `status = 'verified'` and `revoked_at is
+null`. The chain that populates it is complete: `submit_company_claim` →
+moderation case → `transition_company_claim(..., 'verify', ...)` by a
+`data_quality` or `admin` role → membership insert, with revocation handled and
+every transition audited.
+
+It has never run. As of 2026-07-25 production holds **0 company claims and 0
+company memberships**, and no application code calls `can_manage_company`.
+The primitive is sufficient in principle for employer self-service; it is
+unexercised in practice, which is why the CSV path is not built on it yet.
 
 ### Current state
 
@@ -261,8 +293,13 @@ Updated 2026-07-25, after the snapshot-safety work.
 policies are `disabled` with unmet dependencies. **No employer feed has
 processed a production record, and none can.**
 
-The first production pilot remains blocked on: a real employer authorization,
-the production store, the scheduled worker, the authenticated CSV surface and
-durable metrics. This layer is extraction and safety orchestration only — it is
-not production-ready, not code complete, and the 20,000-active-jobs target is
-not merely supply-gated.
+The first production pilot remains blocked on **a real employer authorization**
+and the authenticated CSV surface. The end-to-end machine path now exists —
+worker, fetcher, extraction, safety contract, persistence, evidence, metrics —
+and runs on a schedule, but it has **processed zero production records and
+cannot process any**, because no employer has authorized a feed and both global
+source policies are disabled. Every scheduled invocation reports `skipped`.
+
+This is not complete and not production-ready: nothing has been proven against
+a real employer feed. The 20,000-active-jobs target remains unmet, and current
+authorized daily capacity is 0 against a target of 500/day.

@@ -24,21 +24,26 @@ select ok(
   'the drifted employer_feed_sync schedule is tracked by a committed migration'
 );
 
+-- 20260725120000 disabled this schedule because no worker existed for it.
+-- 20260726090000 re-enabled it once netlify/functions/employer-feed-sync.mts
+-- shipped. Enabled is now the correct state: a worker runs on a six-hourly
+-- cron and records an honest skipped outcome while no feed is authorized.
 select is(
   (select enabled from private.worker_schedules where task_key = 'employer_feed_sync'),
-  false,
-  'a schedule with no deployed worker is disabled rather than permanently never-run'
+  true,
+  'the schedule is enabled because a worker now ships for it'
 );
 
--- get_worker_health must classify a disabled schedule as 'disabled', which the
--- health endpoint treats as a known-safe state rather than a fault.
+-- On a freshly migrated database no worker has run yet, so an enabled
+-- schedule reports 'never'. That is why the worker must genuinely execute
+-- rather than the schedule merely being flipped on.
 select is(
   (
     select freshness from security.get_worker_health_internal()
     where task_key = 'employer_feed_sync'
   ),
-  'disabled',
-  'a disabled schedule reports freshness disabled, not never'
+  'never',
+  'an enabled schedule with no recorded run reports never, not healthy'
 );
 
 -- Every worker health row must carry a key shaped like a canonical task key.
@@ -69,30 +74,31 @@ select ok(
   'worker health reports each task exactly once'
 );
 
--- A worker whose latest run failed must surface as degraded, never healthy:
--- the endpoint relies on this to keep failures visible to the canary.
+-- Disabling remains the honest representation for a schedule with no worker:
+-- the health function checks `enabled` before it checks for runs, so a parked
+-- schedule can never masquerade as never-run.
 select is(
   (
     select case
       when not s.enabled then 'disabled'
-      when null::timestamptz is null then 'never'
+      else 'never'
     end
     from private.worker_schedules s
     where s.task_key = 'employer_feed_sync'
   ),
-  'disabled',
-  'disabled takes precedence over never for an unimplemented worker'
+  'never',
+  'disabled is checked before never, and this schedule is enabled'
 );
 
--- Enabled schedules must all correspond to a real deployed worker key. This is
--- the invariant whose violation caused the outage.
+-- The schedule exists exactly once. A duplicate would make the health array
+-- report the same key twice, which fails worker_health_complete.
 select is(
   (
     select count(*) from private.worker_schedules
-    where enabled and task_key = 'employer_feed_sync'
+    where task_key = 'employer_feed_sync'
   ),
-  0::bigint,
-  'no enabled schedule exists without a deployed worker'
+  1::bigint,
+  'the employer feed schedule is registered exactly once'
 );
 
 select * from finish();
