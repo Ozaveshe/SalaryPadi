@@ -29,11 +29,7 @@ export function OAuthButtons({
             className="auth-provider-form"
           >
             <input type="hidden" name="next" value={next} />
-            <input
-              type="hidden"
-              name="provider"
-              value={provider.provider}
-            />
+            <input type="hidden" name="provider" value={provider.provider} />
             <button
               className="button button-secondary auth-provider-button"
               type="submit"

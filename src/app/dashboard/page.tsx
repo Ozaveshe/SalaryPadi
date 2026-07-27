@@ -73,8 +73,7 @@ export default async function DashboardPage() {
               >
                 {summary.nextAction.title}
               </Link>{" "}
-              is due{" "}
-              <strong>{formatDate(summary.nextAction.dueAt)}</strong>.
+              is due <strong>{formatDate(summary.nextAction.dueAt)}</strong>.
             </p>
             <p className="source-note m-0">
               You set this date yourself on the application record.
@@ -93,8 +92,8 @@ export default async function DashboardPage() {
             {summary.activeApplications.length === 0 ? (
               <div className="empty-state">
                 <p className="m-0">
-                  Nothing in flight yet. When you apply for a role, track it here
-                  so nothing slips.
+                  Nothing in flight yet. When you apply for a role, track it
+                  here so nothing slips.
                 </p>
               </div>
             ) : (
