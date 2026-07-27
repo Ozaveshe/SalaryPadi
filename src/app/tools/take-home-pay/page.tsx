@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { TakeHomeCalculator } from "@/components/tools/take-home-calculator";
 
@@ -26,6 +27,7 @@ export default function TakeHomePayPage() {
         title="See where gross pay goes"
         description="Run gross-to-net or net-to-gross calculations against versioned AfroTools PAYE data. If rules or responses cannot be verified, SalaryPadi shows no result."
       />
+      <BrandArt className="page-art" id="tool-take-home-pay" />
       <TakeHomeCalculator />
     </div>
   );

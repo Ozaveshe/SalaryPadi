@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { CompanyEvidenceInvitation } from "@/components/companies/company-evidence-invitation";
 import { PrivateDataStatus } from "@/components/private-data-status";
@@ -182,6 +183,7 @@ export default async function ApplicationsPage({
         </div>
       ) : (
         <div className="empty-state">
+          <BrandArt id="empty-applications" />
           <h2 className="section-title">No applications tracked yet</h2>
           <p>Open a job and choose “I applied” to create a private record.</p>
           <Link className="button w-fit" href="/jobs">

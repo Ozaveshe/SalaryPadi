@@ -5,6 +5,7 @@ import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { JobPreviewPanel } from "@/components/jobs/job-preview-panel";
 import { JobSearchForm } from "@/components/jobs/job-search-form";
 import { Pagination } from "@/components/jobs/pagination";
+import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { getViewer } from "@/lib/auth/dal";
 import { getCandidateProfile } from "@/lib/career/repository";
@@ -199,6 +200,9 @@ export async function JobsExperience({
           </div>
         ) : (
           <div className="empty-state">
+            {/* Art only where the empty list is a real answer. A degraded
+                feed is a warning, and decorating it would soften it. */}
+            {feedIsConclusive ? <BrandArt id="empty-jobs" /> : null}
             <h3 className="m-0 text-xl font-bold">
               {!feedIsConclusive && feed.jobs.length === 0
                 ? "Current job results could not be confirmed"

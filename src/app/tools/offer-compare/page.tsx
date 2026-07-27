@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { OfferCompare } from "@/components/tools/offer-compare";
 
@@ -26,6 +27,7 @@ export default function OfferComparePage() {
         title="Compare the value you will actually feel"
         description="SalaryPadi compares the offers deterministically. Only the required currency pairs are requested from AfroTools; offer amounts and terms stay out of that provider request."
       />
+      <BrandArt className="page-art" id="tool-offer-compare" />
       <OfferCompare />
     </div>
   );

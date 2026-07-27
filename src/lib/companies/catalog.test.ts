@@ -50,6 +50,16 @@ describe("African company catalog", () => {
     expect(getAfricanCompanyCatalogEntry("unknown-company")).toBeNull();
   });
 
+  it("ships no logo file without its provenance record", () => {
+    for (const company of getAfricanCompanyCatalog()) {
+      if (!company.logo) continue;
+      expect(company.logo.file).toBe(`${company.slug}.webp`);
+      expect(new URL(company.logo.sourceUrl).protocol).toBe("https:");
+      expect(company.logo.sourceTitle.length).toBeGreaterThan(0);
+      expect(Number.isNaN(Date.parse(company.logo.obtainedAt))).toBe(false);
+    }
+  });
+
   it("exposes only validated HTTPS provenance", () => {
     const selection = getAfricanCompanySelection();
     expect(new URL(selection.url).protocol).toBe("https:");

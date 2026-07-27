@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { SalaryConverter } from "@/components/tools/salary-converter";
 
@@ -26,6 +27,7 @@ export default function SalaryConverterPage() {
         title="Convert a salary with visible rate evidence"
         description="SalaryPadi fetches only a unit currency rate, applies it locally, and refuses rates older than 30 days."
       />
+      <BrandArt className="page-art" id="tool-salary-converter" />
       <SalaryConverter />
     </div>
   );

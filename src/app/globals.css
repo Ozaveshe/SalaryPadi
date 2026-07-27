@@ -715,6 +715,32 @@ a:hover {
   text-align: left;
 }
 
+/**
+ * Decorative brand art. Transparent WebP, so it inherits whichever surface it
+ * sits on. Always height-auto against an intrinsic width so a slot reserves
+ * its space before the file decodes and never shifts layout.
+ */
+.brand-art {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.empty-state .brand-art {
+  max-width: 15rem;
+  margin-block-end: 1rem;
+}
+
+.page-art {
+  max-width: 28rem;
+  margin-inline: auto;
+}
+
+.editorial-cover {
+  border-radius: var(--radius-medium);
+  margin-block-end: 1.5rem;
+}
+
 .route-skeleton {
   display: grid;
   gap: 1.25rem;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { BrandArt } from "@/components/media/brand-art";
 import { PolicyPage } from "@/components/policy-page";
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function AboutPage() {
       title="Career decisions deserve better evidence."
       description="SalaryPadi helps Africans find jobs they can actually apply for, understand what an offer is worth, and judge the evidence behind a vacancy or workplace claim."
     >
+      <BrandArt className="page-art" id="about" />
       <h2>What we are building</h2>
       <p>
         A compact job-discovery and career-intelligence platform for Nigeria

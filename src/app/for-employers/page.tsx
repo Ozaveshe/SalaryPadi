@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { BriefcaseBusiness, Building2, MessagesSquare } from "lucide-react";
 import Link from "next/link";
 
+import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default function ForEmployersPage() {
         title="Publish, claim or respond with evidence"
         description="A claim or reply request starts a human review. Neither route creates a verification badge automatically, and community evidence is never removed merely because an employer disagrees with it."
       />
+      <BrandArt className="page-art" id="for-employers" />
       <div className="employer-path-grid">
         <article className="surface surface-pad stack">
           <BriefcaseBusiness aria-hidden="true" size={24} />

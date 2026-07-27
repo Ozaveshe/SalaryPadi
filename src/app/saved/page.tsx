@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { PrivateDataStatus } from "@/components/private-data-status";
 import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
@@ -94,6 +95,7 @@ export default async function SavedJobsPage({
         </div>
       ) : (
         <div className="empty-state">
+          <BrandArt id="empty-saved" />
           <h2 className="section-title">Nothing saved yet</h2>
           <p>Save a role after checking its eligibility and source evidence.</p>
           <Link className="button w-fit" href="/jobs">

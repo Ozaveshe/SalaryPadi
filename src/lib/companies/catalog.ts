@@ -13,6 +13,25 @@ const domainSchema = z
   .min(1)
   .max(253)
   .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/);
+/**
+ * A logo is a self-hosted file under `public/logos/`. The record is all-or-
+ * nothing on purpose: a file may not be shipped without naming where it was
+ * obtained and when, which is what makes a later trademark question
+ * answerable. A company with no record renders the deterministic monogram.
+ */
+const companyLogoSchema = z
+  .object({
+    file: z
+      .string()
+      .min(1)
+      .max(180)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*\.webp$/),
+    sourceUrl: externalHttpsUrlSchema,
+    sourceTitle: z.string().trim().min(1).max(300),
+    obtainedAt: z.iso.date(),
+  })
+  .strict();
+
 const companySchema = z
   .object({
     rank: z.number().int().positive().max(1_000),
@@ -32,6 +51,7 @@ const companySchema = z
     domain: domainSchema,
     officialSourceUrl: externalHttpsUrlSchema,
     officialSourceTitle: z.string().trim().min(1).max(300),
+    logo: companyLogoSchema.optional(),
   })
   .strict();
 
@@ -52,9 +72,10 @@ const catalogSchema = z
     selectionSource: selectionSchema,
     logoStrategy: z
       .object({
-        provider: z.literal("logo.dev"),
-        lookup: z.literal("official_domain"),
+        provider: z.literal("self_hosted"),
+        lookup: z.literal("catalog_logo_record"),
         publicRoute: z.literal("/api/company-logos/{slug}"),
+        staticPath: z.literal("/logos/{file}"),
         fallback: z.literal("deterministic_monogram"),
         verification: z.string().trim().min(1).max(500),
       })
@@ -71,6 +92,15 @@ const catalogSchema = z
         code: "custom",
         path: ["companies"],
         message: `Company catalog contains a duplicate ${key}.`,
+      });
+    }
+    for (const [index, company] of value.companies.entries()) {
+      if (!company.logo || company.logo.file === `${company.slug}.webp`)
+        continue;
+      context.addIssue({
+        code: "custom",
+        path: ["companies", index, "logo", "file"],
+        message: `Logo file for ${company.slug} must be named ${company.slug}.webp.`,
       });
     }
     if (Date.parse(value.generatedAt) > Date.parse(value.reviewDueAt)) {

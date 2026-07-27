@@ -18,7 +18,7 @@ describe("company logo route", () => {
     });
   });
 
-  it("serves an online fallback for every allowlisted company without provider configuration", async () => {
+  it("serves an online fallback for an allowlisted company with no logo record", async () => {
     const response = await GET(
       new Request("https://salarypadi.test/api/company-logos/safaricom"),
       {
