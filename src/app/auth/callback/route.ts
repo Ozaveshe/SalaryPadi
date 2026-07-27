@@ -11,7 +11,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = parseAuthLinkCredential(url.searchParams.get("code"));
-  const next = safeRelativePath(url.searchParams.get("next"), "/saved");
+  const next = safeRelativePath(url.searchParams.get("next"), "/dashboard");
   if (!code) {
     return noStoreResponse(
       NextResponse.redirect(

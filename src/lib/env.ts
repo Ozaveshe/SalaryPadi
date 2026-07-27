@@ -109,6 +109,18 @@ const serverEnvironmentSchema = z
       .default("false")
       .transform((value) => value === "true"),
     RELIEFWEB_APP_NAME: optionalCredential,
+    // Social sign-in availability only. The OAuth client id and secret are held
+    // by Supabase Auth, never by this application, so enabling a provider here
+    // cannot on its own leak or grant credentials — it only decides whether the
+    // sign-in page offers the button.
+    AUTH_GOOGLE_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    AUTH_LINKEDIN_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     EDITORIAL_AUTOMATION_ENABLED: z
       .enum(["true", "false"])
       .default("false")
@@ -253,6 +265,8 @@ export function parseServerEnvironment(
     REMOTIVE_SOURCE_ENABLED: environment.REMOTIVE_SOURCE_ENABLED,
     RELIEFWEB_SOURCE_ENABLED: environment.RELIEFWEB_SOURCE_ENABLED,
     RELIEFWEB_APP_NAME: environment.RELIEFWEB_APP_NAME,
+    AUTH_GOOGLE_ENABLED: environment.AUTH_GOOGLE_ENABLED,
+    AUTH_LINKEDIN_ENABLED: environment.AUTH_LINKEDIN_ENABLED,
     EDITORIAL_AUTOMATION_ENABLED: environment.EDITORIAL_AUTOMATION_ENABLED,
     ALLOW_DEMO_DATA: environment.ALLOW_DEMO_DATA,
     ANALYTICS_PROVIDER: environment.ANALYTICS_PROVIDER,
@@ -294,6 +308,14 @@ export function getSupabasePublicConfig() {
 
 export function getAppOrigin() {
   return new URL(getServerEnvironment().NEXT_PUBLIC_APP_URL).origin;
+}
+
+export function getAuthProviderFlags() {
+  const environment = getServerEnvironment();
+  return {
+    google: environment.AUTH_GOOGLE_ENABLED,
+    linkedin_oidc: environment.AUTH_LINKEDIN_ENABLED,
+  };
 }
 
 export function getGoogleAnalyticsId() {

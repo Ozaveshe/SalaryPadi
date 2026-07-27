@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { BackendNotice } from "@/components/backend-notice";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageHeading } from "@/components/page-heading";
+import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { SignInForm } from "@/components/auth/sign-in-form";
 import { getViewer } from "@/lib/auth/dal";
 import { safeRelativePath } from "@/lib/security/urls";
@@ -20,7 +21,7 @@ export default async function SignInPage({
 }) {
   const viewer = await getViewer();
   const parameters = await searchParams;
-  const next = safeRelativePath(parameters.next, "/saved");
+  const next = safeRelativePath(parameters.next, "/dashboard");
   const status =
     typeof parameters.status === "string" ? parameters.status : null;
 
@@ -60,6 +61,11 @@ export default async function SignInPage({
           again later.
         </div>
       ) : null}
+      {status === "provider-unavailable" ? (
+        <div className="notice notice-warning" role="alert">
+          That sign-in provider is not enabled yet. Use the email link below.
+        </div>
+      ) : null}
       {status === "link-error" ? (
         <div className="notice notice-danger" role="alert">
           That sign-in link could not be verified. Request a fresh link and open
@@ -77,12 +83,20 @@ export default async function SignInPage({
           </a>
         </div>
       ) : (
-        <SignInForm
-          disabled={
-            viewer.state === "unconfigured" || viewer.state === "unavailable"
-          }
-          next={next}
-        />
+        <div className="stack">
+          <OAuthButtons
+            next={next}
+            disabled={
+              viewer.state === "unconfigured" || viewer.state === "unavailable"
+            }
+          />
+          <SignInForm
+            disabled={
+              viewer.state === "unconfigured" || viewer.state === "unavailable"
+            }
+            next={next}
+          />
+        </div>
       )}
     </div>
   );

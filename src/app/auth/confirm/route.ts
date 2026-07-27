@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const tokenHash = parseAuthLinkCredential(url.searchParams.get("token_hash"));
   const requestedType = url.searchParams.get("type");
-  const next = safeRelativePath(url.searchParams.get("next"), "/saved");
+  const next = safeRelativePath(url.searchParams.get("next"), "/dashboard");
   const type =
     requestedType && supportedOtpTypes.has(requestedType as EmailOtpType)
       ? (requestedType as EmailOtpType)
