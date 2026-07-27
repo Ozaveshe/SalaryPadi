@@ -11,6 +11,7 @@ import { MatchBadge } from "@/components/jobs/match-badge";
 import { formatDate } from "@/lib/format";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
+import { jobPostingAge } from "@/lib/jobs/posting-age";
 import type { Job } from "@/lib/jobs/types";
 import type { MatchResult } from "@/lib/match/types";
 import {
@@ -43,11 +44,13 @@ export function JobCard({
   const workMode = publicEnum(job.workMode);
   const employmentType = publicEnum(job.employmentType);
   const seniority = publicEnum(job.experienceLevel);
+  const postingAge = jobPostingAge(job);
 
   return (
     <article
       className={isSelected ? "job-card is-selected" : "job-card"}
       data-job-id={job.id}
+      data-posting-age={postingAge.stage}
     >
       <div className="job-card-main">
         <div className="job-card-title">
@@ -140,6 +143,9 @@ export function JobCard({
             <span className="status status-neutral">
               Checked {formatDate(job.lastCheckedAt)}
             </span>
+            {postingAge.label ? (
+              <span className="status status-warning">{postingAge.label}</span>
+            ) : null}
           </div>
           <div className="cluster">
             {selectHref ? (

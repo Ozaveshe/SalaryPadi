@@ -1101,6 +1101,24 @@ a:hover {
   background: var(--surface-brand-soft);
 }
 
+/*
+ * Visible decay for roles whose source posting date has aged past the
+ * publication thresholds. The card stays fully readable and operable — the
+ * warning badge carries the claim, this only stops a months-old vacancy from
+ * reading as visually equal to one posted this week.
+ */
+.job-card[data-posting-age="aging"] .job-card-title,
+.job-card[data-posting-age="stale"] .job-card-title,
+.job-card[data-posting-age="aging"] .job-facts,
+.job-card[data-posting-age="stale"] .job-facts {
+  opacity: 0.78;
+}
+
+.job-card[data-posting-age="stale"] {
+  border-left: 3px solid var(--status-warning-bg);
+  padding-left: 0.7rem;
+}
+
 .job-card-title {
   display: flex;
   align-items: center;

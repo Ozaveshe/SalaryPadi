@@ -42,6 +42,7 @@ import {
 import { getAppOrigin } from "@/lib/env";
 import { getReferenceCurrencyRates } from "@/lib/currency/repository";
 import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
+import { jobPostingAge } from "@/lib/jobs/posting-age";
 import { getJobBySlug } from "@/lib/jobs/repository";
 import { searchSalaryAggregatesResult } from "@/lib/salaries/repository";
 import { buildWhatsAppShareUrl } from "@/lib/share/whatsapp";
@@ -139,6 +140,7 @@ export default async function JobDetailPage({
     getReferenceCurrencyRates(),
   ]);
   const nairaEstimate = estimateNairaTakeHome(job.salary, currencyRates);
+  const postingAge = jobPostingAge(job);
   const companyRating = ratingResult.data;
   const companyReviews = reviewsResult.data;
   const companyInterviews = interviewsResult.data;
@@ -362,6 +364,12 @@ export default async function JobDetailPage({
                 <dt>Checked</dt>
                 <dd>{formatDate(job.lastCheckedAt)}</dd>
               </div>
+              {postingAge.label ? (
+                <div>
+                  <dt>Posting age</dt>
+                  <dd>{postingAge.label}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt>Attribution</dt>
                 <dd>Required and shown</dd>

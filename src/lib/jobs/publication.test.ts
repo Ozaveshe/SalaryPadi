@@ -47,6 +47,26 @@ describe("job publication state", () => {
     expect(isJobCurrentlyPublishable({ ...job, ...override }, now)).toBe(false);
   });
 
+  it("withdraws a role whose posting date passed the one-year bound", () => {
+    // The absence-based lifecycle never fires for a board that leaves a role
+    // posted indefinitely, so the age bound is the only thing that closes it.
+    expect(
+      isJobCurrentlyPublishable(
+        { ...job, postedAt: "2025-07-01T10:00:00.000Z" },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps publishing a decayed but not yet withdrawn role", () => {
+    expect(
+      isJobCurrentlyPublishable(
+        { ...job, postedAt: "2026-01-14T10:00:00.000Z" },
+        now,
+      ),
+    ).toBe(true);
+  });
+
   it("allows the documented five-minute source clock tolerance", () => {
     expect(
       isJobCurrentlyPublishable(

@@ -106,6 +106,19 @@ A source record is not closed merely because it is absent once.
 
 This rule handles a legitimate complete empty feed: the first complete empty snapshot records one omission; a second consecutive complete empty snapshot closes the still-missing jobs. A timeout, schema drift, truncated response, destination rejection, or isolated bad record cannot masquerade as an empty complete feed.
 
+### Posting-age freshness
+
+The missing-job lifecycle is absence-based, so it never fires for a board that leaves a filled role posted indefinitely. A production count on 2026-07-26 found 26% of datable open published jobs older than 90 days and 8% older than a year, the oldest 520 days, every one of them with a null `valid_through`. `src/lib/jobs/posting-age.ts` bounds that on the only age evidence SalaryPadi holds — the source's own posting date.
+
+- Under 90 days: no treatment.
+- 90 days: visible decay. The role stays listed, applicable and linkable, and carries a `status-warning` badge on the card plus a caution and a stated age on the detail page.
+- 180 days: the same decay with a six-month wording and a stronger card treatment.
+- 365 days: withdrawal from public listing. `isJobCurrentlyPublishable` returns false, so browse, detail, sitemap, job landing pages and `JobPosting` JSON-LD all drop the role in one pass, exactly as an elapsed `valid_through` already does.
+
+Two things this deliberately does not do. It does not derive a `valid_through` from the age bound: neither the Greenhouse nor the Workable payload carries an expiry field, and the withdrawal bound is SalaryPadi's publication policy, not a deadline the employer stated — emitting it as `validThrough` in JSON-LD would publish a source claim no source made. It also does not close the row in `app.jobs`; the treatment is a pure function of `posted_at` evaluated at request time, so no schema change, migration or ledger row is involved, and revising a threshold is a code change rather than a data rewrite.
+
+The measurement is `Job.postedAt`. Greenhouse records no posting date at all, and `decodeDatabaseJobRow` fills that slot with `last_checked_at`, so Greenhouse-sourced roles read as perpetually current and never decay. That gap belongs to the adapter and is tracked separately; it cannot be closed here without inventing the date the source withheld. Posting-age treatment starts working for those roles the moment a real posting date is recorded.
+
 ## Adapter contract
 
 Every adapter must provide a fixed source identity and return normalized jobs plus one source-derived `checkedAt`. It must never accept a user-controlled fetch URL. Before activation it needs:
