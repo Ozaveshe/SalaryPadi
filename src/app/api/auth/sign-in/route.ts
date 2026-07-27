@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const next = safeRelativePath(parsed.data.next, "/saved");
+  const next = safeRelativePath(parsed.data.next, "/dashboard");
   const confirmation = new URL("/auth/confirm", getAppOrigin());
   confirmation.searchParams.set("next", next);
 

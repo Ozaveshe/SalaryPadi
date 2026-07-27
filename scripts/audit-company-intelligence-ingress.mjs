@@ -7,8 +7,13 @@ const runtimeRoots = ["src", "public", "scripts", "supabase/migrations"];
 const extensions = new Set([".ts", ".tsx", ".js", ".mjs", ".json", ".sql"]);
 const externalReviewSource =
   /glassdoor|indeed|jobberman|myjobmag|brightermonday|linkedin|reddit/i;
+// `pros`, `cons` and `salary` are anchored to word boundaries because as bare
+// substrings they matched ordinary code: `cons` fires inside every `const`, and
+// `salary` inside the product's own name. That made any file mentioning a
+// platform alongside a variable declaration fail the audit. The broad tokens
+// are left unanchored so `reviewed`, `ratings` and the like still match.
 const opinionMaterial =
-  /review|rating|salary|interview|community post|pros|cons|advice.to.management/i;
+  /review|rating|\bsalar(?:y|ies)\b|interview|community post|\bpros\b|\bcons\b|advice.to.management/i;
 
 function filesUnder(directory) {
   if (!existsSync(directory)) return [];

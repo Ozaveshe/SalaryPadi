@@ -2595,6 +2595,231 @@ a:hover {
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Signed-in workspace
+ *
+ * A two-column product surface: persistent navigation beside the current view.
+ * It collapses to a single column on narrow screens, where the navigation is
+ * a horizontally scrollable strip rather than a hidden menu, so the current
+ * section stays visible without a tap.
+ * ------------------------------------------------------------------------ */
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.workspace-nav {
+  position: sticky;
+  top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.workspace-nav-label {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.workspace-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workspace-nav-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-small);
+  border-left: 3px solid transparent;
+  color: inherit;
+  text-decoration: none;
+}
+
+.workspace-nav-link:hover {
+  background: var(--color-brand-soft);
+}
+
+.workspace-nav-link-current {
+  background: var(--color-brand-soft);
+  border-left-color: var(--interactive-primary);
+}
+
+.workspace-nav-link-label {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.workspace-nav-link-description {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.workspace-nav-link-current .workspace-nav-link-label {
+  color: var(--forest-800);
+}
+
+.workspace-main {
+  min-width: 0;
+}
+
+.workspace-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.workspace-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 1rem;
+}
+
+.workspace-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-medium);
+  background: var(--surface-default);
+  box-shadow: var(--shadow-small);
+}
+
+.workspace-stat-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.workspace-stat-link:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-medium);
+}
+
+.workspace-stat-value {
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--forest-800);
+}
+
+.workspace-stat-label {
+  font-weight: 600;
+}
+
+.workspace-stat-caption {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.workspace-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 60rem) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace-nav {
+    position: static;
+  }
+
+  .workspace-nav-list {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 0.5rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .workspace-nav-link {
+    border-left: 0;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+  }
+
+  .workspace-nav-link-current {
+    border-bottom-color: var(--interactive-primary);
+  }
+
+  .workspace-nav-link-description {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Social sign-in
+ * ------------------------------------------------------------------------ */
+.auth-provider-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.75rem;
+}
+
+.auth-provider-form {
+  margin: 0;
+  display: flex;
+}
+
+.auth-provider-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  width: 100%;
+}
+
+.auth-provider-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.25rem;
+  border-radius: var(--radius-small);
+  background: var(--color-brand-soft);
+  font-weight: 700;
+  font-size: 0.8125rem;
+  line-height: 1;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-default);
+}
+
 @media print {
   .site-header,
   .site-footer,
