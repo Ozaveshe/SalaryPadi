@@ -100,6 +100,43 @@ describe("classifySource", () => {
     expect(classified.observed_per_30d).toBe(0);
   });
 
+  // The Greenhouse adapters now record first_published, so moniepoint's
+  // two-day backfill reads as the 0 new roles the board actually published
+  // rather than the 49 the ingestion-day fallback credited it.
+  it("measures a Greenhouse board by posting date once it reports one", () => {
+    const classified = classifySource(
+      row({
+        adapter_key: "moniepoint_greenhouse",
+        total_count: 71,
+        with_posted_at: 71,
+        backfill_count: 22,
+        new_by_day: 49,
+        new_by_posted_at: 0,
+      }),
+      14,
+    );
+    expect(classified.method).toBe("posted_at");
+    expect(classified.observed_per_30d).toBe(0);
+  });
+
+  // A role that closed before the fixed adapter next synced its board keeps a
+  // null posted_at, and one such row is enough to demote the whole source.
+  it("still falls back when one row predates the adapter's posting dates", () => {
+    const classified = classifySource(
+      row({
+        adapter_key: "moniepoint_greenhouse",
+        total_count: 71,
+        with_posted_at: 70,
+        backfill_count: 22,
+        new_by_day: 49,
+        new_by_posted_at: 0,
+      }),
+      14,
+    );
+    expect(classified.method).toBe("observed_day");
+    expect(classified.steady_state_count).toBe(49);
+  });
+
   it("names the fallback method when a source has no posting dates", () => {
     const classified = classifySource(
       row({ with_posted_at: 0, new_by_day: 40, new_by_posted_at: 0 }),

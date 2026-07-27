@@ -118,6 +118,7 @@ function greenhouseJob(overrides: Record<string, unknown> = {}) {
     internal_job_id: 456,
     title: "Product Engineer",
     updated_at: "2026-07-09T08:00:00.000Z",
+    first_published: "2026-07-01T08:00:00-04:00",
     requisition_id: "ENG-123",
     location: { name: "Lagos, Nigeria" },
     absolute_url: "https://boards.greenhouse.io/example/jobs/123",
@@ -359,6 +360,9 @@ describe("employer-authorized ATS adapter", () => {
         location: "Lagos, Nigeria",
         department: "Engineering",
         sourceUrl: "https://boards.greenhouse.io/example/jobs/123",
+        // Greenhouse states first_published with an offset; the same instant
+        // is restated in UTC and becomes app.jobs.posted_at.
+        publishedAt: "2026-07-01T12:00:00.000Z",
         checkedAt: result.checkedAt,
       }),
     ]);
@@ -518,6 +522,41 @@ describe("employer-authorized ATS adapter", () => {
     expect(result.records).toHaveLength(0);
     expect(result.invalidRecords).toMatchObject([
       { index: 0, stage: "normalization" },
+    ]);
+  });
+
+  it("leaves the Greenhouse posting date null when the board states none", async () => {
+    for (const firstPublished of [undefined, null]) {
+      const job = greenhouseJob();
+      if (firstPublished === undefined) {
+        delete (job as Record<string, unknown>).first_published;
+      } else {
+        job.first_published = firstPublished as never;
+      }
+
+      const result = await fetchAtsSourceRecords(greenhouseSource(), {
+        fetch: fixedFetch(jsonResponse({ jobs: [job] })),
+        signal: signal(),
+      });
+
+      expect(result.invalidRecords).toEqual([]);
+      expect(result.records[0]?.publishedAt).toBeNull();
+    }
+  });
+
+  it("rejects a Greenhouse posting date that names no instant", async () => {
+    const result = await fetchAtsSourceRecords(greenhouseSource(), {
+      fetch: fixedFetch(
+        jsonResponse({
+          jobs: [greenhouseJob({ first_published: "2026-07-01T08:00:00" })],
+        }),
+      ),
+      signal: signal(),
+    });
+
+    expect(result.records).toEqual([]);
+    expect(result.invalidRecords).toEqual([
+      { index: 0, stage: "validation", issuePaths: ["first_published"] },
     ]);
   });
 

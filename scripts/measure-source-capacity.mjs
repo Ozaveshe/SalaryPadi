@@ -64,7 +64,11 @@ where security.job_source_policy_is_runnable(id);
  * - `new_by_posted_at` counts roles the board says were posted on or after we
  *   first saw it. This is the definition we actually want and it is immune to
  *   how long our own ingestion took. It requires `posted_at`, which the Workable
- *   adapters populate and the Greenhouse adapters leave null.
+ *   and Greenhouse adapters both populate from a date the board itself states.
+ *   A row ingested before its adapter recorded posting dates keeps a null until
+ *   the next sync of that board rewrites it; a role that closed in between
+ *   never gets one and holds its source on the fallback reading until it ages
+ *   out of the 30-day public-eligibility window.
  * - `new_by_day` counts roles first ingested after the first observed day. It
  *   works without `posted_at` but assumes the backfill completed within one day,
  *   which production has already violated: moniepoint_greenhouse ingested 22
