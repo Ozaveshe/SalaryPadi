@@ -125,6 +125,12 @@ function greenhouseRecord(
   if (job.internal_job_id === null) return null;
 
   const destination = normalizedDestination(job.absolute_url, source);
+  // Greenhouse states the offset (e.g. -04:00); restate the same instant in
+  // UTC so downstream evidence checks compare timestamps, not formats.
+  const publishedAt = job.first_published
+    ? new Date(job.first_published).toISOString()
+    : null;
+
   return {
     provider: "greenhouse",
     sourceKey: source.key,
@@ -138,7 +144,7 @@ function greenhouseRecord(
     team: null,
     descriptionHtml: optionalText(job.content),
     descriptionText: null,
-    publishedAt: null,
+    publishedAt,
     updatedAt: job.updated_at,
     sourceUrl: destination.toString(),
     applicationUrl: destination.toString(),

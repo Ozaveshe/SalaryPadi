@@ -7,6 +7,12 @@ const shortText = z.string().trim().min(1).max(500);
 const longText = z.string().max(500_000);
 const httpsUrl = externalHttpsUrlSchema;
 const providerDate = z.string().datetime({ offset: true, local: true });
+/*
+ * A posting date becomes `app.jobs.posted_at`, so it has to name an instant.
+ * An offset-less local datetime would have to be resolved against a timezone
+ * the provider never states, which is a guess, not evidence.
+ */
+const providerInstant = z.string().datetime({ offset: true });
 
 /*
  * Provider objects intentionally use passthrough semantics. ATS APIs add
@@ -20,6 +26,13 @@ export const greenhouseJobSchema = z
     internal_job_id: z.number().int().nonnegative().nullable().optional(),
     title: shortText,
     updated_at: providerDate,
+    /*
+     * Greenhouse's board API returns the date the role was first published on
+     * the job list itself, so recording it costs no additional request. It is
+     * optional because the field is absent on boards that predate it; a job
+     * without it is left without a posting date rather than given one.
+     */
+    first_published: providerInstant.nullable().optional(),
     location: z.object({ name: shortText }).passthrough(),
     absolute_url: httpsUrl,
     content: longText.optional(),
