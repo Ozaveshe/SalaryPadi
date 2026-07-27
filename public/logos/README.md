@@ -28,13 +28,13 @@ normal state, not a failure.
 
 ## Spec
 
-| Property   | Value                                                    |
-| ---------- | -------------------------------------------------------- |
-| Dimensions | 256 × 256, square canvas                                  |
-| Background | Transparent — the UI slot paints `#fff` behind it         |
-| Fit        | Contained, ~8% padding on the tight side                  |
+| Property   | Value                                                       |
+| ---------- | ----------------------------------------------------------- |
+| Dimensions | 256 × 256, square canvas                                    |
+| Background | Transparent — the UI slot paints `#fff` behind it           |
+| Fit        | Contained, ~8% padding on the tight side                    |
 | Encoding   | WebP lossless (near-lossless q90 if the mark has gradients) |
-| Weight     | ≤ 12 KB                                                   |
+| Weight     | ≤ 12 KB                                                     |
 
 Prefer the company's square symbol over its horizontal wordmark: the slot
 renders at 40–72 CSS px and a wordmark contained in a square is unreadable
