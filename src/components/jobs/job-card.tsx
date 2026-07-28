@@ -25,18 +25,20 @@ export function JobCard({
   job,
   match,
   nairaEstimate,
-  selectHref,
-  isSelected = false,
+  quickViewable = false,
 }: {
   job: Job;
   /** Present only for a signed-in viewer who has saved a match profile. */
   match?: MatchResult;
   /** Estimated monthly naira take-home for the disclosed salary, if computable. */
   nairaEstimate?: NairaTakeHomeEstimate | null;
-  /** URL that selects this job into the desktop quick-view pane. */
-  selectHref?: string;
-  /** Whether this job is currently shown in the quick-view pane. */
-  isSelected?: boolean;
+  /**
+   * Whether this card sits in the two-column results list. The quick-view
+   * control carries no handler of its own: the client list wrapper owns
+   * selection and reads the click off this button, which keeps the card free
+   * of client JavaScript.
+   */
+  quickViewable?: boolean;
 }) {
   const evidence = getJobEvidenceLabels(job).slice(0, 5);
   const eligibilityStatement = publicEligibilityStatement(job);
@@ -48,7 +50,7 @@ export function JobCard({
 
   return (
     <article
-      className={isSelected ? "job-card is-selected" : "job-card"}
+      className="job-card"
       data-job-id={job.id}
       data-posting-age={postingAge.stage}
     >
@@ -148,14 +150,15 @@ export function JobCard({
             ) : null}
           </div>
           <div className="cluster">
-            {selectHref ? (
-              <Link
+            {quickViewable ? (
+              <button
+                aria-controls="job-quick-view"
                 className="text-link job-card-quick-view"
-                href={selectHref}
-                scroll={false}
+                data-quick-view=""
+                type="button"
               >
                 Quick view
-              </Link>
+              </button>
             ) : null}
             <Link className="text-link" href={`/jobs/${job.slug}`}>
               View role and apply

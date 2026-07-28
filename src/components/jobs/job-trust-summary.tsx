@@ -5,7 +5,11 @@ import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
 import { normalizeSalaryEvidence } from "@/lib/jobs/supply/salary";
 import type { Job } from "@/lib/jobs/types";
-import { publicEnum, publicLocation } from "@/lib/presentation/public-field";
+import {
+  publicEnum,
+  publicLocation,
+  remoteEligibilityUnconfirmed,
+} from "@/lib/presentation/public-field";
 
 function provenanceStatement(job: Job): string {
   if (job.eligibility.provenance === "manually_verified") {
@@ -156,10 +160,7 @@ export function JobTrustSummary({
         ? "Not offered per the source"
         : null;
   const evidenceText = job.eligibility.evidenceText.trim() || null;
-  const remoteEligibilityUncertain =
-    job.workMode === "remote" &&
-    job.eligibility.nigeria === "unclear" &&
-    job.eligibility.africa === "unclear";
+  const remoteEligibilityUncertain = remoteEligibilityUnconfirmed(job);
   const postingAge = jobPostingAge(job);
 
   return (

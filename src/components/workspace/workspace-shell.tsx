@@ -27,6 +27,11 @@ const WORKSPACE_NAV: WorkspaceNavItem[] = [
     label: "Find jobs",
     description: "Browse roles open to Nigeria first",
   },
+  {
+    href: "/matches",
+    label: "Matched to your CV",
+    description: "Roles that name what your CV names",
+  },
   { href: "/saved", label: "Saved jobs", description: "Roles you kept" },
   {
     href: "/applications",
@@ -34,6 +39,11 @@ const WORKSPACE_NAV: WorkspaceNavItem[] = [
     description: "Track every process you are in",
   },
   { href: "/alerts", label: "Job alerts", description: "Email alerts you own" },
+  {
+    href: "/notifications",
+    label: "Notifications",
+    description: "What changed in your own records",
+  },
   {
     href: "/account/candidate-profile",
     label: "Career profile",
@@ -46,26 +56,54 @@ const WORKSPACE_NAV: WorkspaceNavItem[] = [
   },
 ];
 
+/**
+ * The navigation entry a route belongs to.
+ *
+ * Matching is longest-prefix rather than exact so a nested route still marks
+ * its section — `/account/candidate-profile` is its own entry, but any other
+ * page under `/account` marks Account & security instead of marking nothing.
+ */
+export function currentWorkspaceSection(pathname: string): string | null {
+  const matches = WORKSPACE_NAV.filter(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  ).toSorted((a, b) => b.href.length - a.href.length);
+  return matches[0]?.href ?? null;
+}
+
 export function WorkspaceShell({
   current,
   title,
   description,
   actions,
+  unreadNotifications = null,
   children,
 }: {
+  /** The route this view belongs to; any path under a nav entry resolves to it. */
   current: string;
   title: string;
   description: string;
   actions?: ReactNode;
+  /**
+   * Unread notifications for the badge. Null means the count is unknown — a
+   * page that did not read it, or a read that failed — and shows no badge at
+   * all, because "none unread" and "could not be read" are different answers.
+   *
+   * Passed in rather than fetched here so this stays a synchronous component:
+   * the workspace views are verified by rendering them to static markup, which
+   * cannot render a nested async component.
+   */
+  unreadNotifications?: number | null;
   children?: ReactNode;
 }) {
+  const currentSection = currentWorkspaceSection(current);
+  const notifications = unreadNotifications;
   return (
     <div className="workspace">
       <nav className="workspace-nav" aria-label="Your workspace">
         <p className="workspace-nav-label">Your workspace</p>
         <ul className="workspace-nav-list">
           {WORKSPACE_NAV.map((item) => {
-            const isCurrent = item.href === current;
+            const isCurrent = item.href === currentSection;
             return (
               <li key={item.href}>
                 <Link
@@ -77,7 +115,17 @@ export function WorkspaceShell({
                   href={item.href}
                   aria-current={isCurrent ? "page" : undefined}
                 >
-                  <span className="workspace-nav-link-label">{item.label}</span>
+                  <span className="workspace-nav-link-label">
+                    {item.label}
+                    {item.href === "/notifications" &&
+                    notifications !== null &&
+                    notifications > 0 ? (
+                      <span className="workspace-nav-count">
+                        {notifications}
+                        <span className="visually-hidden"> unread</span>
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="workspace-nav-link-description">
                     {item.description}
                   </span>

@@ -85,6 +85,9 @@ const applicationSchema = z
     private_notes: z.string().max(10_000).nullable(),
     next_action_at: timestampSchema.nullable(),
     updated_at: timestampSchema,
+    /** The CV version actually sent, when the owner recorded one. */
+    cv_id: z.uuid().nullable(),
+    cv_file_name: z.string().min(1).max(260).nullable(),
   })
   .strict();
 

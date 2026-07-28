@@ -52,14 +52,38 @@ export function publicEnum(value: string | null | undefined): string | null {
   return formatEnum(value);
 }
 
+/**
+ * The longest string still plausibly a place. Beyond this the value is prose,
+ * not a location, and prose in a location slot is omitted rather than cut —
+ * a truncated description would read as a stated workplace.
+ */
+const MAX_LOCATION_LENGTH = 120;
+
 /** Location text suitable for public display, or null when unhelpful. */
 export function publicLocation(job: Job): string | null {
-  const location = job.locationDisplay.trim();
+  // Some feeds append the description to the location field, markup and all.
+  // Take only the leading segment before the first tag or line break.
+  const location = (job.locationDisplay.split(/[<\r\n]/)[0] ?? "").trim();
   if (!location) return null;
+  if (location.length > MAX_LOCATION_LENGTH) return null;
   if (/^(location not stated|not stated by the source)/i.test(location)) {
     return null;
   }
   return location;
+}
+
+/**
+ * Whether a remote role's wording leaves Nigeria and Africa eligibility
+ * unconfirmed. Generic "remote" is not evidence that an applicant in Nigeria
+ * may apply, so surfaces that summarise a role say so before the candidate
+ * invests time.
+ */
+export function remoteEligibilityUnconfirmed(job: Job): boolean {
+  return (
+    job.workMode === "remote" &&
+    job.eligibility.nigeria === "unclear" &&
+    job.eligibility.africa === "unclear"
+  );
 }
 
 /**

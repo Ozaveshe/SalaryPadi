@@ -23,6 +23,7 @@
     "job_lifecycle",
     "job_source_sync",
     "job_supply_dispatcher",
+    "notification_email_delivery",
     "operations_maintenance",
     "salary_source_sync",
     "secondary_feed_sync",

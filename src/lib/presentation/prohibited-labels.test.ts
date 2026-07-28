@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { JobCard } from "@/components/jobs/job-card";
+import { JobPreviewPanel } from "@/components/jobs/job-preview-panel";
 import {
   JobQuickFacts,
   JobTrustSummary,
@@ -76,6 +77,32 @@ describe("public presentation of uncertain fields", () => {
     expect(publicEligibilityStatement(uncertainJob())).toBeNull();
   });
 
+  it("keeps a description dumped into the location field out of the location", () => {
+    const base = uncertainJob();
+    // Observed on live ATS rows: the feed appends the whole description, markup
+    // included, to the location string.
+    expect(
+      publicLocation({
+        ...base,
+        locationDisplay:
+          "Home based - Worldwide. <p>We are hiring <strong>2026 Graduate Software Engineers</strong> into engineering teams around the world.</p>",
+      } as Job),
+    ).toBe("Home based - Worldwide.");
+    expect(
+      publicLocation({
+        ...base,
+        locationDisplay: `We are hiring engineers. ${"Long prose without any markup at all. ".repeat(5)}`,
+      } as Job),
+    ).toBeNull();
+    expect(
+      publicLocation({
+        ...base,
+        locationDisplay:
+          "Cameroon; Ethiopia; Kenya; Niger; Nigeria; Togo; Uganda; Zambia",
+      } as Job),
+    ).toBe("Cameroon; Ethiopia; Kenya; Niger; Nigeria; Togo; Uganda; Zambia");
+  });
+
   it("resolves one candidate-facing eligibility statement", () => {
     const base = uncertainJob();
     expect(
@@ -130,6 +157,36 @@ describe("prohibited public labels regression", () => {
       expect(html).not.toContain(label);
     }
     expect(html).toContain("How SalaryPadi verified this information");
+  });
+
+  it("the jobs quick-view panel never prints internal labels", () => {
+    const html = renderToStaticMarkup(
+      createElement(JobPreviewPanel, { job: uncertainJob() }),
+    );
+
+    for (const label of PROHIBITED_PUBLIC_LABELS) {
+      expect(html).not.toContain(label);
+    }
+    // The panel summarises a role, so it must carry the same caution the
+    // detail page does rather than reading as a confirmed listing.
+    expect(html).toContain("Test Source");
+    expect(html).toContain("Full details");
+  });
+
+  it("the quick-view panel repeats the unconfirmed remote-eligibility caution", () => {
+    const base = uncertainJob();
+    const html = renderToStaticMarkup(
+      createElement(JobPreviewPanel, {
+        job: { ...base, workMode: "remote" } as Job,
+      }),
+    );
+
+    expect(html).toContain(
+      "Generic remote wording is not proof that applicants in Nigeria can apply",
+    );
+    for (const label of PROHIBITED_PUBLIC_LABELS) {
+      expect(html).not.toContain(label);
+    }
   });
 
   it("job cards for known values still render the useful facts", () => {
