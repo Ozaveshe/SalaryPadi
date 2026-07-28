@@ -96,11 +96,17 @@ export function AnalyticsConsent({
   return (
     <>
       {googleAnalytics}
+      {/*
+        A labelled complementary landmark, not a dialog. This previously
+        declared role="dialog" with aria-modal="true" while trapping no focus,
+        handling no Escape key and leaving the page behind fully usable.
+        aria-modal tells assistive technology to hide the rest of the document,
+        so a screen-reader user was walled into a banner that sighted users
+        could simply ignore.
+      */}
       <aside
         aria-labelledby="analytics-consent-title"
-        aria-modal="true"
         className="analytics-consent"
-        role="dialog"
       >
         <div>
           <strong id="analytics-consent-title">Optional analytics</strong>

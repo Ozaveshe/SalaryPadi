@@ -196,10 +196,15 @@ test.describe("launch-quality public surfaces", () => {
   }) => {
     await context.clearCookies();
     await page.goto("/tools");
-    const dialog = page.getByRole("dialog", { name: "Optional analytics" });
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "No thanks" }).click();
-    await expect(dialog).toHaveCount(0);
+    // A complementary landmark rather than a dialog: the banner traps no
+    // focus and the page behind it stays usable, so claiming a modal role
+    // would hide the rest of the document from assistive technology.
+    const banner = page.getByRole("complementary", {
+      name: "Optional analytics",
+    });
+    await expect(banner).toBeVisible();
+    await banner.getByRole("button", { name: "No thanks" }).click();
+    await expect(banner).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Analytics choices" }),
     ).toBeVisible();

@@ -24,7 +24,9 @@ type ComparisonRow = {
 };
 
 function resultMoney(value: number | null, currency: string) {
-  return value === null ? "Unknown" : formatSalaryAmount(value, currency);
+  // "Unknown" is a prohibited public label: it reads as missing knowledge when
+  // the real meaning is that this offer simply had no such component entered.
+  return value === null ? "Not entered" : formatSalaryAmount(value, currency);
 }
 
 function FxEvidenceNotice({ evidence }: { evidence: readonly FxEvidence[] }) {
