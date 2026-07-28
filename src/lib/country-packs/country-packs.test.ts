@@ -15,6 +15,7 @@ import {
   COUNTRY_PACK_REGISTRY,
   countryPackRegistrySchema,
   getCountryPack,
+  getDefaultCountryPack,
   isCountryPackIndexable,
   isCountryPackPublic,
 } from "./registry";
@@ -225,5 +226,22 @@ describe("country pack registry", () => {
     expect(migration).toContain("security.google_indexing_job_is_eligible");
     expect(migration).toContain("api.admin_get_country_pack_readiness()");
     expect(migration).not.toMatch(/eligibility\.scope\s*=\s*'emea'/);
+  });
+});
+
+describe("country pack formatting robustness", () => {
+  const pack = getDefaultCountryPack();
+
+  it("never prints a non-finite number on a public surface", () => {
+    expect(formatCountryNumber(Number.NaN, pack)).toBe("Not published");
+    expect(formatCountryCurrency(Number.POSITIVE_INFINITY, pack)).toBe(
+      "Not published",
+    );
+  });
+
+  it("names an unsupported currency instead of throwing mid-render", () => {
+    expect(formatCountryCurrency(1_000, pack, "NOT_A_CURRENCY")).toContain(
+      "NOT_A_CURRENCY",
+    );
   });
 });

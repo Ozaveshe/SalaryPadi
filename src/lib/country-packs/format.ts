@@ -19,6 +19,8 @@ export function formatCountryNumber(
   pack: CountryPack,
   options: Intl.NumberFormatOptions = {},
 ) {
+  // A non-finite value must never reach a public surface as "NaN" or "∞".
+  if (!Number.isFinite(value)) return "Not published";
   return new Intl.NumberFormat(pack.defaultLocale, options).format(value);
 }
 
@@ -28,10 +30,17 @@ export function formatCountryCurrency(
   currencyCode = pack.currencyCode,
   options: Intl.NumberFormatOptions = {},
 ) {
-  return new Intl.NumberFormat(pack.defaultLocale, {
-    style: "currency",
-    currency: currencyCode,
-    maximumFractionDigits: 0,
-    ...options,
-  }).format(value);
+  if (!Number.isFinite(value)) return "Not published";
+  try {
+    return new Intl.NumberFormat(pack.defaultLocale, {
+      style: "currency",
+      currency: currencyCode,
+      maximumFractionDigits: 0,
+      ...options,
+    }).format(value);
+  } catch {
+    // An unsupported currency code makes Intl throw, which would take down
+    // the whole render. Name the code beside the amount instead.
+    return `${currencyCode} ${formatCountryNumber(value, pack, options)}`;
+  }
 }
