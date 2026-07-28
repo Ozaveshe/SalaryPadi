@@ -1,3 +1,4 @@
+import { COUNTRY_PACKS } from "@/lib/country-packs/registry";
 import type { Job, PayPeriod } from "@/lib/jobs/types";
 import { isJobCurrentlyPublishable } from "@/lib/jobs/publication";
 
@@ -54,6 +55,49 @@ function buildSalary(job: Job) {
     "@type": "MonetaryAmount",
     currency: salary.currency,
     value,
+  };
+}
+
+/**
+ * Splits a source location string into the parts Google's JobPosting
+ * `jobLocation` expects.
+ *
+ * Google requires `addressCountry` on a physical job location and will drop
+ * the rich result without it; the whole display string was previously being
+ * assigned to `addressLocality`, so "Lagos, Nigeria" was published as a
+ * locality named "Lagos, Nigeria" and no country at all.
+ *
+ * The country is only asserted when the source's own location text names it,
+ * matched against the configured country packs. An unrecognised location keeps
+ * its full text as the locality and states no country, because guessing one
+ * would publish a fact the source never provided.
+ */
+export function parseJobLocationAddress(locationDisplay: string): {
+  addressLocality: string;
+  addressCountry: string | null;
+} | null {
+  const trimmed = locationDisplay.trim();
+  if (!trimmed) return null;
+
+  const parts = trimmed
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const last = parts.at(-1)?.toLowerCase() ?? "";
+  const pack = COUNTRY_PACKS.find(
+    (entry) =>
+      entry.name.toLowerCase() === last ||
+      entry.countryCode.toLowerCase() === last ||
+      entry.iso3.toLowerCase() === last,
+  );
+
+  if (!pack) return { addressLocality: trimmed, addressCountry: null };
+  const locality = parts.slice(0, -1).join(", ");
+  return {
+    // A bare country ("Nigeria") has no locality of its own; repeat the
+    // country name rather than emit an empty required field.
+    addressLocality: locality || pack.name,
+    addressCountry: pack.countryCode,
   };
 }
 
@@ -120,13 +164,19 @@ export function buildJobPostingStructuredData(
       structuredData.applicantLocationRequirements = applicantLocations;
     }
   } else {
-    structuredData.jobLocation = {
-      "@type": "Place",
-      address: {
-        "@type": "PostalAddress",
-        addressLocality: job.locationDisplay,
-      },
-    };
+    const address = parseJobLocationAddress(job.locationDisplay);
+    if (address) {
+      structuredData.jobLocation = {
+        "@type": "Place",
+        address: {
+          "@type": "PostalAddress",
+          addressLocality: address.addressLocality,
+          ...(address.addressCountry
+            ? { addressCountry: address.addressCountry }
+            : {}),
+        },
+      };
+    }
   }
 
   return structuredData;

@@ -11,7 +11,10 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
             {item.href ? (
               <Link href={item.href}>{item.label}</Link>
             ) : (
-              item.label
+              // The trailing crumb is the current page. Marking it lets a
+              // screen reader announce where the trail ends instead of
+              // reading it as one more undifferentiated step.
+              <span aria-current="page">{item.label}</span>
             )}
           </li>
         ))}
