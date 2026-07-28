@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(62);
+select plan(65);
 
 select ok(
   to_regprocedure(
@@ -1066,6 +1066,79 @@ select is(
   'expired',
   'two complete omissions also expire a pending review-mode job'
 );
+
+-- A source whose reviewed policy does not cover salary is not an authority on
+-- compensation, so its batches must leave stored values alone rather than
+-- assert the absence of pay the source was never permitted to state.
+update app.job_sources
+set allowed_fields = array_remove(allowed_fields, 'salary')
+where id = 'd1000000-0000-0000-0000-000000000001';
+
+update app.jobs
+set salary_min = 4200000,
+    salary_max = 5100000,
+    currency_code = 'NGN',
+    pay_period = 'annual'
+where source_id = 'd1000000-0000-0000-0000-000000000001'
+  and external_source_id = 'review-1';
+
+insert into ats_test_runs (name, run_id)
+select 'review-policy-no-salary', begun.import_run_id
+from api.worker_begin_ats_snapshot(
+  'ats_lifecycle_review', now() + interval '8500 milliseconds', 1, 1
+) begun
+where begun.should_run;
+
+select lives_ok(
+  $$ select api.worker_store_ats_snapshot_batch(
+    (select run_id from ats_test_runs where name = 'review-policy-no-salary'),
+    jsonb_build_array(jsonb_build_object(
+      'external_id', 'review-1',
+      'content_hash', repeat('1', 64),
+      'dedup_fingerprint', repeat('a', 64),
+      'title', 'Review Platform Engineer',
+      'source_url',
+        'https://boards.example.test/review-v2/jobs/review-1',
+      'application_url',
+        'https://boards.example.test/review-v2/jobs/review-1/apply',
+      'description_text', null,
+      'last_checked_at', '2026-07-11T01:00:00.000Z',
+      'work_arrangement', 'remote',
+      'employment_type', 'full_time',
+      'locations', jsonb_build_array(jsonb_build_object(
+        'country_code', 'NG', 'city', 'Lagos', 'is_primary', true
+      )),
+      'eligibility', jsonb_build_object(
+        'scope', 'nigeria', 'provenance', 'source_provided',
+        'evidence_text', 'The source says applicants must be in Nigeria.',
+        'countries', jsonb_build_array(jsonb_build_object(
+          'country_code', 'NG', 'rule', 'include'
+        ))
+      )
+    ))
+  ) $$,
+  'a batch from a salary-excluded source stores without error'
+);
+
+select is(
+  (select salary_min from app.jobs
+   where source_id = 'd1000000-0000-0000-0000-000000000001'
+     and external_source_id = 'review-1'),
+  4200000::numeric,
+  'a source whose policy excludes salary keeps stored compensation'
+);
+
+select lives_ok(
+  $$ select api.worker_finalize_ats_snapshot(
+    (select run_id from ats_test_runs where name = 'review-policy-no-salary'),
+    true, 0, '[]'::jsonb
+  ) $$,
+  'salary-excluded snapshot finalizes normally'
+);
+
+update app.job_sources
+set allowed_fields = allowed_fields || array['salary']
+where id = 'd1000000-0000-0000-0000-000000000001';
 
 update app.job_sources
 set authorization_revoked_at = clock_timestamp(),
