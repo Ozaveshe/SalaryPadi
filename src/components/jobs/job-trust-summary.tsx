@@ -2,6 +2,7 @@ import { CircleAlert, ExternalLink, Flag, ShieldCheck } from "lucide-react";
 
 import { formatDate, formatEnum, formatSalaryAmount } from "@/lib/format";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
+import { jobPostingAge } from "@/lib/jobs/posting-age";
 import { normalizeSalaryEvidence } from "@/lib/jobs/supply/salary";
 import type { Job } from "@/lib/jobs/types";
 import { publicEnum, publicLocation } from "@/lib/presentation/public-field";
@@ -159,6 +160,7 @@ export function JobTrustSummary({
     job.workMode === "remote" &&
     job.eligibility.nigeria === "unclear" &&
     job.eligibility.africa === "unclear";
+  const postingAge = jobPostingAge(job);
 
   return (
     <section className="trust-summary" aria-labelledby="trust-summary-heading">
@@ -178,6 +180,12 @@ export function JobTrustSummary({
           report a problem
         </a>
       </p>
+      {postingAge.note ? (
+        <p className="truth-caution">
+          <CircleAlert aria-hidden="true" size={17} />
+          {postingAge.note}
+        </p>
+      ) : null}
       {remoteEligibilityUncertain ? (
         <p className="truth-caution">
           <CircleAlert aria-hidden="true" size={17} />
@@ -250,6 +258,14 @@ export function JobTrustSummary({
             <Fact
               label="Published by the source"
               value={formatDate(job.postedAt)}
+            />
+            <Fact
+              label="Age of the source posting"
+              value={
+                postingAge.label !== null && postingAge.ageDays !== null
+                  ? `${postingAge.ageDays} days`
+                  : null
+              }
             />
             <Fact
               label="Last source check"

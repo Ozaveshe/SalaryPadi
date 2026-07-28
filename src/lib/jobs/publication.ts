@@ -1,3 +1,4 @@
+import { isJobWithdrawnForAge } from "./posting-age";
 import type { Job } from "./types";
 
 export const JOB_PUBLICATION_MAX_FUTURE_SKEW_MS = 5 * 60_000;
@@ -5,7 +6,8 @@ export const JOB_PUBLICATION_MAX_FUTURE_SKEW_MS = 5 * 60_000;
 /**
  * A job is publishable only while its lifecycle and source evidence describe a
  * coherent current record. All public consumers use this predicate so an
- * expired or future-dated row cannot survive through a less strict surface.
+ * expired, future-dated or long-stale row cannot survive through a less strict
+ * surface.
  */
 export function isJobCurrentlyPublishable(job: Job, now = new Date()) {
   if (job.status !== "open") return false;
@@ -26,6 +28,10 @@ export function isJobCurrentlyPublishable(job: Job, now = new Date()) {
   ) {
     return false;
   }
+
+  // The absence-based lifecycle never closes a role a board leaves posted
+  // forever, so a posting date past the withdrawal bound ends publication here.
+  if (isJobWithdrawnForAge(job, now)) return false;
 
   if (!job.validThrough) return true;
   const validThrough = Date.parse(job.validThrough);
