@@ -47,22 +47,17 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 
 ## Database setup
 
-The local Supabase configuration exposes only the `api` schema through PostgREST. Migrations are ordered and forward-only:
+The local Supabase configuration exposes only the `api` schema through PostgREST. Migrations are ordered and forward-only, and `supabase/migrations/` is the authority on the current chain. It holds far more migrations than the foundations listed below, so read the directory rather than this list whenever you need the full picture.
+
+The chain starts with these foundations:
 
 1. `20260710000100_foundation.sql` — accounts, staff roles, privacy requests, rate limits, and audit records.
 2. `20260710000200_jobs.sql` — sources, jobs, eligibility, saved jobs, applications, alerts, and employer submissions.
 3. `20260710000300_intelligence.sql` — contributions, moderation, public projections, privacy thresholds, and aggregates.
 4. `20260710000400_public_product_integration.sql` — public job/company projections used by the production application.
 5. `20260710000500_lock_internal_routines.sql` — removes implicit PUBLIC execution from internal and API routines.
-6. `20260710000600_operations_phase_two.sql` — worker schedules and run evidence, alert delivery, aggregate-only analytics, reviewed currency-rate provenance, and retention maintenance.
-7. `20260710000700_harden_public_operational_wrappers.sql` — moves privileged analytics/health implementations behind invoker-only API wrappers.
-8. `20260710000800_allow_operational_wrapper_resolution.sql` — grants only the schema resolution required by those explicit wrappers.
-9. `20260710000900_force_operations_rls.sql` — forces RLS for table owners on every new private operations table.
-10. `20260710001000_bound_source_sync_cadence.sql` — defines the twice-daily source cadence and its missed-run threshold.
-11. `20260710001100_community_feed_forums.sql` and `20260710001200_community_reporting.sql` — moderated feed/forum records, reactions, reports, and public projections.
-12. `20260710114841_backend_integrity_hardening.sql` — worker, audit, ownership, provider, and integrity hardening.
-13. `20260710145329_job_source_policy_boundary.sql` — makes source pause/disable an acquisition boundary and fixes reviewed public-noindex source re-enablement.
-14. `20260710145347_source_fetch_budget.sql` — enforces a durable one-per-minute and four-per-rolling-day provider-request budget before every Remotive cache fill.
+
+Everything after those builds on them: operational workers and run evidence, community feed and forum records, job-supply and ATS source registration, employer feeds, country packs, and editorial. Schema changes reach production by a manual apply plus a hand-inserted ledger row; deploys never run migrations.
 
 With Docker running and the Supabase CLI installed:
 
