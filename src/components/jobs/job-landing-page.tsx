@@ -17,6 +17,7 @@ import { getJobLandingMetricsResult } from "@/lib/seo/job-landing-repository";
 import {
   evaluateJobLandingIndexability,
   getJobLandingDefinition,
+  jobLandingLinkLabel,
   matchesJobLanding,
   type JobLandingDefinition,
   type JobLandingKey,
@@ -218,9 +219,7 @@ export async function JobLandingPage({
         <div className="cluster">
           {definition.relatedPaths.map((path) => (
             <Link className="text-link" href={path} key={path}>
-              {path === "/methodology"
-                ? "How evidence works"
-                : path.replaceAll("/", " ").trim()}
+              {jobLandingLinkLabel(path)}
             </Link>
           ))}
         </div>

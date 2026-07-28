@@ -138,6 +138,30 @@ export function getJobLandingDefinitionByPath(path: string) {
   return byPath.get(path) ?? null;
 }
 
+/**
+ * Labels for the hub pages a landing page links to that are not themselves
+ * landing pages. Everything else resolves to its landing definition title.
+ */
+const RELATED_HUB_LABELS: Record<string, string> = {
+  "/jobs": "Search all jobs",
+  "/companies": "Browse companies",
+  "/salaries": "Salary information",
+  "/methodology": "How evidence works",
+};
+
+/**
+ * Anchor text for a related-path link.
+ *
+ * Deriving this from the slug produced strings like "jobs visa-sponsorship",
+ * which reads as raw routing to a person and is weak internal anchor text for
+ * search engines. Landing pages already carry a written title, so use it.
+ */
+export function jobLandingLinkLabel(path: string): string {
+  const hubLabel = RELATED_HUB_LABELS[path];
+  if (hubLabel) return hubLabel;
+  return byPath.get(path)?.title ?? path;
+}
+
 export function buildJobLandingSummary(
   definition: JobLandingDefinition,
   metrics: JobLandingMetrics,

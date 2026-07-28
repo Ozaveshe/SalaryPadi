@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 
 import { getAppOrigin } from "@/lib/env";
+import { PROTECTED_CRAWLER_DISALLOW } from "@/lib/security/protected-paths";
 
 export default function robots(): MetadataRoute.Robots {
   const origin = getAppOrigin();
@@ -19,21 +20,9 @@ export default function robots(): MetadataRoute.Robots {
         "/insights/",
         "/feed.xml",
       ],
-      disallow: [
-        "/api/",
-        "/account",
-        "/admin/",
-        "/auth/",
-        "/saved",
-        "/applications",
-        "/alerts",
-        "/post-a-job",
-        "/contribute/salary",
-        "/contribute/review",
-        "/contribute/benefits",
-        "/contribute/pay-reliability",
-        "/contribute/interview",
-      ],
+      // Every signed-in page comes from the same list the request proxy
+      // enforces, so a newly protected route can never stay crawlable.
+      disallow: ["/api/", "/auth/", ...PROTECTED_CRAWLER_DISALLOW],
     },
     sitemap: `${origin}/sitemap.xml`,
     host: origin,

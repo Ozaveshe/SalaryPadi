@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDate, formatEnum, formatSalaryAmount } from "./format";
+import {
+  formatDate,
+  formatDateTime,
+  formatEnum,
+  formatExchangeRate,
+  formatSalaryAmount,
+} from "./format";
 
 describe("format helpers", () => {
   it("formats valid dates and rejects invalid timestamps", () => {
@@ -21,5 +27,31 @@ describe("format helpers", () => {
     expect(formatSalaryAmount(1_000, "NOT_A_CURRENCY")).toContain(
       "NOT_A_CURRENCY",
     );
+  });
+
+  it("never prints a non-finite amount on a public surface", () => {
+    expect(formatSalaryAmount(Number.NaN, "NGN")).toBe("Not published");
+    expect(formatSalaryAmount(Number.POSITIVE_INFINITY, null)).toBe(
+      "Not published",
+    );
+  });
+
+  it("renders provenance timestamps in one fixed zone for every visitor", () => {
+    const formatted = formatDateTime("2026-07-11T09:30:00.000Z");
+    expect(formatted).toContain("2026");
+    expect(formatted).toContain("UTC");
+    // Pinned to UTC rather than the visitor's zone, so the same evidence never
+    // reads as a different moment for two people.
+    expect(formatted).toContain("09:30");
+  });
+
+  it("omits an unparseable provenance timestamp instead of guessing", () => {
+    expect(formatDateTime("not-a-date")).toBeNull();
+  });
+
+  it("renders exchange rates without floating-point artefacts", () => {
+    expect(formatExchangeRate(1650.4523000000002)).toBe("1,650.45");
+    expect(formatExchangeRate(0.00061234567)).toBe("0.000612346");
+    expect(formatExchangeRate(Number.NaN)).toBeNull();
   });
 });

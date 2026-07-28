@@ -11,6 +11,7 @@ import {
   toolResponseError,
   useToolRequest,
 } from "./use-tool-request";
+import { ToolResultRegion } from "./tool-result-region";
 import { ToolUserError } from "./tool-user-error";
 
 function optional(form: FormData, name: string) {
@@ -240,89 +241,93 @@ export function ScamChecker() {
           {providerNotice}
         </div>
       ) : null}
-      {result ? (
-        <section className="tool-result stack-lg">
-          <div
-            className={`risk-summary risk-${result.riskTier}`}
-            role="status"
-            aria-live="polite"
-          >
-            <ShieldAlert aria-hidden="true" size={28} />
-            <div>
-              <p className="eyebrow">Automated screening result</p>
-              <h2 className="section-title">{result.riskLabel}</h2>
-              <p>{result.summary}</p>
+      <ToolResultRegion>
+        {result ? (
+          <section className="tool-result stack-lg">
+            <div
+              className={`risk-summary risk-${result.riskTier}`}
+              role="status"
+            >
+              <ShieldAlert aria-hidden="true" size={28} />
+              <div>
+                <p className="eyebrow">Automated screening result</p>
+                <h2 className="section-title">{result.riskLabel}</h2>
+                <p>{result.summary}</p>
+              </div>
             </div>
-          </div>
-          {result.flags.length > 0 ? (
-            <div className="stack">
-              <h3 className="m-0 text-xl font-bold">
-                Individual warning flags
-              </h3>
-              {result.flags.map((flag) => (
-                <article className="surface surface-pad stack" key={flag.code}>
-                  <div className="cluster">
-                    <CircleAlert aria-hidden="true" size={20} />
-                    <strong>{flag.title}</strong>
-                    <span
-                      className={`status ${flag.severity === "high" ? "status-danger" : "status-warning"}`}
-                    >
-                      {flag.severity}
-                    </span>
-                  </div>
-                  <p className="text-muted m-0">{flag.whyItMatters}</p>
-                  <div>
-                    <strong>Evidence found</strong>
-                    <ul>
-                      {flag.evidence.map((evidence) => (
-                        <li key={evidence}>{evidence}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="notice">
-              <CircleCheck aria-hidden="true" size={18} /> No listed warning
-              sign was detected in the supplied information. That is not proof
-              of safety.
-            </div>
-          )}
-          <div className="decision-grid">
-            <section>
-              <h3>Verification steps</h3>
-              <ol>
-                {result.verificationSteps.map((step) => (
-                  <li key={step}>{step}</li>
+            {result.flags.length > 0 ? (
+              <div className="stack">
+                <h3 className="m-0 text-xl font-bold">
+                  Individual warning flags
+                </h3>
+                {result.flags.map((flag) => (
+                  <article
+                    className="surface surface-pad stack"
+                    key={flag.code}
+                  >
+                    <div className="cluster">
+                      <CircleAlert aria-hidden="true" size={20} />
+                      <strong>{flag.title}</strong>
+                      <span
+                        className={`status ${flag.severity === "high" ? "status-danger" : "status-warning"}`}
+                      >
+                        {flag.severity}
+                      </span>
+                    </div>
+                    <p className="text-muted m-0">{flag.whyItMatters}</p>
+                    <div>
+                      <strong>Evidence found</strong>
+                      <ul>
+                        {flag.evidence.map((evidence) => (
+                          <li key={evidence}>{evidence}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </article>
                 ))}
-              </ol>
-            </section>
-            <section>
-              <h3>Safer next actions</h3>
-              <ol>
-                {result.safeNextActions.map((step) => (
-                  <li key={step}>{step}</li>
+              </div>
+            ) : (
+              <div className="notice">
+                <CircleCheck aria-hidden="true" size={18} /> No listed warning
+                sign was detected in the supplied information. That is not proof
+                of safety.
+              </div>
+            )}
+            <div className="decision-grid">
+              <section>
+                <h3>Verification steps</h3>
+                <ol>
+                  {result.verificationSteps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              </section>
+              <section>
+                <h3>Safer next actions</h3>
+                <ol>
+                  {result.safeNextActions.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              </section>
+            </div>
+            <details>
+              <summary>Limits of this result</summary>
+              <ul>
+                {result.limitations.map((limit) => (
+                  <li key={limit}>{limit}</li>
                 ))}
-              </ol>
-            </section>
-          </div>
-          <details>
-            <summary>Limits of this result</summary>
-            <ul>
-              {result.limitations.map((limit) => (
-                <li key={limit}>{limit}</li>
-              ))}
-            </ul>
-            <p>
-              URL fetch performed:{" "}
-              <strong>
-                {result.inputCoverage.urlFetchPerformed ? "Yes" : "No"}
-              </strong>
-            </p>
-          </details>
-        </section>
-      ) : null}
+              </ul>
+              <p>
+                URL fetch performed:{" "}
+                <strong>
+                  {result.inputCoverage.urlFetchPerformed ? "Yes" : "No"}
+                </strong>
+              </p>
+            </details>
+          </section>
+        ) : null}
+      </ToolResultRegion>
     </div>
   );
 }
