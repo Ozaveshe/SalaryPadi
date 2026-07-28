@@ -1,0 +1,164 @@
+import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+import {
+  ApplicationRowNote,
+  DeadlineList,
+  FirstRunGuide,
+  PipelineSummary,
+} from "./dashboard-signals";
+import type {
+  DashboardDeadline,
+  DashboardSummary,
+} from "@/lib/career/dashboard";
+
+function deadline(
+  overrides: Partial<DashboardDeadline> = {},
+): DashboardDeadline {
+  return {
+    jobSlug: "senior-engineer",
+    title: "Senior Engineer",
+    companyName: "Test Employer",
+    dueAt: "2026-07-25T00:00:00.000Z",
+    dayOffset: -3,
+    urgency: "overdue",
+    description: "Overdue by 3 days",
+    ...overrides,
+  };
+}
+
+function activeApplication(
+  overrides: Partial<DashboardSummary["activeApplications"][number]> = {},
+): DashboardSummary["activeApplications"][number] {
+  return {
+    jobSlug: "senior-engineer",
+    title: "Senior Engineer",
+    companyName: "Test Employer",
+    status: "applied",
+    updatedAt: "2026-07-27T00:00:00.000Z",
+    stalled: false,
+    deadline: null,
+    ...overrides,
+  };
+}
+
+describe("scheduled action list", () => {
+  it("keeps the date the owner entered beside the phrase derived from it", () => {
+    const markup = renderToStaticMarkup(
+      createElement(DeadlineList, { deadlines: [deadline()] }),
+    );
+
+    expect(markup).toContain("Overdue by 3 days");
+    expect(markup).toContain("25 Jul 2026");
+    expect(markup).toContain('href="/jobs/senior-engineer"');
+  });
+
+  it("escalates colour only for dates that have passed or land immediately", () => {
+    const cases: [DashboardDeadline["urgency"], string][] = [
+      ["overdue", "status-danger"],
+      ["today", "status-warning"],
+      ["tomorrow", "status-warning"],
+      ["upcoming", "status-neutral"],
+    ];
+    for (const [urgency, expected] of cases) {
+      const markup = renderToStaticMarkup(
+        createElement(DeadlineList, { deadlines: [deadline({ urgency })] }),
+      );
+      expect(markup).toContain(expected);
+    }
+  });
+});
+
+describe("stage breakdown", () => {
+  it("renders each stage with its count and marks only an offer as good news", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PipelineSummary, {
+        pipeline: [
+          { status: "applied", count: 2 },
+          { status: "interview", count: 1 },
+          { status: "offer", count: 1 },
+        ],
+      }),
+    );
+
+    expect(markup).toContain("2 Applied");
+    expect(markup).toContain("1 Interview");
+    expect(markup).toContain("1 Offer");
+    expect(markup.match(/status-success/g) ?? []).toHaveLength(1);
+  });
+
+  it("labels the breakdown for assistive technology", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PipelineSummary, {
+        pipeline: [{ status: "applied", count: 1 }],
+      }),
+    );
+
+    expect(markup).toContain('aria-label="Live applications by stage"');
+  });
+});
+
+describe("application metadata line", () => {
+  it("states only what the record's own dates support", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ApplicationRowNote, { application: activeApplication() }),
+    );
+
+    expect(markup).toContain("Test Employer");
+    expect(markup).toContain("updated 27 Jul 2026");
+    expect(markup).not.toContain("no change");
+    expect(markup).not.toContain("Due");
+  });
+
+  it("adds the stalled note and the deadline when both apply", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ApplicationRowNote, {
+        application: activeApplication({
+          stalled: true,
+          deadline: {
+            dayOffset: 0,
+            urgency: "today",
+            description: "Due today",
+          },
+        }),
+      }),
+    );
+
+    expect(markup).toContain("no change in over two weeks");
+    expect(markup).toContain("Due today");
+  });
+});
+
+describe("first-run guide", () => {
+  it("points at all three setup destinations without JavaScript", () => {
+    const markup = renderToStaticMarkup(
+      createElement(FirstRunGuide, { profileExists: false }),
+    );
+
+    for (const href of ["/jobs", "/account/candidate-profile", "/alerts"]) {
+      expect(markup).toContain(`href="${href}"`);
+    }
+    expect(markup).toContain("Add a career profile");
+  });
+
+  it("numbers the steps as an ordered list whose items can still paint a marker", () => {
+    const markup = renderToStaticMarkup(
+      createElement(FirstRunGuide, { profileExists: false }),
+    );
+
+    expect(markup).toContain('<ol class="first-run-steps">');
+    // A list item styled as a grid stops computing to `list-item`, and the step
+    // numbers vanish. The grid belongs to a wrapper inside the item.
+    expect(markup).not.toMatch(/<li[^>]*class="[^"]*\bstack\b/);
+    expect(markup.match(/<li><div class="stack">/g) ?? []).toHaveLength(3);
+  });
+
+  it("asks an owner with a started profile to finish it rather than add one", () => {
+    const markup = renderToStaticMarkup(
+      createElement(FirstRunGuide, { profileExists: true }),
+    );
+
+    expect(markup).toContain("Finish your career profile");
+  });
+});
