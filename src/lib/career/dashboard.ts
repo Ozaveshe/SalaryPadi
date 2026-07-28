@@ -1,20 +1,86 @@
 import "server-only";
 
 import {
+  ACTIVE_APPLICATION_STATUSES,
+  isActiveApplicationStatus,
+  isStaleApplication,
+  readDeadline,
+  type ActiveApplicationStatus,
+  type Deadline,
+} from "@/lib/career/pipeline";
+import {
   getAlerts,
   getApplications,
   getCandidateProfile,
   getSavedJobs,
+  type CandidateProfileRow,
 } from "@/lib/career/repository";
 import type { RepositoryReadState } from "@/lib/data/repository-result";
 
-/** Application statuses that represent a live, in-flight process. */
-const ACTIVE_APPLICATION_STATUSES = new Set([
-  "applied",
-  "assessment",
-  "interview",
-  "offer",
-]);
+/**
+ * How many scheduled actions the overview lists. Enough to plan a week around
+ * without turning the summary into a second copy of the tracker.
+ */
+const MAX_LISTED_ACTIONS = 4;
+
+/** How many records each summary column shows before deferring to its page. */
+const MAX_LISTED_RECORDS = 5;
+
+/**
+ * The profile fields that materially change which jobs match, in the order the
+ * profile form asks for them. Only these are counted, so "profile strength"
+ * means "how much of this improves your matches", not "fields filled".
+ *
+ * Labels match the form's own wording so the missing-field list reads as
+ * directions to a specific input rather than as database column names.
+ */
+const MATCHING_FIELDS: {
+  label: string;
+  read: (row: CandidateProfileRow) => unknown;
+}[] = [
+  { label: "Headline", read: (row) => row.headline },
+  { label: "Experience level", read: (row) => row.experience_level },
+  {
+    label: "Preferred work arrangement",
+    read: (row) => row.desired_work_arrangement,
+  },
+  { label: "Country you live in", read: (row) => row.location_country },
+  { label: "Minimum pay expectation", read: (row) => row.desired_salary_min },
+];
+
+/** Total number of fields "profile strength" is measured against. */
+export const MATCHING_FIELD_COUNT = MATCHING_FIELDS.length;
+
+/**
+ * "Prefer not to say" is a deliberate answer, but it still leaves nothing to
+ * match on, so it counts as unstated rather than as a completed field.
+ */
+function isStated(value: unknown): boolean {
+  return value !== null && value !== undefined && value !== "unspecified";
+}
+
+/** Labels of the matching fields not yet stated, in the form's own order. */
+export function missingMatchingFields(
+  row: CandidateProfileRow | null,
+): string[] {
+  if (!row) return MATCHING_FIELDS.map((field) => field.label);
+  return MATCHING_FIELDS.filter((field) => !isStated(field.read(row))).map(
+    (field) => field.label,
+  );
+}
+
+/** A self-set next action, resolved against the clock. */
+export type DashboardDeadline = Deadline & {
+  jobSlug: string;
+  title: string;
+  companyName: string;
+  dueAt: string;
+};
+
+export type DashboardPipelineEntry = {
+  status: ActiveApplicationStatus;
+  count: number;
+};
 
 export type DashboardSummary = {
   /**
@@ -25,8 +91,20 @@ export type DashboardSummary = {
   savedJobCount: number;
   activeApplicationCount: number;
   activeAlertCount: number;
-  /** Next scheduled action across all applications, if any. */
-  nextAction: { jobSlug: string; title: string; dueAt: string } | null;
+  /** Scheduled actions on live applications, soonest first. */
+  upcomingActions: DashboardDeadline[];
+  /** Scheduled actions already past their date, including any beyond the list. */
+  overdueActionCount: number;
+  /** Live applications untouched long enough to have moved off-platform. */
+  stalledApplicationCount: number;
+  /** Live counts by stage, in funnel order. Stages at zero are omitted. */
+  pipeline: DashboardPipelineEntry[];
+  /**
+   * True only when the reads succeeded and found no records at all. A failed
+   * read also reports zero of everything, and greeting that as a fresh start
+   * would present missing data as an empty account.
+   */
+  isFirstRun: boolean;
   recentSaved: {
     jobSlug: string;
     title: string;
@@ -39,6 +117,9 @@ export type DashboardSummary = {
     companyName: string;
     status: string;
     updatedAt: string;
+    /** Set when this record has not moved for `STALE_APPLICATION_MS`. */
+    stalled: boolean;
+    deadline: Deadline | null;
   }[];
   profile: {
     exists: boolean;
@@ -46,6 +127,8 @@ export type DashboardSummary = {
     attestedAt: string | null;
     /** Completed share of the fields that drive job matching, 0-1. */
     completeness: number;
+    /** Which of those fields are still unstated. */
+    missingFields: string[];
   };
 };
 
@@ -74,8 +157,13 @@ function weakestState(states: RepositoryReadState[]): RepositoryReadState {
  *
  * The four reads run concurrently because none depends on another, and a
  * dashboard that serialised them would pay four round trips before first paint.
+ *
+ * `now` is a parameter so the time-dependent readings — what is overdue, what
+ * has stalled — can be pinned in tests.
  */
-export async function getDashboardSummary(): Promise<DashboardSummary> {
+export async function getDashboardSummary(
+  now: number = Date.now(),
+): Promise<DashboardSummary> {
   const [saved, applications, alerts, profile] = await Promise.all([
     getSavedJobs(),
     getApplications(),
@@ -84,75 +172,87 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   ]);
 
   const activeApplications = applications.data.filter((application) =>
-    ACTIVE_APPLICATION_STATUSES.has(application.status),
+    isActiveApplicationStatus(application.status),
   );
 
-  const dueActions = applications.data
-    .filter(
-      (application) =>
-        application.next_action_at !== null &&
-        ACTIVE_APPLICATION_STATUSES.has(application.status),
-    )
-    .sort((a, b) =>
-      (a.next_action_at ?? "").localeCompare(b.next_action_at ?? ""),
-    );
-  const soonest = dueActions[0];
+  // Ordered on parsed instants rather than on the raw strings: stored
+  // timestamps may carry different UTC offsets, and a lexical compare would
+  // then place a later action ahead of the soonest one.
+  const scheduled = activeApplications
+    .flatMap((application) => {
+      if (!application.next_action_at) return [];
+      const deadline = readDeadline(application.next_action_at, now);
+      if (!deadline) return [];
+      return [
+        {
+          ...deadline,
+          jobSlug: application.job_slug,
+          title: application.title,
+          companyName: application.company_name,
+          dueAt: application.next_action_at,
+        },
+      ];
+    })
+    .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt));
 
+  const state = weakestState([
+    saved.state,
+    applications.state,
+    alerts.state,
+    profile.state,
+  ]);
   const profileRow = profile.data;
-  // Only the fields that materially change which jobs match are counted, so the
-  // figure means "how much of this improves your matches", not "fields filled".
-  const matchingFields = profileRow
-    ? [
-        profileRow.headline,
-        profileRow.experience_level,
-        profileRow.desired_work_arrangement,
-        profileRow.location_country,
-        profileRow.desired_salary_min,
-      ]
-    : [];
-  const completedFields = matchingFields.filter(
-    (value) => value !== null && value !== undefined && value !== "unspecified",
-  ).length;
+  const missingFields = missingMatchingFields(profileRow);
 
   return {
-    state: weakestState([
-      saved.state,
-      applications.state,
-      alerts.state,
-      profile.state,
-    ]),
+    state,
     savedJobCount: saved.data.length,
     activeApplicationCount: activeApplications.length,
     activeAlertCount: alerts.data.filter((alert) => alert.active).length,
-    nextAction:
-      soonest && soonest.next_action_at
-        ? {
-            jobSlug: soonest.job_slug,
-            title: soonest.title,
-            dueAt: soonest.next_action_at,
-          }
-        : null,
-    recentSaved: saved.data.slice(0, 5).map((job) => ({
+    upcomingActions: scheduled.slice(0, MAX_LISTED_ACTIONS),
+    overdueActionCount: scheduled.filter(
+      (action) => action.urgency === "overdue",
+    ).length,
+    stalledApplicationCount: activeApplications.filter((application) =>
+      isStaleApplication(application.updated_at, now),
+    ).length,
+    pipeline: ACTIVE_APPLICATION_STATUSES.map((status) => ({
+      status,
+      count: activeApplications.filter(
+        (application) => application.status === status,
+      ).length,
+    })).filter((entry) => entry.count > 0),
+    isFirstRun:
+      state === "ready" &&
+      saved.data.length === 0 &&
+      applications.data.length === 0 &&
+      alerts.data.length === 0,
+    recentSaved: saved.data.slice(0, MAX_LISTED_RECORDS).map((job) => ({
       jobSlug: job.job_slug,
       title: job.title,
       companyName: job.company_name,
       savedAt: job.saved_at,
     })),
-    activeApplications: activeApplications.slice(0, 5).map((application) => ({
-      jobSlug: application.job_slug,
-      title: application.title,
-      companyName: application.company_name,
-      status: application.status,
-      updatedAt: application.updated_at,
-    })),
+    activeApplications: activeApplications
+      .slice(0, MAX_LISTED_RECORDS)
+      .map((application) => ({
+        jobSlug: application.job_slug,
+        title: application.title,
+        companyName: application.company_name,
+        status: application.status,
+        updatedAt: application.updated_at,
+        stalled: isStaleApplication(application.updated_at, now),
+        deadline: application.next_action_at
+          ? readDeadline(application.next_action_at, now)
+          : null,
+      })),
     profile: {
       exists: profileRow !== null,
       headline: profileRow?.headline ?? null,
       attestedAt: profileRow?.attested_at ?? null,
       completeness:
-        matchingFields.length === 0
-          ? 0
-          : completedFields / matchingFields.length,
+        (MATCHING_FIELD_COUNT - missingFields.length) / MATCHING_FIELD_COUNT,
+      missingFields,
     },
   };
 }

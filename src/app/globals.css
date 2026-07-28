@@ -2642,7 +2642,6 @@ a:hover {
   gap: 0.125rem;
   padding: 0.625rem 0.75rem;
   border-radius: var(--radius-small);
-  border-left: 3px solid transparent;
   color: inherit;
   text-decoration: none;
 }
@@ -2651,9 +2650,13 @@ a:hover {
   background: var(--color-brand-soft);
 }
 
+/**
+ * The current section is carried by its filled background and label colour
+ * alone. There is deliberately no accent rule: the fill is what marks the
+ * section, so a second indicator beside it only adds edges to the sidebar.
+ */
 .workspace-nav-link-current {
   background: var(--color-brand-soft);
-  border-left-color: var(--interactive-primary);
 }
 
 .workspace-nav-link-label {
@@ -2737,6 +2740,44 @@ a:hover {
   align-items: start;
 }
 
+/**
+ * Stage counts for the live applications. A wrapping row of status pills rather
+ * than a bar chart: the counts are small integers, and a proportional bar drawn
+ * from three or four records would imply a distribution that is not there.
+ */
+.pipeline-summary,
+.missing-field-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pipeline-summary .status {
+  font-variant-numeric: tabular-nums;
+}
+
+/**
+ * The first-run steps. Numbered because the order is the recommendation — each
+ * step makes the next one worth doing.
+ */
+.first-run-steps {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  /* Restated because the framework reset clears list markers globally, and here
+     the number carries the meaning rather than decorating it. */
+  list-style: decimal;
+  padding-inline-start: 1.5rem;
+}
+
+.first-run-steps > li::marker {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
 @media (max-width: 60rem) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
@@ -2754,13 +2795,7 @@ a:hover {
   }
 
   .workspace-nav-link {
-    border-left: 0;
-    border-bottom: 3px solid transparent;
     white-space: nowrap;
-  }
-
-  .workspace-nav-link-current {
-    border-bottom-color: var(--interactive-primary);
   }
 
   .workspace-nav-link-description {

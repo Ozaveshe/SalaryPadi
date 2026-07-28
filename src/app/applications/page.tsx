@@ -7,6 +7,7 @@ import { CompanyEvidenceInvitation } from "@/components/companies/company-eviden
 import { PrivateDataStatus } from "@/components/private-data-status";
 import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { requireViewer } from "@/lib/auth/dal";
+import { isStaleApplication } from "@/lib/career/pipeline";
 import { getApplications } from "@/lib/career/repository";
 import { formatDate, formatEnum } from "@/lib/format";
 import { sliceSearchParam } from "@/lib/search-params";
@@ -25,21 +26,6 @@ const statuses = [
   "rejected",
   "withdrawn",
 ] as const;
-
-/**
- * An application untouched for two weeks has usually progressed off-platform.
- * That moment — not the moment of applying — is when a first-party interview
- * or salary account exists to be asked for.
- */
-const STALE_APPLICATION_MS = 14 * 24 * 60 * 60 * 1_000;
-
-function isStaleApplication(updatedAt: string | null): boolean {
-  if (!updatedAt) return false;
-  const updated = Date.parse(updatedAt);
-  return (
-    Number.isFinite(updated) && Date.now() - updated >= STALE_APPLICATION_MS
-  );
-}
 
 export default async function ApplicationsPage({
   searchParams,
