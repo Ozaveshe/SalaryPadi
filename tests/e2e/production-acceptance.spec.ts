@@ -39,9 +39,20 @@ function pinnedSlug(value: string | undefined, fallback: string): string {
   return trimmed ? trimmed : fallback;
 }
 
+/*
+ * Repointed 2026-07-28. The previous default (a Zipline warehouse role) had
+ * closed, and every Moniepoint and Zipline detail page currently answers
+ * "Job unavailable" even where the row is still `published` — tracked
+ * separately; it is not something this pin can work around.
+ *
+ * Chosen because it is a canonical row of ours rather than a feed passthrough,
+ * it comes from the employer's own board, and a graduate programme stays open
+ * for months rather than weeks. It will still close eventually, and when it
+ * does `resolveAuditableJob` audits a live job instead of failing the suite.
+ */
 const PINNED_JOB = pinnedSlug(
   process.env.PRODUCTION_ACCEPTANCE_JOB_SLUG,
-  "warehouse-operations-excellence-lead-africa-754b93ae3f815241",
+  "graduate-software-engineer-open-source-and-linux-canonical-ubuntu-87dad5b00e6cb94e",
 );
 /**
  * Whether the job pin was chosen for this run or is the built-in default. A
