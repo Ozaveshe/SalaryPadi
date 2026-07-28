@@ -27,12 +27,34 @@ function filesUnder(directory) {
   });
 }
 
+// A platform name inside a bare origin — scheme, host, optional port, nothing
+// that names a resource — declares a network destination, not ingested content.
+// CSP allowlists and OAuth redirect origins are written that way, and
+// `src/proxy.ts` keeps the sign-in origins a few lines above the protected
+// `/contribute/review` route prefixes, so the proximity window below used to
+// read an auth host as review ingress. The exemption stops at the origin: a URL
+// naming a path or query still counts, because opinion material has to be
+// fetched from a resource before it can be stored, and a platform name written
+// anywhere outside an origin literal is never exempt.
+const networkOriginLiteral = /(["'`])https?:\/\/[a-z0-9.*-]+(?::\d+)?\/?\1/gi;
+
+function networkOriginRanges(text) {
+  return [...text.matchAll(networkOriginLiteral)].map((match) => [
+    match.index ?? 0,
+    (match.index ?? 0) + match[0].length,
+  ]);
+}
+
 function hasProhibitedExternalOpinion(text) {
+  const originRanges = networkOriginRanges(text);
   for (const match of text.matchAll(
     /glassdoor|indeed|jobberman|myjobmag|brightermonday|linkedin|reddit/gi,
   )) {
-    const start = Math.max(0, (match.index ?? 0) - 250);
-    const end = Math.min(text.length, (match.index ?? 0) + 250);
+    const index = match.index ?? 0;
+    if (originRanges.some(([from, to]) => index >= from && index < to))
+      continue;
+    const start = Math.max(0, index - 250);
+    const end = Math.min(text.length, index + 250);
     if (opinionMaterial.test(text.slice(start, end))) return true;
   }
   return false;

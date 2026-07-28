@@ -1,10 +1,23 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 const root = process.cwd();
+const ingressAuditScript = join(
+  root,
+  "scripts/audit-company-intelligence-ingress.mjs",
+);
+
 const provenanceMigration = readFileSync(
   join(root, "supabase/migrations/20260714030526_company_fact_provenance.sql"),
   "utf8",
@@ -37,6 +50,44 @@ const artifact = JSON.parse(
   quarantine: { stores_raw_text: boolean };
 };
 
+// The audit derives its scan root from its own location, so a copy of the real
+// script inside a sandbox audits the fixtures written there instead of the
+// repository. That keeps these cases on the shipped rule with no test-only
+// affordance in the script. Run without `--check` so a fixture that is meant to
+// fail still exits zero and reports through the summary.
+function runIngressAudit(sources: Record<string, string>) {
+  const sandbox = mkdtempSync(join(tmpdir(), "company-intelligence-audit-"));
+  try {
+    const script = join(
+      sandbox,
+      "scripts/audit-company-intelligence-ingress.mjs",
+    );
+    mkdirSync(dirname(script), { recursive: true });
+    copyFileSync(ingressAuditScript, script);
+    mkdirSync(join(sandbox, "reports"), { recursive: true });
+    writeFileSync(
+      join(sandbox, "reports/company-intelligence-audit.json"),
+      JSON.stringify({
+        schema_version: 1,
+        production: { raw_contributions: 0, public_review_publications: 0 },
+      }),
+    );
+    for (const [path, contents] of Object.entries(sources)) {
+      const file = join(sandbox, path);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, contents);
+    }
+    return JSON.parse(
+      execFileSync(process.execPath, [script], {
+        cwd: sandbox,
+        encoding: "utf8",
+      }),
+    ) as { external_opinion_application_matches: number; status: string };
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
 describe("company intelligence audit contract", () => {
   it("records the production empty-state without inventing evidence", () => {
     expect(artifact.production.raw_contributions).toBe(0);
@@ -60,6 +111,56 @@ describe("company intelligence audit contract", () => {
       external_opinion_seed_or_index_matches: 0,
       external_opinion_prompt_matches: 0,
       status: "pass",
+    });
+  });
+
+  it("reads an OAuth origin allowlist beside contribution routes as network policy", () => {
+    expect(
+      runIngressAudit({
+        "src/proxy.ts": [
+          "const OAUTH_FORM_ACTION_ORIGINS = [",
+          '  "https://accounts.google.com",',
+          '  "https://api.linkedin.com",',
+          '  "https://www.linkedin.com",',
+          "];",
+          "",
+          "const protectedPrefixes = [",
+          '  "/contribute/salary",',
+          '  "/contribute/review",',
+          '  "/contribute/interview",',
+          "];",
+        ].join("\n"),
+      }),
+    ).toMatchObject({
+      external_opinion_application_matches: 0,
+      status: "pass",
+    });
+  });
+
+  it("still reports a platform URL that names a resource", () => {
+    expect(
+      runIngressAudit({
+        "src/lib/companies/import.ts":
+          'const source = "https://www.glassdoor.com/Reviews/company.htm";',
+      }),
+    ).toMatchObject({
+      external_opinion_application_matches: 1,
+      status: "fail",
+    });
+  });
+
+  it("still reports a platform name written outside an origin", () => {
+    expect(
+      runIngressAudit({
+        "src/lib/companies/import.ts": [
+          "export async function importLinkedinEvidence() {",
+          "  return { rating: null };",
+          "}",
+        ].join("\n"),
+      }),
+    ).toMatchObject({
+      external_opinion_application_matches: 1,
+      status: "fail",
     });
   });
 
