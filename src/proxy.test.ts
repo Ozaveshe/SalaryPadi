@@ -115,6 +115,9 @@ describe("Next proxy boundary", () => {
       expect(response.headers.get("content-security-policy")).toContain(
         "connect-src 'self'",
       );
+      expect(response.headers.get("content-security-policy")).toContain(
+        "form-action 'self'",
+      );
       expect(response.headers.get("content-security-policy")).not.toContain(
         "wrongprojectref.supabase.co",
       );
@@ -125,6 +128,16 @@ describe("Next proxy boundary", () => {
         process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
       }
     }
+  });
+
+  it("allows OAuth form redirects only through the validated Supabase project", async () => {
+    const response = await proxy(
+      new NextRequest("https://salarypadi.com/auth/sign-in"),
+    );
+
+    expect(response.headers.get("content-security-policy")).toContain(
+      "form-action 'self' https://bxelrhklsznmpksgrqep.supabase.co",
+    );
   });
 
   it("redirects an unauthenticated protected request and preserves a safe next path", async () => {

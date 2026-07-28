@@ -44,9 +44,16 @@ function buildContentSecurityPolicy(
 ) {
   const isDevelopment = process.env.NODE_ENV === "development";
   const connectSources = ["'self'"];
+  const formSources = ["'self'"];
   const imageSources = ["'self'", "blob:", "data:"];
 
-  if (supabaseOrigin) connectSources.push(supabaseOrigin);
+  if (supabaseOrigin) {
+    connectSources.push(supabaseOrigin);
+    // OAuth starts with a same-origin form POST whose 303 response redirects
+    // through Supabase Auth. Browsers enforce form-action across that redirect
+    // chain, so the exact validated project origin must be allowed here.
+    formSources.push(supabaseOrigin);
+  }
 
   if (process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) {
     connectSources.push(
@@ -68,7 +75,7 @@ function buildContentSecurityPolicy(
     `connect-src ${connectSources.join(" ")}`,
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    `form-action ${formSources.join(" ")}`,
     "frame-ancestors 'none'",
     "worker-src 'none'",
     ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
