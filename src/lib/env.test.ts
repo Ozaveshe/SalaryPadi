@@ -87,6 +87,23 @@ describe("server environment", () => {
     ).toBe("G-ABC123DEF4");
   });
 
+  it("keeps social sign-in dark by default and accepts explicit provider gates", () => {
+    expect(parseServerEnvironment({ NODE_ENV: "development" })).toMatchObject({
+      AUTH_GOOGLE_ENABLED: false,
+      AUTH_LINKEDIN_ENABLED: false,
+    });
+    expect(
+      parseServerEnvironment({
+        NODE_ENV: "development",
+        AUTH_GOOGLE_ENABLED: "true",
+        AUTH_LINKEDIN_ENABLED: "true",
+      }),
+    ).toMatchObject({
+      AUTH_GOOGLE_ENABLED: true,
+      AUTH_LINKEDIN_ENABLED: true,
+    });
+  });
+
   it("rejects a malformed Google Analytics ID", () => {
     expect(() =>
       parseServerEnvironment({

@@ -13,6 +13,8 @@ Required web configuration:
 | `NEXT_PUBLIC_APP_URL`                  | `https://salarypadi.com`                           |
 | `NEXT_PUBLIC_SUPABASE_URL`             | Dedicated environment’s Supabase URL               |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Matching publishable key                           |
+| `AUTH_GOOGLE_ENABLED`                  | `true` after Google is configured in Supabase Auth |
+| `AUTH_LINKEDIN_ENABLED`                | `true` after LinkedIn OIDC is configured there     |
 | `REMOTIVE_SOURCE_ENABLED`              | `true` only while the reviewed pilot is approved   |
 | `ATS_SOURCE_SYNC_ENABLED`              | `false` until a separately approved ATS activation |
 | `ALLOW_DEMO_DATA`                      | Always `false`                                     |
@@ -41,10 +43,11 @@ measurement ID.
 ## Supabase preparation
 
 1. Create a dedicated project and record its project reference in the secret manager/release record.
-2. In Auth URL configuration, set the Site URL to the canonical origin and allow exactly the required `/auth/confirm` URLs for new token-hash email links plus `/auth/callback` during legacy-link compatibility.
-3. Enable and test the approved MFA factor for staff accounts.
-4. Keep the Data API exposed schemas restricted to `api`, matching `supabase/config.toml`.
-5. Link the CLI only after verifying the project reference in both the command and dashboard:
+2. In Auth URL configuration, set the Site URL to the canonical origin and allow exactly the required `/auth/confirm` URLs for token-hash email links plus `/auth/callback` for social sign-in and legacy-link compatibility.
+3. Configure Google and LinkedIn using Supabase Auth’s provider callback URL, then set the matching `AUTH_*_ENABLED` web variable only after each provider completes a production round trip. LinkedIn must use the `linkedin_oidc` provider; do not restore the retired `linkedin` provider.
+4. Enable and test the approved MFA factor for staff accounts.
+5. Keep the Data API exposed schemas restricted to `api`, matching `supabase/config.toml`.
+6. Link the CLI only after verifying the project reference in both the command and dashboard:
 
 ```powershell
 supabase link --project-ref <salarypadi-project-ref>
@@ -52,15 +55,15 @@ supabase db push --dry-run
 supabase db push
 ```
 
-6. Apply migrations in filename order. Do not edit an applied migration; add a new timestamped forward migration.
-7. Run the database test suite locally against a clean stack and against a disposable staging project before production:
+7. Apply migrations in filename order. Do not edit an applied migration; add a new timestamped forward migration.
+8. Run the database test suite locally against a clean stack and against a disposable staging project before production:
 
 ```powershell
 supabase db reset
 supabase test db
 ```
 
-8. Bootstrap the first administrator using the two-person procedure in [Operations](OPERATIONS.md), then verify AAL2 access and audit output.
+9. Bootstrap the first administrator using the two-person procedure in [Operations](OPERATIONS.md), then verify AAL2 access and audit output.
 
 The hosted migration set through `20260710001000` is applied and recorded. Live API types are generated in `src/lib/supabase/database.types.ts`; the Phase Two operations suite adds 37 pgTAP assertions for worker authorization, idempotency, alert claims, analytics aggregation, rate provenance, maintenance, invoker-only public wrappers, narrow internal-routine resolution, and bounded source cadence. The repository-wide schema suite also requires forced RLS on every new private operations table. Supabase Auth uses `https://salarypadi.com` as its Site URL while retaining the Netlify production and preview confirmation/callback routes needed for rollback and deploy previews. Authentication email templates must send `TokenHash` to `/auth/confirm`; do not restore fragment or same-browser PKCE-only links.
 
