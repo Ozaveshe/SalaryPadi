@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, security, audit;
 
-select plan(38);
+select plan(39);
 
 select has_schema('api', 'api schema exists');
 select has_schema('app', 'app schema exists');
@@ -55,6 +55,21 @@ select ok(
   'all exposed views use security_invoker'
 );
 
+-- security_barrier keeps a cheap user-supplied predicate from being pushed
+-- below the view's own row filter and leaking rows it excludes. Every api view
+-- is created with it, but nothing verified that a later `create or replace`
+-- kept it, which is exactly when the option gets dropped.
+select ok(
+  not exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'api' and c.relkind = 'v'
+      and not (coalesce(c.reloptions, '{}'::text[]) @> array['security_barrier=true'])
+  ),
+  'all exposed views use security_barrier'
+);
+
 select ok(
   not exists (
     select 1
@@ -91,7 +106,11 @@ select ok(
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
-    where n.nspname in ('security', 'audit')
+    -- api is included deliberately: it holds the majority of the project's
+    -- security-definer routines and is the one schema PostgREST exposes, so a
+    -- PUBLIC execute grant there is reachable by anon. Scanning only
+    -- security/audit left those routines resting on convention alone.
+    where n.nspname in ('security', 'audit', 'api', 'app', 'private', 'ingest')
       and p.prosecdef and a.grantee = 0 and a.privilege_type = 'EXECUTE'
   ),
   'security-definer routines are not executable by PUBLIC'
@@ -102,7 +121,8 @@ select ok(
     select 1
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname in ('security', 'audit') and p.prosecdef
+    where n.nspname in ('security', 'audit', 'api', 'app', 'private', 'ingest')
+      and p.prosecdef
       and coalesce(array_to_string(p.proconfig, ','), '') not like '%search_path=%'
   ),
   'every security-definer routine fixes search_path'

@@ -21,7 +21,8 @@ The application follows these boundaries:
 - Supabase sessions are checked with verified claims; protected routes redirect anonymous users.
 - Staff authorization is enforced in both the application and database. Privileged moderation and role changes require an AAL2 session.
 - Base tables use row-level security, with force-RLS on the protected schemas. PostgREST exposes only the `api` schema in the local configuration.
-- Security-definer functions set an empty search path and use explicit schema references.
+- Security-definer functions set an empty search path and use explicit schema references. pgTAP test 00 enforces both the fixed search path and the absence of a PUBLIC execute grant across `security`, `audit`, `api`, `app`, `private` and `ingest`. `api` matters most: it holds the majority of these routines and is the only schema PostgREST exposes, so a PUBLIC grant there would be reachable by `anon`.
+- Every `api` view is asserted to carry both `security_invoker` and `security_barrier`. The barrier option stops a cheap user-supplied predicate being pushed below the view's own row filter, and is the option most easily lost to a later `create or replace`.
 - State-changing HTTP routes reject cross-origin requests, validate bounded inputs, and use safe redirect paths.
 - Production rejects a missing, non-HTTPS, or loopback canonical origin so metadata and same-origin checks cannot silently use localhost.
 - External destinations accept HTTPS URLs under explicit fixed-host policy; suffix-collision hosts are rejected and source HTML is converted to plain text.
