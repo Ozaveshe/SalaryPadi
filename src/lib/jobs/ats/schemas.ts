@@ -79,6 +79,35 @@ export const leverPayloadSchema = z
   .array(z.unknown())
   .max(MAX_PROVIDER_RECORDS);
 
+const ashbyCompensationComponentSchema = z
+  .object({
+    compensationType: z.string().trim().min(1).max(100),
+    interval: z.string().trim().min(1).max(100),
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/)
+      .nullable(),
+    minValue: z.number().finite().nonnegative().nullable(),
+    maxValue: z.number().finite().nonnegative().nullable(),
+  })
+  .passthrough();
+
+const ashbyCompensationSchema = z
+  .object({
+    scrapeableCompensationSalarySummary: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2_000)
+      .optional(),
+    summaryComponents: z
+      .array(ashbyCompensationComponentSchema)
+      .max(100)
+      .optional(),
+  })
+  .passthrough();
+
 export const ashbyJobSchema = z
   .object({
     id: z.string().trim().min(1).max(200).optional(),
@@ -98,6 +127,7 @@ export const ashbyJobSchema = z
       "Contract",
       "Temporary",
     ]),
+    compensation: ashbyCompensationSchema.nullable().optional(),
     jobUrl: httpsUrl,
     applyUrl: httpsUrl,
   })

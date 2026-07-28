@@ -79,6 +79,72 @@ describe("ATS import normalization", () => {
     );
   });
 
+  it("preserves salary evidence independently of description-storage rights", () => {
+    const result = normalizeAtsImportRecords(
+      [
+        record({
+          salary: {
+            sourceText: "USD 81,000 - 87,000 per year",
+            currency: "USD",
+            minimum: 81_000,
+            maximum: 87_000,
+            period: "annual",
+            grossNet: "unspecified",
+          },
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(result.jobs[0]).toMatchObject({
+      description_text: null,
+      raw_payload: null,
+      salary: {
+        source_text: "USD 81,000 - 87,000 per year",
+        currency: "USD",
+        minimum: 81_000,
+        maximum: 87_000,
+        period: "annual",
+        gross_net: "unspecified",
+      },
+    });
+  });
+
+  it("includes compensation changes in the canonical content hash", () => {
+    const first = normalizeAtsImportRecords(
+      [
+        record({
+          salary: {
+            sourceText: "USD 81,000 - 87,000 per year",
+            currency: "USD",
+            minimum: 81_000,
+            maximum: 87_000,
+            period: "annual",
+            grossNet: "unspecified",
+          },
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+    const changed = normalizeAtsImportRecords(
+      [
+        record({
+          salary: {
+            sourceText: "USD 85,000 - 90,000 per year",
+            currency: "USD",
+            minimum: 85_000,
+            maximum: 90_000,
+            period: "annual",
+            grossNet: "unspecified",
+          },
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(first.jobs[0]?.content_hash).not.toBe(changed.jobs[0]?.content_hash);
+  });
+
   it("filters non-remote arrangements outside Africa", () => {
     const result = normalizeAtsImportRecords(
       [

@@ -57,9 +57,11 @@ export function buildLeverEndpoint(target: LeverEndpointTarget): URL {
 
 export function buildAshbyEndpoint(target: AshbyEndpointTarget): URL {
   const tenant = validTenant(target.tenant);
-  return new URL(
+  const endpoint = new URL(
     `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(tenant)}`,
   );
+  endpoint.searchParams.set("includeCompensation", "true");
+  return endpoint;
 }
 
 export function buildWorkableEndpoint(target: WorkableEndpointTarget): URL {
