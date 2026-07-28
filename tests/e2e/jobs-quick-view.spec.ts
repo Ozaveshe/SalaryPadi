@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 /**
  * The quick-view panel on the two-column jobs route.
@@ -14,14 +14,28 @@ test.describe("jobs quick view", () => {
     "The quick-view column only exists at the two-column width.",
   );
 
+  /**
+   * Waits for the results to settle and reports how many cards arrived.
+   *
+   * The results stream in behind a Suspense boundary, so counting immediately
+   * after `goto` races the stream and reads zero on a page that does have jobs.
+   * The env-less browser-journeys run also has no job data at all by design, so
+   * the wait has to accept the empty state as a settled outcome rather than
+   * demanding a list that will never appear.
+   */
+  async function countSettledCards(page: Page): Promise<number> {
+    await expect(page.locator(".job-list, .empty-state").first()).toBeVisible({
+      timeout: 30_000,
+    });
+    return page.locator(".job-list-item").count();
+  }
+
   test("selects a job into the panel from anywhere on its card, without a request", async ({
     page,
   }) => {
     await page.goto("/jobs");
     const cards = page.locator(".job-list-item");
-    await expect(page.locator(".job-list")).toBeVisible();
-    const cardCount = await cards.count();
-    // The env-less browser-journeys run has no job data by design.
+    const cardCount = await countSettledCards(page);
     test.skip(cardCount < 2, "This run has fewer than two published jobs.");
 
     const panel = page.locator("#job-quick-view");
@@ -51,7 +65,7 @@ test.describe("jobs quick view", () => {
   }) => {
     await page.goto("/jobs");
     const cards = page.locator(".job-list-item");
-    const cardCount = await cards.count();
+    const cardCount = await countSettledCards(page);
     test.skip(cardCount < 2, "This run has fewer than two published jobs.");
 
     // The quick-view control is a real button, so the selection is reachable

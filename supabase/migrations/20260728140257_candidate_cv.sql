@@ -12,22 +12,74 @@ begin;
 -- The bucket is private. A CV is readable only through a short-lived signed URL
 -- minted for its owner, never by public path.
 
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values (
-  'candidate-cv',
-  'candidate-cv',
-  false,
-  5242880,
-  array[
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain'
-  ]
-)
-on conflict (id) do update set
-  public = false,
-  file_size_limit = excluded.file_size_limit,
-  allowed_mime_types = excluded.allowed_mime_types;
+-- The bucket and its object policies are guarded on the Storage extension
+-- being installed. The migration chain is replayed in CI against a bare
+-- Postgres with pgTAP and no Storage, where `storage.buckets` does not exist;
+-- an unguarded reference stops the whole replay at this file. Everything below
+-- the guard is ordinary schema and runs either way, so the tables, functions
+-- and grants stay under test even where the bucket cannot exist.
+do $storage$
+begin
+  if to_regclass('storage.buckets') is null then
+    raise notice 'Storage extension absent: skipping candidate-cv bucket and object policies.';
+    return;
+  end if;
+
+  execute $sql$
+    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    values (
+      'candidate-cv',
+      'candidate-cv',
+      false,
+      5242880,
+      array[
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain'
+      ]
+    )
+    on conflict (id) do update set
+      public = false,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types
+  $sql$;
+
+  -- The first path segment is the owner's id, so a signed-in account reaches
+  -- its own objects and nothing else.
+  execute $sql$drop policy if exists candidate_cv_owner_read on storage.objects$sql$;
+  execute $sql$
+    create policy candidate_cv_owner_read on storage.objects
+    for select to authenticated
+    using (
+      bucket_id = 'candidate-cv'
+      and (storage.foldername(name))[1] = (select auth.uid())::text
+      and (select security.is_active_user())
+    )
+  $sql$;
+
+  execute $sql$drop policy if exists candidate_cv_owner_insert on storage.objects$sql$;
+  execute $sql$
+    create policy candidate_cv_owner_insert on storage.objects
+    for insert to authenticated
+    with check (
+      bucket_id = 'candidate-cv'
+      and (storage.foldername(name))[1] = (select auth.uid())::text
+      and (select security.is_active_user())
+    )
+  $sql$;
+
+  execute $sql$drop policy if exists candidate_cv_owner_delete on storage.objects$sql$;
+  execute $sql$
+    create policy candidate_cv_owner_delete on storage.objects
+    for delete to authenticated
+    using (
+      bucket_id = 'candidate-cv'
+      and (storage.foldername(name))[1] = (select auth.uid())::text
+      and (select security.is_active_user())
+    )
+  $sql$;
+end
+$storage$;
 
 create table if not exists private.candidate_cvs (
   id uuid primary key default gen_random_uuid(),
@@ -99,38 +151,6 @@ with check (user_id = (select auth.uid()) and (select security.is_active_user())
 alter table private.applications
   add column if not exists cv_id uuid
   references private.candidate_cvs(id) on delete set null;
-
--- ---------------------------------------------------------------------------
--- Storage object policies. The first path segment is the owner's id, so a
--- signed-in account reaches its own objects and nothing else.
--- ---------------------------------------------------------------------------
-
-drop policy if exists candidate_cv_owner_read on storage.objects;
-create policy candidate_cv_owner_read on storage.objects
-for select to authenticated
-using (
-  bucket_id = 'candidate-cv'
-  and (storage.foldername(name))[1] = (select auth.uid())::text
-  and (select security.is_active_user())
-);
-
-drop policy if exists candidate_cv_owner_insert on storage.objects;
-create policy candidate_cv_owner_insert on storage.objects
-for insert to authenticated
-with check (
-  bucket_id = 'candidate-cv'
-  and (storage.foldername(name))[1] = (select auth.uid())::text
-  and (select security.is_active_user())
-);
-
-drop policy if exists candidate_cv_owner_delete on storage.objects;
-create policy candidate_cv_owner_delete on storage.objects
-for delete to authenticated
-using (
-  bucket_id = 'candidate-cv'
-  and (storage.foldername(name))[1] = (select auth.uid())::text
-  and (select security.is_active_user())
-);
 
 -- ---------------------------------------------------------------------------
 -- Owner-scoped access
