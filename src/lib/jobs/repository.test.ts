@@ -506,7 +506,8 @@ describe("job feed source orchestration", () => {
       async (options: { fetch?: typeof fetch }) => {
         await options.fetch?.("https://remotive.com/api/remote-jobs", {
           headers: { Accept: "application/json" },
-        });
+          next: { revalidate: 21_600, tags: [REMOTIVE_CACHE_TAG] },
+        } as RequestInit);
         return { jobs: [remotiveJob()], checkedAt };
       },
     );
@@ -521,10 +522,31 @@ describe("job feed source orchestration", () => {
     expect(new Headers(init?.headers).get("authorization")).toBe(
       "Bearer test-source-sync-token-0000000000000000",
     );
+    expect(init).toMatchObject({ credentials: "omit", redirect: "error" });
+  });
+
+  it("lets the caller's revalidation policy reach the source proxy", async () => {
+    const proxyResponse = Response.json({ jobs: [] });
+    const fetchSpy = vi.fn<typeof fetch>().mockResolvedValue(proxyResponse);
+    vi.stubGlobal("fetch", fetchSpy);
+    mocks.fetchRemotiveJobs.mockImplementationOnce(
+      async (options: { fetch?: typeof fetch }) => {
+        await options.fetch?.("https://remotive.com/api/remote-jobs", {
+          next: { revalidate: 21_600, tags: [REMOTIVE_CACHE_TAG] },
+        } as RequestInit);
+        return { jobs: [remotiveJob()], checkedAt };
+      },
+    );
+
+    await getRemotiveJobFeed(client() as never);
+
+    const [, init] = fetchSpy.mock.calls[0]!;
+    // The proxy used to force `cache: "no-store"` over the caller's directive,
+    // so the reviewed refresh interval never applied and every page render
+    // paid a round trip to our own function plus a fetch-budget write.
+    expect(init?.cache).not.toBe("no-store");
     expect(init).toMatchObject({
-      cache: "no-store",
-      credentials: "omit",
-      redirect: "error",
+      next: { revalidate: 21_600, tags: [REMOTIVE_CACHE_TAG] },
     });
   });
 

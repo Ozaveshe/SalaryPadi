@@ -128,10 +128,15 @@ function createRemotiveProxyFetch(): RemotiveFetch {
   return async (_input, init) => {
     const headers = new Headers(init?.headers);
     headers.set("Authorization", `Bearer ${token}`);
+    // Deliberately does NOT force `cache: "no-store"`. The caller supplies
+    // `next.revalidate` and a cache tag so this hop is served from the data
+    // cache for the source's reviewed refresh interval; overriding it here
+    // opted every render back out, so each page view paid an HTTPS round trip
+    // to our own function plus a durable fetch-budget write before the
+    // provider was even contacted.
     return fetch(endpoint, {
       ...init,
       headers,
-      cache: "no-store",
       credentials: "omit",
       redirect: "error",
     });

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 
 import { JobCard } from "@/components/jobs/job-card";
@@ -37,18 +38,21 @@ async function readMatchProfile(): Promise<CandidateProfile | null> {
   return toCandidateProfile(result.data);
 }
 
-export async function JobsExperience({
+/**
+ * The part of the page that cannot render until the live feed is assembled.
+ *
+ * Kept separate so the page identity and its location paths reach the browser
+ * immediately. Assembling the feed contacts reviewed providers and a database,
+ * and holding the entire page behind that meant a visitor watched a skeleton
+ * for as long as the slowest source took.
+ */
+async function JobResultsSection({
   input,
-  title = "Find a job you can actually apply for",
-  description = "Search source-attributed roles, then check country eligibility, compensation evidence and freshness before you leave to apply.",
-  forcedFilters,
+  search,
 }: {
   input: Record<string, string | string[] | undefined>;
-  title?: string;
-  description?: string;
-  forcedFilters?: Record<string, string>;
+  search: ReturnType<typeof parseJobSearch>;
 }) {
-  const search = parseJobSearch({ ...input, ...forcedFilters });
   const [feed, matchProfile, currencyRates] = await Promise.all([
     getLiveJobFeed(),
     readMatchProfile(),
@@ -83,42 +87,7 @@ export async function JobsExperience({
       : "Unavailable";
 
   return (
-    <div className="site-shell stack-lg">
-      <PageHeading
-        eyebrow="Job discovery"
-        title={title}
-        description={description}
-      />
-      <nav className="job-paths" aria-label="Job location paths">
-        {[
-          ["All jobs", "/jobs", search.path === "all"],
-          ["Nigeria local", "/jobs/nigeria", search.path === "local_nigeria"],
-          [
-            "Remote: Nigeria eligible",
-            "/jobs?path=remote_nigeria",
-            search.path === "remote_nigeria",
-          ],
-          [
-            "Remote: Africa eligible",
-            "/jobs?path=remote_africa",
-            search.path === "remote_africa",
-          ],
-          [
-            "Needs eligibility check",
-            "/jobs?eligibility=unclear",
-            search.eligibility === "unclear",
-          ],
-        ].map(([label, href, active]) => (
-          <Link
-            className={active ? "job-path is-active" : "job-path"}
-            href={String(href)}
-            key={String(href)}
-            aria-current={active ? "page" : undefined}
-          >
-            {String(label)}
-          </Link>
-        ))}
-      </nav>
+    <>
       <JobSearchForm search={search} categories={categories} />
       <JobFeedNotice feed={feed} />
       <section
@@ -238,6 +207,72 @@ export async function JobsExperience({
           searchParams={serializedSearch}
         />
       </section>
+    </>
+  );
+}
+
+/** Placeholder shown while the live feed is still being assembled. */
+function JobResultsFallback() {
+  return (
+    <section className="stack" aria-busy="true" aria-live="polite">
+      <p className="results-count">Checking every reviewed source…</p>
+    </section>
+  );
+}
+
+export function JobsExperience({
+  input,
+  title = "Find a job you can actually apply for",
+  description = "Search source-attributed roles, then check country eligibility, compensation evidence and freshness before you leave to apply.",
+  forcedFilters,
+}: {
+  input: Record<string, string | string[] | undefined>;
+  title?: string;
+  description?: string;
+  forcedFilters?: Record<string, string>;
+}) {
+  const search = parseJobSearch({ ...input, ...forcedFilters });
+
+  return (
+    <div className="site-shell stack-lg">
+      <PageHeading
+        eyebrow="Job discovery"
+        title={title}
+        description={description}
+      />
+      <nav className="job-paths" aria-label="Job location paths">
+        {[
+          ["All jobs", "/jobs", search.path === "all"],
+          ["Nigeria local", "/jobs/nigeria", search.path === "local_nigeria"],
+          [
+            "Remote: Nigeria eligible",
+            "/jobs?path=remote_nigeria",
+            search.path === "remote_nigeria",
+          ],
+          [
+            "Remote: Africa eligible",
+            "/jobs?path=remote_africa",
+            search.path === "remote_africa",
+          ],
+          [
+            "Needs eligibility check",
+            "/jobs?eligibility=unclear",
+            search.eligibility === "unclear",
+          ],
+        ].map(([label, href, active]) => (
+          <Link
+            className={active ? "job-path is-active" : "job-path"}
+            href={String(href)}
+            key={String(href)}
+            aria-current={active ? "page" : undefined}
+          >
+            {String(label)}
+          </Link>
+        ))}
+      </nav>
+      <Suspense fallback={<JobResultsFallback />}>
+        <JobResultsSection input={input} search={search} />
+      </Suspense>
     </div>
   );
 }
