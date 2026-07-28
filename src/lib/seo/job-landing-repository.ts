@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 
@@ -65,119 +66,126 @@ const rowSchema = z
     }
   });
 
-export async function getJobLandingMetricsResult(
-  key: JobLandingKey,
-  now = new Date(),
-): Promise<RepositoryResult<JobLandingMetrics | null>> {
-  const operation = `seo.job_landing.${key}`;
-  const configuration = getSupabasePublicConfig();
-  if (!configuration) {
-    return repositoryFailure(
-      "unconfigured",
-      null,
-      repositoryIssue(
-        operation,
-        "not_configured",
-        "job_landing_metrics_unconfigured",
-      ),
+/**
+ * Memoised per request. Every landing page reads these metrics twice — once in
+ * generateMetadata to decide indexability and once in the page body to render
+ * the coverage panel — and each read is a separate RPC round trip.
+ */
+export const getJobLandingMetricsResult = cache(
+  async function getJobLandingMetricsResult(
+    key: JobLandingKey,
+    now = new Date(),
+  ): Promise<RepositoryResult<JobLandingMetrics | null>> {
+    const operation = `seo.job_landing.${key}`;
+    const configuration = getSupabasePublicConfig();
+    if (!configuration) {
+      return repositoryFailure(
+        "unconfigured",
+        null,
+        repositoryIssue(
+          operation,
+          "not_configured",
+          "job_landing_metrics_unconfigured",
+        ),
+      );
+    }
+    const endpoint = new URL(
+      "/rest/v1/rpc/job_landing_page_metrics",
+      configuration.url,
     );
-  }
-  const endpoint = new URL(
-    "/rest/v1/rpc/job_landing_page_metrics",
-    configuration.url,
-  );
-  let response: Response;
-  try {
-    response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "Accept-Profile": "api",
-        "Content-Profile": "api",
-        apikey: configuration.publishableKey,
-        Authorization: `Bearer ${configuration.publishableKey}`,
-      },
-      body: JSON.stringify({ p_landing_key: key }),
-      cache: "no-store",
-      credentials: "omit",
-      redirect: "error",
-      signal: AbortSignal.timeout(4_000),
-    });
-  } catch (reason) {
-    unstable_rethrow(reason);
-    return repositoryFailure(
-      "unavailable",
-      null,
-      repositoryIssue(
-        operation,
-        "query_failed",
-        "job_landing_metrics_query_failed",
-        reason,
-      ),
-    );
-  }
-  if (!response.ok) {
-    await discardResponseBody(response);
-    return repositoryFailure(
-      "unavailable",
-      null,
-      repositoryIssue(
-        operation,
-        "query_failed",
-        `job_landing_metrics_${response.status}`,
-      ),
-    );
-  }
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Accept-Profile": "api",
+          "Content-Profile": "api",
+          apikey: configuration.publishableKey,
+          Authorization: `Bearer ${configuration.publishableKey}`,
+        },
+        body: JSON.stringify({ p_landing_key: key }),
+        cache: "no-store",
+        credentials: "omit",
+        redirect: "error",
+        signal: AbortSignal.timeout(4_000),
+      });
+    } catch (reason) {
+      unstable_rethrow(reason);
+      return repositoryFailure(
+        "unavailable",
+        null,
+        repositoryIssue(
+          operation,
+          "query_failed",
+          "job_landing_metrics_query_failed",
+          reason,
+        ),
+      );
+    }
+    if (!response.ok) {
+      await discardResponseBody(response);
+      return repositoryFailure(
+        "unavailable",
+        null,
+        repositoryIssue(
+          operation,
+          "query_failed",
+          `job_landing_metrics_${response.status}`,
+        ),
+      );
+    }
 
-  let payload: unknown;
-  try {
-    payload = await readBoundedJson(response, 32 * 1024);
-  } catch (reason) {
-    return repositoryFailure(
-      "invalid",
-      null,
-      repositoryIssue(
-        operation,
-        "invalid_container",
-        "job_landing_metrics_invalid_json",
-        reason,
-      ),
-    );
-  }
-  const candidate = Array.isArray(payload)
-    ? payload.length === 1
-      ? payload[0]
-      : undefined
-    : payload;
-  const parsed = rowSchema.safeParse(candidate);
-  if (
-    !parsed.success ||
-    parsed.data.landing_key !== key ||
-    !Number.isFinite(now.valueOf()) ||
-    Date.parse(parsed.data.measured_at) > now.valueOf() + 5 * 60_000
-  ) {
-    return repositoryFailure(
-      "invalid",
-      null,
-      repositoryIssue(
-        operation,
-        "invalid_rows",
-        "job_landing_metrics_invalid_row",
-        parsed.success ? undefined : parsed.error,
-      ),
-    );
-  }
-  return repositoryReady({
-    key: parsed.data.landing_key,
-    activeUniqueJobs: parsed.data.active_unique_jobs,
-    uniqueJobsSeen90Days: parsed.data.unique_jobs_seen_90_days,
-    companyCount: parsed.data.company_count,
-    stableDemandSignal: parsed.data.stable_demand_signal,
-    lastModified: parsed.data.last_modified,
-    measuredAt: parsed.data.measured_at,
-  });
-}
+    let payload: unknown;
+    try {
+      payload = await readBoundedJson(response, 32 * 1024);
+    } catch (reason) {
+      return repositoryFailure(
+        "invalid",
+        null,
+        repositoryIssue(
+          operation,
+          "invalid_container",
+          "job_landing_metrics_invalid_json",
+          reason,
+        ),
+      );
+    }
+    const candidate = Array.isArray(payload)
+      ? payload.length === 1
+        ? payload[0]
+        : undefined
+      : payload;
+    const parsed = rowSchema.safeParse(candidate);
+    if (
+      !parsed.success ||
+      parsed.data.landing_key !== key ||
+      !Number.isFinite(now.valueOf()) ||
+      Date.parse(parsed.data.measured_at) > now.valueOf() + 5 * 60_000
+    ) {
+      return repositoryFailure(
+        "invalid",
+        null,
+        repositoryIssue(
+          operation,
+          "invalid_rows",
+          "job_landing_metrics_invalid_row",
+          parsed.success ? undefined : parsed.error,
+        ),
+      );
+    }
+    return repositoryReady({
+      key: parsed.data.landing_key,
+      activeUniqueJobs: parsed.data.active_unique_jobs,
+      uniqueJobsSeen90Days: parsed.data.unique_jobs_seen_90_days,
+      companyCount: parsed.data.company_count,
+      stableDemandSignal: parsed.data.stable_demand_signal,
+      lastModified: parsed.data.last_modified,
+      measuredAt: parsed.data.measured_at,
+    });
+  },
+);
 
 export async function getAllJobLandingMetricsResults(now = new Date()) {
   return Promise.all(

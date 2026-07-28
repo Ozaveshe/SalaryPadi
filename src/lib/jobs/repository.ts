@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { unstable_rethrow } from "next/navigation";
 
 import { getServerEnvironment } from "@/lib/env";
@@ -137,10 +138,24 @@ function createRemotiveProxyFetch(): RemotiveFetch {
   };
 }
 
+/**
+ * One Supabase client per request, shared by every source in the feed.
+ *
+ * Assembling the feed touches five sources, and each used to build its own
+ * client — five cookie reads and five connections for one page. Memoising per
+ * request also gives the batched policy read below a stable cache key. A
+ * rejected creation is memoised too, so each caller still sees the same
+ * failure its own handler already expects.
+ */
+const getRequestSupabaseClient = cache(
+  async (): Promise<ServerSupabaseClient | null> =>
+    await createServerSupabaseClient(),
+);
+
 async function resolveClient(
   supplied: ServerSupabaseClient | null | undefined,
 ): Promise<ServerSupabaseClient | null> {
-  return supplied === undefined ? await createServerSupabaseClient() : supplied;
+  return supplied === undefined ? await getRequestSupabaseClient() : supplied;
 }
 
 function sourceRegistryUnavailable(
@@ -156,17 +171,45 @@ function sourceRegistryUnavailable(
   );
 }
 
-function readSourcePolicyRow(
-  supabase: ServerSupabaseClient,
-  adapterKey: string,
-) {
-  return supabase
+/** Every adapter key the public feed can ask the live registry about. */
+const REVIEWED_ADAPTER_KEYS = [
+  REMOTIVE_ADAPTER_KEY,
+  JOBICY_ADAPTER_KEY,
+  HIMALAYAS_ADAPTER_KEY,
+  RELIEFWEB_ADAPTER_KEY,
+] as const;
+
+/**
+ * Reads every reviewed registry row in one request.
+ *
+ * Each source used to issue its own `eq(adapter_key)` query, so assembling the
+ * feed cost four round trips to `api.job_sources` for four rows of the same
+ * small table. Memoised on the request-scoped client, so a page that reaches
+ * the feed from more than one place still reads the registry once.
+ */
+const readSourcePolicyRows = cache(async (supabase: ServerSupabaseClient) =>
+  supabase
     .schema("api")
     .from("job_sources")
     .select(REVIEWED_POLICY_SELECT_COLUMNS)
-    .eq("adapter_key", adapterKey)
-    .abortSignal(AbortSignal.timeout(4_000))
-    .maybeSingle();
+    .in("adapter_key", [...REVIEWED_ADAPTER_KEYS])
+    .abortSignal(AbortSignal.timeout(4_000)),
+);
+
+/**
+ * The registry row for one adapter, shaped like the `maybeSingle()` result the
+ * callers already handle: `data` is null when the source has no row, and an
+ * `error` propagates the whole batched read's failure.
+ */
+async function readSourcePolicyRow(
+  supabase: ServerSupabaseClient,
+  adapterKey: string,
+) {
+  const { data, error } = await readSourcePolicyRows(supabase);
+  if (error) return { data: null, error };
+  const row =
+    data?.find((candidate) => candidate.adapter_key === adapterKey) ?? null;
+  return { data: row, error: null };
 }
 
 type SecondarySourceKey = "remotive" | "jobicy" | "himalayas" | "reliefweb";
@@ -595,18 +638,42 @@ export async function getHimalayasJobFeed(
   return getSecondarySourceFeed(himalayasSourceDescriptor, suppliedClient);
 }
 
-export async function getLiveJobFeed(): Promise<JobFeedResult> {
+/**
+ * The combined public job feed, assembled at most once per request.
+ *
+ * This is the most expensive read in the product: five sources, a registry
+ * read and up to four provider fetches. It is reachable from a page, from a
+ * nested component and from the company directory, so an uncached call did
+ * the whole thing again for every route that composed two of them — the
+ * companies page had already worked around this with its own local cache().
+ * Memoising at the source means every caller shares one assembly.
+ */
+export const getLiveJobFeed = cache(async (): Promise<JobFeedResult> => {
+  // Resolve the client once and hand the same one to every source. On failure
+  // pass `undefined` so each source resolves (and reports) independently,
+  // exactly as it did when each built its own.
+  let shared: ServerSupabaseClient | null | undefined;
+  try {
+    shared = await getRequestSupabaseClient();
+  } catch {
+    shared = undefined;
+  }
   const [himalayas, jobicy, remotive, reliefweb, database] = await Promise.all([
-    getHimalayasJobFeed(),
-    getJobicyJobFeed(),
-    getRemotiveJobFeed(),
-    getReliefWebJobFeed(),
+    getHimalayasJobFeed(shared),
+    getJobicyJobFeed(shared),
+    getRemotiveJobFeed(shared),
+    getReliefWebJobFeed(shared),
     getDatabaseJobFeed(),
   ]);
   return combineJobSources([himalayas, jobicy, remotive, reliefweb, database]);
-}
+});
 
-export async function getJobBySlug(
+/**
+ * Memoised per request: every job detail page resolves the same slug twice,
+ * once in generateMetadata and once in the page body, and a cache miss here
+ * costs a database lookup plus all four secondary feeds.
+ */
+export const getJobBySlug = cache(async function getJobBySlug(
   slugOrId: string,
 ): Promise<{ feed: JobFeedResult; job: Job | null }> {
   const databaseResult = await getDatabaseJobBySlugResult(slugOrId);
@@ -653,4 +720,4 @@ export async function getJobBySlug(
       feed.jobs.find((job) => job.slug === slugOrId || job.id === slugOrId) ??
       null,
   };
-}
+});

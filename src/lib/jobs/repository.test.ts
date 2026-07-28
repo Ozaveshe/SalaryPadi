@@ -94,6 +94,8 @@ let databaseRows: unknown[] = [];
 let databaseStatus = 200;
 let databaseThrows = false;
 let databaseRowsForRequest: ((url: URL) => unknown[]) | null = null;
+let policyReadCount = 0;
+let policyReadKeys: string[] = [];
 
 function client({
   policy = {
@@ -147,22 +149,24 @@ function client({
         if (name === "job_sources") {
           return {
             select: () => ({
-              eq: (_column: string, adapterKey: string) => ({
-                abortSignal: () => ({
-                  maybeSingle: async () => {
-                    if (policyThrows)
-                      throw new Error("policy transport failed");
-                    return {
-                      data:
-                        adapterKey === "jobicy"
-                          ? jobicyPolicy
-                          : adapterKey === "himalayas"
-                            ? himalayasPolicy
-                            : policy,
-                      error: policyError ? new Error("policy failed") : null,
-                    };
-                  },
-                }),
+              // One batched read for every reviewed adapter key, matching the
+              // repository's single `.in()` query rather than a per-source
+              // `.eq(...).maybeSingle()`.
+              in: (_column: string, adapterKeys: string[]) => ({
+                abortSignal: async () => {
+                  policyReadCount += 1;
+                  policyReadKeys = adapterKeys;
+                  if (policyThrows) throw new Error("policy transport failed");
+                  const rows = [policy, jobicyPolicy, himalayasPolicy].filter(
+                    (row): row is Record<string, unknown> =>
+                      row !== null &&
+                      adapterKeys.includes(String(row.adapter_key)),
+                  );
+                  return {
+                    data: rows,
+                    error: policyError ? new Error("policy failed") : null,
+                  };
+                },
               }),
             }),
           };
@@ -178,6 +182,8 @@ function remotiveJob(): Job {
 }
 
 beforeEach(() => {
+  policyReadCount = 0;
+  policyReadKeys = [];
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-07-10T13:10:00.000Z"));
   mocks.environment.mockReturnValue({
@@ -535,6 +541,30 @@ describe("job feed source orchestration", () => {
       code: "remotive_snapshot_stale",
       jobs: [],
     });
+  });
+
+  it("reads every reviewed adapter key in one registry query", async () => {
+    mocks.createClient.mockResolvedValue(client() as never);
+
+    await getRemotiveJobFeed();
+
+    // One batched read covers all four reviewed sources. Each source
+    // previously issued its own eq(adapter_key) round trip for four rows of
+    // the same small table.
+    expect(policyReadCount).toBe(1);
+    expect(policyReadKeys).toEqual(
+      expect.arrayContaining(["remotive", "jobicy", "himalayas", "reliefweb"]),
+    );
+  });
+
+  it("builds one Supabase client for the whole feed", async () => {
+    mocks.createClient.mockResolvedValue(client() as never);
+
+    await getLiveJobFeed();
+
+    // Every source used to build its own client, so one page render cost a
+    // cookie read and a connection per source.
+    expect(mocks.createClient).toHaveBeenCalledTimes(1);
   });
 
   it("reports a partial database outage instead of silently claiming full health", async () => {
