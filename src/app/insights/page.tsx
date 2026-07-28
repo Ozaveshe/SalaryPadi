@@ -5,6 +5,7 @@ import { JobMarketPulse } from "@/components/insights/job-market-pulse";
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { getPublishedEditorialResult } from "@/lib/editorial/repository";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +39,9 @@ export default async function InsightsPage() {
               </h2>
               <p>{article.description}</p>
               <p className="text-muted text-sm">
-                Published{" "}
-                {new Date(article.published_at).toLocaleDateString("en-NG")}
+                {/* formatDate pins UTC; an unzoned locale date renders in
+                    the server's zone and can name the wrong day. */}
+                Published {formatDate(article.published_at)}
               </p>
             </article>
           ))}

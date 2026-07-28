@@ -204,6 +204,61 @@ function relevanceScore(job: Job, search: JobSearch) {
  * eligibility. Used as the default browse order so verified local supply is
  * not buried under whichever remote feed refreshed last.
  */
+/**
+ * The filters that live behind the "More filters" disclosure, as opposed to
+ * the keyword, location and eligibility controls that are always visible.
+ */
+const ADVANCED_TEXT_FILTERS = ["company", "timezone"] as const;
+const ADVANCED_CHOICE_FILTERS = [
+  "workMode",
+  "employmentType",
+  "arrangement",
+  "experience",
+  "category",
+  "postedWithin",
+  "currency",
+] as const;
+const ADVANCED_FLAG_FILTERS = [
+  "salaryDisclosed",
+  "visaSponsorship",
+  "relocationSupport",
+  "graduateTrainee",
+  "internship",
+  "nyscRequired",
+  "hndAccepted",
+  "bscRequired",
+  "professionalCertification",
+  "localLanguage",
+  "pension",
+  "hmo",
+  "transport",
+  "housing",
+  "dataPowerAllowance",
+  "thirteenthMonth",
+  "bonus",
+  "overtimeWeekend",
+  "fxPolicy",
+  "payReliability",
+] as const;
+
+/**
+ * Whether the search narrows anything behind the "More filters" disclosure.
+ *
+ * The panel is collapsed by default, so a search that used it came back with
+ * its own filters hidden: the results were narrowed by criteria the person
+ * could no longer see, review or clear without opening the panel and reading
+ * every control.
+ */
+export function hasAdvancedJobFilters(search: JobSearch): boolean {
+  return (
+    ADVANCED_TEXT_FILTERS.some((key) => search[key].trim() !== "") ||
+    ADVANCED_CHOICE_FILTERS.some((key) => search[key] !== "all") ||
+    ADVANCED_FLAG_FILTERS.some((key) => search[key]) ||
+    search.sort !== "relevance" ||
+    (search.minSalary !== undefined && search.minSalary > 0)
+  );
+}
+
 export function nigeriaValueTier(job: Job) {
   if (job.workMode !== "remote" && /\bnigeria\b/i.test(job.locationDisplay)) {
     return 3;

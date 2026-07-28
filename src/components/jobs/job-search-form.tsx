@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import type { JobSearch } from "@/lib/jobs/search";
+import { hasAdvancedJobFilters, type JobSearch } from "@/lib/jobs/search";
 
 export function JobSearchForm({
   search,
@@ -62,7 +62,14 @@ export function JobSearchForm({
           Search jobs
         </button>
       </div>
-      <details className="advanced-filters">
+      {/*
+        Open when the search is already narrowed by one of these controls,
+        so active filters are never hiding behind a collapsed summary.
+      */}
+      <details
+        className="advanced-filters"
+        open={hasAdvancedJobFilters(search)}
+      >
         <summary>More filters</summary>
         <div className="filter-grid">
           <div className="field">
