@@ -1,19 +1,8 @@
 import type { NextConfig } from "next";
 
-const privateNoStoreSources = [
-  "/account/:path*",
-  "/saved/:path*",
-  "/applications/:path*",
-  "/alerts/:path*",
-  "/admin/:path*",
-  "/auth/mfa-required",
-  "/privacy/requests/:path*",
-  "/company-intelligence/requests/:path*",
-  "/contribute/:path*",
-  "/post-a-job",
-  "/companies/:slug/claim",
-  "/companies/:slug/respond",
-] as const;
+// Relative, not aliased: next.config.ts is compiled outside the app's module
+// resolution. The module is dependency-free so it loads safely here.
+import { PROTECTED_NO_STORE_SOURCES } from "./src/lib/security/protected-paths";
 
 /**
  * Netlify exposes COMMIT_REF/CONTEXT/BRANCH/BUILD_ID to the BUILD, not to the
@@ -53,9 +42,21 @@ const nextConfig: NextConfig = {
           },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          // Only in production: sending HSTS from a loopback dev server would
+          // pin localhost to HTTPS for every other project on the machine.
+          // `preload` is deliberately omitted — it is a separate, effectively
+          // irreversible submission that should be an explicit decision.
+          ...(process.env.NODE_ENV === "production"
+            ? [
+                {
+                  key: "Strict-Transport-Security",
+                  value: "max-age=31536000; includeSubDomains",
+                },
+              ]
+            : []),
         ],
       },
-      ...privateNoStoreSources.map((source) => ({
+      ...PROTECTED_NO_STORE_SOURCES.map((source) => ({
         source,
         headers: [{ key: "Cache-Control", value: "private, no-store" }],
       })),

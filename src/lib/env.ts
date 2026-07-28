@@ -125,6 +125,13 @@ const serverEnvironmentSchema = z
       .enum(["true", "false"])
       .default("false")
       .transform((value) => value === "true"),
+    // Navigation flag for the Insights section, which stays hidden until it
+    // has real published data. Declared here so it is validated and
+    // discoverable like every other switch rather than read raw at a call site.
+    NEXT_PUBLIC_FEATURE_INSIGHTS: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     ALLOW_DEMO_DATA: z
       .enum(["true", "false"])
       .default("false")
@@ -268,6 +275,7 @@ export function parseServerEnvironment(
     AUTH_GOOGLE_ENABLED: environment.AUTH_GOOGLE_ENABLED,
     AUTH_LINKEDIN_ENABLED: environment.AUTH_LINKEDIN_ENABLED,
     EDITORIAL_AUTOMATION_ENABLED: environment.EDITORIAL_AUTOMATION_ENABLED,
+    NEXT_PUBLIC_FEATURE_INSIGHTS: environment.NEXT_PUBLIC_FEATURE_INSIGHTS,
     ALLOW_DEMO_DATA: environment.ALLOW_DEMO_DATA,
     ANALYTICS_PROVIDER: environment.ANALYTICS_PROVIDER,
     EMAIL_PROVIDER: environment.EMAIL_PROVIDER,
@@ -316,6 +324,10 @@ export function getAuthProviderFlags() {
     google: environment.AUTH_GOOGLE_ENABLED,
     linkedin_oidc: environment.AUTH_LINKEDIN_ENABLED,
   };
+}
+
+export function getFeatureFlags() {
+  return { insights: getServerEnvironment().NEXT_PUBLIC_FEATURE_INSIGHTS };
 }
 
 export function getGoogleAnalyticsId() {

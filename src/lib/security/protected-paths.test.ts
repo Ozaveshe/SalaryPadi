@@ -9,6 +9,7 @@ import robots from "@/app/robots";
 import {
   isProtectedPagePath,
   PROTECTED_CRAWLER_DISALLOW,
+  PROTECTED_NO_STORE_SOURCES,
   PROTECTED_PAGE_PREFIXES,
 } from "@/lib/security/protected-paths";
 
@@ -36,6 +37,19 @@ describe("protected page paths", () => {
   it("protects the per-company claim and respond actions", () => {
     expect(isProtectedPagePath("/companies/example-ltd/claim")).toBe(true);
     expect(isProtectedPagePath("/companies/example-ltd/respond")).toBe(true);
+  });
+});
+
+describe("cache-header agreement with the request proxy", () => {
+  it("marks every protected prefix private and no-store", () => {
+    for (const prefix of PROTECTED_PAGE_PREFIXES) {
+      expect(PROTECTED_NO_STORE_SOURCES, prefix).toContain(`${prefix}/:path*`);
+    }
+  });
+
+  it("covers the per-company claim and respond actions", () => {
+    expect(PROTECTED_NO_STORE_SOURCES).toContain("/companies/:slug/claim");
+    expect(PROTECTED_NO_STORE_SOURCES).toContain("/companies/:slug/respond");
   });
 });
 

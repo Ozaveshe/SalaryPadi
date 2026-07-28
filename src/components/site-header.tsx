@@ -3,18 +3,21 @@ import Link from "next/link";
 import type { Viewer } from "@/lib/auth/dal";
 import { Brand } from "@/components/brand";
 import { MobileNavigation } from "@/components/mobile-navigation";
+import { getFeatureFlags } from "@/lib/env";
 
-const navigation = [
-  { href: "/jobs", label: "Jobs" },
-  { href: "/companies", label: "Companies" },
-  { href: "/salaries", label: "Salaries" },
-  { href: "/tools", label: "Tools" },
-  // Insights returns to the nav once it has real data to show.
-  ...(process.env.NEXT_PUBLIC_FEATURE_INSIGHTS === "true"
-    ? [{ href: "/insights", label: "Insights" }]
-    : []),
-  { href: "/contribute", label: "Contribute" },
-];
+function buildNavigation() {
+  return [
+    { href: "/jobs", label: "Jobs" },
+    { href: "/companies", label: "Companies" },
+    { href: "/salaries", label: "Salaries" },
+    { href: "/tools", label: "Tools" },
+    // Insights returns to the nav once it has real data to show.
+    ...(getFeatureFlags().insights
+      ? [{ href: "/insights", label: "Insights" }]
+      : []),
+    { href: "/contribute", label: "Contribute" },
+  ];
+}
 
 function AccountLinks({ viewer }: { viewer: Viewer }) {
   if (viewer.state === "unavailable") {
@@ -52,6 +55,7 @@ function AccountLinks({ viewer }: { viewer: Viewer }) {
 }
 
 export function SiteHeader({ viewer }: { viewer: Viewer }) {
+  const navigation = buildNavigation();
   return (
     <header className="site-header">
       <div className="site-shell site-nav-row">

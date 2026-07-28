@@ -46,6 +46,23 @@ export const PROTECTED_CRAWLER_DISALLOW: readonly string[] = [
   "/companies/*/respond",
 ];
 
+/**
+ * The same set expressed as Next.js header `source` patterns, for the
+ * `private, no-store` cache rules in next.config.ts.
+ *
+ * This was the third independent copy of the list and had drifted too:
+ * /dashboard was protected by the proxy but absent here, so the signed-in
+ * workspace shipped without a no-store directive. `:path*` matches zero or
+ * more segments, so each entry also covers the bare prefix.
+ */
+export const PROTECTED_NO_STORE_SOURCES: readonly string[] = [
+  ...PROTECTED_PAGE_PREFIXES.map((prefix) => `${prefix}/:path*`),
+  // Defence in depth: every contribution route, including any added later.
+  "/contribute/:path*",
+  "/companies/:slug/claim",
+  "/companies/:slug/respond",
+];
+
 export function isProtectedPagePath(pathname: string): boolean {
   return (
     PROTECTED_PAGE_PREFIXES.some(
