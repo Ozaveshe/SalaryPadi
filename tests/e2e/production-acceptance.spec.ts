@@ -43,6 +43,14 @@ const PINNED_JOB = pinnedSlug(
   process.env.PRODUCTION_ACCEPTANCE_JOB_SLUG,
   "warehouse-operations-excellence-lead-africa-754b93ae3f815241",
 );
+/**
+ * Whether the job pin was chosen for this run or is the built-in default. A
+ * chosen pin that is dead is an operator error; the default going stale is a
+ * third-party posting closing, which is not.
+ */
+const JOB_PIN_IS_EXPLICIT = Boolean(
+  process.env.PRODUCTION_ACCEPTANCE_JOB_SLUG?.trim(),
+);
 const PINNED_COMPANY = pinnedSlug(
   process.env.PRODUCTION_ACCEPTANCE_COMPANY_SLUG,
   "zipline",
@@ -100,6 +108,74 @@ async function firstHref(page: Page, selector: string): Promise<string | null> {
   return link.getAttribute("href");
 }
 
+/**
+ * A pinned target that has gone stale reaches one of two pages, and both answer
+ * with a 200, so neither is caught by a status check:
+ *
+ * - the feed could not be checked, so the detail page renders the evidence
+ *   shell ("This job could not be checked"), or
+ * - the feed is live and the role is genuinely gone, so `notFound()` renders
+ *   the not-found page ("This page is no longer available.").
+ */
+async function looksExpired(page: Page): Promise<boolean> {
+  return (
+    (await page
+      .getByRole("heading", {
+        name: /could not be checked|unavailable|no longer available/i,
+      })
+      .count()) > 0
+  );
+}
+
+/**
+ * The job detail the strict product assertions below run against.
+ *
+ * An explicitly configured pin is a deliberate choice, so a dead one is an
+ * operator error and fails with the hint. The built-in default is a different
+ * thing: it points at a third-party posting, and those close on their own
+ * schedule. A closed posting is the product working — roles are withdrawn once
+ * their source stops carrying them — so failing the acceptance suite for it
+ * reports fixture rot as a production defect, and a suite that is red for
+ * reasons nobody can act on stops being read at all.
+ *
+ * When the default has closed, the run moves to the first live job in the feed
+ * and records which one it used. Not one assertion below is relaxed; only the
+ * target changes.
+ */
+async function resolveAuditableJob(
+  page: Page,
+): Promise<{ path: string; substituted: boolean }> {
+  const pinnedPath = `/jobs/${PINNED_JOB}`;
+  const response = await page.goto(pinnedPath, {
+    waitUntil: "domcontentloaded",
+  });
+  const reachedPin =
+    response?.status() === 200 &&
+    new URL(page.url()).pathname.replace(/\/$/, "") === pinnedPath;
+
+  if (reachedPin) {
+    await settle(page);
+    if (!(await looksExpired(page))) {
+      return { path: pinnedPath, substituted: false };
+    }
+  }
+
+  // An operator chose this slug; tell them it is dead rather than papering
+  // over it with a different job.
+  expect(
+    JOB_PIN_IS_EXPLICIT,
+    `Configured pinned job /jobs/${PINNED_JOB} is expired, missing or unavailable. ${REPLACE_TARGET_HINT}`,
+  ).toBe(false);
+
+  await visit(page, "/jobs");
+  const href = await firstHref(page, ".job-card .job-title a");
+  expect(
+    href,
+    `The default pinned job has closed and /jobs offers no live replacement, so the job detail surface could not be audited at all. ${REPLACE_TARGET_HINT}`,
+  ).toBeTruthy();
+  return { path: href!, substituted: true };
+}
+
 /* ------------------------- static customer routes ---------------------- */
 
 for (const route of [
@@ -118,43 +194,19 @@ for (const route of [
 
 /* ------------------------------ pinned job ----------------------------- */
 
-test("pinned job detail is live and customer-ready", async ({ page }) => {
-  const response = await page.goto(`/jobs/${PINNED_JOB}`, {
-    waitUntil: "domcontentloaded",
+test("a real job detail is live and customer-ready", async ({ page }) => {
+  const target = await resolveAuditableJob(page);
+  // Recorded rather than logged silently: a run that audited a substitute
+  // should say so in its own output, so a green result is never mistaken for
+  // the configured pin still being alive.
+  test.info().annotations.push({
+    type: "job-target",
+    description: target.substituted
+      ? `${target.path} (default pin has closed; audited a live job instead)`
+      : `${target.path} (pinned)`,
   });
-  expect(
-    response?.status(),
-    `Pinned job /jobs/${PINNED_JOB} did not return 200. ${REPLACE_TARGET_HINT}`,
-  ).toBe(200);
-  // A blank or redirected target lands on the listing page, which would then
-  // be audited as if it were the job detail. Fail on the wrong page, loudly.
-  expect(
-    new URL(page.url()).pathname.replace(/\/$/, ""),
-    `Expected a job detail page, landed on ${page.url()}. ${REPLACE_TARGET_HINT}`,
-  ).toBe(`/jobs/${PINNED_JOB}`);
-  await settle(page);
-  /*
-   * A pin that has gone stale reaches one of two pages, and both answer with a
-   * 200 so neither is caught by the status check above:
-   *
-   * - the feed could not be checked, so the detail page renders the evidence
-   *   shell ("This job could not be checked"), or
-   * - the feed is live and the role is genuinely gone, so `notFound()` renders
-   *   the not-found page ("This page is no longer available.").
-   *
-   * The second wording was missing here, so an expired pin fell through to the
-   * product assertions below and failed on a missing `.job-card-title a` —
-   * true, but it reads as a broken job detail page rather than as a pin that
-   * needs repointing. Both wordings now fail here, with the hint attached.
-   */
-  await expect(
-    page.getByRole("heading", {
-      name: /could not be checked|unavailable|no longer available/i,
-    }),
-    `Pinned job appears expired, missing or unavailable. ${REPLACE_TARGET_HINT}`,
-  ).toHaveCount(0);
 
-  const scan = await auditRoute(page, `/jobs/${PINNED_JOB}`, "pinned-job");
+  const scan = await auditRoute(page, target.path, "pinned-job");
 
   // Product assertions.
   await expect(page.locator(".job-card-title a").first()).toBeVisible();
