@@ -25,6 +25,71 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FINGERPRINT_PATTERN = /^[0-9a-f]{64}$/;
 
+/**
+ * Exactly the columns `decodeDatabaseJobRow` reads.
+ *
+ * `select=*` shipped every column of a wide projection — about 2.4KB per row
+ * before decoding — and any column added to api.jobs later would silently join
+ * the payload of every public page render. Naming them keeps the transfer to
+ * what the decoder actually uses.
+ */
+const DATABASE_JOB_SELECT_COLUMNS = [
+  "id",
+  "slug",
+  "external_source_id",
+  "title",
+  "description_text",
+  "requirements_text",
+  "benefits_text",
+  "work_arrangement",
+  "employment_type",
+  "engagement_type",
+  "experience_level",
+  "salary_min",
+  "salary_max",
+  "currency_code",
+  "pay_period",
+  "gross_net",
+  "bonus_text",
+  "application_url",
+  "source_url",
+  "posted_at",
+  "valid_through",
+  "last_checked_at",
+  "last_verified_at",
+  "company_slug",
+  "company_name",
+  "company_verification_status",
+  "source_name",
+  "source_id",
+  "source_type",
+  "source_terms_url",
+  "source_homepage_url",
+  "attribution_required",
+  "attribution_text",
+  "may_store_full_description",
+  "may_index_jobs",
+  "may_emit_jobposting_schema",
+  "may_email_jobs",
+  "required_destination_kind",
+  "refresh_interval_seconds",
+  "terms_reviewed_at",
+  "eligibility_scope",
+  "required_timezone_overlap",
+  "work_authorization_requirement",
+  "visa_sponsorship",
+  "relocation_support",
+  "eligibility_evidence",
+  "eligibility_provenance",
+  "eligibility_verified_at",
+  "role_family",
+  "dedup_fingerprint",
+  "locations",
+  "eligibility_countries",
+  "skills",
+  "risk_indicators",
+].join(",");
+
 function uniqueJobsById(jobs: Job[]) {
   const seenIds = new Set<string>();
   let duplicates = 0;
@@ -54,7 +119,7 @@ export async function getDatabaseJobFeed(): Promise<SourceFeed> {
   }
 
   const endpoint = new URL("/rest/v1/jobs", configuration.url);
-  endpoint.searchParams.set("select", "*");
+  endpoint.searchParams.set("select", DATABASE_JOB_SELECT_COLUMNS);
   endpoint.searchParams.set("order", "posted_at.desc");
   endpoint.searchParams.set("limit", String(MAX_DATABASE_FEED_JOBS + 1));
   let response: Response;
@@ -214,7 +279,7 @@ async function readDatabaseJobLookupResult({
   }
 
   const endpoint = new URL("/rest/v1/jobs", configuration.url);
-  endpoint.searchParams.set("select", "*");
+  endpoint.searchParams.set("select", DATABASE_JOB_SELECT_COLUMNS);
   if (includeId && UUID_PATTERN.test(value)) {
     endpoint.searchParams.set("or", `(slug.eq.${value},id.eq.${value})`);
   } else {

@@ -579,6 +579,33 @@ describe("job feed source orchestration", () => {
     );
   });
 
+  it("publishes a partial feed instead of waiting on a stalled source", async () => {
+    databaseRows = [remotiveJob()];
+    mocks.createClient.mockResolvedValue(client() as never);
+    // Himalayas never answers. The page must still render what did.
+    mocks.readSecondaryFeedSnapshot.mockImplementation(async (key: string) =>
+      key === "himalayas"
+        ? new Promise(() => {})
+        : { state: "missing" as const },
+    );
+    mocks.fetchJobicyJobs.mockResolvedValue({ jobs: [], checkedAt });
+    mocks.fetchRemotiveJobs.mockResolvedValue({ jobs: [], checkedAt });
+
+    const pending = getLiveJobFeed();
+    await vi.advanceTimersByTimeAsync(3_000);
+    const result = await pending;
+
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({
+        key: "himalayas",
+        state: "unavailable",
+        code: "himalayas_request_budget_exceeded",
+      }),
+    );
+    // The database jobs still reached the page.
+    expect(result.jobs.length).toBeGreaterThan(0);
+  });
+
   it("builds one Supabase client for the whole feed", async () => {
     mocks.createClient.mockResolvedValue(client() as never);
 

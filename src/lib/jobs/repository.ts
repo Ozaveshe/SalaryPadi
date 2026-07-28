@@ -77,6 +77,54 @@ type ServerSupabaseClient = NonNullable<
 const SOURCE_MAX_AGE_GRACE_MS = 2 * 60 * 60 * 1_000;
 const SOURCE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1_000;
 
+/**
+ * How long one source may take while a person is waiting for the page.
+ *
+ * Measured against production: the reviewed provider APIs answer in under
+ * half a second and the public job projection plans in about 45ms, yet
+ * assembling the feed stalled the response for six and a half seconds in a
+ * single unbroken wait. The per-source timeouts are sized for the scheduled
+ * workers (up to twenty seconds), which is correct for a worker and far too
+ * long for a page render.
+ *
+ * A source that misses this budget is reported as unavailable, which the feed
+ * already models honestly: the page renders what did answer, says the set is
+ * partial, and names the source that did not. That is a better answer than a
+ * complete list nobody waited for.
+ */
+const REQUEST_SOURCE_BUDGET_MS = 2_500;
+
+/** Only log an assembly that a person would actually notice waiting for. */
+const SLOW_FEED_LOG_THRESHOLD_MS = 750;
+
+/**
+ * Resolves to the source's own result, or to an honest unavailable record once
+ * the request budget expires. The slow work is abandoned rather than awaited;
+ * its own timeout still bounds it, and its result is discarded.
+ */
+function withRequestBudget(
+  key: SourceFeed["key"],
+  attemptedAt: string,
+  work: Promise<SourceFeed>,
+): Promise<SourceFeed> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const budget = new Promise<SourceFeed>((resolve) => {
+    timer = setTimeout(
+      () =>
+        resolve(
+          sourceUnavailable(
+            key,
+            attemptedAt,
+            `${key}_request_budget_exceeded`,
+            "This source did not answer quickly enough to be included on this page.",
+          ),
+        ),
+      REQUEST_SOURCE_BUDGET_MS,
+    );
+  });
+  return Promise.race([work, budget]).finally(() => clearTimeout(timer));
+}
+
 function sourceMaxAgeMs(refreshIntervalSeconds: number): number {
   return refreshIntervalSeconds * 1_000 + SOURCE_MAX_AGE_GRACE_MS;
 }
@@ -663,13 +711,39 @@ export const getLiveJobFeed = cache(async (): Promise<JobFeedResult> => {
   } catch {
     shared = undefined;
   }
+  const attemptedAt = new Date().toISOString();
+  const startedAt = performance.now();
+  const durations: Record<string, number> = {};
+  const timed = (key: SourceFeed["key"], work: Promise<SourceFeed>) => {
+    const sourceStartedAt = performance.now();
+    return withRequestBudget(key, attemptedAt, work).then((feed) => {
+      durations[key] = Math.round(performance.now() - sourceStartedAt);
+      return feed;
+    });
+  };
+
   const [himalayas, jobicy, remotive, reliefweb, database] = await Promise.all([
-    getHimalayasJobFeed(shared),
-    getJobicyJobFeed(shared),
-    getRemotiveJobFeed(shared),
-    getReliefWebJobFeed(shared),
-    getDatabaseJobFeed(),
+    timed("himalayas", getHimalayasJobFeed(shared)),
+    timed("jobicy", getJobicyJobFeed(shared)),
+    timed("remotive", getRemotiveJobFeed(shared)),
+    timed("reliefweb", getReliefWebJobFeed(shared)),
+    timed("database", getDatabaseJobFeed()),
   ]);
+
+  // One structured line per assembly. Page latency is dominated by whichever
+  // source is slowest, and that was previously invisible in production: the
+  // only way to attribute the wait was to guess from the outside.
+  const totalMs = Math.round(performance.now() - startedAt);
+  if (totalMs >= SLOW_FEED_LOG_THRESHOLD_MS) {
+    console.warn(
+      JSON.stringify({
+        event: "jobs.feed_assembled",
+        total_ms: totalMs,
+        budget_ms: REQUEST_SOURCE_BUDGET_MS,
+        source_ms: durations,
+      }),
+    );
+  }
   return combineJobSources([himalayas, jobicy, remotive, reliefweb, database]);
 });
 
