@@ -10,6 +10,7 @@ import type { Database } from "@/lib/supabase/database.types";
 const SUPABASE_PROXY_TIMEOUT_MS = 4_000;
 
 const protectedPrefixes = [
+  "/dashboard",
   "/account",
   "/saved",
   "/applications",

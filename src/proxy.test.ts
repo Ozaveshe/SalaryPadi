@@ -53,6 +53,7 @@ beforeEach(() => {
 describe("Next proxy boundary", () => {
   it("covers every page family that performs an optimistic viewer check", () => {
     const protectedPaths = [
+      "/dashboard",
       "/account",
       "/saved",
       "/applications",
