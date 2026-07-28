@@ -17,11 +17,27 @@ function isReviewedBoundedConsumer(
   consumer: string,
   source: string,
 ): boolean {
-  return (
+  if (
     repositoryPath === "src/lib/http/form.ts" &&
     consumer === ".formData()" &&
     source.includes("await readBoundedBody(request, maximumBytes)") &&
     source.includes("new Response(bytes.buffer")
+  ) {
+    return true;
+  }
+
+  /*
+   * The CV upload buffers a file, not a remote response. It is bounded twice
+   * over before it is read: the whole multipart body already came through
+   * `readApiForm` with a byte limit, and the part's own declared size is
+   * rejected above `MAX_CV_BYTES` before `arrayBuffer()` is reached. Both
+   * conditions are asserted here so removing either one fails this guard.
+   */
+  return (
+    repositoryPath === "src/app/api/career/cv/route.ts" &&
+    consumer === ".arrayBuffer()" &&
+    source.includes("await readApiForm(request, MAX_REQUEST_BYTES") &&
+    source.includes("if (file.size > MAX_CV_BYTES) return back(")
   );
 }
 

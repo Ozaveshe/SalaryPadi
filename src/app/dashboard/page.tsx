@@ -13,10 +13,14 @@ import {
   WorkspaceStat,
 } from "@/components/workspace/workspace-shell";
 import { requireViewer } from "@/lib/auth/dal";
+import { readCvSkills } from "@/lib/career/cv/draft";
+import { getCurrentCandidateCv } from "@/lib/career/cv/repository";
 import {
   getDashboardSummary,
   MATCHING_FIELD_COUNT,
 } from "@/lib/career/dashboard";
+import { syncNotifications } from "@/lib/career/notification-sync";
+import { readUnreadNotificationCount } from "@/lib/career/notifications";
 import { formatDate, formatEnum } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -27,13 +31,22 @@ export const metadata: Metadata = {
 export default async function DashboardPage() {
   await requireViewer("/dashboard");
   const summary = await getDashboardSummary();
+  // Recording runs from the same summary the page renders, so the badge and
+  // the page can never disagree about what is due.
+  await syncNotifications(summary);
+  const cv = await getCurrentCandidateCv();
   const completenessPercent = Math.round(summary.profile.completeness * 100);
   const statedFieldCount =
     MATCHING_FIELD_COUNT - summary.profile.missingFields.length;
+  const cvSkillCount =
+    cv.data?.parse_state === "parsed" && cv.data.extracted_text
+      ? readCvSkills(cv.data.extracted_text).length
+      : 0;
 
   return (
     <div className="site-shell">
       <WorkspaceShell
+        unreadNotifications={await readUnreadNotificationCount()}
         current="/dashboard"
         title="Overview"
         description="Everything you are tracking, in one place. These records are private to your account and never appear on public pages."
@@ -75,6 +88,23 @@ export default async function DashboardPage() {
                 label="Profile strength"
                 caption={`${statedFieldCount} of ${MATCHING_FIELD_COUNT} fields that improve your matches`}
                 href="/account/candidate-profile"
+              />
+              {/* A count of what a CV was read to name, never a score for the
+                  CV itself. Zero is a real answer — no stored CV, or one with
+                  no text layer — so the tile links to the place that says so. */}
+              <WorkspaceStat
+                value={cvSkillCount}
+                label="Skills read from your CV"
+                caption={
+                  cv.data === null
+                    ? "No CV stored yet"
+                    : cvSkillCount === 0
+                      ? "Your stored CV could not be read"
+                      : "Compared against what each posting names"
+                }
+                href={
+                  cvSkillCount > 0 ? "/matches" : "/account/candidate-profile"
+                }
               />
             </section>
 

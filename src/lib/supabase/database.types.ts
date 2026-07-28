@@ -1220,6 +1220,8 @@ export type Database = {
         Args: never;
         Returns: {
           company_name: string;
+          cv_file_name: string | null;
+          cv_id: string | null;
           id: string;
           job_slug: string;
           next_action_at: string;
@@ -1228,6 +1230,67 @@ export type Database = {
           title: string;
           updated_at: string;
         }[];
+      };
+      get_my_cvs: {
+        Args: never;
+        Returns: {
+          byte_size: number;
+          content_type: string;
+          extracted_text: string | null;
+          file_name: string;
+          id: string;
+          is_current: boolean;
+          parse_note: string | null;
+          parse_state: string;
+          storage_path: string;
+          uploaded_at: string;
+        }[];
+      };
+      get_my_notifications: {
+        Args: { p_limit?: number };
+        Returns: {
+          body: string;
+          created_at: string;
+          href: string;
+          id: string;
+          kind: string;
+          read_at: string | null;
+          title: string;
+        }[];
+      };
+      get_my_notification_email_optouts: {
+        Args: never;
+        Returns: { kind: string }[];
+      };
+      record_my_cv: {
+        Args: { cv_payload: Json };
+        Returns: string;
+      };
+      record_my_notification: {
+        Args: {
+          p_body: string;
+          p_dedupe_key: string;
+          p_href: string;
+          p_kind: string;
+          p_title: string;
+        };
+        Returns: string;
+      };
+      delete_my_cv: {
+        Args: { p_cv_id: string };
+        Returns: string | null;
+      };
+      attach_cv_to_my_application: {
+        Args: { p_application_id: string; p_cv_id: string | null };
+        Returns: boolean;
+      };
+      mark_my_notifications_read: {
+        Args: { p_id?: string | null };
+        Returns: number;
+      };
+      set_my_notification_email_optout: {
+        Args: { p_kind: string; p_opted_out: boolean };
+        Returns: boolean;
       };
       get_my_community_profile: {
         Args: never;

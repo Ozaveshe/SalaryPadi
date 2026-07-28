@@ -1058,7 +1058,19 @@ a:hover {
 .job-list {
   display: grid;
   gap: 0;
+  margin: 0;
   border-top: 1px solid var(--border-default);
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * The whole row is the quick-view target, not just the "Quick view" control.
+ * The click handler ignores anything that landed on a real link or on a text
+ * selection, so the links inside keep their own behaviour.
+ */
+.job-list-item {
+  position: relative;
 }
 
 .job-card {
@@ -1107,11 +1119,20 @@ a:hover {
  * warning badge carries the claim, this only stops a months-old vacancy from
  * reading as visually equal to one posted this week.
  */
-.job-card[data-posting-age="aging"] .job-card-title,
-.job-card[data-posting-age="stale"] .job-card-title,
 .job-card[data-posting-age="aging"] .job-facts,
 .job-card[data-posting-age="stale"] .job-facts {
   opacity: 0.78;
+}
+
+/*
+ * The company logo fades with the rest, but the title and company links do
+ * not: fading a container of links takes them below the AA contrast floor,
+ * and an aged listing still has to be readable and operable. The decay is
+ * carried by the faded facts row, the warning badge and the stale border.
+ */
+.job-card[data-posting-age="aging"] .job-card-title > :first-child,
+.job-card[data-posting-age="stale"] .job-card-title > :first-child {
+  opacity: 0.7;
 }
 
 .job-card[data-posting-age="stale"] {
@@ -1125,6 +1146,16 @@ a:hover {
   gap: 0.75rem;
 }
 
+/*
+ * The two-column results layout is decided by the width the list was given,
+ * not by the width of the window: the same list is the whole page on /jobs and
+ * sits beside the workspace navigation when signed in, and a viewport rule
+ * cannot tell those apart.
+ */
+.jobs-split-container {
+  container-type: inline-size;
+}
+
 .jobs-split {
   display: grid;
   gap: 1.25rem;
@@ -1135,9 +1166,19 @@ a:hover {
   display: none;
 }
 
-@media (min-width: 64rem) {
+/* A button styled as the inline quick-view link. */
+.job-card-quick-view {
+  display: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+@container (min-width: 58rem) {
   .jobs-split {
-    grid-template-columns: minmax(0, 1fr) 24rem;
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
   }
 
   .jobs-preview-column {
@@ -1146,33 +1187,89 @@ a:hover {
     top: 1rem;
   }
 
-  .job-card.is-selected {
-    border-color: var(--interactive-primary);
-    background: var(--surface-brand-soft);
+  .job-list-item {
+    cursor: pointer;
   }
-}
 
-@media (max-width: 63.9rem) {
   .job-card-quick-view {
-    display: none;
+    display: inline;
+  }
+
+  /*
+   * The selected row is marked on its left edge rather than by tinting the
+   * whole card, so the badges and status colours inside keep their meaning.
+   */
+  .job-list-item[data-selected="true"] .job-card {
+    box-shadow: inset 3px 0 0 var(--interactive-primary);
+    background: var(--surface-brand-soft);
+    padding-left: 0.7rem;
+  }
+
+  .job-list-item[data-selected="true"] .job-card-quick-view {
+    color: var(--text-muted);
   }
 }
 
 .job-preview {
   display: grid;
-  gap: 0.9rem;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-medium);
   background: var(--surface-default);
-  padding: 1.1rem;
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/*
+ * Identity stays pinned while a long excerpt scrolls, and the apply actions
+ * stay reachable without scrolling back — the panel is a scrolling column, so
+ * both edges stick to it rather than to the page.
+ */
+.job-preview-header {
+  display: grid;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  gap: 0.6rem;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-default);
+  padding: 1.1rem;
+}
+
+.job-preview-body {
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
+  padding: 1.1rem;
+}
+
+.job-preview-body .quick-facts {
+  margin: 0;
+}
+
+.job-preview-footer {
+  display: grid;
+  position: sticky;
+  bottom: 0;
+  gap: 0.5rem;
+  border-top: 1px solid var(--border-default);
+  background: var(--surface-default);
+  padding: 0.9rem 1.1rem 1rem;
+}
+
+.job-preview-footer .job-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .job-preview-excerpt {
   margin: 0;
   color: var(--text-secondary);
   font-size: 0.9rem;
+  line-height: 1.6;
   white-space: pre-line;
 }
 
@@ -2692,6 +2789,53 @@ a:hover {
   color: var(--forest-800);
 }
 
+/*
+ * Below the two-column width the navigation becomes a horizontally scrollable
+ * strip above the view. It stays a visible list rather than a menu behind a
+ * tap: the point of the sidebar is that the other sections are always one
+ * click away, and hiding them would give that up on the narrowest screens.
+ */
+@media (max-width: 61.9rem) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+  }
+
+  .workspace-nav {
+    position: static;
+    gap: 0.4rem;
+  }
+
+  .workspace-nav-list {
+    flex-direction: row;
+    gap: 0.4rem;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    padding-bottom: 0.35rem;
+    /* The strip scrolls; a link inside it must not be squeezed to fit. */
+    scroll-snap-type: x proximity;
+  }
+
+  .workspace-nav-list > li {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .workspace-nav-link {
+    border: 1px solid var(--border-default);
+    white-space: nowrap;
+  }
+
+  /* The descriptions are for scanning a column, not a strip. */
+  .workspace-nav-link-description {
+    display: none;
+  }
+
+  .workspace-nav-link-current {
+    border-color: var(--interactive-primary);
+  }
+}
+
 .workspace-main {
   min-width: 0;
 }
@@ -2894,4 +3038,76 @@ a:hover {
     border: 0;
     padding: 0;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * CV, matches and notifications
+ *
+ * All three surfaces show something read out of a document beside the document
+ * it was read from. The styling keeps that separation visible: evidence and
+ * proposals sit in muted text next to the value, never styled as a verified
+ * fact would be.
+ * ------------------------------------------------------------------------ */
+
+.workspace-nav-count {
+  display: inline-flex;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.4rem;
+  border-radius: 999px;
+  background: var(--interactive-primary);
+  padding: 0 0.35rem;
+  color: var(--white);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.cv-current {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-medium);
+  padding: 1rem;
+}
+
+.cv-upload {
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* The overlap sentence belongs to the card above it, not to the next one. */
+.cv-overlap-note {
+  margin: 0 0 1.1rem;
+  border-left: 3px solid var(--border-default);
+  padding-left: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+}
+
+.notification-row[data-unread="true"] {
+  box-shadow: inset 3px 0 0 var(--interactive-primary);
+  padding-left: 0.7rem;
+}
+
+.notification-preference-list {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification-preference {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border-default);
+  padding-top: 0.85rem;
+}
+
+.notification-preference-list > li:first-child .notification-preference {
+  border-top: 0;
+  padding-top: 0;
 }

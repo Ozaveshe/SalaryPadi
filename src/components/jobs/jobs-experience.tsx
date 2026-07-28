@@ -5,9 +5,11 @@ import { JobCard } from "@/components/jobs/job-card";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { JobPreviewPanel } from "@/components/jobs/job-preview-panel";
 import { JobSearchForm } from "@/components/jobs/job-search-form";
+import { JobsSplit } from "@/components/jobs/jobs-split";
 import { Pagination } from "@/components/jobs/pagination";
 import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
+import { WorkspaceShell } from "@/components/workspace/workspace-shell";
 import { getViewer } from "@/lib/auth/dal";
 import { getCandidateProfile } from "@/lib/career/repository";
 import { getReferenceCurrencyRates } from "@/lib/currency/repository";
@@ -72,13 +74,33 @@ async function JobResultsSection({
   const selectedInput = Array.isArray(input.selected)
     ? input.selected[0]
     : input.selected;
-  const selectedJob =
-    result.items.find((job) => job.slug === selectedInput) ?? result.items[0];
-  const selectHref = (slug: string) => {
-    const params = new URLSearchParams(serializedSearch);
-    params.set("selected", slug);
-    return `/jobs?${params.toString()}`;
-  };
+  const initialSlug =
+    result.items.find((job) => job.slug === selectedInput)?.slug ?? null;
+  /*
+   * Every card and its quick-view panel are rendered together, once, with the
+   * page they belong to. Switching the quick view is then local state in
+   * `JobsSplit` rather than a new request — selecting a job used to re-run this
+   * component, which reassembles the live feed from every reviewed source.
+   */
+  const splitEntries = result.items.map((job) => {
+    const nairaEstimate = estimateNairaTakeHome(job.salary, currencyRates);
+    return {
+      slug: job.slug,
+      card: (
+        <JobCard
+          job={job}
+          match={
+            matchProfile
+              ? scoreJobMatch(matchProfile, toJobFacts(job))
+              : undefined
+          }
+          nairaEstimate={nairaEstimate}
+          quickViewable
+        />
+      ),
+      preview: <JobPreviewPanel job={job} nairaEstimate={nairaEstimate} />,
+    };
+  });
   const feedIsConclusive = feed.state === "live";
   const resultCountLabel = feedIsConclusive
     ? `${result.totalItems} ${result.totalItems === 1 ? "job" : "jobs"}`
@@ -135,38 +157,7 @@ async function JobResultsSection({
           </div>
         </div>
         {result.items.length > 0 ? (
-          <div className="jobs-split">
-            <div className="job-list">
-              {result.items.map((job) => (
-                <JobCard
-                  job={job}
-                  key={job.id}
-                  match={
-                    matchProfile
-                      ? scoreJobMatch(matchProfile, toJobFacts(job))
-                      : undefined
-                  }
-                  nairaEstimate={estimateNairaTakeHome(
-                    job.salary,
-                    currencyRates,
-                  )}
-                  selectHref={selectHref(job.slug)}
-                  isSelected={selectedJob?.slug === job.slug}
-                />
-              ))}
-            </div>
-            {selectedJob ? (
-              <aside className="jobs-preview-column">
-                <JobPreviewPanel
-                  job={selectedJob}
-                  nairaEstimate={estimateNairaTakeHome(
-                    selectedJob.salary,
-                    currencyRates,
-                  )}
-                />
-              </aside>
-            ) : null}
-          </div>
+          <JobsSplit entries={splitEntries} initialSlug={initialSlug} />
         ) : (
           <div className="empty-state">
             {/* Art only where the empty list is a real answer. A degraded
@@ -225,21 +216,26 @@ export function JobsExperience({
   title = "Find a job you can actually apply for",
   description = "Search source-attributed roles, then check country eligibility, compensation evidence and freshness before you leave to apply.",
   forcedFilters,
+  chrome = "public",
+  unreadNotifications = null,
 }: {
   input: Record<string, string | string[] | undefined>;
   title?: string;
   description?: string;
   forcedFilters?: Record<string, string>;
+  /**
+   * Which frame the search sits in. A signed-in viewer keeps the workspace
+   * navigation beside the results rather than being dropped onto a marketing
+   * page with no way back to their own records.
+   */
+  chrome?: "public" | "workspace";
+  /** Badge count for the workspace frame; ignored on the public one. */
+  unreadNotifications?: number | null;
 }) {
   const search = parseJobSearch({ ...input, ...forcedFilters });
 
-  return (
-    <div className="site-shell stack-lg">
-      <PageHeading
-        eyebrow="Job discovery"
-        title={title}
-        description={description}
-      />
+  const body = (
+    <>
       <nav className="job-paths" aria-label="Job location paths">
         {[
           ["All jobs", "/jobs", search.path === "all"],
@@ -273,6 +269,32 @@ export function JobsExperience({
       <Suspense fallback={<JobResultsFallback />}>
         <JobResultsSection input={input} search={search} />
       </Suspense>
+    </>
+  );
+
+  if (chrome === "workspace") {
+    return (
+      <div className="site-shell">
+        <WorkspaceShell
+          current="/jobs"
+          title={title}
+          description={description}
+          unreadNotifications={unreadNotifications}
+        >
+          {body}
+        </WorkspaceShell>
+      </div>
+    );
+  }
+
+  return (
+    <div className="site-shell stack-lg">
+      <PageHeading
+        eyebrow="Job discovery"
+        title={title}
+        description={description}
+      />
+      {body}
     </div>
   );
 }
