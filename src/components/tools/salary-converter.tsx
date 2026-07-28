@@ -8,13 +8,18 @@ import {
   salaryConversionResultSchema,
   type SalaryConversionResult,
 } from "@/lib/afrotools/schemas";
-import { formatSalaryAmount } from "@/lib/format";
+import {
+  formatDateTime,
+  formatExchangeRate,
+  formatSalaryAmount,
+} from "@/lib/format";
 
 import {
   isToolResponseRecord,
   toolResponseError,
   useToolRequest,
 } from "./use-tool-request";
+import { ToolResultRegion } from "./tool-result-region";
 import { ToolUserError } from "./tool-user-error";
 
 export function SalaryConverter() {
@@ -116,7 +121,7 @@ export function SalaryConverter() {
           returned unit rate locally; your salary amount is not sent to
           AfroTools.
         </p>
-        <button className="button w-fit" disabled={loading}>
+        <button className="button w-fit" type="submit" disabled={loading}>
           {loading ? "Converting…" : "Convert salary"}
         </button>
       </form>
@@ -125,35 +130,41 @@ export function SalaryConverter() {
           {error}
         </div>
       ) : null}
-      {result ? (
-        <section className="surface surface-pad stack" aria-live="polite">
-          <h2 className="section-title">Converted salary</h2>
-          <p className="hero-number">
-            {formatSalaryAmount(result.convertedAmount, result.to)}{" "}
-            {result.period}
-          </p>
-          <div
-            className={
-              result.evidence.freshness === "stale"
-                ? "notice notice-warning"
-                : "notice"
-            }
-          >
-            <strong>{result.evidence.source}</strong>
-            <p>
-              1 {result.from} = {result.evidence.rate} {result.to}. Updated{" "}
-              {new Date(result.evidence.updatedAt).toLocaleString()}.
+      <ToolResultRegion>
+        {result ? (
+          <section className="surface surface-pad stack">
+            <h2 className="section-title">Converted salary</h2>
+            <p className="hero-number">
+              {formatSalaryAmount(result.convertedAmount, result.to)}{" "}
+              {result.period}
             </p>
-            {result.evidence.freshness === "stale" ? (
+            <div
+              className={
+                result.evidence.freshness === "stale"
+                  ? "notice notice-warning"
+                  : "notice"
+              }
+            >
+              <strong>{result.evidence.source}</strong>
               <p>
-                This rate is older than 36 hours. Confirm an executable rate
-                before making a decision.
+                1 {result.from} ={" "}
+                {formatExchangeRate(result.evidence.rate) ?? "rate unavailable"}{" "}
+                {result.to}.
+                {formatDateTime(result.evidence.updatedAt)
+                  ? ` Updated ${formatDateTime(result.evidence.updatedAt)}.`
+                  : ""}
               </p>
-            ) : null}
-          </div>
-          <CompanyEvidenceInvitation kind="calculator" />
-        </section>
-      ) : null}
+              {result.evidence.freshness === "stale" ? (
+                <p>
+                  This rate is older than 36 hours. Confirm an executable rate
+                  before making a decision.
+                </p>
+              ) : null}
+            </div>
+            <CompanyEvidenceInvitation kind="calculator" />
+          </section>
+        ) : null}
+      </ToolResultRegion>
     </div>
   );
 }

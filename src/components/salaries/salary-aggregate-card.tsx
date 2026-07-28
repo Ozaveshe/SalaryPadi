@@ -237,7 +237,7 @@ export function SalaryAggregateCard({
           <a
             className="text-link"
             href={aggregate.sourceUrl}
-            rel="noopener noreferrer"
+            rel="noopener noreferrer nofollow"
             target="_blank"
           >
             Open source data
@@ -247,7 +247,7 @@ export function SalaryAggregateCard({
           <a
             className="text-link"
             href={aggregate.methodologyUrl}
-            rel="noopener noreferrer"
+            rel="noopener noreferrer nofollow"
             target="_blank"
           >
             Source methodology

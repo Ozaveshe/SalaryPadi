@@ -1,5 +1,12 @@
-import { formatEnum, formatSalaryAmount } from "@/lib/format";
+import {
+  formatDateTime,
+  formatEnum,
+  formatExchangeRate,
+  formatSalaryAmount,
+} from "@/lib/format";
 import type { NormalizedAmount, OfferComparisonResult } from "@/lib/offers";
+
+import { ToolResultRegion } from "./tool-result-region";
 
 export type FxEvidence = {
   from: string;
@@ -17,7 +24,9 @@ type ComparisonRow = {
 };
 
 function resultMoney(value: number | null, currency: string) {
-  return value === null ? "Unknown" : formatSalaryAmount(value, currency);
+  // "Unknown" is a prohibited public label: it reads as missing knowledge when
+  // the real meaning is that this offer simply had no such component entered.
+  return value === null ? "Not entered" : formatSalaryAmount(value, currency);
 }
 
 function FxEvidenceNotice({ evidence }: { evidence: readonly FxEvidence[] }) {
@@ -35,8 +44,11 @@ function FxEvidenceNotice({ evidence }: { evidence: readonly FxEvidence[] }) {
       <strong>AfroTools FX evidence</strong>
       {evidence.map((item) => (
         <p key={`${item.from}-${item.to}`}>
-          1 {item.from} = {item.rate} {item.to} · {item.source} · updated{" "}
-          {new Date(item.updatedAt).toLocaleString()}{" "}
+          1 {item.from} = {formatExchangeRate(item.rate) ?? "rate unavailable"}{" "}
+          {item.to} · {item.source}
+          {formatDateTime(item.updatedAt)
+            ? ` · updated ${formatDateTime(item.updatedAt)}`
+            : ""}{" "}
           {item.freshness === "stale" ? "(stale)" : ""}
         </p>
       ))}
@@ -94,105 +106,107 @@ export function OfferComparisonResults({
   return (
     <>
       <FxEvidenceNotice evidence={fxEvidence} />
-      {result ? (
-        <section className="tool-result stack-lg">
-          <div role="status" aria-live="polite">
-            <p className="eyebrow">Normalized comparison</p>
-            <h2 className="section-title">
-              Monthly and annual value in {result.comparisonCurrency}
-            </h2>
-          </div>
-          <div className="admin-table-wrap">
-            <table className="breakdown-table">
-              <thead>
-                <tr>
-                  <th scope="col">Measure</th>
-                  <th scope="col">{result.offerA.label}</th>
-                  <th scope="col">{result.offerB.label}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.label}>
-                    <th scope="row">{row.label}</th>
-                    <td data-label={result.offerA.label}>
-                      {resultMoney(
-                        row.offerA?.monthly ?? null,
-                        result.comparisonCurrency,
-                      )}{" "}
-                      / month
-                      <br />
-                      <small>
-                        {resultMoney(
-                          row.offerA?.annual ?? null,
-                          result.comparisonCurrency,
-                        )}{" "}
-                        / year
-                      </small>
-                    </td>
-                    <td data-label={result.offerB.label}>
-                      {resultMoney(
-                        row.offerB?.monthly ?? null,
-                        result.comparisonCurrency,
-                      )}{" "}
-                      / month
-                      <br />
-                      <small>
-                        {resultMoney(
-                          row.offerB?.annual ?? null,
-                          result.comparisonCurrency,
-                        )}{" "}
-                        / year
-                      </small>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {result.nonFinancialDifferences.length > 0 ? (
+      <ToolResultRegion>
+        {result ? (
+          <section className="tool-result stack-lg">
             <div>
-              <h3>Important non-financial differences</h3>
+              <p className="eyebrow">Normalized comparison</p>
+              <h2 className="section-title">
+                Monthly and annual value in {result.comparisonCurrency}
+              </h2>
+            </div>
+            <div className="admin-table-wrap">
+              <table className="breakdown-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Measure</th>
+                    <th scope="col">{result.offerA.label}</th>
+                    <th scope="col">{result.offerB.label}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.label}>
+                      <th scope="row">{row.label}</th>
+                      <td data-label={result.offerA.label}>
+                        {resultMoney(
+                          row.offerA?.monthly ?? null,
+                          result.comparisonCurrency,
+                        )}{" "}
+                        / month
+                        <br />
+                        <small>
+                          {resultMoney(
+                            row.offerA?.annual ?? null,
+                            result.comparisonCurrency,
+                          )}{" "}
+                          / year
+                        </small>
+                      </td>
+                      <td data-label={result.offerB.label}>
+                        {resultMoney(
+                          row.offerB?.monthly ?? null,
+                          result.comparisonCurrency,
+                        )}{" "}
+                        / month
+                        <br />
+                        <small>
+                          {resultMoney(
+                            row.offerB?.annual ?? null,
+                            result.comparisonCurrency,
+                          )}{" "}
+                          / year
+                        </small>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {result.nonFinancialDifferences.length > 0 ? (
+              <div>
+                <h3>Important non-financial differences</h3>
+                <ul>
+                  {result.nonFinancialDifferences.map((difference) => (
+                    <li key={difference.kind}>
+                      <strong>{formatEnum(difference.kind)}:</strong>{" "}
+                      {difference.summary}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <div>
+              <h3>Practical negotiation points</h3>
+              <div className="stack">
+                {result.negotiationTalkingPoints.map((point, index) => (
+                  <article className="notice" key={`${point.kind}-${index}`}>
+                    <strong>{point.title}</strong>
+                    <p>{point.evidence}</p>
+                    <p>{point.suggestion}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+            <details>
+              <summary>Normalization notes and warnings</summary>
               <ul>
-                {result.nonFinancialDifferences.map((difference) => (
-                  <li key={difference.kind}>
-                    <strong>{formatEnum(difference.kind)}:</strong>{" "}
-                    {difference.summary}
-                  </li>
+                {[
+                  ...result.normalizationNotes,
+                  ...result.offerA.warnings,
+                  ...result.offerB.warnings,
+                ].map((note, index) => (
+                  <li key={`${index}-${note}`}>{note}</li>
                 ))}
               </ul>
-            </div>
-          ) : null}
-          <div>
-            <h3>Practical negotiation points</h3>
-            <div className="stack">
-              {result.negotiationTalkingPoints.map((point, index) => (
-                <article className="notice" key={`${point.kind}-${index}`}>
-                  <strong>{point.title}</strong>
-                  <p>{point.evidence}</p>
-                  <p>{point.suggestion}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-          <details>
-            <summary>Normalization notes and warnings</summary>
-            <ul>
-              {[
-                ...result.normalizationNotes,
-                ...result.offerA.warnings,
-                ...result.offerB.warnings,
-              ].map((note, index) => (
-                <li key={`${index}-${note}`}>{note}</li>
-              ))}
-            </ul>
-          </details>
-          <p className="source-policy-note">
-            All talking points are derived only from the values and terms you
-            entered. No market salary claim is generated.
-          </p>
-        </section>
-      ) : null}
+            </details>
+            <p className="source-policy-note">
+              All talking points are derived only from the values and terms you
+              entered. No market salary claim is generated.
+            </p>
+          </section>
+        ) : null}
+      </ToolResultRegion>
     </>
   );
 }

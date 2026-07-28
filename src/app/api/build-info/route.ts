@@ -34,6 +34,13 @@ function safeToken(value: string | undefined, max = 64): string | null {
   return /^[A-Za-z0-9._/-]{1,64}$/.test(trimmed) ? trimmed.slice(0, max) : null;
 }
 
+/**
+ * Captured once per server instance at module evaluation. Computing this inside
+ * the handler would return the request time on every call, which can never
+ * reveal a stale warm instance during acceptance polling.
+ */
+const INSTANCE_STARTED_AT = new Date().toISOString();
+
 export async function GET() {
   // Read the build-time inlined values (see next.config.ts). Netlify's own
   // COMMIT_REF/CONTEXT are build variables and are absent from the function
@@ -45,6 +52,6 @@ export async function GET() {
     buildId: safeToken(process.env.SALARYPADI_BUILD_ID),
     // Set at module evaluation on the server instance; useful for spotting a
     // stale warm instance during acceptance polling.
-    startedAt: new Date().toISOString(),
+    startedAt: INSTANCE_STARTED_AT,
   });
 }

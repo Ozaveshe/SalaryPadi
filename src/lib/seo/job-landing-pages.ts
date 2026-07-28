@@ -43,27 +43,37 @@ export const JOB_LANDING_DEFINITIONS: readonly JobLandingDefinition[] = [
     path: "/jobs/remote",
     title: "Remote jobs open to Nigerians",
     description:
-      "Current remote jobs backed by explicit Nigeria, Africa or worldwide applicant-location evidence.",
+      "Remote roles that state in writing whether people in Nigeria can apply. Every listing names its source and shows when it was last checked.",
     heading: "Remote jobs with Nigeria eligibility evidence",
     intent: "remote roles that explicitly include Nigerian applicants",
-    relatedPaths: ["/jobs", "/jobs/nigeria", "/jobs/visa-sponsorship"],
+    relatedPaths: [
+      "/jobs",
+      "/jobs/nigeria",
+      "/jobs/visa-sponsorship",
+      "/jobs/ngo",
+    ],
   },
   {
     key: "nigeria_local",
     path: "/jobs/nigeria",
     title: "Jobs in Nigeria",
     description:
-      "Current onsite and hybrid roles with a physical Nigerian job location from source-authorized employers.",
+      "Onsite and hybrid roles with a work location stated in Nigeria. Every listing names the source it came from and shows when it was last checked.",
     heading: "Local jobs in Nigeria",
     intent: "onsite and hybrid jobs physically located in Nigeria",
-    relatedPaths: ["/jobs", "/jobs/graduate", "/jobs/software"],
+    relatedPaths: [
+      "/jobs",
+      "/jobs/graduate",
+      "/jobs/software",
+      "/jobs/cities/lagos",
+    ],
   },
   {
     key: "nigeria_graduate",
     path: "/jobs/graduate",
     title: "Graduate and NYSC jobs in Nigeria",
     description:
-      "Current graduate trainee, entry-level, internship and NYSC-linked jobs with source evidence.",
+      "Graduate trainee, entry-level, internship and NYSC-linked roles in Nigeria. Every listing names its source and shows when it was last checked.",
     heading: "Graduate and NYSC opportunities",
     intent: "graduate trainee, internship, entry-level or NYSC-linked roles",
     relatedPaths: ["/jobs/nigeria", "/jobs/software", "/methodology"],
@@ -73,7 +83,7 @@ export const JOB_LANDING_DEFINITIONS: readonly JobLandingDefinition[] = [
     path: "/jobs/visa-sponsorship",
     title: "Visa-sponsored jobs open to Nigerians",
     description:
-      "Current jobs that explicitly state visa sponsorship and include Nigeria in applicant eligibility.",
+      "Roles that state visa sponsorship in writing and include Nigeria in who may apply. Every listing names its source and shows its last check date.",
     heading: "Visa-sponsored roles with Nigeria eligibility",
     intent:
       "roles with explicit visa-sponsorship and Nigeria eligibility evidence",
@@ -84,18 +94,23 @@ export const JOB_LANDING_DEFINITIONS: readonly JobLandingDefinition[] = [
     path: "/jobs/software",
     title: "Software jobs open to Nigerians",
     description:
-      "Current software roles in Nigeria or with explicit remote eligibility for Nigerian applicants.",
+      "Software roles located in Nigeria or explicitly open to Nigerian applicants. Every listing names its source and shows when it was last checked.",
     heading: "Nigeria-eligible software jobs",
     intent: "software roles located in Nigeria or explicitly open to Nigerians",
-    relatedPaths: ["/jobs/remote", "/jobs/graduate", "/companies"],
+    relatedPaths: [
+      "/jobs/remote",
+      "/jobs/graduate",
+      "/jobs/roles/software-engineering",
+      "/companies",
+    ],
   },
   {
     key: "nigeria_ngo",
     path: "/jobs/ngo",
     title: "NGO jobs in Nigeria",
     description:
-      "Current nonprofit and humanitarian roles with a Nigerian location or explicit applicant eligibility.",
-    heading: "NGO and humanitarian jobs for Nigeria",
+      "Nonprofit and humanitarian roles located in Nigeria or open to Nigerian applicants. Every listing names its source and shows its last check date.",
+    heading: "NGO and humanitarian jobs in Nigeria",
     intent:
       "NGO, nonprofit and humanitarian roles relevant to Nigerian applicants",
     relatedPaths: ["/jobs/nigeria", "/jobs/remote", "/companies"],
@@ -105,7 +120,7 @@ export const JOB_LANDING_DEFINITIONS: readonly JobLandingDefinition[] = [
     path: "/jobs/roles/software-engineering",
     title: "Software engineering jobs open to Nigerians",
     description:
-      "A high-signal role page for current software engineering jobs with Nigerian location or eligibility evidence.",
+      "Software engineering roles located in Nigeria or explicitly open to Nigerian applicants. Every listing names its source and its last check date.",
     heading: "Software engineering jobs for Nigerians",
     intent:
       "software engineering roles with Nigerian location or eligibility evidence",
@@ -116,7 +131,7 @@ export const JOB_LANDING_DEFINITIONS: readonly JobLandingDefinition[] = [
     path: "/jobs/cities/lagos",
     title: "Jobs in Lagos",
     description:
-      "Current onsite and hybrid jobs that identify Lagos as the physical work location.",
+      "Onsite and hybrid roles that name Lagos as the workplace. Every listing names the source it came from and shows when it was last checked.",
     heading: "Current jobs in Lagos",
     intent: "onsite and hybrid roles with Lagos as the stated work location",
     relatedPaths: ["/jobs/nigeria", "/jobs/graduate", "/companies"],
@@ -136,6 +151,30 @@ export function getJobLandingDefinition(key: JobLandingKey) {
 
 export function getJobLandingDefinitionByPath(path: string) {
   return byPath.get(path) ?? null;
+}
+
+/**
+ * Labels for the hub pages a landing page links to that are not themselves
+ * landing pages. Everything else resolves to its landing definition title.
+ */
+const RELATED_HUB_LABELS: Record<string, string> = {
+  "/jobs": "Search all jobs",
+  "/companies": "Browse companies",
+  "/salaries": "Salary information",
+  "/methodology": "How evidence works",
+};
+
+/**
+ * Anchor text for a related-path link.
+ *
+ * Deriving this from the slug produced strings like "jobs visa-sponsorship",
+ * which reads as raw routing to a person and is weak internal anchor text for
+ * search engines. Landing pages already carry a written title, so use it.
+ */
+export function jobLandingLinkLabel(path: string): string {
+  const hubLabel = RELATED_HUB_LABELS[path];
+  if (hubLabel) return hubLabel;
+  return byPath.get(path)?.title ?? path;
 }
 
 export function buildJobLandingSummary(

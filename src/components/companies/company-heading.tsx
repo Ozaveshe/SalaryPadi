@@ -4,8 +4,12 @@ import { CompanyTabs } from "@/components/companies/company-tabs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHeading } from "@/components/page-heading";
 import type { CompanySummary } from "@/lib/companies/repository";
+import {
+  companyVerificationLabel,
+  companyVerificationTone,
+} from "@/lib/companies/verification";
 import { getAppOrigin } from "@/lib/env";
-import { formatDate, formatEnum } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { buildBreadcrumbStructuredData } from "@/lib/seo/structured-data";
 import { headers } from "next/headers";
 
@@ -61,8 +65,10 @@ export async function CompanyHeading({
         />
       </div>
       <div className="cluster">
-        <span className="status status-warning">
-          {formatEnum(company.verification)}
+        <span
+          className={`status status-${companyVerificationTone(company.verification)}`}
+        >
+          {companyVerificationLabel(company.verification)}
         </span>
         <span className="source-note">
           Last source check {formatDate(company.lastCheckedAt)}

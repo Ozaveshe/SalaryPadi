@@ -91,10 +91,10 @@ export function publicEligibilityStatement(job: Job): string | null {
   if (isRemote && job.eligibility.nigeria === "not_eligible") {
     return "Not open to applicants in Nigeria";
   }
-  if (!isRemote && location) {
-    // A stated non-Nigerian workplace is itself the eligibility statement.
-    return null;
-  }
+  // Anything else says nothing useful: a stated non-Nigerian workplace is
+  // already its own eligibility statement, and an unclear remote scope has no
+  // honest one-line summary. The card stays silent and the detail page's
+  // verification drawer carries the underlying evidence.
   return null;
 }
 

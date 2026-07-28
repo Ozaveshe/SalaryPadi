@@ -112,6 +112,61 @@ describe("JobPosting structured data", () => {
     ).toBeNull();
   });
 
+  it("publishes a country alongside the locality for a physical location", () => {
+    const job = {
+      ...sourceJob,
+      databaseId: "canonical-job-id",
+      workMode: "onsite" as const,
+      locationDisplay: "Lagos, Nigeria",
+      source: {
+        ...sourceJob.source,
+        canIndex: true,
+        canUseJobPostingStructuredData: true,
+      },
+    };
+
+    const structuredData = buildJobPostingStructuredData(
+      job,
+      "https://salarypadi.example/jobs/platform-engineer",
+    );
+
+    expect(structuredData?.jobLocation).toEqual({
+      "@type": "Place",
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "Lagos",
+        addressCountry: "NG",
+      },
+    });
+  });
+
+  it("states no country when the source location never named one", () => {
+    const job = {
+      ...sourceJob,
+      databaseId: "canonical-job-id",
+      workMode: "onsite" as const,
+      locationDisplay: "Head office",
+      source: {
+        ...sourceJob.source,
+        canIndex: true,
+        canUseJobPostingStructuredData: true,
+      },
+    };
+
+    const structuredData = buildJobPostingStructuredData(
+      job,
+      "https://salarypadi.example/jobs/platform-engineer",
+    );
+
+    expect(structuredData?.jobLocation).toEqual({
+      "@type": "Place",
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "Head office",
+      },
+    });
+  });
+
   it("refuses markup when an otherwise-open job has passed validThrough", () => {
     const job = {
       ...sourceJob,

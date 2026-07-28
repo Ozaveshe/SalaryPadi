@@ -45,7 +45,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: "light",
-  themeColor: "#fffaf2",
+  // --surface-page (--sand-50). The previous #fffaf2 was a cream that no
+  // longer appears anywhere in the palette, so browser chrome rendered a
+  // different shade from the page it framed.
+  themeColor: "#f7f8f6",
 };
 
 export default async function RootLayout({
@@ -77,6 +80,9 @@ export default async function RootLayout({
             "@type": "Organization",
             name: "SalaryPadi",
             url: getAppOrigin(),
+            // Search engines use this to attach a mark to the organization
+            // entity. Without it the knowledge panel has no logo to show.
+            logo: new URL("/brand/icon-512.png", getAppOrigin()).toString(),
             description:
               "Job discovery with every source named, and salary information that keeps individual contributions private. Built for Africans.",
             areaServed: {

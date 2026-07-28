@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { authClaimSubjectSchema } from "@/lib/auth/claims";
 import { getSupabasePublicConfig } from "@/lib/env";
+import { isProtectedPagePath } from "@/lib/security/protected-paths";
 import { safeRelativePath } from "@/lib/security/urls";
 import { createBoundedFetch } from "@/lib/supabase/bounded-fetch";
 import type { Database } from "@/lib/supabase/database.types";
@@ -14,34 +15,9 @@ const OAUTH_FORM_ACTION_ORIGINS = [
   "https://www.linkedin.com",
 ];
 
-const protectedPrefixes = [
-  "/dashboard",
-  "/account",
-  "/saved",
-  "/applications",
-  "/alerts",
-  "/admin",
-  "/post-a-job",
-  "/contribute/salary",
-  "/contribute/review",
-  "/contribute/interview",
-  "/contribute/benefits",
-  "/contribute/pay-reliability",
-  "/privacy/requests",
-  "/company-intelligence/requests",
-  "/auth/mfa-required",
-];
-
-const protectedCompanyActionPattern =
-  /^\/companies\/[^/]+\/(?:claim|respond)\/?$/;
-
-export function isProtectedPagePath(pathname: string) {
-  return (
-    protectedPrefixes.some(
-      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-    ) || protectedCompanyActionPattern.test(pathname)
-  );
-}
+// Re-exported so the proxy stays the one import site for boundary behaviour
+// while robots.txt reads the same list from @/lib/security/protected-paths.
+export { isProtectedPagePath };
 
 function buildContentSecurityPolicy(
   nonce: string,

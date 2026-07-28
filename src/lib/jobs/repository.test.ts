@@ -94,6 +94,8 @@ let databaseRows: unknown[] = [];
 let databaseStatus = 200;
 let databaseThrows = false;
 let databaseRowsForRequest: ((url: URL) => unknown[]) | null = null;
+let policyReadCount = 0;
+let policyReadKeys: string[] = [];
 
 function client({
   policy = {
@@ -147,22 +149,24 @@ function client({
         if (name === "job_sources") {
           return {
             select: () => ({
-              eq: (_column: string, adapterKey: string) => ({
-                abortSignal: () => ({
-                  maybeSingle: async () => {
-                    if (policyThrows)
-                      throw new Error("policy transport failed");
-                    return {
-                      data:
-                        adapterKey === "jobicy"
-                          ? jobicyPolicy
-                          : adapterKey === "himalayas"
-                            ? himalayasPolicy
-                            : policy,
-                      error: policyError ? new Error("policy failed") : null,
-                    };
-                  },
-                }),
+              // One batched read for every reviewed adapter key, matching the
+              // repository's single `.in()` query rather than a per-source
+              // `.eq(...).maybeSingle()`.
+              in: (_column: string, adapterKeys: string[]) => ({
+                abortSignal: async () => {
+                  policyReadCount += 1;
+                  policyReadKeys = adapterKeys;
+                  if (policyThrows) throw new Error("policy transport failed");
+                  const rows = [policy, jobicyPolicy, himalayasPolicy].filter(
+                    (row): row is Record<string, unknown> =>
+                      row !== null &&
+                      adapterKeys.includes(String(row.adapter_key)),
+                  );
+                  return {
+                    data: rows,
+                    error: policyError ? new Error("policy failed") : null,
+                  };
+                },
               }),
             }),
           };
@@ -178,6 +182,8 @@ function remotiveJob(): Job {
 }
 
 beforeEach(() => {
+  policyReadCount = 0;
+  policyReadKeys = [];
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-07-10T13:10:00.000Z"));
   mocks.environment.mockReturnValue({
@@ -500,7 +506,8 @@ describe("job feed source orchestration", () => {
       async (options: { fetch?: typeof fetch }) => {
         await options.fetch?.("https://remotive.com/api/remote-jobs", {
           headers: { Accept: "application/json" },
-        });
+          next: { revalidate: 21_600, tags: [REMOTIVE_CACHE_TAG] },
+        } as RequestInit);
         return { jobs: [remotiveJob()], checkedAt };
       },
     );
@@ -515,10 +522,31 @@ describe("job feed source orchestration", () => {
     expect(new Headers(init?.headers).get("authorization")).toBe(
       "Bearer test-source-sync-token-0000000000000000",
     );
+    expect(init).toMatchObject({ credentials: "omit", redirect: "error" });
+  });
+
+  it("lets the caller's revalidation policy reach the source proxy", async () => {
+    const proxyResponse = Response.json({ jobs: [] });
+    const fetchSpy = vi.fn<typeof fetch>().mockResolvedValue(proxyResponse);
+    vi.stubGlobal("fetch", fetchSpy);
+    mocks.fetchRemotiveJobs.mockImplementationOnce(
+      async (options: { fetch?: typeof fetch }) => {
+        await options.fetch?.("https://remotive.com/api/remote-jobs", {
+          next: { revalidate: 21_600, tags: [REMOTIVE_CACHE_TAG] },
+        } as RequestInit);
+        return { jobs: [remotiveJob()], checkedAt };
+      },
+    );
+
+    await getRemotiveJobFeed(client() as never);
+
+    const [, init] = fetchSpy.mock.calls[0]!;
+    // The proxy used to force `cache: "no-store"` over the caller's directive,
+    // so the reviewed refresh interval never applied and every page render
+    // paid a round trip to our own function plus a fetch-budget write.
+    expect(init?.cache).not.toBe("no-store");
     expect(init).toMatchObject({
-      cache: "no-store",
-      credentials: "omit",
-      redirect: "error",
+      next: { revalidate: 21_600, tags: [REMOTIVE_CACHE_TAG] },
     });
   });
 
@@ -535,6 +563,57 @@ describe("job feed source orchestration", () => {
       code: "remotive_snapshot_stale",
       jobs: [],
     });
+  });
+
+  it("reads every reviewed adapter key in one registry query", async () => {
+    mocks.createClient.mockResolvedValue(client() as never);
+
+    await getRemotiveJobFeed();
+
+    // One batched read covers all four reviewed sources. Each source
+    // previously issued its own eq(adapter_key) round trip for four rows of
+    // the same small table.
+    expect(policyReadCount).toBe(1);
+    expect(policyReadKeys).toEqual(
+      expect.arrayContaining(["remotive", "jobicy", "himalayas", "reliefweb"]),
+    );
+  });
+
+  it("publishes a partial feed instead of waiting on a stalled source", async () => {
+    databaseRows = [remotiveJob()];
+    mocks.createClient.mockResolvedValue(client() as never);
+    // Himalayas never answers. The page must still render what did.
+    mocks.readSecondaryFeedSnapshot.mockImplementation(async (key: string) =>
+      key === "himalayas"
+        ? new Promise(() => {})
+        : { state: "missing" as const },
+    );
+    mocks.fetchJobicyJobs.mockResolvedValue({ jobs: [], checkedAt });
+    mocks.fetchRemotiveJobs.mockResolvedValue({ jobs: [], checkedAt });
+
+    const pending = getLiveJobFeed();
+    await vi.advanceTimersByTimeAsync(3_000);
+    const result = await pending;
+
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({
+        key: "himalayas",
+        state: "unavailable",
+        code: "himalayas_request_budget_exceeded",
+      }),
+    );
+    // The database jobs still reached the page.
+    expect(result.jobs.length).toBeGreaterThan(0);
+  });
+
+  it("builds one Supabase client for the whole feed", async () => {
+    mocks.createClient.mockResolvedValue(client() as never);
+
+    await getLiveJobFeed();
+
+    // Every source used to build its own client, so one page render cost a
+    // cookie read and a connection per source.
+    expect(mocks.createClient).toHaveBeenCalledTimes(1);
   });
 
   it("reports a partial database outage instead of silently claiming full health", async () => {

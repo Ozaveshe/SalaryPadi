@@ -4,6 +4,7 @@ import { normalizeRemotiveJob } from "./normalize";
 import {
   diversifyJobResults,
   filterAndSortJobs,
+  hasAdvancedJobFilters,
   jobAlertSearchSpecSchema,
   paginateJobs,
   parseJobSearch,
@@ -297,5 +298,44 @@ describe("job search", () => {
     expect(
       new Set(diversified.slice(0, 3).map((job) => job.company.slug)),
     ).toEqual(new Set(["repeat", "other-a", "other-b"]));
+  });
+});
+
+describe("advanced filter disclosure", () => {
+  it("stays closed for a plain keyword search", () => {
+    expect(hasAdvancedJobFilters(parseJobSearch({ q: "engineer" }))).toBe(
+      false,
+    );
+  });
+
+  it("opens when a choice, flag, text, sort or salary filter is applied", () => {
+    const cases: Record<string, unknown>[] = [
+      { workMode: "remote" },
+      { visaSponsorship: "on" },
+      { company: "Moniepoint" },
+      { timezone: "GMT+1" },
+      { sort: "newest" },
+      { minSalary: "500000" },
+      { postedWithin: "7" },
+    ];
+    for (const input of cases) {
+      expect(
+        hasAdvancedJobFilters(parseJobSearch(input)),
+        JSON.stringify(input),
+      ).toBe(true);
+    }
+  });
+
+  it("ignores the always-visible controls", () => {
+    expect(
+      hasAdvancedJobFilters(
+        parseJobSearch({
+          q: "engineer",
+          location: "Lagos",
+          eligibility: "nigeria",
+          page: "3",
+        }),
+      ),
+    ).toBe(false);
   });
 });

@@ -88,9 +88,13 @@ export default async function HomePage() {
   const checkedAt = new Date(feed.checkedAt);
   const checkedLabel = Number.isNaN(checkedAt.valueOf())
     ? "Freshness unavailable"
-    : `Checked ${checkedAt.toLocaleDateString("en-NG", {
+    : // Both halves must use the same zone. The date was rendered in the
+      // server's local zone while the time beside it was pinned to UTC, so
+      // near midnight the freshness claim contradicted itself by a day.
+      `Checked ${checkedAt.toLocaleDateString("en-NG", {
         day: "numeric",
         month: "short",
+        timeZone: "UTC",
       })}, ${checkedAt.toLocaleTimeString("en-NG", {
         hour: "2-digit",
         minute: "2-digit",

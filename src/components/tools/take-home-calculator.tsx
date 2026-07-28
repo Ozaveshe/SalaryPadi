@@ -4,13 +4,14 @@ import type { FormEvent } from "react";
 
 import { trackEvent } from "@/lib/analytics/events";
 import { payeResultSchema, type PayeResult } from "@/lib/afrotools/schemas";
-import { formatSalaryAmount } from "@/lib/format";
+import { formatDateTime, formatSalaryAmount } from "@/lib/format";
 
 import {
   isToolResponseRecord,
   toolResponseError,
   useToolRequest,
 } from "./use-tool-request";
+import { ToolResultRegion } from "./tool-result-region";
 import { ToolUserError } from "./tool-user-error";
 
 function money(value: number) {
@@ -112,49 +113,54 @@ export function TakeHomeCalculator() {
           {error}
         </div>
       ) : null}
-      {result ? (
-        <section className="surface surface-pad stack" aria-live="polite">
-          <h2 className="section-title">Verified estimate</h2>
-          <dl className="data-list">
-            <div>
-              <dt>Gross monthly</dt>
-              <dd>{money(result.grossMonthly)}</dd>
-            </div>
-            <div>
-              <dt>Net monthly</dt>
-              <dd>{money(result.netMonthly)}</dd>
-            </div>
-            <div>
-              <dt>Annual PAYE</dt>
-              <dd>{money(result.incomeTaxAnnual)}</dd>
-            </div>
-            <div>
-              <dt>Annual deductions</dt>
-              <dd>{money(result.deductionsAnnual)}</dd>
-            </div>
-          </dl>
-          <div
-            className={
-              result.evidence.sandbox ? "notice notice-warning" : "notice"
-            }
-          >
-            <strong>
-              {result.evidence.provider} {result.evidence.rulesVersion}
-            </strong>
-            <p>
-              Rules year {result.evidence.rulesYear}. Source:{" "}
-              {result.evidence.source}. Last verified{" "}
-              {new Date(result.evidence.lastVerifiedAt).toLocaleString()}.
-            </p>
-            <a href={result.evidence.docsUrl}>API provenance</a>
-            {result.evidence.sandbox ? (
+      <ToolResultRegion>
+        {result ? (
+          <section className="surface surface-pad stack">
+            <h2 className="section-title">Verified estimate</h2>
+            <dl className="data-list">
+              <div>
+                <dt>Gross monthly</dt>
+                <dd>{money(result.grossMonthly)}</dd>
+              </div>
+              <div>
+                <dt>Net monthly</dt>
+                <dd>{money(result.netMonthly)}</dd>
+              </div>
+              <div>
+                <dt>Annual PAYE</dt>
+                <dd>{money(result.incomeTaxAnnual)}</dd>
+              </div>
+              <div>
+                <dt>Annual deductions</dt>
+                <dd>{money(result.deductionsAnnual)}</dd>
+              </div>
+            </dl>
+            <div
+              className={
+                result.evidence.sandbox ? "notice notice-warning" : "notice"
+              }
+            >
+              <strong>
+                {result.evidence.provider} {result.evidence.rulesVersion}
+              </strong>
               <p>
-                Sandbox data: do not treat this result as production tax advice.
+                Rules year {result.evidence.rulesYear}. Source:{" "}
+                {result.evidence.source}.
+                {formatDateTime(result.evidence.lastVerifiedAt)
+                  ? ` Last verified ${formatDateTime(result.evidence.lastVerifiedAt)}.`
+                  : ""}
               </p>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
+              <a href={result.evidence.docsUrl}>API provenance</a>
+              {result.evidence.sandbox ? (
+                <p>
+                  Sandbox data: do not treat this result as production tax
+                  advice.
+                </p>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+      </ToolResultRegion>
     </div>
   );
 }

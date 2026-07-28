@@ -116,7 +116,12 @@ export async function getMyPrivacyRequestsResult() {
     supabase
       .schema("api")
       .from("my_privacy_requests")
-      .select("*")
+      // Named columns, never `*`: the row schema is strict, so a new column on
+      // api.my_privacy_requests would reject every row and silently empty a
+      // person's record of their own export and deletion requests.
+      .select(
+        "id, kind, target_id, status, requested_at, completed_at, resolution_note",
+      )
       .order("requested_at", { ascending: false })
       .limit(51),
   );

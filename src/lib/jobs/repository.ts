@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { unstable_rethrow } from "next/navigation";
 
 import { getServerEnvironment } from "@/lib/env";
@@ -76,6 +77,54 @@ type ServerSupabaseClient = NonNullable<
 const SOURCE_MAX_AGE_GRACE_MS = 2 * 60 * 60 * 1_000;
 const SOURCE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1_000;
 
+/**
+ * How long one source may take while a person is waiting for the page.
+ *
+ * Measured against production: the reviewed provider APIs answer in under
+ * half a second and the public job projection plans in about 45ms, yet
+ * assembling the feed stalled the response for six and a half seconds in a
+ * single unbroken wait. The per-source timeouts are sized for the scheduled
+ * workers (up to twenty seconds), which is correct for a worker and far too
+ * long for a page render.
+ *
+ * A source that misses this budget is reported as unavailable, which the feed
+ * already models honestly: the page renders what did answer, says the set is
+ * partial, and names the source that did not. That is a better answer than a
+ * complete list nobody waited for.
+ */
+const REQUEST_SOURCE_BUDGET_MS = 2_500;
+
+/** Only log an assembly that a person would actually notice waiting for. */
+const SLOW_FEED_LOG_THRESHOLD_MS = 750;
+
+/**
+ * Resolves to the source's own result, or to an honest unavailable record once
+ * the request budget expires. The slow work is abandoned rather than awaited;
+ * its own timeout still bounds it, and its result is discarded.
+ */
+function withRequestBudget(
+  key: SourceFeed["key"],
+  attemptedAt: string,
+  work: Promise<SourceFeed>,
+): Promise<SourceFeed> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const budget = new Promise<SourceFeed>((resolve) => {
+    timer = setTimeout(
+      () =>
+        resolve(
+          sourceUnavailable(
+            key,
+            attemptedAt,
+            `${key}_request_budget_exceeded`,
+            "This source did not answer quickly enough to be included on this page.",
+          ),
+        ),
+      REQUEST_SOURCE_BUDGET_MS,
+    );
+  });
+  return Promise.race([work, budget]).finally(() => clearTimeout(timer));
+}
+
 function sourceMaxAgeMs(refreshIntervalSeconds: number): number {
   return refreshIntervalSeconds * 1_000 + SOURCE_MAX_AGE_GRACE_MS;
 }
@@ -127,20 +176,39 @@ function createRemotiveProxyFetch(): RemotiveFetch {
   return async (_input, init) => {
     const headers = new Headers(init?.headers);
     headers.set("Authorization", `Bearer ${token}`);
+    // Deliberately does NOT force `cache: "no-store"`. The caller supplies
+    // `next.revalidate` and a cache tag so this hop is served from the data
+    // cache for the source's reviewed refresh interval; overriding it here
+    // opted every render back out, so each page view paid an HTTPS round trip
+    // to our own function plus a durable fetch-budget write before the
+    // provider was even contacted.
     return fetch(endpoint, {
       ...init,
       headers,
-      cache: "no-store",
       credentials: "omit",
       redirect: "error",
     });
   };
 }
 
+/**
+ * One Supabase client per request, shared by every source in the feed.
+ *
+ * Assembling the feed touches five sources, and each used to build its own
+ * client — five cookie reads and five connections for one page. Memoising per
+ * request also gives the batched policy read below a stable cache key. A
+ * rejected creation is memoised too, so each caller still sees the same
+ * failure its own handler already expects.
+ */
+const getRequestSupabaseClient = cache(
+  async (): Promise<ServerSupabaseClient | null> =>
+    await createServerSupabaseClient(),
+);
+
 async function resolveClient(
   supplied: ServerSupabaseClient | null | undefined,
 ): Promise<ServerSupabaseClient | null> {
-  return supplied === undefined ? await createServerSupabaseClient() : supplied;
+  return supplied === undefined ? await getRequestSupabaseClient() : supplied;
 }
 
 function sourceRegistryUnavailable(
@@ -156,17 +224,45 @@ function sourceRegistryUnavailable(
   );
 }
 
-function readSourcePolicyRow(
-  supabase: ServerSupabaseClient,
-  adapterKey: string,
-) {
-  return supabase
+/** Every adapter key the public feed can ask the live registry about. */
+const REVIEWED_ADAPTER_KEYS = [
+  REMOTIVE_ADAPTER_KEY,
+  JOBICY_ADAPTER_KEY,
+  HIMALAYAS_ADAPTER_KEY,
+  RELIEFWEB_ADAPTER_KEY,
+] as const;
+
+/**
+ * Reads every reviewed registry row in one request.
+ *
+ * Each source used to issue its own `eq(adapter_key)` query, so assembling the
+ * feed cost four round trips to `api.job_sources` for four rows of the same
+ * small table. Memoised on the request-scoped client, so a page that reaches
+ * the feed from more than one place still reads the registry once.
+ */
+const readSourcePolicyRows = cache(async (supabase: ServerSupabaseClient) =>
+  supabase
     .schema("api")
     .from("job_sources")
     .select(REVIEWED_POLICY_SELECT_COLUMNS)
-    .eq("adapter_key", adapterKey)
-    .abortSignal(AbortSignal.timeout(4_000))
-    .maybeSingle();
+    .in("adapter_key", [...REVIEWED_ADAPTER_KEYS])
+    .abortSignal(AbortSignal.timeout(4_000)),
+);
+
+/**
+ * The registry row for one adapter, shaped like the `maybeSingle()` result the
+ * callers already handle: `data` is null when the source has no row, and an
+ * `error` propagates the whole batched read's failure.
+ */
+async function readSourcePolicyRow(
+  supabase: ServerSupabaseClient,
+  adapterKey: string,
+) {
+  const { data, error } = await readSourcePolicyRows(supabase);
+  if (error) return { data: null, error };
+  const row =
+    data?.find((candidate) => candidate.adapter_key === adapterKey) ?? null;
+  return { data: row, error: null };
 }
 
 type SecondarySourceKey = "remotive" | "jobicy" | "himalayas" | "reliefweb";
@@ -595,18 +691,68 @@ export async function getHimalayasJobFeed(
   return getSecondarySourceFeed(himalayasSourceDescriptor, suppliedClient);
 }
 
-export async function getLiveJobFeed(): Promise<JobFeedResult> {
-  const [himalayas, jobicy, remotive, reliefweb, database] = await Promise.all([
-    getHimalayasJobFeed(),
-    getJobicyJobFeed(),
-    getRemotiveJobFeed(),
-    getReliefWebJobFeed(),
-    getDatabaseJobFeed(),
-  ]);
-  return combineJobSources([himalayas, jobicy, remotive, reliefweb, database]);
-}
+/**
+ * The combined public job feed, assembled at most once per request.
+ *
+ * This is the most expensive read in the product: five sources, a registry
+ * read and up to four provider fetches. It is reachable from a page, from a
+ * nested component and from the company directory, so an uncached call did
+ * the whole thing again for every route that composed two of them — the
+ * companies page had already worked around this with its own local cache().
+ * Memoising at the source means every caller shares one assembly.
+ */
+export const getLiveJobFeed = cache(async (): Promise<JobFeedResult> => {
+  // Resolve the client once and hand the same one to every source. On failure
+  // pass `undefined` so each source resolves (and reports) independently,
+  // exactly as it did when each built its own.
+  let shared: ServerSupabaseClient | null | undefined;
+  try {
+    shared = await getRequestSupabaseClient();
+  } catch {
+    shared = undefined;
+  }
+  const attemptedAt = new Date().toISOString();
+  const startedAt = performance.now();
+  const durations: Record<string, number> = {};
+  const timed = (key: SourceFeed["key"], work: Promise<SourceFeed>) => {
+    const sourceStartedAt = performance.now();
+    return withRequestBudget(key, attemptedAt, work).then((feed) => {
+      durations[key] = Math.round(performance.now() - sourceStartedAt);
+      return feed;
+    });
+  };
 
-export async function getJobBySlug(
+  const [himalayas, jobicy, remotive, reliefweb, database] = await Promise.all([
+    timed("himalayas", getHimalayasJobFeed(shared)),
+    timed("jobicy", getJobicyJobFeed(shared)),
+    timed("remotive", getRemotiveJobFeed(shared)),
+    timed("reliefweb", getReliefWebJobFeed(shared)),
+    timed("database", getDatabaseJobFeed()),
+  ]);
+
+  // One structured line per assembly. Page latency is dominated by whichever
+  // source is slowest, and that was previously invisible in production: the
+  // only way to attribute the wait was to guess from the outside.
+  const totalMs = Math.round(performance.now() - startedAt);
+  if (totalMs >= SLOW_FEED_LOG_THRESHOLD_MS) {
+    console.warn(
+      JSON.stringify({
+        event: "jobs.feed_assembled",
+        total_ms: totalMs,
+        budget_ms: REQUEST_SOURCE_BUDGET_MS,
+        source_ms: durations,
+      }),
+    );
+  }
+  return combineJobSources([himalayas, jobicy, remotive, reliefweb, database]);
+});
+
+/**
+ * Memoised per request: every job detail page resolves the same slug twice,
+ * once in generateMetadata and once in the page body, and a cache miss here
+ * costs a database lookup plus all four secondary feeds.
+ */
+export const getJobBySlug = cache(async function getJobBySlug(
   slugOrId: string,
 ): Promise<{ feed: JobFeedResult; job: Job | null }> {
   const databaseResult = await getDatabaseJobBySlugResult(slugOrId);
@@ -653,4 +799,4 @@ export async function getJobBySlug(
       feed.jobs.find((job) => job.slug === slugOrId || job.id === slugOrId) ??
       null,
   };
-}
+});
