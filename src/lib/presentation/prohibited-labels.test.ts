@@ -159,6 +159,34 @@ describe("prohibited public labels regression", () => {
     expect(html).toContain("How SalaryPadi verified this information");
   });
 
+  it("omits the badge row entirely when there is no badge to show", () => {
+    // The uncertain fixture has no match, no eligibility statement and no
+    // disclosed salary. An empty container labelled "Role summary" is a label
+    // for nothing: axe reports the aria-label as prohibited on a div with no
+    // role, and a screen reader announces a summary with nothing in it.
+    const html = renderToStaticMarkup(
+      createElement(JobCard, { job: uncertainJob() }),
+    );
+
+    expect(html).not.toContain('aria-label="Role summary"');
+
+    // It comes back as soon as there is something to put in it.
+    const withBadge = renderToStaticMarkup(
+      createElement(JobCard, {
+        job: {
+          ...uncertainJob(),
+          workMode: "remote",
+          eligibility: {
+            ...uncertainJob().eligibility,
+            nigeria: "eligible",
+          },
+        } as Job,
+      }),
+    );
+    expect(withBadge).toContain('aria-label="Role summary"');
+    expect(withBadge).toContain("Applicants in Nigeria can apply");
+  });
+
   it("the jobs quick-view panel never prints internal labels", () => {
     const html = renderToStaticMarkup(
       createElement(JobPreviewPanel, { job: uncertainJob() }),

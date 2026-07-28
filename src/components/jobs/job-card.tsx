@@ -72,19 +72,29 @@ export function JobCard({
             </h2>
           </div>
         </div>
-        <div className="job-badges" aria-label="Role summary">
-          {match ? <MatchBadge result={match} /> : null}
-          {eligibilityStatement ? (
-            <span
-              className={`status status-${eligibilityStatementTone(eligibilityStatement)}`}
-            >
-              {eligibilityStatement}
-            </span>
-          ) : null}
-          {job.salary ? (
-            <span className="status status-success">Salary disclosed</span>
-          ) : null}
-        </div>
+        {/*
+          Rendered only when there is a badge to put in it. A role with no
+          match, no eligibility statement and no disclosed salary used to leave
+          an empty container carrying "Role summary" as its label, which is a
+          label for nothing — axe reports it as a prohibited aria-label on a
+          div with no role, and a screen reader announces a summary that has
+          nothing to summarise.
+        */}
+        {match || eligibilityStatement || job.salary ? (
+          <div className="job-badges" aria-label="Role summary">
+            {match ? <MatchBadge result={match} /> : null}
+            {eligibilityStatement ? (
+              <span
+                className={`status status-${eligibilityStatementTone(eligibilityStatement)}`}
+              >
+                {eligibilityStatement}
+              </span>
+            ) : null}
+            {job.salary ? (
+              <span className="status status-success">Salary disclosed</span>
+            ) : null}
+          </div>
+        ) : null}
         <div className="job-facts" aria-label="Job summary">
           {location ? (
             <span>

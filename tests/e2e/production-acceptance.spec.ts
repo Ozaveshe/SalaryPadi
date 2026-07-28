@@ -133,11 +133,25 @@ test("pinned job detail is live and customer-ready", async ({ page }) => {
     `Expected a job detail page, landed on ${page.url()}. ${REPLACE_TARGET_HINT}`,
   ).toBe(`/jobs/${PINNED_JOB}`);
   await settle(page);
-  // An expired posting renders the "unavailable" shell with a 200; treat that
-  // as an expired pin, not a pass.
+  /*
+   * A pin that has gone stale reaches one of two pages, and both answer with a
+   * 200 so neither is caught by the status check above:
+   *
+   * - the feed could not be checked, so the detail page renders the evidence
+   *   shell ("This job could not be checked"), or
+   * - the feed is live and the role is genuinely gone, so `notFound()` renders
+   *   the not-found page ("This page is no longer available.").
+   *
+   * The second wording was missing here, so an expired pin fell through to the
+   * product assertions below and failed on a missing `.job-card-title a` —
+   * true, but it reads as a broken job detail page rather than as a pin that
+   * needs repointing. Both wordings now fail here, with the hint attached.
+   */
   await expect(
-    page.getByRole("heading", { name: /could not be checked|unavailable/i }),
-    `Pinned job appears expired or unavailable. ${REPLACE_TARGET_HINT}`,
+    page.getByRole("heading", {
+      name: /could not be checked|unavailable|no longer available/i,
+    }),
+    `Pinned job appears expired, missing or unavailable. ${REPLACE_TARGET_HINT}`,
   ).toHaveCount(0);
 
   const scan = await auditRoute(page, `/jobs/${PINNED_JOB}`, "pinned-job");

@@ -45,8 +45,28 @@ test.describe("jobs quick view", () => {
     const targetTitle = await target.locator(".job-title").innerText();
     expect(await panel.locator("h2").innerText()).not.toBe(targetTitle);
 
-    const requests: string[] = [];
-    page.on("request", (request) => requests.push(request.url()));
+    /*
+     * The regression this guards against is selection going back to being a
+     * URL change, which made the server rebuild the results — the request it
+     * issued carried the `selected` parameter. So that parameter appearing in
+     * any request, or any document navigation at all, is the failure.
+     *
+     * Counting every request to `/jobs` instead would fail on Next's own link
+     * prefetching: the cards link to detail routes and the path nav links to
+     * `/jobs?eligibility=...`, and Next fetches those on its own schedule
+     * whether or not anything is selected. That would assert the framework's
+     * behaviour rather than ours.
+     */
+    const selectionRequests: string[] = [];
+    const documentRequests: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).searchParams.has("selected")) {
+        selectionRequests.push(request.url());
+      }
+      if (request.resourceType() === "document") {
+        documentRequests.push(request.url());
+      }
+    });
 
     // A click on the card body, not on any link inside it.
     await target.locator(".job-facts").first().click();
@@ -55,9 +75,8 @@ test.describe("jobs quick view", () => {
     await expect(target).toHaveAttribute("data-selected", "true");
     // Linkable: the selection is in the address bar without a navigation.
     expect(new URL(page.url()).searchParams.get("selected")).not.toBeNull();
-    expect(
-      requests.filter((url) => new URL(url).pathname.startsWith("/jobs")),
-    ).toEqual([]);
+    expect(selectionRequests).toEqual([]);
+    expect(documentRequests).toEqual([]);
   });
 
   test("keeps links inside a card working and exposes a keyboard control", async ({
