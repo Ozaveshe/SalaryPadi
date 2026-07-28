@@ -136,7 +136,7 @@ describe("Next proxy boundary", () => {
     );
 
     expect(response.headers.get("content-security-policy")).toContain(
-      "form-action 'self' https://bxelrhklsznmpksgrqep.supabase.co",
+      "form-action 'self' https://bxelrhklsznmpksgrqep.supabase.co https://accounts.google.com https://api.linkedin.com https://www.linkedin.com",
     );
   });
 

@@ -8,6 +8,11 @@ import { createBoundedFetch } from "@/lib/supabase/bounded-fetch";
 import type { Database } from "@/lib/supabase/database.types";
 
 const SUPABASE_PROXY_TIMEOUT_MS = 4_000;
+const OAUTH_FORM_ACTION_ORIGINS = [
+  "https://accounts.google.com",
+  "https://api.linkedin.com",
+  "https://www.linkedin.com",
+];
 
 const protectedPrefixes = [
   "/dashboard",
@@ -50,9 +55,10 @@ function buildContentSecurityPolicy(
   if (supabaseOrigin) {
     connectSources.push(supabaseOrigin);
     // OAuth starts with a same-origin form POST whose 303 response redirects
-    // through Supabase Auth. Browsers enforce form-action across that redirect
-    // chain, so the exact validated project origin must be allowed here.
-    formSources.push(supabaseOrigin);
+    // through Supabase Auth and the configured providers. Browsers enforce
+    // form-action across that full redirect chain, so keep this to the exact
+    // validated project and provider authorization origins.
+    formSources.push(supabaseOrigin, ...OAUTH_FORM_ACTION_ORIGINS);
   }
 
   if (process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) {
