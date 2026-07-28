@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(59);
+select plan(62);
 
 select ok(
   to_regprocedure(
@@ -135,7 +135,7 @@ set status = 'active',
       'external_id', 'title', 'description', 'source_url',
       'application_url', 'location', 'eligibility', 'work_arrangement',
       'employment_type', 'engagement_type', 'experience_level', 'posted_at',
-      'deadline'
+      'deadline', 'salary'
     ],
     policy_review_due_at = clock_timestamp() + interval '31 days',
     raw_retention = interval '30 days',
@@ -240,6 +240,40 @@ select throws_ok(
   'generic cancellation cannot wedge a running ATS lifecycle'
 );
 
+select throws_ok(
+  $$ select api.worker_store_ats_snapshot_batch(
+    (select run_id from ats_test_runs where name = 'review-1'),
+    jsonb_build_array(jsonb_build_object(
+      'external_id', 'invalid-salary',
+      'content_hash', repeat('9', 64),
+      'dedup_fingerprint', repeat('9', 64),
+      'title', 'Invalid Salary Fixture',
+      'source_url',
+        'https://boards.example.test/review/jobs/invalid-salary',
+      'application_url',
+        'https://boards.example.test/review/jobs/invalid-salary/apply',
+      'work_arrangement', 'remote',
+      'employment_type', 'full_time',
+      'salary', jsonb_build_object(
+        'source_text', '81,000 per year',
+        'minimum', 81000,
+        'maximum', 87000,
+        'period', 'annual',
+        'gross_net', 'unspecified'
+      ),
+      'eligibility', jsonb_build_object(
+        'scope', 'nigeria', 'provenance', 'source_provided',
+        'evidence_text', 'The source says applicants must be in Nigeria.',
+        'countries', jsonb_build_array(jsonb_build_object(
+          'country_code', 'NG', 'rule', 'include'
+        ))
+      )
+    ))
+  ) $$,
+  '22023', 'invalid normalized ATS salary evidence',
+  'ATS salary evidence fails closed when amount metadata is incomplete'
+);
+
 select is(
   (
     api.worker_store_ats_snapshot_batch(
@@ -257,6 +291,14 @@ select is(
         'last_checked_at', '2026-07-11T00:00:00.000Z',
         'work_arrangement', 'remote',
         'employment_type', 'full_time',
+        'salary', jsonb_build_object(
+          'source_text', 'USD 81000 - 87000 per year',
+          'currency', 'USD',
+          'minimum', 81000,
+          'maximum', 87000,
+          'period', 'annual',
+          'gross_net', 'unspecified'
+        ),
         'locations', jsonb_build_array(jsonb_build_object(
           'country_code', 'NG', 'city', 'Lagos', 'is_primary', true
         )),
@@ -272,6 +314,27 @@ select is(
   )::integer,
   1,
   'review batch creates one normalized job'
+);
+
+select is(
+  (select concat_ws(
+     '|', salary_min::text, salary_max::text, currency_code,
+     pay_period::text, gross_net::text
+   )
+   from app.jobs
+   where source_id = 'd1000000-0000-0000-0000-000000000001'
+     and external_source_id = 'review-1'),
+  '81000.00|87000.00|USD|annual|unspecified',
+  'ATS salary values reach the canonical job without conversion'
+);
+
+select is(
+  (select raw_payload #>> '{salary,source_text}'
+   from ingest.raw_job_records
+   where source_id = 'd1000000-0000-0000-0000-000000000001'
+     and external_source_id = 'review-1'),
+  'USD 81000 - 87000 per year',
+  'ATS raw evidence preserves the exact employer-published salary text'
 );
 
 select is(

@@ -99,6 +99,16 @@ export type AtsSourceRecordProvider =
   | "employer_json_feed"
   | "employer_csv_import";
 
+export interface AtsSalaryEvidence {
+  /** Exact employer-published salary-only summary when the provider supplies it. */
+  sourceText: string;
+  currency: string | null;
+  minimum: number | null;
+  maximum: number | null;
+  period: "hourly" | "daily" | "weekly" | "monthly" | "annual" | null;
+  grossNet: "gross" | "net" | "unspecified";
+}
+
 /** A validated provider record before SalaryPadi's final Job normalization. */
 export interface AtsSourceRecord {
   provider: AtsSourceRecordProvider;
@@ -115,6 +125,12 @@ export interface AtsSourceRecord {
   descriptionText: string | null;
   publishedAt: string | null;
   updatedAt: string | null;
+  /**
+   * Structured values are present only when the provider exposes one
+   * unambiguous salary component. The source text may still be retained when
+   * tiered compensation cannot be represented by the canonical job columns.
+   */
+  salary?: AtsSalaryEvidence | null;
   sourceUrl: string;
   applicationUrl: string;
   checkedAt: string;

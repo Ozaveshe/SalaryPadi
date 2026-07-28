@@ -53,6 +53,14 @@ export interface AtsImportJob {
   work_arrangement: AtsWorkArrangement;
   employment_type: AtsEmploymentType;
   engagement_type: AtsEngagementType;
+  salary: {
+    source_text: string;
+    currency: string | null;
+    minimum: number | null;
+    maximum: number | null;
+    period: "hourly" | "daily" | "weekly" | "monthly" | "annual" | null;
+    gross_net: "gross" | "net" | "unspecified";
+  } | null;
   application_url: string;
   source_url: string;
   posted_at: string | null;
@@ -283,6 +291,16 @@ function normalizeRecord(
     policy.mayStoreFullDescription && description.length >= 20
       ? description
       : null;
+  const salary = record.salary
+    ? {
+        source_text: record.salary.sourceText,
+        currency: record.salary.currency,
+        minimum: record.salary.minimum,
+        maximum: record.salary.maximum,
+        period: record.salary.period,
+        gross_net: record.salary.grossNet,
+      }
+    : null;
 
   const contentFacts = {
     provider: record.provider,
@@ -296,6 +314,7 @@ function normalizeRecord(
     description,
     published_at: record.publishedAt,
     updated_at: record.updatedAt,
+    salary,
     source_url: sourceUrl.toString(),
     application_url: applicationUrl.toString(),
   };
@@ -314,6 +333,7 @@ function normalizeRecord(
       work_arrangement: workArrangement,
       employment_type: employmentType,
       engagement_type: engagementType,
+      salary,
       application_url: applicationUrl.toString(),
       source_url: sourceUrl.toString(),
       posted_at: record.publishedAt,

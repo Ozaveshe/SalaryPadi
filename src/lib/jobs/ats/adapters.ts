@@ -27,6 +27,7 @@ import type {
   AtsAuthorizedSource,
   AtsProvider,
   AtsProviderAdapter,
+  AtsSalaryEvidence,
   AtsSourceRecord,
 } from "./types";
 
@@ -207,6 +208,8 @@ function ashbyRecord(
     throw atsAdapterError("ats_normalization_failed", "ashby");
   }
 
+  const salary = ashbySalaryEvidence(job);
+
   return {
     provider: "ashby",
     sourceKey: source.key,
@@ -222,9 +225,71 @@ function ashbyRecord(
     descriptionText: optionalText(job.descriptionPlain),
     publishedAt: job.publishedAt,
     updatedAt: null,
+    salary,
     sourceUrl: sourceUrl.toString(),
     applicationUrl: applicationUrl.toString(),
     checkedAt,
+  };
+}
+
+const ASHBY_PAY_PERIODS = {
+  "1 HOUR": "hourly",
+  "1 DAY": "daily",
+  "1 WEEK": "weekly",
+  "1 MONTH": "monthly",
+  "1 YEAR": "annual",
+} as const satisfies Record<string, NonNullable<AtsSalaryEvidence["period"]>>;
+
+function ashbySalaryEvidence(job: AshbyJob): AtsSalaryEvidence | null {
+  const sourceText =
+    job.compensation?.scrapeableCompensationSalarySummary?.trim();
+  if (!sourceText) return null;
+
+  const salaryComponents =
+    job.compensation?.summaryComponents?.filter(
+      (component) => component.compensationType === "Salary",
+    ) ?? [];
+  if (salaryComponents.length !== 1) {
+    return {
+      sourceText,
+      currency: null,
+      minimum: null,
+      maximum: null,
+      period: null,
+      grossNet: "unspecified",
+    };
+  }
+
+  const component = salaryComponents[0]!;
+  const period =
+    ASHBY_PAY_PERIODS[component.interval as keyof typeof ASHBY_PAY_PERIODS] ??
+    null;
+  const hasAmount = component.minValue !== null || component.maxValue !== null;
+  if (
+    !period ||
+    !component.currencyCode ||
+    !hasAmount ||
+    (component.minValue !== null &&
+      component.maxValue !== null &&
+      component.maxValue < component.minValue)
+  ) {
+    return {
+      sourceText,
+      currency: null,
+      minimum: null,
+      maximum: null,
+      period: null,
+      grossNet: "unspecified",
+    };
+  }
+
+  return {
+    sourceText,
+    currency: component.currencyCode,
+    minimum: component.minValue,
+    maximum: component.maxValue,
+    period,
+    grossNet: "unspecified",
   };
 }
 

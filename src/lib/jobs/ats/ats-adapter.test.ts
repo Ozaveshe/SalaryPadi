@@ -226,7 +226,7 @@ describe("ATS endpoint allowlist", () => {
         .href,
     ).toBe("https://api.eu.lever.co/v0/postings/acme?mode=json");
     expect(buildAshbyEndpoint({ provider: "ashby", tenant: "Acme" }).href).toBe(
-      "https://api.ashbyhq.com/posting-api/job-board/Acme",
+      "https://api.ashbyhq.com/posting-api/job-board/Acme?includeCompensation=true",
     );
     expect(
       buildWorkableEndpoint({ provider: "workable", tenant: "acme" }).href,
@@ -458,6 +458,94 @@ describe("employer-authorized ATS adapter", () => {
       workplaceType: "Hybrid",
       employmentType: "FullTime",
       team: "Platform",
+    });
+  });
+
+  it("preserves unambiguous employer-published Ashby salary evidence", async () => {
+    const result = await fetchAtsSourceRecords(ashbySource(), {
+      fetch: fixedFetch(
+        jsonResponse({
+          apiVersion: "1",
+          jobs: [
+            ashbyJob({
+              compensation: {
+                scrapeableCompensationSalarySummary: "$81K - $87K",
+                summaryComponents: [
+                  {
+                    compensationType: "Salary",
+                    interval: "1 YEAR",
+                    currencyCode: "USD",
+                    minValue: 81_000,
+                    maxValue: 87_000,
+                  },
+                  {
+                    compensationType: "Bonus",
+                    interval: "1 YEAR",
+                    currencyCode: "USD",
+                    minValue: null,
+                    maxValue: null,
+                  },
+                ],
+              },
+            }),
+          ],
+        }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    expect(result.records[0]?.salary).toEqual({
+      sourceText: "$81K - $87K",
+      currency: "USD",
+      minimum: 81_000,
+      maximum: 87_000,
+      period: "annual",
+      grossNet: "unspecified",
+    });
+  });
+
+  it("retains tiered Ashby salary text without flattening conflicting tiers", async () => {
+    const result = await fetchAtsSourceRecords(ashbySource(), {
+      fetch: fixedFetch(
+        jsonResponse({
+          apiVersion: "1",
+          jobs: [
+            ashbyJob({
+              compensation: {
+                scrapeableCompensationSalarySummary: "$70K - $100K",
+                summaryComponents: [
+                  {
+                    compensationType: "Salary",
+                    interval: "1 YEAR",
+                    currencyCode: "USD",
+                    minValue: 70_000,
+                    maxValue: 80_000,
+                  },
+                  {
+                    compensationType: "Salary",
+                    interval: "1 YEAR",
+                    currencyCode: "USD",
+                    minValue: 90_000,
+                    maxValue: 100_000,
+                  },
+                ],
+              },
+            }),
+          ],
+        }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    expect(result.records[0]?.salary).toEqual({
+      sourceText: "$70K - $100K",
+      currency: null,
+      minimum: null,
+      maximum: null,
+      period: null,
+      grossNet: "unspecified",
     });
   });
 
