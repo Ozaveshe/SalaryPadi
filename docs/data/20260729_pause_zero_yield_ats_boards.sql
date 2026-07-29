@@ -78,3 +78,43 @@ where s.id = t.id;
 update app.job_sources
 set status = 'active', updated_at = now()
 where adapter_key = 'jumia_greenhouse';
+
+-- ---------------------------------------------------------------------------
+-- Second pass, same day: boards that store nothing at all.
+--
+-- The rule above required `published > 0`, so it could only catch boards that
+-- imported rows and then failed to reach anyone. It missed the opposite
+-- failure: boards that offer records and store *none* of them, which have no
+-- published rows to be counted by. Those are the ones that were still failing
+-- ats_source_sync after the first pass, because a fully quarantined source is
+-- the one condition that legitimately fails a run.
+--
+--   cgiar_workable                    11 runs, 11 quarantined, 0 ever stored
+--   mlabs_workable                   196 offered, 0 stored, 104 errors
+--   khibraty_workable                103 offered, 0 stored,  30 errors
+--   european_dynamics_workable       144 offered, 0 stored,  16 errors
+--   erg_media_workable, edge_tutor_international_workable,
+--   visit_workable, sweat_pants_agency_workable
+--
+-- Every one has stored zero records across every run it has ever had, so
+-- nothing is lost by pausing them and the failing health signal clears. If a
+-- board here is wanted, it needs its adapter investigated first -- resuming it
+-- unchanged just restores the failure.
+-- ---------------------------------------------------------------------------
+
+with never_stored as (
+  select s.id
+  from app.job_sources s
+  join ingest.ats_snapshot_runs r on r.source_id = s.id
+  left join ingest.import_runs i on i.id = r.import_run_id
+  where s.status = 'active'
+  group by s.id
+  having coalesce(sum(i.created_count), 0) = 0
+     and count(distinct r.import_run_id) filter (
+           where r.outcome::text = 'quarantined'
+         ) > 0
+)
+update app.job_sources s
+set status = 'paused', updated_at = now()
+from never_stored n
+where s.id = n.id;
