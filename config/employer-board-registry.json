@@ -304,8 +304,9 @@
       "countriesOfOperation": ["NG", "KE", "TZ", "IN"],
       "status": "candidate",
       "discoverySource": "africa_operations_sweep",
-      "lastProbedAt": null,
-      "lastProbeOpenRoles": null
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": null,
+      "note": "Probed 2026-07-29 by name across greenhouse, lever, ashby and workable (slug variants) and by reading the careers page for a declared ATS link. Neither found a board. This is not evidence there is none: the employer may use an ATS this repo cannot parse (SmartRecruiters, Workday, Oracle, BambooHR), a tenant slug unrelated to its name, or a careers page that renders the link with JavaScript. Needs a manual look before re-probing the same way."
     },
     {
       "companyName": "mPharma",
@@ -316,8 +317,9 @@
       "countriesOfOperation": ["GH", "NG", "KE", "ZM", "RW", "ET"],
       "status": "candidate",
       "discoverySource": "africa_operations_sweep",
-      "lastProbedAt": null,
-      "lastProbeOpenRoles": null
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": null,
+      "note": "Probed 2026-07-29 by name across greenhouse, lever, ashby and workable (slug variants) and by reading the careers page for a declared ATS link. Neither found a board. This is not evidence there is none: the employer may use an ATS this repo cannot parse (SmartRecruiters, Workday, Oracle, BambooHR), a tenant slug unrelated to its name, or a careers page that renders the link with JavaScript. Needs a manual look before re-probing the same way."
     },
     {
       "companyName": "Wave Mobile Money",
@@ -328,8 +330,9 @@
       "countriesOfOperation": ["SN", "CI", "ML", "BF", "UG"],
       "status": "candidate",
       "discoverySource": "africa_operations_sweep",
-      "lastProbedAt": null,
-      "lastProbeOpenRoles": null
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": null,
+      "note": "Probed 2026-07-29 by name across greenhouse, lever, ashby and workable (slug variants) and by reading the careers page for a declared ATS link. Neither found a board. This is not evidence there is none: the employer may use an ATS this repo cannot parse (SmartRecruiters, Workday, Oracle, BambooHR), a tenant slug unrelated to its name, or a careers page that renders the link with JavaScript. Needs a manual look before re-probing the same way."
     },
     {
       "companyName": "TeamApt / Moniepoint GB entity",
@@ -352,8 +355,9 @@
       "countriesOfOperation": ["NG"],
       "status": "candidate",
       "discoverySource": "ng_fintech_sweep",
-      "lastProbedAt": null,
-      "lastProbeOpenRoles": null
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": null,
+      "note": "Probed 2026-07-29 by name across greenhouse, lever, ashby and workable (slug variants) and by reading the careers page for a declared ATS link. Neither found a board. This is not evidence there is none: the employer may use an ATS this repo cannot parse (SmartRecruiters, Workday, Oracle, BambooHR), a tenant slug unrelated to its name, or a careers page that renders the link with JavaScript. Needs a manual look before re-probing the same way."
     },
     {
       "companyName": "Norwegian Refugee Council",
@@ -364,8 +368,9 @@
       "countriesOfOperation": ["NG", "SS", "SO", "ET", "CD"],
       "status": "candidate",
       "discoverySource": "ngo_sweep_via_reliefweb",
-      "lastProbedAt": null,
-      "lastProbeOpenRoles": null
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": null,
+      "note": "Probed 2026-07-29 by name across greenhouse, lever, ashby and workable (slug variants) and by reading the careers page for a declared ATS link. Neither found a board. This is not evidence there is none: the employer may use an ATS this repo cannot parse (SmartRecruiters, Workday, Oracle, BambooHR), a tenant slug unrelated to its name, or a careers page that renders the link with JavaScript. Needs a manual look before re-probing the same way."
     },
     {
       "companyName": "One Acre Fund",
