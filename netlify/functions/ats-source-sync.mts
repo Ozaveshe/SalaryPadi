@@ -355,6 +355,8 @@ export async function runAtsSourceSync(
   let completedSources = 0;
   let duplicateSources = 0;
   let partialSources = 0;
+  /** Sources that offered records and had every one of them rejected. */
+  let quarantinedSources = 0;
   let failedSources = 0;
   let providerRecords = 0;
   let storedRecords = 0;
@@ -502,8 +504,19 @@ export async function runAtsSourceSync(
         errorCount: totalQuarantines + errorCodes.size,
       });
       storedRecords += normalized.jobs.length;
+      /*
+       * Three outcomes, not two. A snapshot that stored nothing at all because
+       * every record it offered was rejected is a different event from one that
+       * stored most of them and rejected a few, and only the first says
+       * something is wrong with the import itself.
+       *
+       * A board that genuinely publishes no roles is `complete` above — this
+       * branch is only reached when the snapshot was not complete, so reaching
+       * it with nothing stored means everything on offer was unusable.
+       */
       if (complete) completedSources += 1;
-      else partialSources += 1;
+      else if (normalized.jobs.length > 0) partialSources += 1;
+      else quarantinedSources += 1;
     } catch (reason) {
       failedSources += 1;
       const code = safeErrorCode(reason);
@@ -553,6 +566,7 @@ export async function runAtsSourceSync(
     completed_sources: completedSources,
     duplicate_sources: duplicateSources,
     partial_sources: partialSources,
+    quarantined_sources: quarantinedSources,
     failed_sources: failedSources,
     provider_records: providerRecords,
     stored_records: storedRecords,
@@ -562,7 +576,23 @@ export async function runAtsSourceSync(
     secondary_failure_count: secondaryFailureCount,
     secondary_failure_codes: [...secondaryFailureCodes].sort(),
   };
-  if (failedSources > 0 || partialSources > 0) {
+  /*
+   * A partial import is a property of the data, not a fault in the run.
+   *
+   * A board that offers two hundred roles and has six rejected has been
+   * imported: the good records landed, the bad ones are quarantined, and both
+   * counts are in the summary and on the import run. Failing the whole
+   * invocation for that made the worker permanently unhealthy the moment the
+   * registry walk started reaching boards for the first time — most runs touch
+   * a new board, most new boards reject something, so the signal went red and
+   * stayed red while hundreds of records were importing correctly. An alert
+   * that is always on is not an alert.
+   *
+   * A source that offered records and had every one rejected is the opposite:
+   * nothing was importable, which points at the adapter or the board rather
+   * than at a few bad rows. That still fails, as does a source that threw.
+   */
+  if (failedSources > 0 || quarantinedSources > 0) {
     throw new OperationalError("ats_source_sync_incomplete", summary);
   }
   /*

@@ -615,7 +615,70 @@ describe("ATS source sync worker", () => {
     );
   });
 
-  it("finalizes a quarantined source as partial and fails worker health", async () => {
+  it("fails the run when a source offered records and every one was rejected", async () => {
+    // Nothing importable points at the adapter or the board, not at a few bad
+    // rows, so this stays a worker failure. It is the counterpart to the
+    // partial-import case below, which does not.
+    setEnvironment("true");
+    const callRpc = vi.fn(async (name: string) => {
+      if (name === "worker_list_authorized_ats_sources") return [policyRow()];
+      if (name === "worker_claim_authorized_ats_source") return claimedPolicy();
+      if (name === "worker_begin_ats_snapshot")
+        return [
+          {
+            import_run_id: "30000000-0000-4000-8000-000000000001",
+            should_run: true,
+          },
+        ];
+      if (name === "worker_store_ats_snapshot_batch") {
+        return storeAck({ accepted_count: 0, created_count: 0 });
+      }
+      if (name === "worker_finalize_ats_snapshot") {
+        // Nothing was stored, so every write count is zero and both offered
+        // records show up as the difference between fetched and expected.
+        return finalizeAck({
+          outcome: "quarantined",
+          fetched_count: 2,
+          expected_record_count: 0,
+          filtered_count: 2,
+          created_count: 0,
+          error_count: 3,
+        });
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+    // The adapter rejected both records, so nothing reaches the store.
+    const unusable = fetched({
+      records: [],
+      invalidRecords: [
+        { index: 0, stage: "validation", issuePaths: ["title"] },
+        { index: 1, stage: "validation", issuePaths: ["title"] },
+      ],
+      snapshot: {
+        status: "complete",
+        providerRecordCount: 2,
+        providerReportedTotal: 2,
+        acceptedRecordCount: 0,
+        filteredRecordCount: 0,
+        invalidRecordCount: 2,
+        isEmpty: false,
+      },
+    });
+
+    await expect(
+      runAtsSourceSync(execution(), {
+        rpc: callRpc,
+        fetchSource: vi.fn().mockResolvedValue(unusable),
+        now: () => now,
+        randomUuid: () => "40000000-0000-4000-8000-000000000001",
+      }),
+    ).rejects.toMatchObject({
+      code: "ats_source_sync_incomplete",
+      summary: { quarantined_sources: 1, partial_sources: 0 },
+    });
+  });
+
+  it("succeeds when a source stored records and rejected only some", async () => {
     setEnvironment("true");
     const callRpc = vi.fn(
       async (name: string, parameters?: Record<string, unknown>) => {
@@ -669,9 +732,16 @@ describe("ATS source sync worker", () => {
         now: () => now,
         randomUuid: () => "40000000-0000-4000-8000-000000000001",
       }),
-    ).rejects.toMatchObject({
-      code: "ats_source_sync_incomplete",
-      summary: { partial_sources: 1, quarantined_records: 1 },
+    ).resolves.toMatchObject({
+      status: "succeeded",
+      // The rejection is still counted and still reaches the summary; it just
+      // does not condemn a run that imported the records it could.
+      summary: {
+        partial_sources: 1,
+        quarantined_sources: 0,
+        quarantined_records: 1,
+        stored_records: 1,
+      },
     });
   });
 
