@@ -553,6 +553,31 @@
       "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 9,
       "rejectionReason": "Slug collision unresolved: lever/copia lists 8 New York City roles and no African location, which does not match the Kenyan consumer-goods distributor."
+    },
+    {
+      "companyName": "Evidence Action",
+      "canonicalDomain": "evidenceaction.org",
+      "atsProvider": "workable",
+      "boardIdentifier": "evidence-action",
+      "careersUrl": "https://www.evidenceaction.org/careers",
+      "countriesOfOperation": ["NG", "KE", "LR", "IN", "US"],
+      "status": "registered",
+      "discoverySource": "careers_page_ats_link",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 25
+    },
+    {
+      "companyName": "Sama",
+      "canonicalDomain": "sama.com",
+      "atsProvider": "greenhouse",
+      "boardIdentifier": "samainc",
+      "careersUrl": "https://www.sama.com/careers",
+      "countriesOfOperation": ["KE", "UG", "US", "IN"],
+      "status": "probed_rejected",
+      "discoverySource": "careers_page_ats_link",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 3,
+      "rejectionReason": "Board is genuinely Sama (linked from sama.com) but carries only 3 roles, all Bangalore and San Francisco, with no African location despite Sama operating in Kenya and Uganda. Nothing a Nigerian or African candidate could reach."
     }
   ]
 }
