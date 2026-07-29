@@ -1,11 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  /* Primitive palette */
-  --forest-950: #102f28;
-  --forest-900: #173b32;
-  --forest-800: #205246;
-  --forest-700: #146b55;
+  /*
+   * Primitive palette.
+   *
+   * The green is the brand and stays the brand — the wordmark and the brand art
+   * are built on it. What changed is that it is now a complete ramp. It used to
+   * jump straight from 700 to 100, so anything needing a mid-tone (a hover
+   * fill, a selected row, a chart band) had to invent one inline or reach for a
+   * step far too light, which is why tinted surfaces all looked the same
+   * weight. 200-600 are interpolated in OKLCH so the steps read as evenly
+   * spaced rather than bunching in the middle the way sRGB blends do.
+   */
+  --forest-950: #06241d;
+  --forest-900: #0d3428;
+  --forest-800: #124534;
+  --forest-700: #145c48;
+  --forest-600: #167257;
+  --forest-500: #1f8d6d;
+  --forest-400: #45a888;
+  --forest-300: #7cc4aa;
+  --forest-200: #b4dfcd;
   --forest-100: #dcece5;
   --forest-50: #eff7f3;
   --coral-700: #a43f24;
@@ -13,12 +28,18 @@
   --coral-100: #f9ded4;
   --gold-700: #765407;
   --gold-100: #f8e8aa;
-  --sand-50: #f7f8f6;
-  --sand-100: #f0f2ef;
-  --sand-200: #e1e5e1;
+  /*
+   * The neutrals carried a green cast so faint it just read as dirty grey.
+   * Warming them slightly and letting the page sit a touch below pure white
+   * gives white cards something to lift off, which is what makes a list of
+   * cards scannable at all.
+   */
+  --sand-50: #f8f8f5;
+  --sand-100: #f1f1ec;
+  --sand-200: #e3e4dd;
   --white: #ffffff;
-  --ink-700: #3c4a46;
-  --ink-500: #66736f;
+  --ink-700: #3a4744;
+  --ink-500: #63706c;
   --red-700: #a1252f;
   --red-100: #f9dfe2;
 
@@ -43,8 +64,16 @@
   --status-danger-bg: var(--red-100);
   --status-danger-text: var(--red-700);
 
-  --shadow-small: 0 1px 2px rgb(16 47 40 / 5%);
-  --shadow-medium: 0 12px 32px rgb(16 47 40 / 8%);
+  /*
+   * Elevation was a single near-invisible hint at 5% and a diffuse 8% bloom,
+   * so nothing on the page read as sitting above anything else. These are
+   * two-part shadows — a tight contact shadow that anchors the edge plus a
+   * softer ambient one — tinted with the brand green rather than black, which
+   * keeps a warm page from looking like it has grey smudges under it.
+   */
+  --shadow-small: 0 1px 2px rgb(6 36 29 / 6%), 0 1px 3px rgb(6 36 29 / 4%);
+  --shadow-medium: 0 2px 4px rgb(6 36 29 / 6%), 0 8px 24px rgb(6 36 29 / 8%);
+  --shadow-large: 0 4px 8px rgb(6 36 29 / 7%), 0 16px 40px rgb(6 36 29 / 10%);
   --radius-small: 0.5rem;
   --radius-medium: 0.875rem;
   --space-1: 0.25rem;
@@ -92,7 +121,10 @@ body {
   margin: 0;
   background: var(--surface-page);
   color: var(--text-primary);
+  /* `--font-sans-loaded` is the self-hosted face from next/font; the rest of
+     the stack still covers the moment before it swaps in. */
   font-family:
+    var(--font-sans-loaded),
     Inter,
     ui-sans-serif,
     system-ui,
@@ -103,6 +135,10 @@ body {
   font-size: 1rem;
   line-height: 1.6;
   text-rendering: optimizeLegibility;
+  /* Inter's defaults leave gaps at display sizes and its lining figures make
+     salary columns ragged; both are one-line fixes now the real face loads. */
+  font-feature-settings: "cv11", "ss01";
+  font-variant-numeric: tabular-nums;
 }
 
 button,
@@ -1135,9 +1171,10 @@ a:hover {
   opacity: 0.7;
 }
 
+/* An aged posting is signalled by its own warning badge and its faded facts
+   row, not by a coloured rail down the side of the card. */
 .job-card[data-posting-age="stale"] {
-  border-left: 3px solid var(--status-warning-bg);
-  padding-left: 0.7rem;
+  background: var(--sand-50);
 }
 
 .job-card-title {
@@ -1199,10 +1236,11 @@ a:hover {
    * The selected row is marked on its left edge rather than by tinting the
    * whole card, so the badges and status colours inside keep their meaning.
    */
+  /* Selection is carried by the card lifting to white with real elevation,
+     the way the panel beside it sits. No rail, no inset stripe. */
   .job-list-item[data-selected="true"] .job-card {
-    box-shadow: inset 3px 0 0 var(--interactive-primary);
-    background: var(--surface-brand-soft);
-    padding-left: 0.7rem;
+    background: var(--surface-default);
+    box-shadow: var(--shadow-medium);
   }
 
   .job-list-item[data-selected="true"] .job-card-quick-view {
@@ -3077,16 +3115,27 @@ a:hover {
 
 /* The overlap sentence belongs to the card above it, not to the next one. */
 .cv-overlap-note {
-  margin: 0 0 1.1rem;
-  border-left: 3px solid var(--border-default);
-  padding-left: 0.75rem;
+  margin: -0.35rem 0 1.4rem;
+  padding-left: 3.35rem;
   color: var(--text-secondary);
   font-size: 0.86rem;
 }
 
-.notification-row[data-unread="true"] {
-  box-shadow: inset 3px 0 0 var(--interactive-primary);
-  padding-left: 0.7rem;
+/* Unread is a state of one item, so it gets a marker rather than a border
+   treatment that competes with the row divider. */
+.notification-row[data-unread="true"]::before {
+  content: "";
+  position: absolute;
+  top: 1.45rem;
+  left: -0.75rem;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--interactive-primary);
+}
+
+.notification-row {
+  position: relative;
 }
 
 .notification-preference-list {
@@ -3110,4 +3159,84 @@ a:hover {
 .notification-preference-list > li:first-child .notification-preference {
   border-top: 0;
   padding-top: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Visual refresh: elevation and hierarchy on the surfaces people actually read
+ *
+ * The job list is where nearly all reading happens, and every row previously
+ * carried identical weight: same background, same border, a title barely
+ * larger than the metadata under it. These rules give the list a scan order —
+ * the title leads, the company sits under it, evidence and source recede — and
+ * give the card something to lift off when it is hovered or selected.
+ * ------------------------------------------------------------------------ */
+
+.job-card {
+  border-radius: var(--radius-medium);
+  padding-inline: 0.9rem;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+/* The row is the click target, so it should feel like one. */
+@media (hover: hover) {
+  .job-list-item:hover .job-card {
+    background: var(--surface-default);
+    box-shadow: var(--shadow-small);
+  }
+}
+
+.job-title {
+  font-size: 1.28rem;
+  letter-spacing: -0.03em;
+}
+
+.job-company {
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+/* Source and freshness are provenance, not headline: present, never loud. */
+.job-source-badges .status {
+  font-size: 0.72rem;
+}
+
+.surface {
+  box-shadow: var(--shadow-small);
+}
+
+/* The quick-view panel is a peer of the page, not a floating dialog, so it
+   gets the ambient shadow rather than the heavy one. */
+.job-preview {
+  box-shadow: var(--shadow-medium);
+}
+
+.workspace-stat {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+@media (hover: hover) {
+  .workspace-stat-link:hover {
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-1px);
+  }
+}
+
+/* Every transition above is decoration over an already-usable page, so all of
+   it goes away for anyone who has asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .job-card,
+  .workspace-stat {
+    transition: none;
+  }
+
+  .workspace-stat-link:hover {
+    transform: none;
+  }
 }

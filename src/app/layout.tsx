@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import { cookies, headers } from "next/headers";
 
 import { AnalyticsConsent } from "@/components/analytics-consent";
@@ -13,6 +14,19 @@ import { getAppOrigin, getGoogleAnalyticsId } from "@/lib/env";
 import "./globals.css";
 
 const defaultCountryPack = getDefaultCountryPack();
+
+/*
+ * The stylesheet has always asked for Inter and nothing has ever loaded it, so
+ * every visitor has been reading the system stack instead — Segoe UI on
+ * Windows, Roboto on Android. `next/font` self-hosts the file at build time, so
+ * the typeface the design is actually set in arrives with no external request,
+ * no third-party connection, and no layout shift.
+ */
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-sans-loaded",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(getAppOrigin()),
@@ -67,7 +81,11 @@ export default async function RootLayout({
       : null;
 
   return (
-    <html lang={defaultCountryPack.defaultLocale} data-scroll-behavior="smooth">
+    <html
+      lang={defaultCountryPack.defaultLocale}
+      data-scroll-behavior="smooth"
+      className={inter.variable}
+    >
       <body className="flex min-h-screen flex-col">
         <a className="skip-link" href="#main-content">
           Skip to main content
