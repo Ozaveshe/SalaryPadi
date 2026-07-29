@@ -265,6 +265,62 @@ describe("ATS source sync worker", () => {
     expect(fetchSource).not.toHaveBeenCalled();
   });
 
+  it("succeeds when the clock stops a run that already claimed a source", async () => {
+    // Claiming several sources per run makes stopping on the time budget an
+    // ordinary outcome rather than a fault: the run walked as far as its budget
+    // allowed and finished every source it started. Only a run that burned the
+    // whole budget without claiming anything is a failure, which the case above
+    // still covers. Without this distinction, raising the per-run cap would
+    // mark healthy runs failed and drive the worker's freshness to degraded.
+    setEnvironment("true");
+    let remaining = 20_000;
+    const callRpc = vi.fn(async (name: string) => {
+      if (name === "worker_list_authorized_ats_sources") {
+        return [policyRow(), policyRow({ adapter_key: "second_workable" })];
+      }
+      if (name === "worker_claim_authorized_ats_source") {
+        // The first source is claimed; the clock then leaves too little room
+        // for the loop to start the second.
+        remaining = 5_000;
+        return claimedPolicy();
+      }
+      if (name === "worker_begin_ats_snapshot") {
+        return [
+          {
+            import_run_id: "30000000-0000-4000-8000-000000000001",
+            should_run: true,
+          },
+        ];
+      }
+      if (name === "worker_store_ats_snapshot_batch") return storeAck();
+      if (name === "worker_finalize_ats_snapshot") return finalizeAck();
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+
+    await expect(
+      runAtsSourceSync(
+        {
+          signal: new AbortController().signal,
+          remainingMs: () => remaining,
+        },
+        {
+          rpc: callRpc,
+          fetchSource: vi.fn().mockResolvedValue(fetched()),
+          now: () => now,
+          randomUuid: () => "40000000-0000-4000-8000-000000000001",
+        },
+      ),
+    ).resolves.toMatchObject({
+      status: "succeeded",
+      summary: {
+        claimed_sources: 1,
+        completed_sources: 1,
+        // The early stop stays visible to anyone reading the summary.
+        inspection_stopped: "time_budget",
+      },
+    });
+  });
+
   it("claims, imports and finalizes a complete source snapshot", async () => {
     setEnvironment("true");
     const events: string[] = [];
