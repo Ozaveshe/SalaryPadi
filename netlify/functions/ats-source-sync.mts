@@ -34,7 +34,23 @@ import {
   workerSucceeded,
 } from "./_shared/runtime";
 
-const MAX_SOURCES_PER_RUN = 1;
+/**
+ * How many sources one invocation may claim.
+ *
+ * Sized against the measured run cost rather than guessed. Over 96 consecutive
+ * production runs at one source per run the whole invocation averaged 4.2s,
+ * p95 6.9s and peaked at 9.2s, including the registry read and the wasted
+ * claim attempts on sources that were not due. The operation budget is 20s and
+ * the loop refuses to start another source below 6s remaining, so roughly 14s
+ * is available for claiming; four sources fit that with room for a slow one.
+ *
+ * Raising this does not shorten any source's own cadence. Per-source interval,
+ * request spacing and daily budget are all enforced inside
+ * `api.worker_claim_authorized_ats_source`, which refuses a source that is not
+ * yet due. The only thing that changes is how many *different* boards one run
+ * may visit, which is what determines how quickly the registry is walked.
+ */
+const MAX_SOURCES_PER_RUN = 4;
 const MAX_PROVIDER_RECORDS = 400;
 const MAX_BATCH_RECORDS = 200;
 const MAX_BATCH_BYTES = 1024 * 1024;
@@ -132,10 +148,10 @@ export function assertAtsFinalizeAcknowledgement(
   }
 }
 // Bounds the registry the worker will read, NOT how much it does per run --
-// MAX_SOURCES_PER_RUN still claims exactly one source per invocation. The cap
-// was 50, which silently failed every run with `ats_source_registry_invalid`
-// once the authorized board count passed it, so it is sized well clear of the
-// current roster while still refusing an implausibly large registry.
+// MAX_SOURCES_PER_RUN caps the claims. The cap was 50, which silently failed
+// every run with `ats_source_registry_invalid` once the authorized board count
+// passed it, so it is sized well clear of the current roster while still
+// refusing an implausibly large registry.
 const authorizedPoliciesEnvelopeSchema = z
   .array(z.record(z.string(), z.unknown()))
   .max(400);
@@ -549,13 +565,29 @@ export async function runAtsSourceSync(
   if (failedSources > 0 || partialSources > 0) {
     throw new OperationalError("ats_source_sync_incomplete", summary);
   }
-  if (inspectionStopped === "time_budget") {
-    throw new OperationalError(
-      "ats_source_sync_time_budget_exhausted",
-      summary,
-    );
+  /*
+   * Running out of time is only a fault when the run achieved nothing with it.
+   *
+   * With one claim per run the loop always stopped at `claim_limit`, so hitting
+   * the time budget meant the invocation had burned its whole budget without
+   * claiming a single source — a real failure. Claiming several makes stopping
+   * on time an ordinary outcome: the run walked as far as its budget allowed
+   * and completed every source it started. Treating that as a failure would
+   * mark most healthy runs failed and push the worker's freshness to degraded
+   * for doing exactly what it is asked to do.
+   *
+   * `inspection_stopped` is in the summary either way, so a run that ended on
+   * time rather than on the claim limit is still visible to anyone reading it.
+   */
+  if (claimedSources === 0) {
+    if (inspectionStopped === "time_budget") {
+      throw new OperationalError(
+        "ats_source_sync_time_budget_exhausted",
+        summary,
+      );
+    }
+    return workerSkipped("ats_sources_not_due");
   }
-  if (claimedSources === 0) return workerSkipped("ats_sources_not_due");
   return workerSucceeded(summary);
 }
 
