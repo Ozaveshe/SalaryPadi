@@ -93,6 +93,19 @@ const ashbyCompensationComponentSchema = z
   })
   .passthrough();
 
+/*
+ * Ashby spells "no value" as an explicit null, not by omitting the key. Zod's
+ * .optional() admits undefined only, so a field declared optional here rejects
+ * the null the API actually sends -- and because the adapter always requests
+ * includeCompensation=true, a compensation object is present on every record.
+ * That made a single missing salary summary quarantine the entire board: the
+ * first two Ashby tenants registered (M-KOPA, LemFi) failed 49/49 and 21/22 on
+ * this one field, which reads as a broken employer rather than a schema that
+ * disagrees with the provider about how to say "nothing here".
+ *
+ * Every field the provider may leave empty is therefore .nullable(), and the
+ * adapter already funnels each through optionalText(), which takes null.
+ */
 const ashbyCompensationSchema = z
   .object({
     scrapeableCompensationSalarySummary: z
@@ -100,23 +113,27 @@ const ashbyCompensationSchema = z
       .trim()
       .min(1)
       .max(2_000)
+      .nullable()
       .optional(),
     summaryComponents: z
       .array(ashbyCompensationComponentSchema)
       .max(100)
+      .nullable()
       .optional(),
   })
   .passthrough();
 
 export const ashbyJobSchema = z
   .object({
-    id: z.string().trim().min(1).max(200).optional(),
+    id: z.string().trim().min(1).max(200).nullable().optional(),
     title: shortText,
     location: z.string().trim().max(500),
-    department: z.string().trim().max(300).optional(),
-    team: z.string().trim().max(300).optional(),
+    department: z.string().trim().max(300).nullable().optional(),
+    team: z.string().trim().max(300).nullable().optional(),
     isListed: z.boolean(),
-    workplaceType: z.enum(["OnSite", "Remote", "Hybrid"]),
+    // Null on 27 of M-KOPA's 49 roles: the employer simply has not classified
+    // them. That is missing data about the role, not an unparseable record.
+    workplaceType: z.enum(["OnSite", "Remote", "Hybrid"]).nullable(),
     descriptionHtml: longText,
     descriptionPlain: longText,
     publishedAt: providerDate,
