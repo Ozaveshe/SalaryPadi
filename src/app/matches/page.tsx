@@ -48,7 +48,9 @@ export default async function MatchesPage() {
     cv.data?.parse_state === "parsed" && cv.data.extracted_text
       ? readCvSkills(cv.data.extracted_text)
       : [];
-  const matchProfile = profile.data ? toCandidateProfile(profile.data) : null;
+  const matchProfile = profile.data
+    ? toCandidateProfile(profile.data, cvSkills)
+    : null;
 
   /*
    * Ranked on how much the two documents literally share, then narrowed to
