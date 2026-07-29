@@ -1,5 +1,9 @@
 export type MatchDimensionCode =
-  "experience_level" | "work_arrangement" | "location" | "compensation";
+  | "experience_level"
+  | "skills"
+  | "work_arrangement"
+  | "location"
+  | "compensation";
 
 /**
  * `scored` dimensions contributed to the overall score. `unknown` dimensions had
@@ -28,6 +32,12 @@ export interface CandidateProfile {
   desiredPayPeriod?: PayPeriod;
   locationCountry?: string;
   openToRelocation: boolean;
+  /**
+   * Vocabulary terms the candidate's own CV names, when one has been uploaded
+   * and could be read. Absent means no comparison is possible, which the
+   * scorer reports as unknown rather than as zero overlap.
+   */
+  cvSkills?: readonly string[];
 }
 
 export type EligibilityDecision = "eligible" | "not_eligible" | "unclear";
@@ -54,6 +64,12 @@ export interface JobFacts {
   currencyCode?: string;
   payPeriod?: PayPeriod;
   eligibility: JobEligibilityFacts;
+  /**
+   * Vocabulary terms the posting's own title and description name. An empty
+   * list means the posting names nothing the fixed vocabulary recognises, so
+   * there is nothing to compare against rather than nothing in common.
+   */
+  namedSkills?: readonly string[];
 }
 
 export interface MatchDimension {

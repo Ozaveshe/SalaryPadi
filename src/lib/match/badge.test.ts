@@ -125,15 +125,27 @@ describe("matchBadgeView", () => {
 
     it("discloses partial coverage", () => {
       const view = matchBadgeView(
-        scoreJobMatch(candidate(), job({ experienceLevel: "unspecified" })),
+        scoreJobMatch(
+          candidate({ cvSkills: ["Python"] }),
+          job({ experienceLevel: "unspecified", namedSkills: ["Python"] }),
+        ),
       );
 
-      expect(view?.description).toContain("70%");
+      // 100 of 130 weight: experience level is the only unknown now that the
+      // skills dimension carries weight of its own.
+      expect(view?.description).toContain("77%");
       expect(view?.description).toContain("not stated");
     });
 
     it("states when everything was compared", () => {
-      const view = matchBadgeView(scoreJobMatch(candidate(), job()));
+      // Everything now includes the skills line, so the candidate must have a
+      // readable CV and the posting must name a term it recognises.
+      const view = matchBadgeView(
+        scoreJobMatch(
+          candidate({ cvSkills: ["Python"] }),
+          job({ namedSkills: ["Python"] }),
+        ),
+      );
 
       expect(view?.description).toContain("Every comparable point");
     });

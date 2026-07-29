@@ -58,6 +58,9 @@ function feedJob(overrides: Partial<Job> = {}): Job {
 describe("toCandidateProfile", () => {
   it("maps a fully populated row", () => {
     expect(toCandidateProfile(profileRow())).toEqual({
+      // Defaults to empty: a caller that has no CV to pass leaves the skills
+      // dimension unknown rather than asserting an absence of skills.
+      cvSkills: [],
       experienceLevel: "mid",
       desiredWorkArrangement: "remote",
       desiredSalaryMin: 400_000,

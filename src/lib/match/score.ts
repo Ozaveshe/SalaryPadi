@@ -312,12 +312,67 @@ function tierDetails(
  * so a candidate can see exactly why a number came out the way it did. No claim
  * is inferred about the candidate that they did not attest themselves.
  */
+/**
+ * Overlap between the terms the candidate's CV names and the terms the posting
+ * names.
+ *
+ * The claim is co-occurrence and nothing more: both documents contain the same
+ * words. It is deliberately not read as "meets the requirement", because the
+ * posting listing a term is not the same as the employer requiring it, and the
+ * CV listing one is not proof of competence. The explanation is worded so a
+ * reader cannot mistake it for either.
+ *
+ * Two distinct absences, both unknown rather than zero. No readable CV means
+ * the candidate has told us nothing to compare. A posting naming no recognised
+ * term means there is nothing to compare against — scoring that as zero would
+ * punish a role for being described in words the fixed vocabulary happens not
+ * to carry.
+ */
+function scoreSkills(
+  candidate: CandidateProfile,
+  job: JobFacts,
+): MatchDimension {
+  const cvSkills = candidate.cvSkills ?? [];
+  const jobSkills = job.namedSkills ?? [];
+  if (cvSkills.length === 0) {
+    return unknown(
+      "skills",
+      "Upload a CV and SalaryPadi can show which of the terms this posting names your CV also names.",
+    );
+  }
+  if (jobSkills.length === 0) {
+    return unknown(
+      "skills",
+      "This posting names none of the skills SalaryPadi can recognise, so there is nothing to compare your CV against.",
+    );
+  }
+
+  const cvSet = new Set(cvSkills);
+  const shared = jobSkills.filter((skill) => cvSet.has(skill));
+  const share = shared.length / jobSkills.length;
+  if (shared.length === 0) {
+    return scored(
+      "skills",
+      0,
+      `Your CV does not name any of the ${jobSkills.length} skills this posting names.`,
+    );
+  }
+  const named = shared.slice(0, 4).join(", ");
+  const more = shared.length > 4 ? ` and ${shared.length - 4} more` : "";
+  return scored(
+    "skills",
+    share,
+    `Your CV and this posting both name ${named}${more} — ${shared.length} of the ${jobSkills.length} skills it names.`,
+  );
+}
+
 export function scoreJobMatch(
   candidate: CandidateProfile,
   job: JobFacts,
 ): MatchResult {
   const dimensions: MatchDimension[] = [
     scoreExperienceLevel(candidate, job),
+    scoreSkills(candidate, job),
     scoreWorkArrangement(candidate, job),
     scoreLocation(candidate, job),
     scoreCompensation(candidate, job),
