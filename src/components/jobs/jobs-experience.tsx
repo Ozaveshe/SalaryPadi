@@ -11,6 +11,8 @@ import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
 import { getViewer } from "@/lib/auth/dal";
+import { readCvSkills } from "@/lib/career/cv/draft";
+import { getCurrentCandidateCv } from "@/lib/career/cv/repository";
 import { getCandidateProfile } from "@/lib/career/repository";
 import { getReferenceCurrencyRates } from "@/lib/currency/repository";
 import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
@@ -35,9 +37,19 @@ async function readMatchProfile(): Promise<CandidateProfile | null> {
   const viewer = await getViewer();
   if (viewer.state !== "authenticated") return null;
 
-  const result = await getCandidateProfile();
+  // The CV read runs alongside the profile and is allowed to come back empty:
+  // the skills dimension then reports itself unknown, which is the honest
+  // answer for someone who has not uploaded one.
+  const [result, cv] = await Promise.all([
+    getCandidateProfile(),
+    getCurrentCandidateCv(),
+  ]);
   if (result.state !== "ready" || !result.data) return null;
-  return toCandidateProfile(result.data);
+  const cvSkills =
+    cv.data?.parse_state === "parsed" && cv.data.extracted_text
+      ? readCvSkills(cv.data.extracted_text)
+      : [];
+  return toCandidateProfile(result.data, cvSkills);
 }
 
 /**

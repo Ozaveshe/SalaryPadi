@@ -44,7 +44,12 @@ const scoreOf = (result: MatchResult, code: string) =>
 
 describe("scoreJobMatch", () => {
   it("scores an aligned candidate and job as a strong match with full coverage", () => {
-    const result = scoreJobMatch(candidate(), job());
+    // Full coverage now means all five dimensions had data, so the candidate
+    // has to have supplied a CV as well.
+    const result = scoreJobMatch(
+      candidate({ cvSkills: ["Python"] }),
+      job({ namedSkills: ["Python"] }),
+    );
 
     expect(result.tier).toBe("strong_match");
     expect(result.score).toBe(100);
@@ -64,24 +69,25 @@ describe("scoreJobMatch", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("does not score skills", () => {
+  it("compares five dimensions, skills among them", () => {
     const codes = scoreJobMatch(candidate(), job()).dimensions.map(
       (entry) => entry.code,
     );
 
-    expect(codes).not.toContain("skills");
     expect(codes).toEqual([
       "experience_level",
+      "skills",
       "work_arrangement",
       "location",
       "compensation",
     ]);
   });
 
-  it("discloses that skills are not compared", () => {
-    expect(scoreJobMatch(candidate(), job()).limitations.join(" ")).toContain(
-      "does not compare skills",
-    );
+  it("discloses what the skills line does and does not claim", () => {
+    const stated = scoreJobMatch(candidate(), job()).limitations.join(" ");
+
+    expect(stated).toContain("name the same terms");
+    expect(stated).toContain("not a judgement that you meet the role");
   });
 
   describe("missing data is excluded, never scored as zero", () => {
@@ -271,5 +277,70 @@ describe("scoreJobMatch", () => {
       expect(scoreOf(rooted, "location")).toBe(0);
       expect(scoreOf(mobile, "location")).toBe(0.5);
     });
+  });
+});
+
+describe("skills dimension", () => {
+  const dimension = (result: MatchResult) =>
+    result.dimensions.find((d) => d.code === "skills")!;
+
+  it("stays unknown when the candidate has uploaded no readable CV", () => {
+    // Absent evidence must not read as zero overlap. A candidate is never
+    // penalised for what they have not told us.
+    const d = dimension(
+      scoreJobMatch(candidate(), job({ namedSkills: ["Python"] })),
+    );
+    expect(d.state).toBe("unknown");
+    expect(d.score).toBe(0);
+    expect(d.explanation).toMatch(/Upload a CV/i);
+  });
+
+  it("stays unknown when the posting names nothing the vocabulary knows", () => {
+    // Scoring this as zero would punish a role for being described in words
+    // the fixed list happens not to carry.
+    const d = dimension(
+      scoreJobMatch(
+        candidate({ cvSkills: ["Python"] }),
+        job({ namedSkills: [] }),
+      ),
+    );
+    expect(d.state).toBe("unknown");
+    expect(d.explanation).toMatch(/nothing to compare/i);
+  });
+
+  it("scores the share of the posting's terms the CV also names", () => {
+    const d = dimension(
+      scoreJobMatch(
+        candidate({ cvSkills: ["Python", "SQL", "Figma"] }),
+        job({ namedSkills: ["Python", "SQL", "Kubernetes", "AWS"] }),
+      ),
+    );
+    expect(d.state).toBe("scored");
+    expect(d.score).toBeCloseTo(0.5);
+    expect(d.explanation).toContain("Python");
+    // The claim is co-occurrence, never that a requirement is met.
+    expect(d.explanation).toMatch(/both name/i);
+    expect(d.explanation).not.toMatch(/qualif|requirement|suitab/i);
+  });
+
+  it("scores zero, not unknown, when a readable CV shares nothing", () => {
+    // This is a real comparison that came back empty, which is different from
+    // having nothing to compare.
+    const d = dimension(
+      scoreJobMatch(
+        candidate({ cvSkills: ["Figma"] }),
+        job({ namedSkills: ["Python", "SQL"] }),
+      ),
+    );
+    expect(d.state).toBe("scored");
+    expect(d.score).toBe(0);
+  });
+
+  it("does not distort the other dimensions when it is unknown", () => {
+    // An unknown dimension drops out of the weighting entirely, so a perfect
+    // match on everything else still scores 100.
+    const result = scoreJobMatch(candidate(), job());
+    expect(dimension(result).state).toBe("unknown");
+    expect(result.score).toBe(100);
   });
 });

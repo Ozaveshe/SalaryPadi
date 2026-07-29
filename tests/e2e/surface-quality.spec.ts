@@ -178,3 +178,80 @@ test("mobile layout stays usable without horizontal overflow", async ({
     ).toBeLessThanOrEqual(2);
   }
 });
+
+/**
+ * The job list is set as an index of records rather than a deck of cards: no
+ * container per row, and provenance in its own right-hand column so the source
+ * of twenty roles reads as a column you can scan.
+ *
+ * That column is carried entirely by CSS grid placement, so it can collapse
+ * silently — a stray `display` change on the card, or the footer losing
+ * `display: contents`, drops the rail back inline under the body and nothing
+ * throws. This asserts the geometry rather than the declarations, so it stays
+ * true however the rule is expressed.
+ */
+test("job rows keep provenance in its own column on desktop", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await visit(page, "/jobs");
+
+  const card = page.locator(".job-card").first();
+  test.skip((await card.count()) === 0, "No jobs published on this base URL.");
+
+  const box = await card.evaluate((el) => {
+    const rect = (node: Element | null) =>
+      node ? node.getBoundingClientRect() : null;
+    const title = rect(el.querySelector(".job-card-title"));
+    const rail = rect(el.querySelector(".job-source-badges"));
+    return {
+      titleRight: title ? title.right : null,
+      railLeft: rail ? rail.left : null,
+      railTop: rail ? rail.top : null,
+      titleTop: title ? title.top : null,
+      cardBorder: getComputedStyle(el).borderTopWidth,
+    };
+  });
+
+  expect(box.railLeft, "the card renders a provenance rail").not.toBeNull();
+  expect(
+    box.railLeft!,
+    "provenance sits beside the role, not beneath it",
+  ).toBeGreaterThan(box.titleRight!);
+  expect(
+    Math.abs(box.railTop! - box.titleTop!),
+    "provenance aligns with the first row so the column scans straight",
+  ).toBeLessThan(24);
+  expect(box.cardBorder, "rows are separated by rules, not boxed").toBe("0px");
+});
+
+test("job rows fold provenance underneath on a narrow viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await visit(page, "/jobs");
+
+  const card = page.locator(".job-card").first();
+  test.skip((await card.count()) === 0, "No jobs published on this base URL.");
+
+  const stacked = await card.evaluate((el) => {
+    const title = el.querySelector(".job-card-title")?.getBoundingClientRect();
+    const rail = el
+      .querySelector(".job-source-badges")
+      ?.getBoundingClientRect();
+    if (!title || !rail) return null;
+    return rail.top > title.top;
+  });
+
+  expect(stacked, "the two-column rail cannot survive 360px").toBe(true);
+
+  const overflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
+  );
+  expect(
+    overflow,
+    "/jobs overflows horizontally on mobile",
+  ).toBeLessThanOrEqual(2);
+});

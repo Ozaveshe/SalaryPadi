@@ -1,3 +1,4 @@
+import { readJobSkills } from "@/lib/career/cv/relevance";
 import type { Job } from "@/lib/jobs/types";
 
 import type {
@@ -80,6 +81,12 @@ function positiveAmount(value: number | null): number | undefined {
 
 export function toCandidateProfile(
   row: CandidateProfileRowLike,
+  /**
+   * Terms read out of the candidate's own CV, when one is stored and readable.
+   * Passed in rather than read here so this module stays free of "server-only"
+   * and remains unit testable.
+   */
+  cvSkills: readonly string[] = [],
 ): CandidateProfile {
   return {
     experienceLevel: toExperienceLevel(row.experience_level),
@@ -90,10 +97,17 @@ export function toCandidateProfile(
     desiredPayPeriod: toPayPeriod(row.desired_pay_period),
     locationCountry: row.location_country ?? undefined,
     openToRelocation: row.open_to_relocation,
+    cvSkills,
   };
 }
 
 export function toJobFacts(job: Job): JobFacts {
+  // The posting's own words, read through the same fixed vocabulary the CV is
+  // read through, so the two sides of the skills comparison are commensurable.
+  const namedSkills = readJobSkills({
+    title: job.title,
+    description: job.description,
+  });
   const salary = job.salary;
   // A salary is only comparable when the source published a currency and a
   // period alongside the number. A bare figure is not a pay fact.
@@ -112,6 +126,7 @@ export function toJobFacts(job: Job): JobFacts {
       : undefined,
     currencyCode: comparablePay ? currencyCode : undefined,
     payPeriod: comparablePay ? payPeriod : undefined,
+    namedSkills,
     eligibility: {
       worldwide: job.eligibility.scope === "worldwide",
       nigeria: job.eligibility.nigeria,

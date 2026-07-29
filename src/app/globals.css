@@ -3162,54 +3162,194 @@ a:hover {
 }
 
 /* ---------------------------------------------------------------------------
- * Visual refresh: elevation and hierarchy on the surfaces people actually read
+ * Layout language: the job list is an index of records, not a deck of cards
  *
- * The job list is where nearly all reading happens, and every row previously
- * carried identical weight: same background, same border, a title barely
- * larger than the metadata under it. These rules give the list a scan order —
- * the title leads, the company sits under it, evidence and source recede — and
- * give the card something to lift off when it is hovered or selected.
+ * Every row used to be a bordered, rounded, softly shadowed container holding a
+ * logo, a title, a row of pills, a row of facts, a row of tag pills and a
+ * footer. Twenty of those stacked vertically is the shape every job board and
+ * every generated dashboard already has: uniform boxes, uniform weight, nothing
+ * leading the eye. Scanning it means reading every row in full.
+ *
+ * A record index instead. The container disappears and a hairline rule does the
+ * separating. Each row becomes two columns: what the role *is* on the left, and
+ * where it *came from* on the right, set quietly and aligned so the provenance
+ * of twenty roles reads as a column you can run your eye down rather than
+ * twenty footers you have to find. Hierarchy is carried by type size, weight
+ * and space, which is what a catalogue or a listings page has always used, and
+ * which does not need a single border to work.
  * ------------------------------------------------------------------------ */
 
-.job-card {
-  border-radius: var(--radius-medium);
-  padding-inline: 0.9rem;
-  transition:
-    background-color 160ms ease,
-    box-shadow 160ms ease;
+.job-list {
+  border-top: 1px solid var(--border-default);
 }
 
-/* The row is the click target, so it should feel like one. */
-@media (hover: hover) {
-  .job-list-item:hover .job-card {
-    background: var(--surface-default);
-    box-shadow: var(--shadow-small);
-  }
+.job-list-item {
+  position: relative;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.job-card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 1.5rem 0.25rem;
+  transition: background-color 140ms ease;
+}
+
+/* Two columns: the role, then where it came from. */
+.job-card-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 13rem);
+  align-items: start;
+  gap: 0.35rem 2rem;
+}
+
+.job-card-title {
+  grid-column: 1;
+  gap: 0.85rem;
+  align-items: start;
+}
+
+/* The company sits above the title as an eyebrow, so the role reads first. */
+.job-company {
+  margin: 0 0 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .job-title {
-  font-size: 1.28rem;
-  letter-spacing: -0.03em;
+  font-size: 1.32rem;
+  font-weight: 700;
+  letter-spacing: -0.032em;
+  line-height: 1.22;
 }
 
-.job-company {
-  font-size: 0.82rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-  text-transform: none;
+.job-badges,
+.job-facts {
+  grid-column: 1;
 }
 
-/* Source and freshness are provenance, not headline: present, never loud. */
+.job-facts {
+  gap: 0.4rem 0.9rem;
+  font-size: 0.86rem;
+}
+
+/*
+ * Evidence was a row of bordered pills, which is a lot of edges for text that
+ * is only ever read after the title. Set as plain separated phrases it carries
+ * the same information and stops competing.
+ */
+.evidence-tag-list {
+  grid-column: 1;
+  gap: 0 0.55rem;
+  margin-top: 0.15rem;
+}
+
+.evidence-tag-list li {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.evidence-tag-list li + li::before {
+  content: "·";
+  margin-right: 0.55rem;
+  color: var(--border-strong);
+}
+
+/*
+ * The provenance rail. On a wide viewport it is its own right-hand column,
+ * aligned so source and freshness line up down the page.
+ */
+.job-card-footer {
+  display: contents;
+}
+
+/*
+ * Pinned to the first row rather than spanning, so the source of every role
+ * lands at the same height whatever the card below it contains. Spanning would
+ * centre it against a variable-height body and lose the alignment that makes
+ * the column scannable.
+ */
+.job-source-badges {
+  grid-column: 2;
+  grid-row: 1;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+  text-align: right;
+}
+
 .job-source-badges .status {
-  font-size: 0.72rem;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.job-source-badges .status-warning {
+  color: var(--status-warning-text);
+  font-weight: 650;
+}
+
+/* The actions stay with the content they act on, under the left column. */
+.job-card-footer > .cluster {
+  grid-column: 1;
+  gap: 0.9rem;
+  margin-top: 0.35rem;
+}
+
+@media (hover: hover) {
+  .job-list-item:hover .job-card {
+    background: var(--surface-brand-soft);
+  }
+}
+
+/* Below the split width the rail cannot be a column, so it becomes a last line. */
+@media (max-width: 47.9rem) {
+  .job-card-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .job-source-badges {
+    grid-column: 1;
+    grid-row: auto;
+    flex-direction: row;
+    align-items: baseline;
+    text-align: left;
+  }
+}
+
+/* Selection: the row is claimed by weight and ground, with no rail or stripe. */
+@container (min-width: 58rem) {
+  .job-list-item[data-selected="true"] .job-card {
+    background: var(--surface-brand-soft);
+  }
+
+  .job-list-item[data-selected="true"] .job-title {
+    text-decoration: underline;
+    text-decoration-color: var(--interactive-primary);
+    text-underline-offset: 0.28em;
+    text-decoration-thickness: 2px;
+  }
+}
+
+/* An aged posting recedes; its warning badge carries the claim. */
+.job-card[data-posting-age="stale"] {
+  background: var(--sand-50);
 }
 
 .surface {
   box-shadow: var(--shadow-small);
 }
 
-/* The quick-view panel is a peer of the page, not a floating dialog, so it
-   gets the ambient shadow rather than the heavy one. */
 .job-preview {
   box-shadow: var(--shadow-medium);
 }
@@ -3217,26 +3357,18 @@ a:hover {
 .workspace-stat {
   transition:
     border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
+    box-shadow 160ms ease;
 }
 
 @media (hover: hover) {
   .workspace-stat-link:hover {
     box-shadow: var(--shadow-medium);
-    transform: translateY(-1px);
   }
 }
 
-/* Every transition above is decoration over an already-usable page, so all of
-   it goes away for anyone who has asked for less motion. */
 @media (prefers-reduced-motion: reduce) {
   .job-card,
   .workspace-stat {
     transition: none;
-  }
-
-  .workspace-stat-link:hover {
-    transform: none;
   }
 }
