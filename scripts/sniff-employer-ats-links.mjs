@@ -59,16 +59,39 @@ async function readBoundedText(response) {
  * Only providers src/lib/jobs/ats/endpoints.ts can fetch are looked for.
  */
 const ATS_PATTERNS = [
-  { provider: "greenhouse", re: /(?:job-boards(?:\.eu)?|boards)\.greenhouse\.io\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g },
-  { provider: "greenhouse", re: /boards-api\.greenhouse\.io\/v1\/boards\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g },
-  { provider: "lever", re: /jobs\.(?:eu\.)?lever\.co\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g },
-  { provider: "ashby", re: /jobs\.ashbyhq\.com\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g },
-  { provider: "workable", re: /apply\.workable\.com\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g },
+  {
+    provider: "greenhouse",
+    re: /(?:job-boards(?:\.eu)?|boards)\.greenhouse\.io\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g,
+  },
+  {
+    provider: "greenhouse",
+    re: /boards-api\.greenhouse\.io\/v1\/boards\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g,
+  },
+  {
+    provider: "lever",
+    re: /jobs\.(?:eu\.)?lever\.co\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g,
+  },
+  {
+    provider: "ashby",
+    re: /jobs\.ashbyhq\.com\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g,
+  },
+  {
+    provider: "workable",
+    re: /apply\.workable\.com\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g,
+  },
 ];
 
 /** Slugs that appear in ATS URLs but are paths, not tenants. */
 const NOT_A_TENANT = new Set([
-  "embed", "api", "v1", "j", "assets", "static", "widget", "boards", "jobs",
+  "embed",
+  "api",
+  "v1",
+  "j",
+  "assets",
+  "static",
+  "widget",
+  "boards",
+  "jobs",
 ]);
 
 const EMPLOYERS = [
@@ -125,7 +148,14 @@ const EMPLOYERS = [
 ];
 
 /** Careers pages live under a handful of conventional paths. */
-const PATHS = ["/careers", "/careers/", "/jobs", "/about/careers", "/company/careers", "/"];
+const PATHS = [
+  "/careers",
+  "/careers/",
+  "/jobs",
+  "/about/careers",
+  "/company/careers",
+  "/",
+];
 
 async function fetchText(url) {
   const controller = new AbortController();
@@ -171,7 +201,11 @@ async function worker() {
       const html = await fetchText(`https://${domain}${path}`);
       if (!html) continue;
       for (const hit of findTenants(html)) {
-        if (!hits.some((h) => h.provider === hit.provider && h.tenant === hit.tenant)) {
+        if (
+          !hits.some(
+            (h) => h.provider === hit.provider && h.tenant === hit.tenant,
+          )
+        ) {
           hits.push({ ...hit, foundOn: `https://${domain}${path}` });
         }
       }
@@ -179,7 +213,9 @@ async function worker() {
       await sleep(150);
     }
     if (hits.length > 0) {
-      console.log(`  ${name} (${domain}) -> ${hits.map((h) => `${h.provider}/${h.tenant}`).join(", ")}`);
+      console.log(
+        `  ${name} (${domain}) -> ${hits.map((h) => `${h.provider}/${h.tenant}`).join(", ")}`,
+      );
       results.push({ employer: name, domain, hits });
     }
   }
@@ -189,5 +225,10 @@ console.log(`Reading ${EMPLOYERS.length} careers pages…`);
 await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 
 mkdirSync(dirname(OUT_PATH), { recursive: true });
-writeFileSync(OUT_PATH, JSON.stringify({ readAt: new Date().toISOString(), results }, null, 2));
-console.log(`\n${results.length} employers declare an ATS board. Written to ${OUT_PATH}`);
+writeFileSync(
+  OUT_PATH,
+  JSON.stringify({ readAt: new Date().toISOString(), results }, null, 2),
+);
+console.log(
+  `\n${results.length} employers declare an ATS board. Written to ${OUT_PATH}`,
+);
