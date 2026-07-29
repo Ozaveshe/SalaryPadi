@@ -135,7 +135,7 @@
       "countriesOfOperation": ["NG", "GH", "ZA", "KE"],
       "status": "probed_zero",
       "discoverySource": "ng_fintech_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -147,7 +147,7 @@
       "countriesOfOperation": ["NG", "US", "GB", "KE", "GH"],
       "status": "probed_zero",
       "discoverySource": "ng_fintech_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -159,7 +159,7 @@
       "countriesOfOperation": ["NG", "KE", "UG"],
       "status": "probed_zero",
       "discoverySource": "ng_fintech_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -171,7 +171,7 @@
       "countriesOfOperation": ["NG", "KE", "UG", "RW", "EG", "remote_africa"],
       "status": "probed_zero",
       "discoverySource": "africa_operations_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -183,7 +183,7 @@
       "countriesOfOperation": ["NG"],
       "status": "probed_zero",
       "discoverySource": "ng_fintech_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -195,7 +195,7 @@
       "countriesOfOperation": ["NG", "GH", "ZA", "KE", "EG"],
       "status": "probed_zero",
       "discoverySource": "africa_operations_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -207,7 +207,7 @@
       "countriesOfOperation": ["NG", "KE", "ZA"],
       "status": "probed_zero",
       "discoverySource": "ng_fintech_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -217,10 +217,11 @@
       "boardIdentifier": "helium-health",
       "careersUrl": "https://www.heliumhealth.com/careers",
       "countriesOfOperation": ["NG", "SN", "KE"],
-      "status": "candidate",
+      "status": "probed_rejected",
       "discoverySource": "ng_health_sweep",
-      "lastProbedAt": "2026-07-22",
-      "lastProbeOpenRoles": 2
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 1,
+      "rejectionReason": "zombie_board: single open role, newest posting 2025-06-23 (13 months old at probe)"
     },
     {
       "companyName": "M-KOPA",
@@ -231,7 +232,7 @@
       "countriesOfOperation": ["KE", "UG", "NG", "GH"],
       "status": "probed_zero",
       "discoverySource": "africa_operations_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -243,7 +244,7 @@
       "countriesOfOperation": ["KE", "TZ", "RW", "UG", "CI", "SN"],
       "status": "probed_zero",
       "discoverySource": "africa_operations_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -255,7 +256,7 @@
       "countriesOfOperation": ["NG", "GH", "UG", "US", "GB"],
       "status": "probed_zero",
       "discoverySource": "africa_operations_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -267,7 +268,7 @@
       "countriesOfOperation": ["DZ", "MA", "TN", "SN", "CI"],
       "status": "probed_zero",
       "discoverySource": "africa_operations_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -279,7 +280,7 @@
       "countriesOfOperation": ["ZA"],
       "status": "probed_zero",
       "discoverySource": "africa_operations_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -291,7 +292,7 @@
       "countriesOfOperation": ["EG", "SA", "AE", "PK"],
       "status": "probed_zero",
       "discoverySource": "africa_operations_sweep",
-      "lastProbedAt": "2026-07-24",
+      "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 0
     },
     {
@@ -387,6 +388,55 @@
       "discoverySource": "ngo_sweep_via_reliefweb",
       "lastProbedAt": null,
       "lastProbeOpenRoles": null
+    },
+    {
+      "companyName": "Renmoney",
+      "canonicalDomain": "renmoney.com",
+      "atsProvider": "workable",
+      "boardIdentifier": "renmoney",
+      "careersUrl": "https://apply.workable.com/renmoney/",
+      "countriesOfOperation": ["NG"],
+      "status": "ready_for_rights_review",
+      "discoverySource": "ng_lending_sweep",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 110,
+      "probeNote": "71 Nigerian roles (Lagos 62, Ikoyi 9 - matches its Ikoyi HQ). 53 inside the 365-day publication bound, 21 posted within 90 days, newest 2026-07-28. 39 non-Nigerian roles (Russia, Serbia, Georgia, Belarus) would be withheld by the country gate. Largest single Nigerian yield found: would take Nigerian supply from 91 to roughly 144."
+    },
+    {
+      "companyName": "One Acre Fund",
+      "canonicalDomain": "oneacrefund.org",
+      "atsProvider": "greenhouse",
+      "boardIdentifier": "oneacrefund",
+      "careersUrl": "https://oneacrefund.org/careers",
+      "countriesOfOperation": [
+        "KE",
+        "RW",
+        "BI",
+        "TZ",
+        "MW",
+        "UG",
+        "ZM",
+        "NG",
+        "ET"
+      ],
+      "status": "ready_for_rights_review",
+      "discoverySource": "africa_operations_sweep",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 37,
+      "probeNote": "27 of 37 roles are African, 4 Nigerian, newest posted 2026-07-29. Was carried as an unprobed candidate with no board identifier; the Greenhouse tenant resolves."
+    },
+    {
+      "companyName": "Luno",
+      "canonicalDomain": "luno.com",
+      "atsProvider": "greenhouse",
+      "boardIdentifier": "luno",
+      "careersUrl": "https://www.luno.com/en/careers",
+      "countriesOfOperation": ["ZA", "NG", "GB", "MY"],
+      "status": "ready_for_rights_review",
+      "discoverySource": "africa_operations_sweep",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 7,
+      "probeNote": "5 of 7 roles African, newest 2026-07-29. Small but live; worth registering only alongside a larger board."
     }
   ]
 }
