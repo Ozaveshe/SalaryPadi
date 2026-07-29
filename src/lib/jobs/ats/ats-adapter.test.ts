@@ -957,4 +957,57 @@ describe("employer-authorized ATS adapter", () => {
       { index: 1, stage: "normalization", issuePaths: [] },
     ]);
   });
+  /*
+   * The shape M-KOPA and LemFi actually serve. Ashby spells "no value" as an
+   * explicit null rather than by omitting the key, and because the adapter
+   * always requests includeCompensation=true a compensation object is present
+   * on every record -- so a role with no published salary arrives as
+   * `{ scrapeableCompensationSalarySummary: null }`, not as an absent field.
+   *
+   * The fixture above omits `compensation` entirely, which is why this passed
+   * in tests and failed 49-of-49 and 21-of-22 in production the first time two
+   * Ashby tenants were registered. A whole board quarantined on one optional
+   * field reads as a broken employer rather than a schema that disagrees with
+   * the provider about how to say "nothing here", so both spellings are pinned.
+   */
+  it("accepts the nulls Ashby sends for unstated compensation and workplace", async () => {
+    const result = await fetchAtsSourceRecords(ashbySource(), {
+      fetch: fixedFetch(
+        jsonResponse({
+          apiVersion: "1",
+          jobs: [
+            ashbyJob({
+              compensation: {
+                scrapeableCompensationSalarySummary: null,
+                summaryComponents: null,
+              },
+            }),
+            ashbyJob({
+              id: "posting-456",
+              workplaceType: null,
+              department: null,
+              team: null,
+              compensation: { scrapeableCompensationSalarySummary: null },
+            }),
+          ],
+        }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    expect(result.invalidRecords).toEqual([]);
+    expect(result.records).toHaveLength(2);
+    expect(result.records[0]).toMatchObject({
+      externalId: "posting-123",
+      salary: null,
+    });
+    expect(result.records[1]).toMatchObject({
+      externalId: "posting-456",
+      workplaceType: null,
+      department: null,
+      team: null,
+      salary: null,
+    });
+  });
 });

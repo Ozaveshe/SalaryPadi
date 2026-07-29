@@ -97,8 +97,8 @@
       "status": "probed_rejected",
       "rejectionReason": "wrong_company: unrelated US 3D-printing company",
       "discoverySource": "ng_fintech_sweep",
-      "lastProbedAt": "2026-07-22",
-      "lastProbeOpenRoles": null
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 13
     },
     {
       "companyName": "Vendease",
@@ -384,7 +384,7 @@
         "NG",
         "ET"
       ],
-      "status": "candidate",
+      "status": "duplicate_of_registered",
       "discoverySource": "ngo_sweep_via_reliefweb",
       "lastProbedAt": null,
       "lastProbeOpenRoles": null
@@ -396,7 +396,7 @@
       "boardIdentifier": "renmoney",
       "careersUrl": "https://apply.workable.com/renmoney/",
       "countriesOfOperation": ["NG"],
-      "status": "ready_for_rights_review",
+      "status": "registered",
       "discoverySource": "ng_lending_sweep",
       "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 110,
@@ -419,7 +419,7 @@
         "NG",
         "ET"
       ],
-      "status": "ready_for_rights_review",
+      "status": "registered",
       "discoverySource": "africa_operations_sweep",
       "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 37,
@@ -432,11 +432,127 @@
       "boardIdentifier": "luno",
       "careersUrl": "https://www.luno.com/en/careers",
       "countriesOfOperation": ["ZA", "NG", "GB", "MY"],
-      "status": "ready_for_rights_review",
+      "status": "registered",
       "discoverySource": "africa_operations_sweep",
       "lastProbedAt": "2026-07-29",
       "lastProbeOpenRoles": 7,
       "probeNote": "5 of 7 roles African, newest 2026-07-29. Small but live; worth registering only alongside a larger board."
+    },
+    {
+      "companyName": "M-KOPA",
+      "canonicalDomain": "m-kopa.com",
+      "atsProvider": "ashby",
+      "boardIdentifier": "m-kopa",
+      "careersUrl": "https://www.m-kopa.com/careers",
+      "countriesOfOperation": ["KE", "NG", "GH", "UG", "ZA"],
+      "status": "registered",
+      "discoverySource": "named_employer_probe",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 49,
+      "note": "Registered and rights-reviewed, but PAUSED in production pending deploy. The first Ashby tenants ever registered exposed a schema bug: ashbyJobSchema declared compensation.scrapeableCompensationSalarySummary and workplaceType as optional, while Ashby sends an explicit null, so every record quarantined (49/49 M-KOPA, 21/22 LemFi). Fixed in src/lib/jobs/ats/schemas.ts with a regression test. Set status back to active once that fix is live."
+    },
+    {
+      "companyName": "LemFi",
+      "canonicalDomain": "lemfi.com",
+      "atsProvider": "ashby",
+      "boardIdentifier": "lemfi",
+      "careersUrl": "https://lemfi.com/careers",
+      "countriesOfOperation": ["NG", "GB", "US", "CA"],
+      "status": "registered",
+      "discoverySource": "named_employer_probe",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 22,
+      "note": "Registered and rights-reviewed, but PAUSED in production pending deploy. The first Ashby tenants ever registered exposed a schema bug: ashbyJobSchema declared compensation.scrapeableCompensationSalarySummary and workplaceType as optional, while Ashby sends an explicit null, so every record quarantined (49/49 M-KOPA, 21/22 LemFi). Fixed in src/lib/jobs/ats/schemas.ts with a regression test. Set status back to active once that fix is live."
+    },
+    {
+      "companyName": "Acumen",
+      "canonicalDomain": "acumen.org",
+      "atsProvider": "greenhouse",
+      "boardIdentifier": "acumen",
+      "careersUrl": "https://acumen.org/careers",
+      "countriesOfOperation": ["NG", "KE", "IN", "PK", "GB"],
+      "status": "registered",
+      "discoverySource": "named_employer_probe",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 6
+    },
+    {
+      "companyName": "Access Bank",
+      "canonicalDomain": "accessbankplc.com",
+      "atsProvider": "workable",
+      "boardIdentifier": "access-bank",
+      "careersUrl": "https://www.accessbankplc.com/careers",
+      "countriesOfOperation": ["NG", "AO", "GN", "GM", "GH", "KE", "ZA"],
+      "status": "ready_for_rights_review",
+      "discoverySource": "named_employer_probe",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 41,
+      "note": "41 roles, 3 Nigerian, 41 African, fresh 2026-07-29. Location spread (Angola, Guinea, Gambia) matches the real subsidiary footprint. Workable returned HTTP 429 before the account record could be read, so identity is NOT yet corroborated and domain_verified cannot be asserted. Re-probe before registering."
+    },
+    {
+      "companyName": "Ozow",
+      "canonicalDomain": "ozow.com",
+      "atsProvider": "greenhouse",
+      "boardIdentifier": "ozow",
+      "careersUrl": "https://ozow.com/careers",
+      "countriesOfOperation": ["ZA"],
+      "status": "ready_for_rights_review",
+      "discoverySource": "named_employer_probe",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 10,
+      "note": "10 roles, all Cape Town, fresh. South-African only and does not hire in Nigeria, so unlike Luno there is no prospect of a Nigerian role appearing later. Held until the ZA country pack activates."
+    },
+    {
+      "companyName": "Apollo Agriculture",
+      "canonicalDomain": "apolloagriculture.com",
+      "atsProvider": "lever",
+      "boardIdentifier": "apolloagriculture",
+      "careersUrl": "https://www.apolloagriculture.com/careers",
+      "countriesOfOperation": ["KE", "ZM"],
+      "status": "probed_rejected",
+      "discoverySource": "named_employer_probe",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 1,
+      "rejectionReason": "Zombie board: a single role, last published 2025-09-23, ten months stale at probe time."
+    },
+    {
+      "companyName": "Prospa (Nigeria)",
+      "canonicalDomain": "getprospa.com",
+      "atsProvider": "greenhouse",
+      "boardIdentifier": "prospa",
+      "careersUrl": "https://getprospa.com/careers",
+      "countriesOfOperation": ["NG"],
+      "status": "probed_rejected",
+      "discoverySource": "named_employer_probe",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 9,
+      "rejectionReason": "Slug collision, not this employer: greenhouse/prospa is the Australian SME lender (9 roles, Sydney/Queensland/Melbourne)."
+    },
+    {
+      "companyName": "Grey (Nigeria)",
+      "canonicalDomain": "grey.co",
+      "atsProvider": "greenhouse",
+      "boardIdentifier": "grey",
+      "careersUrl": "https://grey.co/careers",
+      "countriesOfOperation": ["NG"],
+      "status": "probed_rejected",
+      "discoverySource": "named_employer_probe",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 3,
+      "rejectionReason": "Slug collision, not this employer: greenhouse/grey is the advertising agency (Cincinnati and New York)."
+    },
+    {
+      "companyName": "Copia Global",
+      "canonicalDomain": "copiaglobal.com",
+      "atsProvider": "lever",
+      "boardIdentifier": "copia",
+      "careersUrl": "https://copiaglobal.com/careers",
+      "countriesOfOperation": ["KE", "UG"],
+      "status": "probed_rejected",
+      "discoverySource": "named_employer_probe",
+      "lastProbedAt": "2026-07-29",
+      "lastProbeOpenRoles": 9,
+      "rejectionReason": "Slug collision unresolved: lever/copia lists 8 New York City roles and no African location, which does not match the Kenyan consumer-goods distributor."
     }
   ]
 }
