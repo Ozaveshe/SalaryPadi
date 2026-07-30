@@ -209,6 +209,33 @@ counterparty Deeptrace Inc., Delaware). What it settles:
   prefer `external_url` when present) — effective once a display-rights
   contract exists.
 
+## SHIPPED: Nigeria salary benchmark lane (30 July 2026)
+
+`docs/data/20260730_coresignal_ng_salary_benchmarks.sql` (regenerable via
+`scripts/derive-coresignal-salary-benchmarks.mjs`) was applied to
+production the same day — the site's first Nigeria-local salary
+aggregates. Five cells passed the n≥10 / ≥5-distinct-employer gate:
+
+| Family                     | n  | Employers | p25      | Median   | p75      |
+| -------------------------- | -- | --------- | -------- | -------- | -------- |
+| Sales                      | 84 | 50        | ₦110,000 | ₦193,000 | ₦306,000 |
+| Logistics and Supply Chain | 37 | 30        | ₦95,000  | ₦125,000 | ₦175,000 |
+| Accounting and Finance     | 21 | 18        | ₦145,000 | ₦190,000 | ₦275,000 |
+| Education and Academia     | 14 | 6         | ₦90,000  | ₦120,000 | ₦133,000 |
+| Marketing                  | 13 | 8         | ₦120,000 | ₦150,000 | ₦360,000 |
+
+(NGN/month, postings dated ≥ 2025-08-01 only — older observations are
+excluded because naira inflation makes them unrepresentative.) Sixteen
+families remain honestly under threshold (software-engineering n=3,
+customer-support 7, banking-operations 7/4 …) — they fill when the
+corpus is refreshed on a paid plan. Verified rendering on production:
+/salaries hub Nigeria section and /salaries/ng/sales local slot both
+show the cells with Coresignal provenance. Source registered as
+`coresignal_jobs_ng_derived_snapshot` (licensed_dataset,
+written_licence per cl. 1.2.3, review due +6 months — the lane goes
+dark automatically if not re-reviewed by late January 2027). No app
+code changed; the existing benchmark lane machinery carried it.
+
 ## Registration prerequisites (once display rights are negotiated)
 
 1. Record the negotiated agreement's URL/date as `termsUrl` +
