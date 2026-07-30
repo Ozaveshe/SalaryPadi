@@ -3506,3 +3506,67 @@ a:hover {
 .home-start :focus-visible {
   outline-color: var(--gold-400);
 }
+
+/* Polish pass: micro-motion, pill chips, focus color, brand glyph ink. */
+.surface {
+  transition:
+    box-shadow 150ms ease,
+    border-color 150ms ease;
+}
+
+.surface:hover {
+  border-color: var(--border-strong);
+}
+
+.status {
+  border-radius: 999px;
+  font-weight: 650;
+}
+
+.button,
+.nav-link,
+.input,
+.select,
+.textarea {
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--violet-500);
+}
+
+.brand-logo {
+  --brand-mark-fill: var(--ink-900);
+}
+
+.site-footer {
+  color: var(--ink-100);
+}
+
+.site-footer .brand-logo {
+  --brand-mark-fill: var(--gold-400);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface,
+  .button,
+  .nav-link,
+  .input,
+  .select,
+  .textarea {
+    transition: none;
+  }
+
+  .button:active {
+    transform: none;
+  }
+}
