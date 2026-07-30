@@ -12,3 +12,7 @@ test-results
 skills-lock.json
 .codex/
 .claude/worktrees/
+
+# Corpus data files have no Prettier parser
+reports/*.jsonl
+reports/*.jsonl.gz

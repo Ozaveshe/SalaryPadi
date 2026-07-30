@@ -13,10 +13,18 @@ invented, stale, or unverifiable number or claim as fact.**
 
 - Every public fact carries its source, retrieval date, and review-due date.
   Missing evidence stays visibly missing — no placeholder market numbers.
-- Data sources are ingested only when their license permits republication
-  (open government licences, CC-BY, official public registers, employers'
-  own documented public APIs). If the license cannot be confirmed, the
-  source is not used. NGX-style "no republication" terms are a hard no.
+- Job postings may be ingested from any source we have a documented right
+  to use: employers' own boards/APIs, open feeds, and paid data providers
+  (published per the provider's contract — check display/redistribution
+  terms once at registration, then publish freely). Apply links stay
+  intact and freshness gates apply regardless of source.
+- Market facts (prices, statistics, benchmark numbers) keep the stricter
+  bar: ingested only when the license permits republication (open
+  government licences, CC-BY, official public registers, provider
+  contracts granting display rights). NGX-style "no republication" terms
+  remain a hard no — that is contract exposure, not preference.
+- Scraped personal profiles (individuals' data) are not published; they
+  may inform internal tooling only (NDPA/GDPR exposure).
 - Regulator claims name the exact licensed entity. A holding company is
   "group parent of a licensed X", never "licensed X".
 - Aggregates publish only above privacy thresholds (3+ distinct
