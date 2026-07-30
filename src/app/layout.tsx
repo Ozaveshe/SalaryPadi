@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { DM_Sans, Space_Grotesk } from "next/font/google";
 import { cookies, headers } from "next/headers";
 
 import { AnalyticsConsent } from "@/components/analytics-consent";
@@ -22,10 +22,16 @@ const defaultCountryPack = getDefaultCountryPack();
  * the typeface the design is actually set in arrives with no external request,
  * no third-party connection, and no layout shift.
  */
-const inter = Inter({
+const dmSans = DM_Sans({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-sans-loaded",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-display-loaded",
 });
 
 export const metadata: Metadata = {
@@ -59,10 +65,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: "light",
-  // --surface-page (--sand-50). The previous #fffaf2 was a cream that no
-  // longer appears anywhere in the palette, so browser chrome rendered a
-  // different shade from the page it framed.
-  themeColor: "#f7f8f6",
+  // --surface-page (--sand-50): the cool paper tint of the 2026 redesign, so
+  // browser chrome matches the page it frames.
+  themeColor: "#f6f7f9",
 };
 
 export default async function RootLayout({
@@ -84,7 +89,7 @@ export default async function RootLayout({
     <html
       lang={defaultCountryPack.defaultLocale}
       data-scroll-behavior="smooth"
-      className={inter.variable}
+      className={`${dmSans.variable} ${spaceGrotesk.variable}`}
     >
       <body className="flex min-h-screen flex-col">
         <a className="skip-link" href="#main-content">

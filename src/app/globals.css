@@ -12,57 +12,84 @@
    * weight. 200-600 are interpolated in OKLCH so the steps read as evenly
    * spaced rather than bunching in the middle the way sRGB blends do.
    */
-  --forest-950: #06241d;
-  --forest-900: #0d3428;
-  --forest-800: #124534;
-  --forest-700: #145c48;
-  --forest-600: #167257;
-  --forest-500: #1f8d6d;
-  --forest-400: #45a888;
-  --forest-300: #7cc4aa;
-  --forest-200: #b4dfcd;
-  --forest-100: #dcece5;
-  --forest-50: #eff7f3;
-  --coral-700: #a43f24;
-  --coral-600: #c65332;
-  --coral-100: #f9ded4;
-  --gold-700: #765407;
-  --gold-100: #f8e8aa;
   /*
-   * The neutrals carried a green cast so faint it just read as dirty grey.
-   * Warming them slightly and letting the page sit a touch below pure white
-   * gives white cards something to lift off, which is what makes a list of
-   * cards scannable at all.
+   * "Naira Gold on Ink" — 2026 redesign. Deep slate ink carries structure
+   * and text, amber gold is the money/CTA color (it is already the brand
+   * spark), violet is the interactive accent. Legacy ramp names below are
+   * aliases into this palette so every long-tail component keeps working.
    */
-  --sand-50: #f8f8f5;
-  --sand-100: #f1f1ec;
-  --sand-200: #e3e4dd;
+  --ink-950: #0b1220;
+  --ink-900: #0f172a;
+  --ink-800: #1e293b;
+  --ink-700: #334155;
+  --ink-500: #475569;
+  --ink-400: #94a3b8;
+  --ink-200: #e2e8f0;
+  --ink-100: #eef2f7;
+  --ink-50: #f8fafc;
+  --gold-700: #b45309;
+  --gold-800: #92400e;
+  --gold-600: #d97706;
+  --gold-500: #f59e0b;
+  --gold-400: #fbbf24;
+  --gold-100: #fef3c7;
+  --gold-50: #fffbeb;
+  --violet-700: #6d28d9;
+  --violet-600: #7c3aed;
+  --violet-500: #8b5cf6;
+  --violet-300: #c4b5fd;
+  --violet-200: #ddd6fe;
+  --violet-100: #ede9fe;
+  --teal-700: #0f766e;
+  --teal-100: #ccfbf1;
+  --red-700: #b91c1c;
+  --red-100: #fee2e2;
   --white: #ffffff;
-  --ink-700: #3a4744;
-  --ink-500: #63706c;
-  --red-700: #a1252f;
-  --red-100: #f9dfe2;
+
+  /* Legacy ramp aliases — old name, new palette. */
+  --forest-950: var(--ink-950);
+  --forest-900: var(--ink-900);
+  --forest-800: var(--ink-800);
+  --forest-700: var(--violet-700);
+  --forest-600: var(--violet-600);
+  --forest-500: var(--violet-500);
+  --forest-400: var(--violet-300);
+  --forest-300: var(--violet-200);
+  --forest-200: var(--violet-100);
+  --forest-100: var(--gold-100);
+  --forest-50: var(--gold-50);
+  --coral-700: var(--gold-700);
+  --coral-600: var(--gold-600);
+  --coral-100: var(--gold-100);
+  --sand-50: #f6f7f9;
+  --sand-100: var(--ink-100);
+  --sand-200: var(--ink-200);
 
   /* Semantic tokens */
   --surface-page: var(--sand-50);
   --surface-default: var(--white);
-  --surface-subtle: var(--sand-100);
-  --surface-brand-soft: var(--forest-50);
-  --text-primary: var(--forest-950);
+  --surface-subtle: var(--ink-100);
+  --surface-brand-soft: var(--gold-50);
+  --surface-inverse: var(--ink-950);
+  --text-primary: var(--ink-950);
   --text-secondary: var(--ink-700);
   --text-muted: var(--ink-500);
-  --border-default: #d9dfdc;
-  --border-strong: #a9b4af;
-  --interactive-primary: var(--forest-700);
-  --interactive-primary-hover: var(--forest-800);
-  --interactive-accent: var(--coral-600);
-  --focus-ring: #bd5a36;
-  --status-success-bg: var(--forest-100);
-  --status-success-text: #0d513f;
+  --text-inverse: var(--ink-50);
+  --border-default: var(--ink-200);
+  --border-strong: var(--ink-400);
+  --interactive-primary: var(--violet-700);
+  --interactive-primary-hover: #5b21b6;
+  --interactive-accent: var(--gold-600);
+  --cta-bg: var(--gold-500);
+  --cta-bg-hover: var(--gold-400);
+  --cta-text: var(--ink-950);
+  --focus-ring: var(--gold-700);
+  --status-success-bg: var(--teal-100);
+  --status-success-text: #115e59;
   --status-warning-bg: var(--gold-100);
-  --status-warning-text: #5b3f00;
+  --status-warning-text: #78350f;
   --status-danger-bg: var(--red-100);
-  --status-danger-text: var(--red-700);
+  --status-danger-text: #991b1b;
 
   /*
    * Elevation was a single near-invisible hint at 5% and a diffuse 8% bloom,
@@ -71,11 +98,11 @@
    * softer ambient one — tinted with the brand green rather than black, which
    * keeps a warm page from looking like it has grey smudges under it.
    */
-  --shadow-small: 0 1px 2px rgb(6 36 29 / 6%), 0 1px 3px rgb(6 36 29 / 4%);
-  --shadow-medium: 0 2px 4px rgb(6 36 29 / 6%), 0 8px 24px rgb(6 36 29 / 8%);
-  --shadow-large: 0 4px 8px rgb(6 36 29 / 7%), 0 16px 40px rgb(6 36 29 / 10%);
-  --radius-small: 0.5rem;
-  --radius-medium: 0.875rem;
+  --shadow-small: 0 1px 2px rgb(11 18 32 / 6%), 0 1px 3px rgb(11 18 32 / 4%);
+  --shadow-medium: 0 2px 4px rgb(11 18 32 / 6%), 0 8px 24px rgb(11 18 32 / 8%);
+  --shadow-large: 0 4px 8px rgb(11 18 32 / 7%), 0 16px 40px rgb(11 18 32 / 10%);
+  --radius-small: 0.625rem;
+  --radius-medium: 1rem;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -125,7 +152,7 @@ body {
      the stack still covers the moment before it swaps in. */
   font-family:
     var(--font-sans-loaded),
-    Inter,
+    "DM Sans",
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -135,9 +162,7 @@ body {
   font-size: 1rem;
   line-height: 1.6;
   text-rendering: optimizeLegibility;
-  /* Inter's defaults leave gaps at display sizes and its lining figures make
-     salary columns ragged; both are one-line fixes now the real face loads. */
-  font-feature-settings: "cv11", "ss01";
+  /* Lining figures make salary columns ragged; tabular keeps them aligned. */
   font-variant-numeric: tabular-nums;
 }
 
@@ -242,7 +267,7 @@ a:hover {
 }
 
 .site-footer .brand-accent {
-  color: #eec75f;
+  color: var(--gold-400);
 }
 
 .site-footer .brand-logo {
@@ -3370,5 +3395,179 @@ a:hover {
   .job-card,
   .workspace-stat {
     transition: none;
+  }
+}
+
+/* ===== 2026 redesign layer: Space Grotesk display + gold CTAs ===== */
+
+.page-title,
+.section-title,
+.brand-mark {
+  font-family:
+    var(--font-display-loaded), "Space Grotesk", var(--font-sans-loaded),
+    system-ui, sans-serif;
+}
+
+.page-title {
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.section-title {
+  letter-spacing: -0.02em;
+}
+
+.button {
+  border-color: var(--cta-bg);
+  background: var(--cta-bg);
+  color: var(--cta-text);
+  font-weight: 700;
+}
+
+.button:hover {
+  border-color: var(--cta-bg-hover);
+  background: var(--cta-bg-hover);
+  color: var(--cta-text);
+}
+
+.button-secondary {
+  border-color: var(--border-strong);
+  background: var(--surface-default);
+  color: var(--text-primary);
+}
+
+.button-secondary:hover {
+  border-color: var(--ink-950);
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+}
+
+.eyebrow {
+  color: var(--gold-800);
+}
+
+/* Hero: deep-ink band, light copy, floating white search card. */
+.home-start {
+  position: relative;
+  overflow: hidden;
+  margin-top: 1rem;
+  border-radius: var(--radius-medium);
+  background:
+    radial-gradient(
+      48rem 24rem at 88% -25%,
+      rgb(139 92 246 / 20%),
+      transparent 60%
+    ),
+    radial-gradient(
+      38rem 20rem at -12% 115%,
+      rgb(245 158 11 / 13%),
+      transparent 55%
+    ),
+    var(--ink-950);
+  padding: clamp(1.5rem, 4.5vw, 3.25rem);
+  color: var(--ink-50);
+}
+
+.home-start::before {
+  display: none;
+}
+
+.home-start .page-title {
+  color: var(--white);
+  font-size: clamp(2.15rem, 5vw, 3.4rem);
+  line-height: 1.05;
+}
+
+.home-start .lede {
+  color: var(--ink-200);
+}
+
+.home-hero-copy .eyebrow {
+  color: var(--gold-400);
+}
+
+.home-kicker {
+  border-color: var(--ink-700);
+  background: rgb(255 255 255 / 7%);
+  color: var(--ink-200);
+}
+
+.home-start .live-dot-live {
+  background: var(--gold-400);
+}
+
+.home-search {
+  border-radius: var(--radius-medium);
+  background: var(--surface-default);
+  padding: clamp(0.9rem, 2vw, 1.25rem);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-large);
+}
+
+.home-start :focus-visible {
+  outline-color: var(--gold-400);
+}
+
+/* Polish pass: micro-motion, pill chips, focus color, brand glyph ink. */
+.surface {
+  transition:
+    box-shadow 150ms ease,
+    border-color 150ms ease;
+}
+
+.surface:hover {
+  border-color: var(--border-strong);
+}
+
+.status {
+  border-radius: 999px;
+  font-weight: 650;
+}
+
+.button,
+.nav-link,
+.input,
+.select,
+.textarea {
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--violet-500);
+}
+
+.brand-logo {
+  --brand-mark-fill: var(--ink-900);
+}
+
+.site-footer {
+  color: var(--ink-100);
+}
+
+.site-footer .brand-logo {
+  --brand-mark-fill: var(--gold-400);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface,
+  .button,
+  .nav-link,
+  .input,
+  .select,
+  .textarea {
+    transition: none;
+  }
+
+  .button:active {
+    transform: none;
   }
 }
