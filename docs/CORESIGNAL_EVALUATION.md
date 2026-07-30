@@ -169,18 +169,53 @@ Senegal's 77). 59 credits remain; trial expires 6 Aug.
   plain JSONL keeps the salary-evidence projection (id, market, title,
   company, location, dates, salary array, application URL).
 
-## Registration prerequisites
+## Contract verdict (Self-Service Subscription Agreement, reviewed 30 July 2026)
 
-1. Retrieve the self-service clickwrap data agreement from the account
-   dashboard; record `termsUrl` + `termsReviewedAt` in the
-   `JobSourcePolicy` row and file the document. Per the July 2026
-   convention update, this contract is the only licensing check for job
-   supply; description storage/display rights should be read from it.
+The clickwrap accepted at signup is archived verbatim at
+`docs/data/sources/coresignal-self-service-agreement-2026-07-30.md`
+(source: https://coresignal.com/terms-and-conditions-api-dashboard/,
+counterparty Deeptrace Inc., Delaware). What it settles:
+
+- **Licence scope (1.1):** "internal business purposes" only.
+- **Public listings are NOT covered (1.2.1, 1.2.2):** "The Client has no
+  right to communicate or display to the public the Data, Substantial
+  part of the Data" and no re-utilization ("making available to the
+  public … online, or other forms of transmission"). Publishing raw
+  Coresignal job records as listings on salarypadi.com on the
+  self-service tier would breach the contract we signed — enforcement
+  reality: account termination (Section 3.2) and the supply lane dies.
+  **Public job supply from Coresignal requires a negotiated contract
+  with display/republication rights** (their sales channel sells to job
+  boards; the self-service tier simply doesn't include those rights).
+- **Derivative works ARE covered (1.2.3):** "sufficient alteration"
+  works are permitted, with the agreement's own example being
+  "integration of individual data points taken from the Data to the
+  Client's own product or service." Salary aggregates (percentiles per
+  role/city computed from the corpus), market-pulse statistics, and
+  free-search counts are clearly on the safe side. The 1,599-record
+  corpus is therefore fully usable for the salary-benchmark lane
+  (privacy threshold ≥3 contributors per cell per convention).
+- **Personal data (9.1):** all compliance burden is on us — reinforces
+  the employee-data internal-only rule.
+- The agreement text still describes a 400/200-credit trial; the account
+  was provisioned 2,000 unified credits with free searches — the
+  document lags the product, note it if terms are ever disputed.
+
+## Owner decisions (30 July 2026)
+
+- Launch 1 September 2026; expansion scope is West Africa only.
+- LinkedIn job pages approved as application destinations for
+  Coresignal-sourced records (`job_sources[].url`, status=active;
+  prefer `external_url` when present) — effective once a display-rights
+  contract exists.
+
+## Registration prerequisites (once display rights are negotiated)
+
+1. Record the negotiated agreement's URL/date as `termsUrl` +
+   `termsReviewedAt` in the `JobSourcePolicy` row; archive the document
+   under `docs/data/sources/`.
 2. Standard source registration (Moniepoint recipe), worker schedule
    registered `enabled=false`, pgTAP 90/91 board-set updates.
-3. Destination decision: LinkedIn-sourced records publish with the
-   LinkedIn job view as the application URL (`job_sources[].url`,
-   status=active); prefer `external_url` when present.
-4. Ingestion filters: drop non-job employment types (Volunteer,
+3. Ingestion filters: drop non-job employment types (Volunteer,
    event-like titles), enforce country-consistency checks, route
    ambiguous records through the existing quarantine path.
