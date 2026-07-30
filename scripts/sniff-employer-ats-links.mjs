@@ -56,28 +56,80 @@ async function readBoundedText(response) {
 
 /**
  * Where each provider publishes a tenant board. Captured group 1 is the tenant.
- * Only providers src/lib/jobs/ats/endpoints.ts can fetch are looked for.
+ *
+ * `parseable` marks the four providers src/lib/jobs/ats/endpoints.ts can fetch
+ * today. The rest are recorded but not ingestable, because the useful question
+ * before building a fifth adapter is which provider Africa's employers actually
+ * use -- and guessing tenant slugs answers that badly. A SmartRecruiters sweep
+ * over 224 guessed slugs found three tenants and zero African roles, which is
+ * evidence about the guessing, not about the provider.
  */
 const ATS_PATTERNS = [
   {
     provider: "greenhouse",
+    parseable: true,
     re: /(?:job-boards(?:\.eu)?|boards)\.greenhouse\.io\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g,
   },
   {
     provider: "greenhouse",
+    parseable: true,
     re: /boards-api\.greenhouse\.io\/v1\/boards\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g,
   },
   {
     provider: "lever",
+    parseable: true,
     re: /jobs\.(?:eu\.)?lever\.co\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g,
   },
   {
     provider: "ashby",
+    parseable: true,
     re: /jobs\.ashbyhq\.com\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g,
   },
   {
     provider: "workable",
+    parseable: true,
     re: /apply\.workable\.com\/([A-Za-z0-9][A-Za-z0-9_-]{1,80})/g,
+  },
+  // Not yet parseable. Recorded to size the gap.
+  {
+    provider: "smartrecruiters",
+    parseable: false,
+    re: /jobs\.smartrecruiters\.com\/([A-Za-z0-9][A-Za-z0-9_.-]{1,80})/g,
+  },
+  {
+    provider: "smartrecruiters",
+    parseable: false,
+    re: /api\.smartrecruiters\.com\/v1\/companies\/([A-Za-z0-9][A-Za-z0-9_.-]{1,80})/g,
+  },
+  {
+    provider: "workday",
+    parseable: false,
+    re: /([A-Za-z0-9][A-Za-z0-9_-]{1,60})\.wd\d+\.myworkdayjobs\.com/g,
+  },
+  {
+    provider: "successfactors",
+    parseable: false,
+    re: /career\d*\.successfactors\.(?:com|eu)\/[^"'<>]*company=([A-Za-z0-9]{1,40})/g,
+  },
+  {
+    provider: "oraclecloud",
+    parseable: false,
+    re: /([A-Za-z0-9-]{2,40})\.(?:fa\.)?(?:oraclecloud|oracle)\.com\/hcmUI\/CandidateExperience/g,
+  },
+  {
+    provider: "taleo",
+    parseable: false,
+    re: /([A-Za-z0-9-]{2,40})\.taleo\.net/g,
+  },
+  {
+    provider: "icims",
+    parseable: false,
+    re: /([A-Za-z0-9-]{2,40})\.icims\.com/g,
+  },
+  {
+    provider: "erecruiter",
+    parseable: false,
+    re: /(erecruiterafrica|seamlesshiring|myjobmag|jobberman)\.com/g,
   },
 ];
 
@@ -145,6 +197,52 @@ const EMPLOYERS = [
   ["IDinsight", "idinsight.org"],
   ["Sama", "sama.com"],
   ["Onafriq", "onafriq.com"],
+
+  // Large Nigerian and pan-African employers, which are the ones most likely to
+  // sit on an enterprise ATS rather than Greenhouse or Workable.
+  ["Dangote", "dangote.com"],
+  ["MTN Nigeria", "mtn.ng"],
+  ["MTN Group", "mtn.com"],
+  ["Airtel Nigeria", "airtel.com.ng"],
+  ["Guaranty Trust", "gtbank.com"],
+  ["Zenith Bank", "zenithbank.com"],
+  ["United Bank for Africa", "ubagroup.com"],
+  ["First Bank", "firstbanknigeria.com"],
+  ["Stanbic IBTC", "stanbicibtc.com"],
+  ["Access Bank", "accessbankplc.com"],
+  ["Ecobank", "ecobank.com"],
+  ["Standard Bank", "standardbank.com"],
+  ["Safaricom", "safaricom.co.ke"],
+  ["Equity Bank", "equitygroupholdings.com"],
+  ["Nestle Nigeria", "nestle-cwa.com"],
+  ["Unilever Nigeria", "unilever-ewa.com"],
+  ["Nigerian Breweries", "nbplc.com"],
+  ["Guinness Nigeria", "guinness-nigeria.com"],
+  ["Flour Mills", "fmnplc.com"],
+  ["PZ Cussons", "pzcussons.com"],
+  ["Seplat", "seplatenergy.com"],
+  ["Oando", "oandoplc.com"],
+  ["TotalEnergies Nigeria", "totalenergies.ng"],
+  ["Julius Berger", "julius-berger.com"],
+  ["Lafarge Africa", "lafarge.com.ng"],
+  ["IHS Towers", "ihstowers.com"],
+  ["Shoprite", "shoprite.co.za"],
+  ["BUA Group", "buagroup.com"],
+  ["Nigeria LNG", "nlng.com"],
+  ["Chevron Nigeria", "chevron.com"],
+  ["Bolt", "bolt.eu"],
+  ["Uber", "uber.com"],
+  ["Glovo", "glovoapp.com"],
+  ["African Development Bank", "afdb.org"],
+  ["World Health Organization", "who.int"],
+  ["UNICEF", "unicef.org"],
+  ["UNDP", "undp.org"],
+  ["World Food Programme", "wfp.org"],
+  ["Plan International", "plan-international.org"],
+  ["FHI 360", "fhi360.org"],
+  ["Jhpiego", "jhpiego.org"],
+  ["Chemonics", "chemonics.com"],
+  ["Palladium", "thepalladiumgroup.com"],
 ];
 
 /** Careers pages live under a handful of conventional paths. */
@@ -177,14 +275,14 @@ async function fetchText(url) {
 
 function findTenants(html) {
   const found = [];
-  for (const { provider, re } of ATS_PATTERNS) {
+  for (const { provider, re, parseable } of ATS_PATTERNS) {
     re.lastIndex = 0;
     let match;
     while ((match = re.exec(html)) !== null) {
       const tenant = match[1];
       if (NOT_A_TENANT.has(tenant.toLowerCase())) continue;
       if (!found.some((f) => f.provider === provider && f.tenant === tenant)) {
-        found.push({ provider, tenant });
+        found.push({ provider, tenant, parseable });
       }
     }
   }

@@ -6,6 +6,7 @@ import type {
   AtsEndpointTarget,
   GreenhouseEndpointTarget,
   LeverEndpointTarget,
+  SmartRecruitersEndpointTarget,
   WorkableEndpointTarget,
 } from "./types";
 
@@ -15,6 +16,7 @@ export const ATS_API_HOSTS = [
   "api.eu.lever.co",
   "api.ashbyhq.com",
   "apply.workable.com",
+  "api.smartrecruiters.com",
 ] as const;
 
 const tenantSchema = z
@@ -71,6 +73,25 @@ export function buildWorkableEndpoint(target: WorkableEndpointTarget): URL {
   );
 }
 
+/**
+ * SmartRecruiters paginates, so the page size is pinned here rather than left to
+ * the provider's default of 10. One request has to cover a whole board: the
+ * per-source budget is four calls a day, and a detail call per posting would
+ * exhaust it on the first five roles.
+ */
+export const SMARTRECRUITERS_PAGE_LIMIT = 100;
+
+export function buildSmartRecruitersEndpoint(
+  target: SmartRecruitersEndpointTarget,
+): URL {
+  const tenant = validTenant(target.tenant);
+  const endpoint = new URL(
+    `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(tenant)}/postings`,
+  );
+  endpoint.searchParams.set("limit", String(SMARTRECRUITERS_PAGE_LIMIT));
+  return endpoint;
+}
+
 export function buildAtsEndpoint(target: AtsEndpointTarget): URL {
   switch (target.provider) {
     case "greenhouse":
@@ -81,6 +102,8 @@ export function buildAtsEndpoint(target: AtsEndpointTarget): URL {
       return buildAshbyEndpoint(target);
     case "workable":
       return buildWorkableEndpoint(target);
+    case "smartrecruiters":
+      return buildSmartRecruitersEndpoint(target);
     default:
       throw atsAdapterError("ats_invalid_source");
   }

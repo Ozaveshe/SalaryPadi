@@ -2,6 +2,7 @@ export {
   ashbyAdapter,
   greenhouseAdapter,
   leverAdapter,
+  smartRecruitersAdapter,
   workableAdapter,
 } from "./adapters";
 export {
@@ -10,7 +11,9 @@ export {
   buildAtsEndpoint,
   buildGreenhouseEndpoint,
   buildLeverEndpoint,
+  buildSmartRecruitersEndpoint,
   buildWorkableEndpoint,
+  SMARTRECRUITERS_PAGE_LIMIT,
 } from "./endpoints";
 export {
   ATS_ADAPTER_ERROR_CODES,

@@ -191,6 +191,45 @@ function jsonResponse(
   });
 }
 
+function smartRecruitersSource(): AtsAuthorizedSource<"smartrecruiters"> {
+  return {
+    key: "smartrecruiters-example",
+    employerName: "Example Employer",
+    provider: "smartrecruiters",
+    tenant: "Example",
+    state: "authorized",
+    authorization: authorization(),
+  };
+}
+
+/**
+ * Shaped from a real /v1/companies/{id}/postings response: attributes arrive as
+ * {id, label} pairs, and the list carries no description and no apply URL.
+ */
+function smartRecruitersJob(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "744000133907678",
+    name: "Product Engineer",
+    uuid: "267d47c7-29af-4c8f-a19d-c112895329df",
+    refNumber: "REF97395W",
+    company: { identifier: "Example", name: "Example Employer" },
+    releasedDate: "2026-07-09T08:00:00.000Z",
+    location: {
+      city: "Lagos",
+      region: "LA",
+      country: "ng",
+      remote: false,
+      hybrid: false,
+      fullLocation: "Lagos, LA, Nigeria",
+    },
+    department: { id: "868639", label: "Engineering" },
+    function: { id: "engineering", label: "Platform" },
+    typeOfEmployment: { id: "permanent", label: "Full-time" },
+    experienceLevel: { id: "mid_senior_level", label: "Mid-Senior Level" },
+    ...overrides,
+  };
+}
+
 function fixedFetch(response: Response): AtsFetch {
   return vi.fn(async () => response) as unknown as AtsFetch;
 }
@@ -1009,5 +1048,137 @@ describe("employer-authorized ATS adapter", () => {
       team: null,
       salary: null,
     });
+  });
+  it("normalizes a SmartRecruiters posting and derives its destination", async () => {
+    const result = await fetchAtsSourceRecords(smartRecruitersSource(), {
+      fetch: fixedFetch(
+        jsonResponse({ totalFound: 1, content: [smartRecruitersJob()] }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    expect(result.invalidRecords).toEqual([]);
+    expect(result.records).toHaveLength(1);
+    expect(result.records[0]).toMatchObject({
+      provider: "smartrecruiters",
+      externalId: "744000133907678",
+      title: "Product Engineer",
+      location: "Lagos, LA, Nigeria",
+      employmentType: "Full-time",
+      department: "Engineering",
+      team: "Platform",
+      // The list endpoint publishes neither, and inventing either would be the
+      // fabrication this product refuses.
+      descriptionHtml: null,
+      salary: null,
+      // Derived from the posting id rather than a per-role detail request.
+      sourceUrl: "https://jobs.smartrecruiters.com/Example/744000133907678",
+      applicationUrl:
+        "https://jobs.smartrecruiters.com/Example/744000133907678",
+    });
+  });
+
+  it("treats an unstated SmartRecruiters workplace as unknown, not on-site", async () => {
+    const result = await fetchAtsSourceRecords(smartRecruitersSource(), {
+      fetch: fixedFetch(
+        jsonResponse({
+          content: [
+            smartRecruitersJob(),
+            smartRecruitersJob({
+              id: "744000133907679",
+              location: { fullLocation: "Remote", remote: true },
+            }),
+          ],
+        }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    expect(result.records.map((record) => record.workplaceType)).toEqual([
+      null,
+      "Remote",
+    ]);
+  });
+
+  /*
+   * The Ashby regression, pre-empted. That provider spells "no value" as an
+   * explicit null and its schema only admitted undefined, which quarantined two
+   * whole boards the first time a tenant was registered. Every optional field
+   * here accepts both spellings, and this pins that rather than trusting a
+   * nine-posting sample that happened to contain no nulls.
+   */
+  it("accepts nulls and absences across every optional SmartRecruiters field", async () => {
+    const result = await fetchAtsSourceRecords(smartRecruitersSource(), {
+      fetch: fixedFetch(
+        jsonResponse({
+          totalFound: null,
+          content: [
+            smartRecruitersJob({
+              releasedDate: null,
+              refNumber: null,
+              location: null,
+              department: null,
+              function: null,
+              typeOfEmployment: null,
+              experienceLevel: null,
+            }),
+            {
+              id: "744000133907680",
+              name: "Sparse Role",
+              company: { identifier: "Example" },
+            },
+          ],
+        }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    expect(result.invalidRecords).toEqual([]);
+    expect(result.records).toHaveLength(2);
+    expect(result.records[0]).toMatchObject({
+      location: null,
+      department: null,
+      employmentType: null,
+      publishedAt: null,
+      workplaceType: null,
+    });
+    expect(result.records[1]).toMatchObject({
+      externalId: "744000133907680",
+      title: "Sparse Role",
+    });
+  });
+
+  /*
+   * The destination is built from the payload's own company.identifier, so a
+   * posting claiming a different tenant must not be able to point applications
+   * at a company this source was never authorized for.
+   */
+  it("refuses a SmartRecruiters posting that claims another company", async () => {
+    const result = await fetchAtsSourceRecords(smartRecruitersSource(), {
+      fetch: fixedFetch(
+        jsonResponse({
+          content: [
+            smartRecruitersJob(),
+            smartRecruitersJob({
+              id: "744000133907681",
+              company: { identifier: "SomeoneElse", name: "Someone Else" },
+            }),
+          ],
+        }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    // Dropped into invalidRecords rather than thrown: a bad record quarantines
+    // itself and the rest of the board still imports.
+    expect(result.records).toHaveLength(1);
+    expect(result.records[0]?.externalId).toBe("744000133907678");
+    expect(result.invalidRecords).toEqual([
+      { index: 1, stage: "normalization", issuePaths: [] },
+    ]);
   });
 });

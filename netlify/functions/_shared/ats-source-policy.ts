@@ -9,7 +9,13 @@ import { externalHttpsUrlSchema } from "../../../src/lib/security/url-schema";
 
 import { OperationalError } from "./runtime";
 
-const providerSchema = z.enum(["greenhouse", "lever", "ashby", "workable"]);
+const providerSchema = z.enum([
+  "greenhouse",
+  "lever",
+  "ashby",
+  "workable",
+  "smartrecruiters",
+]);
 const hostnameSchema = z
   .string()
   .trim()
@@ -175,6 +181,8 @@ function runtimeSource(
       };
     case "workable":
       return { ...base, provider: "workable" };
+    case "smartrecruiters":
+      return { ...base, provider: "smartrecruiters" };
   }
 }
 
