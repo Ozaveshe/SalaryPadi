@@ -10,6 +10,7 @@ import {
   ashbyAdapter,
   greenhouseAdapter,
   leverAdapter,
+  smartRecruitersAdapter,
   workableAdapter,
 } from "./adapters";
 import { atsAdapterError } from "./errors";
@@ -109,6 +110,9 @@ const authorizedSourceSchema = z.discriminatedUnion("provider", [
     .strict(),
   z.object({ ...sourceBaseShape, provider: z.literal("ashby") }).strict(),
   z.object({ ...sourceBaseShape, provider: z.literal("workable") }).strict(),
+  z
+    .object({ ...sourceBaseShape, provider: z.literal("smartrecruiters") })
+    .strict(),
 ]);
 
 function isAbortSignal(value: unknown): value is AbortSignal {
@@ -357,5 +361,7 @@ export async function fetchAtsSourceRecords(
       return fetchWithAdapter(ashbyAdapter, parsed.data, options);
     case "workable":
       return fetchWithAdapter(workableAdapter, parsed.data, options);
+    case "smartrecruiters":
+      return fetchWithAdapter(smartRecruitersAdapter, parsed.data, options);
   }
 }

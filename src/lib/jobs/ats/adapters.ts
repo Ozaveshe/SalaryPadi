@@ -2,6 +2,7 @@ import {
   buildAshbyEndpoint,
   buildGreenhouseEndpoint,
   buildLeverEndpoint,
+  buildSmartRecruitersEndpoint,
   buildWorkableEndpoint,
 } from "./endpoints";
 import { atsAdapterError } from "./errors";
@@ -12,6 +13,8 @@ import {
   greenhousePayloadSchema,
   leverJobSchema,
   leverPayloadSchema,
+  smartRecruitersJobSchema,
+  smartRecruitersPayloadSchema,
   workableJobSchema,
   workablePayloadSchema,
   type AshbyJob,
@@ -20,6 +23,8 @@ import {
   type GreenhousePayload,
   type LeverJob,
   type LeverPayload,
+  type SmartRecruitersJob,
+  type SmartRecruitersPayload,
   type WorkableJob,
   type WorkablePayload,
 } from "./schemas";
@@ -40,6 +45,7 @@ const PROVIDER_DESTINATION_HOSTS = {
   lever: ["jobs.lever.co", "jobs.eu.lever.co"],
   ashby: ["jobs.ashbyhq.com"],
   workable: ["apply.workable.com"],
+  smartrecruiters: ["jobs.smartrecruiters.com"],
 } as const satisfies Record<AtsProvider, readonly string[]>;
 
 function pathMatchesPrefix(pathname: string, rawPrefix: string): boolean {
@@ -380,4 +386,81 @@ export const workableAdapter: AtsProviderAdapter<
   records: (payload) => payload.jobs,
   providerReportedTotal: () => null,
   normalizeRecord: workableRecord,
+};
+
+/**
+ * The posting list is the only call this adapter makes, so the destination is
+ * derived rather than read: SmartRecruiters serves
+ * jobs.smartrecruiters.com/{company}/{id} for every posting and redirects it to
+ * the slugged canonical form itself (verified against Visa, Yassir and IHS
+ * Towers tenants). The alternative is one detail request per role to read
+ * applyUrl, which would spend a source's whole four-call daily budget on the
+ * first few postings.
+ *
+ * The tenant in the URL comes from the posting's own company.identifier and is
+ * then checked against the source's allowed destinations, so a payload cannot
+ * point applications at a company this source was never authorized for.
+ */
+function smartRecruitersRecord(
+  job: SmartRecruitersJob,
+  source: AtsAuthorizedSource<"smartrecruiters">,
+  checkedAt: string,
+): AtsSourceRecord | null {
+  const destination = normalizedDestination(
+    `https://jobs.smartrecruiters.com/${encodeURIComponent(job.company.identifier)}/${encodeURIComponent(job.id)}`,
+    source,
+  );
+
+  const location = job.location ?? {};
+  // fullLocation is the employer's own rendering; the parts are only joined when
+  // it is missing, so we never invent a format the employer did not publish.
+  const place =
+    optionalText(location.fullLocation) ??
+    optionalText(
+      [location.city, location.region, location.country]
+        .map((part) => optionalText(part))
+        .filter(Boolean)
+        .join(", "),
+    );
+
+  return {
+    provider: "smartrecruiters",
+    sourceKey: source.key,
+    employerName: source.employerName,
+    externalId: job.id,
+    title: job.name,
+    location: place,
+    // "remote: true" is the only workplace signal the list carries. Anything
+    // else is unstated rather than on-site, so it stays null.
+    workplaceType: location.remote === true ? "Remote" : null,
+    employmentType: optionalText(job.typeOfEmployment?.label),
+    department: optionalText(job.department?.label),
+    team: optionalText(job.function?.label),
+    // The list endpoint publishes no description. Every ATS source registers
+    // with may_store_full_description false, so one would be discarded anyway.
+    descriptionHtml: null,
+    descriptionText: null,
+    publishedAt: job.releasedDate ?? null,
+    updatedAt: null,
+    // SmartRecruiters exposes no salary on the posting list, and inferring one
+    // would be the exact fabrication this product refuses.
+    salary: null,
+    sourceUrl: destination.toString(),
+    applicationUrl: destination.toString(),
+    checkedAt,
+  };
+}
+
+export const smartRecruitersAdapter: AtsProviderAdapter<
+  "smartrecruiters",
+  SmartRecruitersPayload,
+  SmartRecruitersJob
+> = {
+  provider: "smartrecruiters",
+  payloadSchema: smartRecruitersPayloadSchema,
+  recordSchema: smartRecruitersJobSchema,
+  buildEndpoint: buildSmartRecruitersEndpoint,
+  records: (payload) => payload.content,
+  providerReportedTotal: (payload) => payload.totalFound ?? null,
+  normalizeRecord: smartRecruitersRecord,
 };

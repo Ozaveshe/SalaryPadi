@@ -5,6 +5,7 @@ export const ATS_PROVIDERS = [
   "lever",
   "ashby",
   "workable",
+  "smartrecruiters",
 ] as const;
 
 export type AtsProvider = (typeof ATS_PROVIDERS)[number];
@@ -31,11 +32,17 @@ export interface WorkableEndpointTarget {
   tenant: string;
 }
 
+export interface SmartRecruitersEndpointTarget {
+  provider: "smartrecruiters";
+  tenant: string;
+}
+
 export type AtsEndpointTarget =
   | GreenhouseEndpointTarget
   | LeverEndpointTarget
   | AshbyEndpointTarget
-  | WorkableEndpointTarget;
+  | WorkableEndpointTarget
+  | SmartRecruitersEndpointTarget;
 
 export type AtsTargetFor<P extends AtsProvider> = Extract<
   AtsEndpointTarget,
@@ -86,7 +93,8 @@ export type AtsSourceConfig =
   | AtsAuthorizedSource<"greenhouse">
   | AtsAuthorizedSource<"lever">
   | AtsAuthorizedSource<"ashby">
-  | AtsAuthorizedSource<"workable">;
+  | AtsAuthorizedSource<"workable">
+  | AtsAuthorizedSource<"smartrecruiters">;
 
 /**
  * Where a source record came from: an ATS provider, or an
