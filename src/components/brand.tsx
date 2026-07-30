@@ -18,11 +18,11 @@ export function BrandMark({ size = 30 }: { size?: number }) {
     >
       <path
         d="M24 0 A24 24 0 0 1 48 24 A24 24 0 0 1 24 48 H5 A5 5 0 0 1 0 43 V24 A24 24 0 0 1 24 0 Z"
-        fill="var(--brand-mark-fill, var(--interactive-primary))"
+        fill="var(--brand-mark-fill, #f59e0b)"
       />
       <g
         fill="none"
-        stroke="#fff"
+        stroke="var(--brand-mark-ink, #0b1220)"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="3.6"
@@ -33,7 +33,7 @@ export function BrandMark({ size = 30 }: { size?: number }) {
       </g>
       <path
         d="M38.5 4.6 C39.35 7.6 40.4 8.65 43.4 9.5 C40.4 10.35 39.35 11.4 38.5 14.4 C37.65 11.4 36.6 10.35 33.6 9.5 C36.6 8.65 37.65 7.6 38.5 4.6 Z"
-        fill="#eec75f"
+        fill="var(--brand-mark-ink, #0b1220)"
       />
     </svg>
   );
