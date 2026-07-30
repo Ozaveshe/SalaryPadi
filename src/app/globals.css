@@ -3403,11 +3403,8 @@ a:hover {
 .section-title,
 .brand-mark {
   font-family:
-    var(--font-display-loaded),
-    "Space Grotesk",
-    var(--font-sans-loaded),
-    system-ui,
-    sans-serif;
+    var(--font-display-loaded), "Space Grotesk", var(--font-sans-loaded),
+    system-ui, sans-serif;
 }
 
 .page-title {
@@ -3455,8 +3452,16 @@ a:hover {
   margin-top: 1rem;
   border-radius: var(--radius-medium);
   background:
-    radial-gradient(48rem 24rem at 88% -25%, rgb(139 92 246 / 20%), transparent 60%),
-    radial-gradient(38rem 20rem at -12% 115%, rgb(245 158 11 / 13%), transparent 55%),
+    radial-gradient(
+      48rem 24rem at 88% -25%,
+      rgb(139 92 246 / 20%),
+      transparent 60%
+    ),
+    radial-gradient(
+      38rem 20rem at -12% 115%,
+      rgb(245 158 11 / 13%),
+      transparent 55%
+    ),
     var(--ink-950);
   padding: clamp(1.5rem, 4.5vw, 3.25rem);
   color: var(--ink-50);
