@@ -26,14 +26,14 @@ const brandDir = path.join(root, "public", "brand");
 const appDir = path.join(root, "src", "app");
 
 /* Palette — mirrors the primitive tokens in src/app/globals.css. */
-const forest950 = "#102f28";
-const forest900 = "#173b32";
-const forest700 = "#146b55";
-const forest100 = "#dcece5";
-const coral600 = "#c65332";
-const gold100 = "#f8e8aa";
-const gold400 = "#eec75f";
-const sand50 = "#fffaf2";
+const forest950 = "#0b1220";
+const forest900 = "#0f172a";
+const forest700 = "#f59e0b";
+const forest100 = "#fef3c7";
+const coral600 = "#d97706";
+const gold100 = "#fef3c7";
+const gold400 = "#fbbf24";
+const sand50 = "#f8fafc";
 
 const fontStack = `'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif`;
 
@@ -65,7 +65,7 @@ function bubblePath(size = 48, corner = 5) {
  * the N by only 3.5 units a side — wide enough to read as ₦, contained
  * enough to stay clean at favicon sizes.
  */
-function nairaGlyph({ stroke = "#ffffff", width = 3.6 } = {}) {
+function nairaGlyph({ stroke = "#0b1220", width = 3.6 } = {}) {
   return `
     <g stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" fill="none">
       <path d="M18 33.5 V14.5 L30 33.5 V14.5" />
@@ -75,7 +75,7 @@ function nairaGlyph({ stroke = "#ffffff", width = 3.6 } = {}) {
 }
 
 /** The good-news spark: a soft four-point star at the bubble's top right. */
-function sparkGlyph({ fill = gold400 } = {}) {
+function sparkGlyph({ fill = "#0b1220" } = {}) {
   return `<path d="M38.5 4.6 C39.35 7.6 40.4 8.65 43.4 9.5 C40.4 10.35 39.35 11.4 38.5 14.4 C37.65 11.4 36.6 10.35 33.6 9.5 C36.6 8.65 37.65 7.6 38.5 4.6 Z" fill="${fill}"/>`;
 }
 
@@ -90,7 +90,7 @@ function markSvg({
   <defs>
     <linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="${forest700}"/>
-      <stop offset="1" stop-color="${forest950}"/>
+      <stop offset="1" stop-color="${coral600}"/>
     </linearGradient>
   </defs>
   <path d="${bubblePath()}" fill="url(#${gradientId})"/>
@@ -107,7 +107,7 @@ function logoSvg({ dark = false } = {}) {
   <defs>
     <linearGradient id="sp-lockup" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="${forest700}"/>
-      <stop offset="1" stop-color="${forest950}"/>
+      <stop offset="1" stop-color="${coral600}"/>
     </linearGradient>
   </defs>
   <path d="${bubblePath()}" fill="url(#sp-lockup)"/>
@@ -123,7 +123,7 @@ function iconSvg() {
   <defs>
     <linearGradient id="sp-ico" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="${forest700}"/>
-      <stop offset="1" stop-color="${forest950}"/>
+      <stop offset="1" stop-color="${coral600}"/>
     </linearGradient>
   </defs>
   <path d="${bubblePath()}" fill="url(#sp-ico)"/>
@@ -201,7 +201,7 @@ function socialSvg({
     </radialGradient>
     <linearGradient id="sp-soc" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="${forest700}"/>
-      <stop offset="1" stop-color="${forest950}"/>
+      <stop offset="1" stop-color="${coral600}"/>
     </linearGradient>
   </defs>
   <rect width="${width}" height="${height}" fill="url(#bg)"/>
@@ -235,7 +235,7 @@ function linkedinBannerSvg() {
     </linearGradient>
     <linearGradient id="li-mark" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="${forest700}"/>
-      <stop offset="1" stop-color="${forest950}"/>
+      <stop offset="1" stop-color="${coral600}"/>
     </linearGradient>
     <radialGradient id="li-glow" cx="0.9" cy="0.15" r="0.75">
       <stop offset="0" stop-color="${forest700}" stop-opacity="0.55"/>
