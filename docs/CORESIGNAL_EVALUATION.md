@@ -57,7 +57,7 @@ Company/Employee records cost 10–20 credits — not needed for supply.
 - **Supply lane:** fills the reserved `licensed_africa_partner` adapter
   (kind `licensed_partner`, disabled since 14 July 2026 for lack of a
   signed licence). Authority order `direct > employer ATS > licensed >
-  secondary` puts these records above Jobicy/Himalayas. Realistic yield
+secondary` puts these records above Jobicy/Himalayas. Realistic yield
   after noise filtering: roughly 130–150 net-new Nigerian jobs/day
   against the 500/day target — the largest single authorized lane
   available today, not sufficient alone.
@@ -77,14 +77,14 @@ Company/Employee records cost 10–20 credits — not needed for supply.
 
 ### West Africa jobs coverage (free probes, `match_phrase` exact)
 
-| Market         | Active | Fresh (30d) | Active w/ salary |
-| -------------- | ------ | ----------- | ---------------- |
-| Ghana          | 6,620  | 652         | 161              |
-| Côte d'Ivoire  | 977    | —           | —                |
-| Senegal        | 881    | 515         | 77               |
-| Liberia        | 1,135  | —           | —                |
-| Guinea         | 1,079  | —           | —                |
-| all others     | <700   | —           | —                |
+| Market        | Active | Fresh (30d) | Active w/ salary |
+| ------------- | ------ | ----------- | ---------------- |
+| Ghana         | 6,620  | 652         | 161              |
+| Côte d'Ivoire | 977    | —           | —                |
+| Senegal       | 881    | 515         | 77               |
+| Liberia       | 1,135  | —           | —                |
+| Guinea        | 1,079  | —           | —                |
+| all others    | <700   | —           | —                |
 
 Côte d'Ivoire only matches the accented spelling `Côte d'Ivoire`.
 "Niger" reports 18,727 active jobs, but sampled records are US postings
@@ -158,7 +158,7 @@ Senegal's 77). 59 credits remain; trial expires 6 Aug.
   corpus skews to boards, unlike the LinkedIn-skewed fresh inflow.
 - **Freshness:** 665 records posted in 2026 (471 since May); ~700 date
   from 2022–2024 despite `status: 1`. Coresignal's active flag is not a
-  liveness signal for old postings. Use the corpus as *dated* salary
+  liveness signal for old postings. Use the corpus as _dated_ salary
   evidence (freshness-decayed per convention), never as live listings.
 - **Quality:** 100% have company, 91% city, ~6% duplicate
   company+title+salary triples. Top companies are recruiting agencies
@@ -216,13 +216,13 @@ counterparty Deeptrace Inc., Delaware). What it settles:
 production the same day — the site's first Nigeria-local salary
 aggregates. Five cells passed the n≥10 / ≥5-distinct-employer gate:
 
-| Family                     | n  | Employers | p25      | Median   | p75      |
-| -------------------------- | -- | --------- | -------- | -------- | -------- |
-| Sales                      | 84 | 50        | ₦110,000 | ₦193,000 | ₦306,000 |
-| Logistics and Supply Chain | 37 | 30        | ₦95,000  | ₦125,000 | ₦175,000 |
-| Accounting and Finance     | 21 | 18        | ₦145,000 | ₦190,000 | ₦275,000 |
-| Education and Academia     | 14 | 6         | ₦90,000  | ₦120,000 | ₦133,000 |
-| Marketing                  | 13 | 8         | ₦120,000 | ₦150,000 | ₦360,000 |
+| Family                     | n   | Employers | p25      | Median   | p75      |
+| -------------------------- | --- | --------- | -------- | -------- | -------- |
+| Sales                      | 84  | 50        | ₦110,000 | ₦193,000 | ₦306,000 |
+| Logistics and Supply Chain | 37  | 30        | ₦95,000  | ₦125,000 | ₦175,000 |
+| Accounting and Finance     | 21  | 18        | ₦145,000 | ₦190,000 | ₦275,000 |
+| Education and Academia     | 14  | 6         | ₦90,000  | ₦120,000 | ₦133,000 |
+| Marketing                  | 13  | 8         | ₦120,000 | ₦150,000 | ₦360,000 |
 
 (NGN/month, postings dated ≥ 2025-08-01 only — older observations are
 excluded because naira inflation makes them unrepresentative.) Sixteen

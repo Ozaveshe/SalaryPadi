@@ -16,8 +16,17 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
-const CORPUS = path.join(ROOT, "reports", "coresignal-salary-corpus-2026-07.jsonl");
-const OUT_SQL = path.join(ROOT, "docs", "data", "20260730_coresignal_ng_salary_benchmarks.sql");
+const CORPUS = path.join(
+  ROOT,
+  "reports",
+  "coresignal-salary-corpus-2026-07.jsonl",
+);
+const OUT_SQL = path.join(
+  ROOT,
+  "docs",
+  "data",
+  "20260730_coresignal_ng_salary_benchmarks.sql",
+);
 
 const WINDOW_START = "2025-08-01";
 const RETRIEVED_ON = "2026-07-30";
@@ -32,28 +41,255 @@ const MIN_CELL_EMPLOYERS = 5;
  * sales via the bare word "account".
  */
 const FAMILY_RULES = [
-  ["accounting-finance", ["accountant", "account officer", "accounts officer", "bookkeep", "audit", "treasury", "tax ", "tax,", "financial analyst", "finance officer", "finance manager", "payroll"]],
+  [
+    "accounting-finance",
+    [
+      "accountant",
+      "account officer",
+      "accounts officer",
+      "bookkeep",
+      "audit",
+      "treasury",
+      "tax ",
+      "tax,",
+      "financial analyst",
+      "finance officer",
+      "finance manager",
+      "payroll",
+    ],
+  ],
   ["nursing", ["nurse", "midwife"]],
   ["pharmacy", ["pharmacist", "pharmacy"]],
-  ["healthcare-medicine", ["medical officer", "doctor", "physician", "dentist", "surgeon", "medical laboratory", "optometrist", "radiographer", "physiotherap"]],
-  ["education-academia", ["teacher", "tutor", "lecturer", "instructor", "educator", "school principal", "head of school"]],
-  ["banking-operations", ["teller", "loan officer", "credit officer", "credit analyst", "relationship officer", "relationship manager", "banking officer", "recovery officer"]],
+  [
+    "healthcare-medicine",
+    [
+      "medical officer",
+      "doctor",
+      "physician",
+      "dentist",
+      "surgeon",
+      "medical laboratory",
+      "optometrist",
+      "radiographer",
+      "physiotherap",
+    ],
+  ],
+  [
+    "education-academia",
+    [
+      "teacher",
+      "tutor",
+      "lecturer",
+      "instructor",
+      "educator",
+      "school principal",
+      "head of school",
+    ],
+  ],
+  [
+    "banking-operations",
+    [
+      "teller",
+      "loan officer",
+      "credit officer",
+      "credit analyst",
+      "relationship officer",
+      "relationship manager",
+      "banking officer",
+      "recovery officer",
+    ],
+  ],
   ["legal", ["lawyer", "legal", "counsel", "paralegal"]],
-  ["software-engineering", ["software engineer", "software developer", "frontend", "front-end", "front end developer", "backend", "back-end", "back end developer", "full stack", "fullstack", "mobile developer", "web developer", "programmer", "flutter", "react developer", "node", ".net developer", "php developer", "python developer", "java developer"]],
-  ["quality-assurance", ["quality assurance", "qa engineer", "qa analyst", "test engineer", "software tester"]],
-  ["cybersecurity", ["cybersecurity", "cyber security", "security engineer", "security analyst", "soc analyst", "penetration"]],
-  ["data-science", ["data scientist", "data analyst", "data engineer", "machine learning", "business intelligence", "analytics"]],
-  ["devops-infrastructure", ["devops", "site reliability", "cloud engineer", "infrastructure engineer", "system administrator", "sysadmin", "network engineer", "network administrator"]],
+  [
+    "software-engineering",
+    [
+      "software engineer",
+      "software developer",
+      "frontend",
+      "front-end",
+      "front end developer",
+      "backend",
+      "back-end",
+      "back end developer",
+      "full stack",
+      "fullstack",
+      "mobile developer",
+      "web developer",
+      "programmer",
+      "flutter",
+      "react developer",
+      "node",
+      ".net developer",
+      "php developer",
+      "python developer",
+      "java developer",
+    ],
+  ],
+  [
+    "quality-assurance",
+    [
+      "quality assurance",
+      "qa engineer",
+      "qa analyst",
+      "test engineer",
+      "software tester",
+    ],
+  ],
+  [
+    "cybersecurity",
+    [
+      "cybersecurity",
+      "cyber security",
+      "security engineer",
+      "security analyst",
+      "soc analyst",
+      "penetration",
+    ],
+  ],
+  [
+    "data-science",
+    [
+      "data scientist",
+      "data analyst",
+      "data engineer",
+      "machine learning",
+      "business intelligence",
+      "analytics",
+    ],
+  ],
+  [
+    "devops-infrastructure",
+    [
+      "devops",
+      "site reliability",
+      "cloud engineer",
+      "infrastructure engineer",
+      "system administrator",
+      "sysadmin",
+      "network engineer",
+      "network administrator",
+    ],
+  ],
   ["product-management", ["product manager", "product owner"]],
-  ["design", ["ui/ux", "ux designer", "ui designer", "product designer", "graphic designer", "graphics designer", "brand designer", "motion designer"]],
-  ["project-management", ["project manager", "program manager", "project coordinator", "project officer"]],
-  ["human-resources", ["human resource", "hr officer", "hr manager", "hr business", "hr generalist", "hr executive", "hr assistant", "hr/admin", "recruiter", "talent acquisition", "people operations", "people manager"]],
-  ["media-communications", ["content writer", "copywriter", "journalist", "editor", "communications", "videographer", "photographer", "content creator", "social media manager"]],
-  ["marketing", ["marketing", "seo ", "seo,", "seo specialist", "growth", "brand manager", "digital marketer"]],
-  ["customer-support", ["customer service", "customer support", "customer success", "call center", "call centre", "customer care", "client service"]],
-  ["sales", ["sales", "business development", "account executive", "account manager", "business developer", "telemarket"]],
-  ["logistics-supply-chain", ["logistics", "supply chain", "procurement", "warehouse", "inventory", "store keeper", "storekeeper", "fleet", "dispatch", "driver", "rider"]],
-  ["engineering", ["civil engineer", "mechanical engineer", "electrical engineer", "structural engineer", "site engineer", "quantity surveyor", "hvac", "maintenance engineer", "electrical technician", "mechanical technician"]],
+  [
+    "design",
+    [
+      "ui/ux",
+      "ux designer",
+      "ui designer",
+      "product designer",
+      "graphic designer",
+      "graphics designer",
+      "brand designer",
+      "motion designer",
+    ],
+  ],
+  [
+    "project-management",
+    [
+      "project manager",
+      "program manager",
+      "project coordinator",
+      "project officer",
+    ],
+  ],
+  [
+    "human-resources",
+    [
+      "human resource",
+      "hr officer",
+      "hr manager",
+      "hr business",
+      "hr generalist",
+      "hr executive",
+      "hr assistant",
+      "hr/admin",
+      "recruiter",
+      "talent acquisition",
+      "people operations",
+      "people manager",
+    ],
+  ],
+  [
+    "media-communications",
+    [
+      "content writer",
+      "copywriter",
+      "journalist",
+      "editor",
+      "communications",
+      "videographer",
+      "photographer",
+      "content creator",
+      "social media manager",
+    ],
+  ],
+  [
+    "marketing",
+    [
+      "marketing",
+      "seo ",
+      "seo,",
+      "seo specialist",
+      "growth",
+      "brand manager",
+      "digital marketer",
+    ],
+  ],
+  [
+    "customer-support",
+    [
+      "customer service",
+      "customer support",
+      "customer success",
+      "call center",
+      "call centre",
+      "customer care",
+      "client service",
+    ],
+  ],
+  [
+    "sales",
+    [
+      "sales",
+      "business development",
+      "account executive",
+      "account manager",
+      "business developer",
+      "telemarket",
+    ],
+  ],
+  [
+    "logistics-supply-chain",
+    [
+      "logistics",
+      "supply chain",
+      "procurement",
+      "warehouse",
+      "inventory",
+      "store keeper",
+      "storekeeper",
+      "fleet",
+      "dispatch",
+      "driver",
+      "rider",
+    ],
+  ],
+  [
+    "engineering",
+    [
+      "civil engineer",
+      "mechanical engineer",
+      "electrical engineer",
+      "structural engineer",
+      "site engineer",
+      "quantity surveyor",
+      "hvac",
+      "maintenance engineer",
+      "electrical technician",
+      "mechanical technician",
+    ],
+  ],
   ["public-service", ["administrative officer", "admin officer"]],
 ];
 
@@ -96,9 +332,10 @@ function percentile(sorted, p) {
   const index = (sorted.length - 1) * p;
   const low = Math.floor(index);
   const high = Math.ceil(index);
-  const value = low === high
-    ? sorted[low]
-    : sorted[low] + (sorted[high] - sorted[low]) * (index - low);
+  const value =
+    low === high
+      ? sorted[low]
+      : sorted[low] + (sorted[high] - sorted[low]) * (index - low);
   return Math.round(value / 1000) * 1000;
 }
 
@@ -108,29 +345,64 @@ const records = readFileSync(CORPUS, "utf8")
   .map((line) => JSON.parse(line));
 
 const counters = {
-  total: records.length, notNigeria: 0, noDate: 0, tooOld: 0, volunteer: 0,
-  noNgnMonthly: 0, outOfBounds: 0, duplicate: 0, unclassified: 0, included: 0,
+  total: records.length,
+  notNigeria: 0,
+  noDate: 0,
+  tooOld: 0,
+  volunteer: 0,
+  noNgnMonthly: 0,
+  outOfBounds: 0,
+  duplicate: 0,
+  unclassified: 0,
+  included: 0,
 };
 const seen = new Set();
 const cells = new Map();
 
 for (const record of records) {
-  if (record.market !== "Nigeria") { counters.notNigeria += 1; continue; }
+  if (record.market !== "Nigeria") {
+    counters.notNigeria += 1;
+    continue;
+  }
   const posted = (record.date_posted ?? "").slice(0, 10);
-  if (!posted) { counters.noDate += 1; continue; }
-  if (posted < WINDOW_START) { counters.tooOld += 1; continue; }
-  if (record.employment_type === "Volunteer") { counters.volunteer += 1; continue; }
+  if (!posted) {
+    counters.noDate += 1;
+    continue;
+  }
+  if (posted < WINDOW_START) {
+    counters.tooOld += 1;
+    continue;
+  }
+  if (record.employment_type === "Volunteer") {
+    counters.volunteer += 1;
+    continue;
+  }
   const entry = (record.salary ?? []).find(
-    (s) => s.currency === "NGN" && String(s.period ?? "").toUpperCase() === "MONTH" && Number(s.min) > 0,
+    (s) =>
+      s.currency === "NGN" &&
+      String(s.period ?? "").toUpperCase() === "MONTH" &&
+      Number(s.min) > 0,
   );
-  if (!entry) { counters.noNgnMonthly += 1; continue; }
+  if (!entry) {
+    counters.noNgnMonthly += 1;
+    continue;
+  }
   const midpoint = (Number(entry.min) + Number(entry.max || entry.min)) / 2;
-  if (!(midpoint >= LOWER_BOUND && midpoint <= UPPER_BOUND)) { counters.outOfBounds += 1; continue; }
+  if (!(midpoint >= LOWER_BOUND && midpoint <= UPPER_BOUND)) {
+    counters.outOfBounds += 1;
+    continue;
+  }
   const dedupeKey = `${record.company}|${record.title}|${entry.min}|${entry.max}`;
-  if (seen.has(dedupeKey)) { counters.duplicate += 1; continue; }
+  if (seen.has(dedupeKey)) {
+    counters.duplicate += 1;
+    continue;
+  }
   seen.add(dedupeKey);
   const family = classify(record.title);
-  if (!family) { counters.unclassified += 1; continue; }
+  if (!family) {
+    counters.unclassified += 1;
+    continue;
+  }
   counters.included += 1;
   if (!cells.has(family)) cells.set(family, []);
   cells.get(family).push({ midpoint, company: record.company, posted });
@@ -143,27 +415,40 @@ for (const [family, observations] of [...cells.entries()].sort()) {
   const values = observations.map((o) => o.midpoint).sort((a, b) => a - b);
   const dates = observations.map((o) => o.posted).sort();
   const cell = {
-    family, n: observations.length, employers,
+    family,
+    n: observations.length,
+    employers,
     p25: percentile(values, 0.25),
     median: percentile(values, 0.5),
     p75: percentile(values, 0.75),
-    from: dates[0], to: dates.at(-1),
+    from: dates[0],
+    to: dates.at(-1),
   };
-  if (cell.n >= MIN_CELL_N && employers >= MIN_CELL_EMPLOYERS) published.push(cell);
+  if (cell.n >= MIN_CELL_N && employers >= MIN_CELL_EMPLOYERS)
+    published.push(cell);
   else withheld.push(cell);
 }
 
 console.log("filters:", JSON.stringify(counters));
-console.log(`published cells: ${published.length}, withheld (under threshold): ${withheld.length}`);
+console.log(
+  `published cells: ${published.length}, withheld (under threshold): ${withheld.length}`,
+);
 for (const cell of published) {
-  console.log(`  PUBLISH ${cell.family}: n=${cell.n} employers=${cell.employers} p25=${cell.p25} median=${cell.median} p75=${cell.p75} window=${cell.from}..${cell.to}`);
+  console.log(
+    `  PUBLISH ${cell.family}: n=${cell.n} employers=${cell.employers} p25=${cell.p25} median=${cell.median} p75=${cell.p75} window=${cell.from}..${cell.to}`,
+  );
 }
 for (const cell of withheld) {
-  console.log(`  withheld ${cell.family}: n=${cell.n} employers=${cell.employers}`);
+  console.log(
+    `  withheld ${cell.family}: n=${cell.n} employers=${cell.employers}`,
+  );
 }
 
 const valuesSql = published
-  .map((cell) => `  ('${cell.family}', '${FAMILY_NAMES[cell.family]}', ${cell.p25}, ${cell.median}, ${cell.p75}, ${cell.n}, date '${cell.from}', date '${cell.to}')`)
+  .map(
+    (cell) =>
+      `  ('${cell.family}', '${FAMILY_NAMES[cell.family]}', ${cell.p25}, ${cell.median}, ${cell.p75}, ${cell.n}, date '${cell.from}', date '${cell.to}')`,
+  )
   .join(",\n");
 
 const sql = `-- Activate the Nigeria market salary benchmark lane derived from the
