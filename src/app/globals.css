@@ -3447,3 +3447,57 @@ a:hover {
 .eyebrow {
   color: var(--gold-700);
 }
+
+/* Hero: deep-ink band, light copy, floating white search card. */
+.home-start {
+  position: relative;
+  overflow: hidden;
+  margin-top: 1rem;
+  border-radius: var(--radius-medium);
+  background:
+    radial-gradient(48rem 24rem at 88% -25%, rgb(139 92 246 / 20%), transparent 60%),
+    radial-gradient(38rem 20rem at -12% 115%, rgb(245 158 11 / 13%), transparent 55%),
+    var(--ink-950);
+  padding: clamp(1.5rem, 4.5vw, 3.25rem);
+  color: var(--ink-50);
+}
+
+.home-start::before {
+  display: none;
+}
+
+.home-start .page-title {
+  color: var(--white);
+  font-size: clamp(2.15rem, 5vw, 3.4rem);
+  line-height: 1.05;
+}
+
+.home-start .lede {
+  color: var(--ink-200);
+}
+
+.home-start .eyebrow {
+  color: var(--gold-400);
+}
+
+.home-kicker {
+  border-color: var(--ink-700);
+  background: rgb(255 255 255 / 7%);
+  color: var(--ink-200);
+}
+
+.home-start .live-dot-live {
+  background: var(--gold-400);
+}
+
+.home-search {
+  border-radius: var(--radius-medium);
+  background: var(--surface-default);
+  padding: clamp(0.9rem, 2vw, 1.25rem);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-large);
+}
+
+.home-start :focus-visible {
+  outline-color: var(--gold-400);
+}
