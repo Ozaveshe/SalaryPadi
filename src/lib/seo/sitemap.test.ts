@@ -66,7 +66,8 @@ function job({
       provenance: "source_provided",
       lastVerifiedAt: postedAt,
     },
-    description: "Build reliable systems.",
+    description:
+      "Build trusted career systems for millions of Nigerian job seekers: design ingestion pipelines, verify employer evidence, and keep provenance visible on every posting so applicants can trust what they read before they apply.",
     requirements: null,
     benefits: null,
     postedAt,

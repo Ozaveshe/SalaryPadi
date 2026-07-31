@@ -2,10 +2,29 @@ import { COUNTRY_PACKS } from "@/lib/country-packs/registry";
 import type { Job, PayPeriod } from "@/lib/jobs/types";
 import { isJobCurrentlyPublishable } from "@/lib/jobs/publication";
 
+/*
+ * Must match the placeholder constant in api.worker_store_ats_snapshot_batch:
+ * ATS records whose policy withheld the provider's description store this
+ * sentence instead. A page whose only body copy is this sentinel is a thin
+ * page; indexing it (or emitting it as a JobPosting description) would ship
+ * boilerplate to search engines, so the sentinel disqualifies indexing even
+ * when the source's may_index_jobs right is granted.
+ */
+export const METADATA_ONLY_DESCRIPTION_SENTINEL =
+  "This listing is available as source metadata only. SalaryPadi does not store the provider's full job description; use the application link to review the original posting.";
+
+export function hasIndexableDescription(job: Job): boolean {
+  return (
+    job.description.trim().length >= 140 &&
+    job.description !== METADATA_ONLY_DESCRIPTION_SENTINEL
+  );
+}
+
 export function canIndexJobDetail(job: Job, now = new Date()): boolean {
   return (
     Boolean(job.databaseId) &&
     job.source.canIndex &&
+    hasIndexableDescription(job) &&
     isJobCurrentlyPublishable(job, now)
   );
 }

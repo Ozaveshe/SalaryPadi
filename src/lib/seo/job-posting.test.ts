@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { normalizeRemotiveJob } from "@/lib/jobs/normalize";
 
-import { buildJobPostingStructuredData } from "./job-posting";
+import {
+  buildJobPostingStructuredData,
+  hasIndexableDescription,
+  METADATA_ONLY_DESCRIPTION_SENTINEL,
+} from "./job-posting";
 
 const sourceJob = normalizeRemotiveJob(
   {
@@ -18,7 +22,8 @@ const sourceJob = normalizeRemotiveJob(
     publication_date: "2026-07-09T12:00:00+00:00",
     candidate_required_location: "Nigeria, Ghana",
     salary: "USD 6000 - 8000 per month",
-    description: "<p>Build trusted career systems.</p>",
+    description:
+      "<p>Build trusted career systems for millions of Nigerian job seekers: design ingestion pipelines, verify employer evidence, and keep provenance visible on every posting so applicants can trust what they read before they apply.</p>",
   },
   "2026-07-10T00:00:00.000Z",
 );
@@ -185,5 +190,30 @@ describe("JobPosting structured data", () => {
         "https://salarypadi.example/jobs/platform-engineer",
       ),
     ).toBeNull();
+  });
+});
+
+describe("hasIndexableDescription", () => {
+  const base = { description: "x".repeat(200) } as Parameters<
+    typeof hasIndexableDescription
+  >[0];
+
+  it("accepts a substantial stored description", () => {
+    expect(hasIndexableDescription(base)).toBe(true);
+  });
+
+  it("rejects the metadata-only placeholder verbatim", () => {
+    expect(
+      hasIndexableDescription({
+        ...base,
+        description: METADATA_ONLY_DESCRIPTION_SENTINEL,
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects thin descriptions under the floor", () => {
+    expect(
+      hasIndexableDescription({ ...base, description: "Short role blurb." }),
+    ).toBe(false);
   });
 });
