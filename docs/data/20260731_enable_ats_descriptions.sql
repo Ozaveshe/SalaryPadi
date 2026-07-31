@@ -62,27 +62,47 @@ where source_id in (
 
 commit;
 
--- STAGE 2 — NOT YET APPLIED. Run only after (a) the placeholder guard in
--- src/lib/seo/job-posting.ts (hasIndexableDescription) is DEPLOYED to
--- production and (b) the boards have re-synced real descriptions (verify:
--- select count(*) from app.jobs where description_text not like
--- 'This listing is available as source metadata only%' and source_id in ...).
--- Flipping earlier would index placeholder-only pages.
---
--- begin;
--- update app.job_sources s
--- set may_index_jobs = true,
---     may_emit_jobposting_schema = true
--- from private.ats_source_configs c
--- where c.source_id = s.id
---   and s.status = 'active'
---   and c.provider in ('greenhouse', 'ashby')
---   and s.may_store_full_description;
--- update app.source_country_rights r
--- set may_index_jobs = true, may_emit_jobposting_schema = true
--- from app.job_sources s
--- join private.ats_source_configs c on c.source_id = s.id
--- where r.source_id = s.id and s.status = 'active'
---   and c.provider in ('greenhouse', 'ashby');
--- (then re-authorize again if the rights expansion pauses the sources, as above)
--- commit;
+-- STAGE 2 — APPLIED TO PRODUCTION 2026-07-31, after the
+-- hasIndexableDescription guard deployed (commit 38ef105) and the boards
+-- backfilled real descriptions (289/326 at flip time; the guard keeps any
+-- straggler placeholder pages noindex). Note the rights table uses
+-- allow_search_index / allow_google_jobposting, not the job_sources names.
+
+begin;
+
+update app.job_sources s
+set may_index_jobs = true,
+    may_emit_jobposting_schema = true
+from private.ats_source_configs c
+where c.source_id = s.id
+  and s.status = 'active'
+  and c.provider in ('greenhouse','ashby')
+  and s.may_store_full_description;
+
+update app.source_country_rights r
+set allow_search_index = true,
+    allow_google_jobposting = true
+from app.job_sources s
+join private.ats_source_configs c on c.source_id = s.id
+where r.source_id = s.id
+  and c.provider in ('greenhouse','ashby')
+  and s.may_store_full_description;
+
+-- The rights expansion pauses the sources again; same-transaction re-approval.
+update app.job_sources s
+set authorization_revoked_at = null,
+    authorization_revoked_by = null,
+    authorization_revocation_reason = null,
+    authorization_reviewed_at = now(),
+    terms_reviewed_at = now(),
+    status = 'active'
+from private.ats_source_configs c
+where c.source_id = s.id
+  and c.provider in ('greenhouse','ashby')
+  and s.status = 'paused'
+  and s.may_index_jobs;
+
+commit;
+
+-- Verified live the same day: JobPosting JSON-LD + robots "index, follow"
+-- on /jobs/employee-relations-partner-443359b469fdf795, zero placeholder text.
