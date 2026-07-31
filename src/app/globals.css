@@ -3559,3 +3559,61 @@ a:hover {
     transform: none;
   }
 }
+
+/* ===== Surface polish: job detail, salary tables, company profiles ===== */
+
+.quick-facts {
+  border-top: 3px solid var(--gold-500);
+}
+
+.quick-facts dd {
+  font-size: 0.98rem;
+}
+
+.trust-drawer > summary {
+  cursor: pointer;
+  color: var(--interactive-primary);
+  font-weight: 650;
+}
+
+.description-copy {
+  max-width: var(--content-reading);
+  line-height: 1.7;
+}
+
+.salary-range-track {
+  background: var(--ink-100);
+}
+
+.salary-range-fill {
+  background: var(--gold-400);
+  opacity: 1;
+}
+
+.salary-range-median {
+  background: var(--ink-950);
+}
+
+.salary-evidence-card > div > strong {
+  font-family:
+    var(--font-display-loaded), "Space Grotesk", var(--font-sans-loaded),
+    system-ui, sans-serif;
+  font-size: 1.02em;
+}
+
+.pulse-bar {
+  background: var(--gold-500);
+  opacity: 1;
+}
+
+.company-row {
+  transition: background 150ms ease;
+}
+
+.company-row:hover {
+  background: var(--surface-subtle);
+}
+
+.company-row h2 a:hover {
+  color: var(--interactive-primary);
+}
