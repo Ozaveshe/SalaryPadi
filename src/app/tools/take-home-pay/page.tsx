@@ -3,7 +3,9 @@ import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
+import { JobContextBanner } from "@/components/product/job-context-banner";
 import { TakeHomeCalculator } from "@/components/tools/take-home-calculator";
+import { contextIsNairaPaye, readJobContext } from "@/lib/product/job-context";
 
 export const metadata: Metadata = {
   title: "Nigeria take-home pay calculator",
@@ -12,23 +14,51 @@ export const metadata: Metadata = {
   alternates: { canonical: "/tools/take-home-pay" },
 };
 
-export default function TakeHomePayPage() {
+export default async function TakeHomePayPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const context = readJobContext(await searchParams);
+  // A role advertised in dollars can still prefill the amount, but the naira
+  // PAYE result would not describe that pay, so the figure is not carried over.
+  const prefillsAmount = context !== null && contextIsNairaPaye(context);
+
   return (
     <div className="site-shell stack-lg">
       <Breadcrumbs
         items={[
           { label: "Home", href: "/" },
-          { label: "Tools", href: "/tools" },
+          { label: "Pay & Offers", href: "/salaries" },
           { label: "Take-home pay" },
         ]}
       />
+      {context ? (
+        <JobContextBanner
+          action="Working out take-home pay for"
+          context={context}
+        />
+      ) : null}
       <PageHeading
         eyebrow="Nigeria payroll tool"
         title="See where gross pay goes"
         description="Run gross-to-net or net-to-gross calculations against versioned AfroTools PAYE data. If rules or responses cannot be verified, SalaryPadi shows no result."
       />
+      {context && !prefillsAmount ? (
+        <p className="field-help">
+          This role advertises pay in {context.currency}. The calculator covers
+          Nigerian PAYE on naira pay, so the advertised amount has not been
+          carried over — convert it first with the{" "}
+          <a href="/tools/salary-converter">salary converter</a>.
+        </p>
+      ) : null}
       <BrandArt className="page-art" id="tool-take-home-pay" />
-      <TakeHomeCalculator />
+      <TakeHomeCalculator
+        defaultAmount={
+          prefillsAmount && context?.amount ? context.amount : undefined
+        }
+        defaultPeriod={context?.period === "annual" ? "annual" : undefined}
+      />
     </div>
   );
 }
