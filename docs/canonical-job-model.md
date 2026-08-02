@@ -81,6 +81,25 @@ Legacy receipts have these fields null. They are **not** backfilled, because
 the regime in force at capture is genuinely unrecorded and a plausible guess
 would be invented evidence.
 
+### Receipts are immutable, but they are not permanent
+
+Immutability and retention are different things, and an earlier version of
+this document conflated them. A receipt cannot be altered — the append-only
+trigger blocks UPDATE and DELETE from application code — but the lifecycle
+worker purges receipts once they pass their source's `raw_retention`.
+
+Until 2026-08-02 every employer-ATS board carried a one-day retention,
+inherited from the metadata-only posture they registered under. The
+consequences were measured, not theoretical: the entire occurrence table was
+one day deep, and because the public view requires a receipt link, a board
+whose sync slipped past the purge silently un-published its jobs. Retention
+is now 30 days on those boards
+(`docs/data/20260802_raise_ats_receipt_retention.sql`).
+
+The audit guarantee is therefore bounded: **every published job is traceable
+to a receipt, and receipts are auditable for as long as their source's
+retention allows** — not forever.
+
 ## Job identity and deduplication
 
 A canonical job is identified by evidence, never by title alone. The
