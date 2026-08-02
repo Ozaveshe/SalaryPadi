@@ -110,23 +110,29 @@ noise to discard.
 
 Measured by `scripts/canonical-reconciliation.mjs`:
 
-| Figure                               | Value              |
-| ------------------------------------ | ------------------ |
-| Immutable receipts                   | 3,569              |
-| Canonical jobs                       | 1,874              |
-| Publicly visible jobs                | 230                |
-| **Public jobs with no receipt link** | **0**              |
-| Held records without receipt links   | 955 (never public) |
-| Duplicate candidates pending review  | 81                 |
-| Canonical employers / domains        | 216 / 103          |
-| Salary evidence rows                 | 0                  |
+| Figure                                     | Value                 |
+| ------------------------------------------ | --------------------- |
+| Immutable receipts                         | 3,609                 |
+| Publicly visible jobs                      | 230                   |
+| **Public jobs with no receipt link**       | **0**                 |
+| Held records without receipt links         | 955 (never public)    |
+| Destinations classified                    | 1,875 of 1,875        |
+| Destinations via an aggregator             | 0                     |
+| Broken destinations                        | 0                     |
+| Duplicate candidates pending review        | 81 (none auto-merged) |
+| Canonical employers / with verified domain | 216 / 103             |
+| Salary evidence rows                       | 0                     |
 
-Two of these deserve reading carefully rather than as failures:
+Three of these deserve reading carefully rather than as failures:
 
 - **955 held records without receipt links** are not published. They are
-  stored-but-withheld rows — mostly roles awaiting a country pack. The
+  stored-but-withheld rows, mostly roles awaiting a country pack. The
   guarantee that matters is the one above it: _zero published jobs lack a
   receipt._
 - **0 salary evidence rows** means no currently ingested vacancy discloses
-  pay in a form we may store. That is an honest absence. The alternative —
-  filling it with an estimate — is what the model exists to prevent.
+  pay in a form we may store. That is an honest absence; filling it with an
+  estimate is what the model exists to prevent.
+- **113 employers without a verified domain** is a real gap, and it is why 55
+  jobs are classified `external_board` when their destination is in fact the
+  employer's own site. Fixing the label requires a citation, not a code
+  change, and the system correctly under-claims until one exists.

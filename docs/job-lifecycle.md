@@ -98,14 +98,43 @@ closed and why.
 
 ## Verified state (2026-08-01)
 
-| Figure                                 | Value |
-| -------------------------------------- | ----- |
-| Jobs with a broken apply link          | 0     |
-| Jobs with an unchecked destination     | 4     |
-| Jobs with no recorded destination kind | 1,874 |
+| Figure                                | Value          |
+| ------------------------------------- | -------------- |
+| Jobs with a recorded destination kind | 1,875 of 1,875 |
+| Reached via the employer's own ATS    | 1,820          |
+| Reached via an external board         | 55             |
+| **Reached via an aggregator**         | **0**          |
+| Jobs with a broken apply link         | 0              |
 
-The last row is the current gap: destination typing shipped in this change,
-so no job carries a kind yet. Until the classifier is run across the estate,
-the preferred-destination rule is available but not yet applied to live rows.
-That backfill is the immediate next step, and it is a read-and-classify pass
-over existing data — it invents nothing.
+Zero jobs route a candidate through an aggregator, so the
+no-unnecessary-intermediary rule currently holds across the whole estate.
+
+The 55 external-board rows are **conservatively** classified. They are
+One Acre Fund (37) and Zipline (18), and both send applications to the
+employer's own domain — `oneacrefund.org` and `zipline.com` — from the
+employer's own authorised Greenhouse board. They are not labelled
+`direct_employer` because neither company has a citation-backed row in
+`app.company_domains`, and `company_domains.citation_id` is `NOT NULL` by
+design. Recording the domain to improve the label would mean manufacturing a
+citation, so the classification stays conservative and the gap stays visible.
+That is the intended behaviour: the system under-claims rather than asserting
+a relationship it cannot cite.
+
+113 of 216 employers have no verified domain, which is the same gap at
+estate scale. Closing it is a citation-gathering exercise, not a code change.
+
+## Lifecycle states in code and in the database
+
+The eleven states in
+[`src/lib/canonical/job-lifecycle.ts`](../src/lib/canonical/job-lifecycle.ts)
+are the model's vocabulary and are fully covered by tests. The database enum
+`app.jobs.lifecycle_state` currently carries three of them —
+`open | checking | closed` — mapping to `active`, `possibly_active` and
+`closed`.
+
+The remaining states are deliberately not yet added to the enum. Application
+code parses that enum with strict schemas, and adding values before the
+read path handles them is the exact contract-breakage pattern that has caused
+production incidents in this repository before. The service layer is the
+place the states are enforced today; widening the enum is a follow-up that
+must ship together with the read-path handling, not ahead of it.
