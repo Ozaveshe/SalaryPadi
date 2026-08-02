@@ -150,12 +150,13 @@ export function resolveEmployer(
     const matches = candidates.filter((candidate) =>
       candidate.domains?.some((domain) => hostMatches(host, domain)),
     );
-    if (matches.length === 1) {
+    const [onlyDomainMatch] = matches;
+    if (matches.length === 1 && onlyDomainMatch) {
       return {
         state: "resolved",
-        companyId: matches[0].companyId,
+        companyId: onlyDomainMatch.companyId,
         evidence: "verified_domain",
-        reason: `${host} is a verified domain of ${matches[0].displayName}.`,
+        reason: `${host} is a verified domain of ${onlyDomainMatch.displayName}.`,
       };
     }
     if (matches.length > 1) {
@@ -182,10 +183,11 @@ export function resolveEmployer(
         name.toLowerCase().trim() === observation.rawName.toLowerCase().trim(),
     ),
   );
-  if (legalMatches.length === 1) {
+  const [onlyLegalMatch] = legalMatches;
+  if (legalMatches.length === 1 && onlyLegalMatch) {
     return {
       state: "resolved",
-      companyId: legalMatches[0].companyId,
+      companyId: onlyLegalMatch.companyId,
       evidence: "legal_entity",
       reason: `Exact legal entity name match.`,
     };
@@ -199,10 +201,11 @@ export function resolveEmployer(
         (alias) => normalizeName(alias) === normalizedRaw,
       ),
   );
-  if (aliasMatches.length === 1) {
+  const [onlyAliasMatch] = aliasMatches;
+  if (aliasMatches.length === 1 && onlyAliasMatch) {
     return {
       state: "resolved",
-      companyId: aliasMatches[0].companyId,
+      companyId: onlyAliasMatch.companyId,
       evidence: "exact_alias",
       reason: `Exact name or alias match.`,
     };

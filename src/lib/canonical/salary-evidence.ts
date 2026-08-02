@@ -141,17 +141,21 @@ export function resolveSalary(
     };
   }
 
-  if (disclosed.length === 1) {
+  const [only] = disclosed;
+  if (disclosed.length === 1 && only) {
     return {
       state: "disclosed",
-      evidence: disclosed[0],
+      evidence: only,
       basis: "One disclosed figure.",
     };
   }
 
   for (let i = 0; i < disclosed.length - 1; i += 1) {
     for (let j = i + 1; j < disclosed.length; j += 1) {
-      const conflict = detectConflict(disclosed[i], disclosed[j]);
+      const left = disclosed[i];
+      const right = disclosed[j];
+      if (!left || !right) continue;
+      const conflict = detectConflict(left, right);
       if (conflict.kind !== "none") {
         return {
           state: "conflict",
@@ -172,9 +176,16 @@ export function resolveSalary(
     return Date.parse(b.observedAt ?? "") - Date.parse(a.observedAt ?? "");
   });
 
+  const [preferred] = ranked;
+  if (!preferred) {
+    return {
+      state: "undisclosed",
+      basis: "No source disclosed pay for this role.",
+    };
+  }
   return {
     state: "disclosed",
-    evidence: ranked[0],
+    evidence: preferred,
     basis: "Multiple agreeing disclosed figures.",
   };
 }

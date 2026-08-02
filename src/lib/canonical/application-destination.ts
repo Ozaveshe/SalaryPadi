@@ -194,12 +194,13 @@ export function preferredDestination(
     (candidate) => candidate.linkState !== "broken",
   );
   if (usable.length === 0) return null;
-  return usable.toSorted((a, b) => {
+  const [best] = usable.toSorted((a, b) => {
     const rank = destinationRank(a.kind) - destinationRank(b.kind);
     if (rank !== 0) return rank;
     // A checked-healthy link beats an unchecked one of the same kind.
     const health = (candidate: DestinationCandidate) =>
       candidate.linkState === "healthy" ? 0 : 1;
     return health(a) - health(b);
-  })[0];
+  });
+  return best ?? null;
 }

@@ -204,9 +204,10 @@ export function preferredOccurrence(
   occurrences: readonly SourceOccurrence[],
 ): SourceOccurrence | null {
   if (occurrences.length === 0) return null;
-  return occurrences.toSorted((a, b) => {
+  const [best] = occurrences.toSorted((a, b) => {
     const rank = authorityRank(a.authority) - authorityRank(b.authority);
     if (rank !== 0) return rank;
     return Date.parse(b.observedAt) - Date.parse(a.observedAt);
-  })[0];
+  });
+  return best ?? null;
 }
