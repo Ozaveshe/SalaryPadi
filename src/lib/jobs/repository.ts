@@ -422,6 +422,24 @@ async function getSecondarySourceFeed(
       reviewed.policy.refreshIntervalSeconds,
     );
     if (snapshot) return snapshot;
+    /*
+     * No fresh snapshot, and rendering a page is not the place to go and get
+     * one. Falling through to a live provider fetch here is what made public
+     * latency a function of provider latency: the homepage was measured at
+     * 4.9s against a 0.7s baseline, because a stale snapshot silently turned
+     * every request into an outbound call.
+     *
+     * The scheduled worker owns acquisition. A request reports the source as
+     * delayed, the page keeps serving everything else it has, and the
+     * freshness classifier turns that into "some sources are delayed" rather
+     * than into a smaller job count presented as fact.
+     */
+    return sourceUnavailable(
+      key,
+      attemptedAt,
+      `${key}_awaiting_refresh`,
+      messages.snapshotStale,
+    );
   }
 
   try {

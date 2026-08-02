@@ -249,42 +249,33 @@ afterEach(() => {
 });
 
 describe("job feed source orchestration", () => {
-  it("checks the live Himalayas policy and applies the daily cache contract", async () => {
+  it("contacts no provider while rendering a page when no snapshot exists", async () => {
+    // Acquisition belongs to the scheduled worker. With no snapshot to serve,
+    // the source is reported delayed rather than fetched on the request path.
     const result = await getHimalayasJobFeed(client() as never);
 
+    expect(mocks.fetchHimalayasJobs).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       key: "himalayas",
-      state: "live",
+      state: "unavailable",
+      code: "himalayas_awaiting_refresh",
       jobs: [],
     });
-    expect(mocks.fetchHimalayasJobs).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requestInit: {
-          next: {
-            revalidate: 86_400,
-            tags: ["salarypadi-job-source-himalayas"],
-          },
-        },
-      }),
-    );
   });
 
-  it("surfaces a partial Himalayas page set without discarding valid jobs", async () => {
-    mocks.fetchHimalayasJobs.mockResolvedValueOnce({
-      jobs: [remotiveJob()],
-      checkedAt,
-      partial: true,
-      successfulRequestCount: 2,
+  it("serves whatever the worker captured, without discarding valid jobs", async () => {
+    // Partial-page handling now happens where acquisition happens, in the
+    // worker; the request path serves what was captured and never re-fetches.
+    const { createAlertCatalog } = await import("./alert-catalog");
+    mocks.readSecondaryFeedSnapshot.mockResolvedValue({
+      state: "ready",
+      catalog: createAlertCatalog([remotiveJob()], checkedAt),
     });
 
     const result = await getHimalayasJobFeed(client() as never);
 
-    expect(result).toMatchObject({
-      key: "himalayas",
-      state: "degraded",
-      count: 1,
-      code: "himalayas_partial_snapshot",
-    });
+    expect(mocks.fetchHimalayasJobs).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ key: "himalayas", state: "live", count: 1 });
   });
 
   it("serves a fresh worker-written snapshot without contacting the provider", async () => {
@@ -305,7 +296,10 @@ describe("job feed source orchestration", () => {
     expect(mocks.fetchHimalayasJobs).not.toHaveBeenCalled();
   });
 
-  it("ignores a stale worker snapshot and falls back to the bounded live fetch", async () => {
+  it("reports a stale snapshot as delayed instead of fetching during a page render", async () => {
+    // Page rendering must never reach a provider: the scheduled worker owns
+    // acquisition. A stale snapshot makes the source delayed, and the page
+    // keeps serving everything else it has.
     const { createAlertCatalog } = await import("./alert-catalog");
     const staleCheckedAt = new Date(
       Date.now() - 27 * 60 * 60 * 1_000,
@@ -317,8 +311,14 @@ describe("job feed source orchestration", () => {
 
     const result = await getHimalayasJobFeed(client() as never);
 
-    expect(mocks.fetchHimalayasJobs).toHaveBeenCalledTimes(1);
-    expect(result).toMatchObject({ key: "himalayas", state: "live" });
+    expect(mocks.fetchHimalayasJobs).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      key: "himalayas",
+      state: "unavailable",
+      code: "himalayas_awaiting_refresh",
+    });
+    // A delayed source contributes no jobs, and never a claim of zero.
+    expect(result.jobs).toEqual([]);
   });
 
   it("serves the Jobicy snapshot ahead of the request-time fetch as well", async () => {
@@ -335,11 +335,13 @@ describe("job feed source orchestration", () => {
   });
 
   it("keeps a Himalayas snapshot publishable across its full daily cache window", async () => {
-    mocks.fetchHimalayasJobs.mockResolvedValueOnce({
-      jobs: [remotiveJob()],
-      checkedAt: new Date(Date.now() - 20 * 60 * 60 * 1_000).toISOString(),
-      partial: false,
-      successfulRequestCount: 3,
+    const { createAlertCatalog } = await import("./alert-catalog");
+    mocks.readSecondaryFeedSnapshot.mockResolvedValue({
+      state: "ready",
+      catalog: createAlertCatalog(
+        [remotiveJob()],
+        new Date(Date.now() - 20 * 60 * 60 * 1_000).toISOString(),
+      ),
     });
 
     const result = await getHimalayasJobFeed(client() as never);
@@ -352,18 +354,20 @@ describe("job feed source orchestration", () => {
   });
 
   it("rejects a Himalayas snapshot older than its daily cache window plus grace", async () => {
-    mocks.fetchHimalayasJobs.mockResolvedValueOnce({
-      jobs: [remotiveJob()],
-      checkedAt: new Date(Date.now() - 27 * 60 * 60 * 1_000).toISOString(),
-      partial: false,
-      successfulRequestCount: 3,
+    const { createAlertCatalog } = await import("./alert-catalog");
+    mocks.readSecondaryFeedSnapshot.mockResolvedValue({
+      state: "ready",
+      catalog: createAlertCatalog(
+        [remotiveJob()],
+        new Date(Date.now() - 27 * 60 * 60 * 1_000).toISOString(),
+      ),
     });
 
     const result = await getHimalayasJobFeed(client() as never);
 
     expect(result).toMatchObject({
       state: "unavailable",
-      code: "himalayas_snapshot_stale",
+      code: "himalayas_awaiting_refresh",
       jobs: [],
     });
   });
@@ -385,20 +389,16 @@ describe("job feed source orchestration", () => {
     expect(mocks.fetchJobicyJobs).not.toHaveBeenCalled();
   });
 
-  it("checks the live Jobicy policy and applies the six-hour cache contract", async () => {
+  it("reports Jobicy as delayed rather than fetching it during a render", async () => {
     const result = await getJobicyJobFeed(client() as never);
 
-    expect(result).toMatchObject({ key: "jobicy", state: "live", jobs: [] });
-    expect(mocks.fetchJobicyJobs).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requestInit: {
-          next: {
-            revalidate: 21_600,
-            tags: ["salarypadi-job-source-jobicy"],
-          },
-        },
-      }),
-    );
+    expect(mocks.fetchJobicyJobs).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      key: "jobicy",
+      state: "unavailable",
+      code: "jobicy_awaiting_refresh",
+      jobs: [],
+    });
   });
 
   it("fails closed when the live Jobicy policy is paused", async () => {
