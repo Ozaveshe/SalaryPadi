@@ -54,11 +54,15 @@ export interface RankableJob {
   sponsored?: boolean;
 }
 
+/** The scoring components, one per weight. A closed set, so a reader can
+ *  see every contribution and a caller cannot invent one. */
+export type RankingComponents = Record<keyof typeof WEIGHTS, number>;
+
 export interface RankedJob {
   job: RankableJob;
   score: number;
   /** Every contribution, for explanation and for debugging a bad order. */
-  components: Record<string, number>;
+  components: RankingComponents;
 }
 
 /**
@@ -162,7 +166,7 @@ function applyQualityScore(job: RankableJob): number {
  * contributes nothing here. Paid placement must never move an organic score.
  */
 export function scoreJob(job: RankableJob): RankedJob {
-  const components: Record<string, number> = {
+  const components: RankingComponents = {
     textRelevance: clamp01(job.textRelevance) * WEIGHTS.textRelevance,
     eligibility: ELIGIBILITY_SCORE[job.eligibility] * WEIGHTS.eligibility,
     freshness:
