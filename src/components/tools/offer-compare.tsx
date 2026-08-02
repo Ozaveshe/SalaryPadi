@@ -40,7 +40,12 @@ interface OfferToolResult {
   providerNotice: string | null;
 }
 
-export function OfferCompare() {
+export function OfferCompare({
+  offerA,
+}: {
+  /** Offer A prefilled from the job the user came from. */
+  offerA?: { label: string; base?: number; currency?: string; period?: string };
+} = {}) {
   const {
     result: responseResult,
     error,
@@ -141,7 +146,14 @@ export function OfferCompare() {
           </p>
         </fieldset>
         <div className="offer-grid">
-          <OfferFields prefix="a" title="Offer A" defaultCurrency="NGN" />
+          <OfferFields
+            prefix="a"
+            title="Offer A"
+            defaultCurrency={offerA?.currency ?? "NGN"}
+            defaultLabel={offerA?.label}
+            defaultBase={offerA?.base}
+            defaultPeriod={offerA?.period}
+          />
           <OfferFields prefix="b" title="Offer B" defaultCurrency="USD" />
         </div>
         <label className="checkbox provider-consent">

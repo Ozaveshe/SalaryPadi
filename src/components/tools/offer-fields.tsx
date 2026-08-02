@@ -8,10 +8,17 @@ export function OfferFields({
   prefix,
   title,
   defaultCurrency,
+  defaultLabel,
+  defaultBase,
+  defaultPeriod,
 }: {
   prefix: OfferPrefix;
   title: string;
   defaultCurrency: string;
+  /** Prefilled when the user arrived from a job they are comparing. */
+  defaultLabel?: string;
+  defaultBase?: number;
+  defaultPeriod?: string;
 }) {
   return (
     <fieldset>
@@ -23,7 +30,7 @@ export function OfferFields({
             className="input"
             id={`${prefix}_label`}
             name={`${prefix}_label`}
-            defaultValue={title}
+            defaultValue={defaultLabel ?? title}
           />
         </div>
         <div className="field">
@@ -35,6 +42,7 @@ export function OfferFields({
             type="number"
             min="0"
             step="0.01"
+            defaultValue={defaultBase ? String(defaultBase) : undefined}
             required
           />
         </div>
@@ -56,7 +64,7 @@ export function OfferFields({
             className="select"
             id={`${prefix}_period`}
             name={`${prefix}_period`}
-            defaultValue="monthly"
+            defaultValue={defaultPeriod ?? "monthly"}
           >
             <option value="hourly">Hourly</option>
             <option value="daily">Daily</option>
