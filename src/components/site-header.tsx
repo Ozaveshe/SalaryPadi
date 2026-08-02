@@ -3,20 +3,17 @@ import Link from "next/link";
 import type { Viewer } from "@/lib/auth/dal";
 import { Brand } from "@/components/brand";
 import { MobileNavigation } from "@/components/mobile-navigation";
-import { getFeatureFlags } from "@/lib/env";
+import { primaryNavigation } from "@/lib/product/surfaces";
 
+/*
+ * Four surfaces, not a list of every page. Salaries and the pay tools were
+ * separate header entries even though a user thinking about money does not
+ * distinguish them, and Contribute sat beside them as a peer of the whole
+ * jobs catalogue. The full set of destinations lives on each surface landing
+ * page; see src/lib/product/surfaces.ts.
+ */
 function buildNavigation() {
-  return [
-    { href: "/jobs", label: "Jobs" },
-    { href: "/companies", label: "Companies" },
-    { href: "/salaries", label: "Salaries" },
-    { href: "/tools", label: "Tools" },
-    // Insights returns to the nav once it has real data to show.
-    ...(getFeatureFlags().insights
-      ? [{ href: "/insights", label: "Insights" }]
-      : []),
-    { href: "/contribute", label: "Contribute" },
-  ];
+  return primaryNavigation();
 }
 
 function AccountLinks({ viewer }: { viewer: Viewer }) {
@@ -38,7 +35,7 @@ function AccountLinks({ viewer }: { viewer: Viewer }) {
   return (
     <>
       <Link className="nav-link" href="/account">
-        My career
+        Account
       </Link>
       {viewer.isAdmin ? (
         <Link className="nav-link" href="/admin">

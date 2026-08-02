@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cache } from "react";
 
 import { JobCard } from "@/components/jobs/job-card";
+import { SurfaceLinks } from "@/components/product/surface-links";
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { SalaryAggregateCard } from "@/components/salaries/salary-aggregate-card";
@@ -149,6 +150,11 @@ export default async function SalariesPage({
         eyebrow="Salary intelligence"
         title="Compare pay with the evidence attached"
         description="Compare salary information from anonymous community contributions, disclosed-pay jobs and reviewed international statistics. Each is shown separately and clearly labelled, with its original currency, period, place, source and dates."
+      />
+      <SurfaceLinks
+        surface="pay"
+        heading="Pay and offer tools"
+        exclude={["/salaries"]}
       />
       <form
         className="home-search"

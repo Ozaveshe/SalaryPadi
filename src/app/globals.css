@@ -3617,3 +3617,84 @@ a:hover {
 .company-row h2 a:hover {
   color: var(--interactive-primary);
 }
+
+/* Surface architecture: job context carried into tools, surface link grids. */
+.job-context-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-left: 4px solid var(--cta-bg);
+  border-radius: var(--radius-medium);
+  background: var(--surface-default);
+  padding: var(--space-4);
+}
+
+.job-context-banner-action {
+  margin: 0 0 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.job-context-banner-role {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.job-context-banner-role strong {
+  font-size: 1.05rem;
+}
+
+.job-context-banner-employer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.surface-links-grid {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.surface-link {
+  display: grid;
+  gap: 0.15rem;
+  height: 100%;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-small);
+  background: var(--surface-default);
+  padding: 0.75rem 0.9rem;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.surface-link:hover {
+  border-color: var(--cta-bg);
+  background: var(--surface-brand-soft);
+}
+
+.surface-link small {
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface-link {
+    transition: none;
+  }
+}

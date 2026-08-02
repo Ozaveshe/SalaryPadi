@@ -59,9 +59,11 @@ async function expectResponsiveNavigation(
   await trigger.click();
   await page
     .getByRole("navigation", { name: "Mobile navigation" })
-    .getByRole("link", { name: "Tools", exact: true })
+    .getByRole("link", { name: "Pay & Offers", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/tools$/);
+  // The header carries the four product surfaces; the pay tools live inside
+  // the Pay & Offers surface rather than as their own top-level entry.
+  await expect(page).toHaveURL(/\/salaries$/);
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
 }
 

@@ -18,7 +18,14 @@ function money(value: number) {
   return formatSalaryAmount(value, "NGN");
 }
 
-export function TakeHomeCalculator() {
+export function TakeHomeCalculator({
+  defaultAmount,
+  defaultPeriod,
+}: {
+  /** Prefilled when the user arrived from a job that advertised pay. */
+  defaultAmount?: number;
+  defaultPeriod?: "monthly" | "annual";
+} = {}) {
   const { result, error, loading, run } = useToolRequest<PayeResult>(
     "Calculation failed.",
   );
@@ -86,13 +93,20 @@ export function TakeHomeCalculator() {
                 min="1"
                 max="1000000000000"
                 step="1"
-                defaultValue="500000"
+                defaultValue={
+                  defaultAmount ? String(Math.round(defaultAmount)) : "500000"
+                }
                 required
               />
             </div>
             <div className="field">
               <label htmlFor="period">Period</label>
-              <select className="select" id="period" name="period">
+              <select
+                className="select"
+                id="period"
+                name="period"
+                defaultValue={defaultPeriod ?? "monthly"}
+              >
                 <option value="monthly">Monthly</option>
                 <option value="annual">Annual</option>
               </select>

@@ -26,6 +26,7 @@ import { PageHeading } from "@/components/page-heading";
 import { CombinedRepositoryNotice } from "@/components/repository-notice";
 import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { getViewer } from "@/lib/auth/dal";
+import { jobContextFrom, withJobContext } from "@/lib/product/job-context";
 import { countryAlternates } from "@/lib/country-packs/routing";
 import {
   getCompanyBenefitsResult,
@@ -276,7 +277,9 @@ export default async function JobDetailPage({
           <p className="eyebrow">Continue your decision</p>
           <h2 className="section-title">Move from the vacancy to the offer</h2>
         </div>
-        <Link href="/tools/take-home-pay">
+        <Link
+          href={withJobContext("/tools/take-home-pay", jobContextFrom(job))}
+        >
           <BadgeDollarSign aria-hidden="true" size={20} />
           <span>
             <strong>Estimate take-home pay</strong>
@@ -462,7 +465,10 @@ export default async function JobDetailPage({
               Verify the role on the employer’s own site, compare the offer
               value, and never pay an application fee.
             </p>
-            <Link className="text-link" href="/tools/offer-compare">
+            <Link
+              className="text-link"
+              href={withJobContext("/tools/offer-compare", jobContextFrom(job))}
+            >
               <Route aria-hidden="true" size={15} />
               Compare an offer
             </Link>
