@@ -236,6 +236,8 @@ export const workableJobSchema = z
   .object({
     title: shortText,
     shortcode: z.string().trim().min(1).max(100),
+    // Present only when the widget endpoint is asked for details.
+    description: longText.nullable().optional(),
     employment_type: z.string().trim().max(100).nullable().optional(),
     telecommuting: z.boolean().optional(),
     department: z.string().trim().max(300).nullable().optional(),

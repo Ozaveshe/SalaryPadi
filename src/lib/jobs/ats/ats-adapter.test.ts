@@ -269,7 +269,9 @@ describe("ATS endpoint allowlist", () => {
     );
     expect(
       buildWorkableEndpoint({ provider: "workable", tenant: "acme" }).href,
-    ).toBe("https://apply.workable.com/api/v1/widget/accounts/acme");
+    ).toBe(
+      "https://apply.workable.com/api/v1/widget/accounts/acme?details=true",
+    );
   });
 
   it.each(["https://evil.example", "../other", "acme/path", "acme.example"])(
@@ -627,6 +629,45 @@ describe("employer-authorized ATS adapter", () => {
       location: "Lagos, Nigeria",
       workplaceType: "remote",
     });
+  });
+
+  it("keeps the description the details endpoint returns", async () => {
+    /*
+     * Workable's widget omits descriptions unless asked. Without the details
+     * parameter every Workable board imported as a title and a location: 51 of
+     * the 60 authorized boards, and not a word about any of the roles.
+     */
+    const result = await fetchAtsSourceRecords(workableSource(), {
+      fetch: fixedFetch(
+        jsonResponse({
+          name: "Example Employer",
+          jobs: [
+            workableJob({
+              description:
+                "<p>Own the reconciliation pipeline for a Nigerian bank.</p>",
+            }),
+          ],
+        }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+    expect(result.records[0]?.descriptionHtml).toBe(
+      "<p>Own the reconciliation pipeline for a Nigerian bank.</p>",
+    );
+  });
+
+  it("still imports a Workable board that returns no description", async () => {
+    // A board can legitimately publish a role with an empty body.
+    const result = await fetchAtsSourceRecords(workableSource(), {
+      fetch: fixedFetch(
+        jsonResponse({ name: "Example Employer", jobs: [workableJob()] }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+    expect(result.records).toHaveLength(1);
+    expect(result.records[0]?.descriptionHtml).toBeNull();
   });
 
   it("quarantines a Workable destination outside the apply host", async () => {

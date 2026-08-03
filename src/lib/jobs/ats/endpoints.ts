@@ -66,11 +66,23 @@ export function buildAshbyEndpoint(target: AshbyEndpointTarget): URL {
   return endpoint;
 }
 
+/**
+ * Workable's widget endpoint omits descriptions unless asked for details.
+ *
+ * Without this parameter every Workable board imported as title and location
+ * only — 51 of the 60 authorized boards and 105 published jobs, none of them
+ * carrying a word about the actual role. It was previously recorded that
+ * Workable needed a per-posting detail fetch, which would have cost a request
+ * per job against a four-a-day budget. It does not: `details=true` returns the
+ * description inside the same single account call.
+ */
 export function buildWorkableEndpoint(target: WorkableEndpointTarget): URL {
   const tenant = validTenant(target.tenant);
-  return new URL(
+  const endpoint = new URL(
     `https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(tenant)}`,
   );
+  endpoint.searchParams.set("details", "true");
+  return endpoint;
 }
 
 /**

@@ -328,7 +328,7 @@ function workableRecord(
     employmentType: optionalText(job.employment_type),
     department: optionalText(job.department),
     team: null,
-    descriptionHtml: null,
+    descriptionHtml: optionalText(job.description) ?? null,
     descriptionText: null,
     publishedAt: job.published_on ? `${job.published_on}T00:00:00.000Z` : null,
     updatedAt: null,
