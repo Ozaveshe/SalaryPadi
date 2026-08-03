@@ -14,7 +14,14 @@ export default defineConfig({
   test: {
     environment: "node",
     pool: "threads",
-    include: ["src/**/*.test.ts", "netlify/functions/**/*.test.ts"],
+    // tests/unit holds unit tests for E2E support code. It sits OUTSIDE
+    // playwright's testDir (./tests/e2e) so the two runners never claim the
+    // same file.
+    include: [
+      "src/**/*.test.ts",
+      "netlify/functions/**/*.test.ts",
+      "tests/unit/**/*.test.ts",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],

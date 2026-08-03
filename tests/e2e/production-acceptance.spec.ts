@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import {
   ARTIFACT_DIR,
+  assertNotChallenged,
   captureRoute,
   findViolations,
   normalize,
@@ -160,6 +161,9 @@ async function resolveAuditableJob(
   const response = await page.goto(pinnedPath, {
     waitUntil: "domcontentloaded",
   });
+  // A challenge answers 403, which would otherwise read as "the pinned job has
+  // closed" and send the run looking for a replacement posting.
+  await assertNotChallenged(page, pinnedPath);
   const reachedPin =
     response?.status() === 200 &&
     new URL(page.url()).pathname.replace(/\/$/, "") === pinnedPath;
@@ -276,6 +280,7 @@ test("pinned company profile is live with all six tabs", async ({ page }) => {
   const response = await page.goto(`/companies/${PINNED_COMPANY}`, {
     waitUntil: "domcontentloaded",
   });
+  await assertNotChallenged(page, `/companies/${PINNED_COMPANY}`);
   expect(
     response?.status(),
     `Pinned company /companies/${PINNED_COMPANY} did not return 200. ${REPLACE_TARGET_HINT}`,

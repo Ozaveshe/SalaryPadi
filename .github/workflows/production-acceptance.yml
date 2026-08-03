@@ -29,9 +29,17 @@ on:
     types: [completed]
     branches: [main]
 
+# Superseded runs are cancelled rather than queued. This workflow verifies the
+# DEPLOYED surface, so once a newer commit is live the older run is verifying
+# something that is no longer in production — it would spend its 20-minute
+# commit-match budget polling for a commit production has already moved past.
+#
+# Queuing them also concentrates traffic: on 2026-08-03 five runs inside 95
+# minutes put enough sustained load on one datacenter IP that Netlify's bot
+# protection challenged the runner (403) and failed run 30779783574.
 concurrency:
   group: production-acceptance-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
