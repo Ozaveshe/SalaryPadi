@@ -37,6 +37,7 @@ const environment = {
   AUTH_LINKEDIN_ENABLED: false,
   EDITORIAL_AUTOMATION_ENABLED: true,
   NEXT_PUBLIC_FEATURE_INSIGHTS: false,
+  FEATURE_EVIDENCE_RANKING: false,
   ALLOW_DEMO_DATA: false,
   ANALYTICS_PROVIDER: "supabase_first_party" as const,
   EMAIL_PROVIDER: "resend" as const,

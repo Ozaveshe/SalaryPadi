@@ -10,6 +10,7 @@ import { Pagination } from "@/components/jobs/pagination";
 import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
+import { getFeatureFlags } from "@/lib/env";
 import { getViewer } from "@/lib/auth/dal";
 import { readCvSkills } from "@/lib/career/cv/draft";
 import { getCurrentCandidateCv } from "@/lib/career/cv/repository";
@@ -72,7 +73,9 @@ async function JobResultsSection({
     readMatchProfile(),
     getReferenceCurrencyRates(),
   ]);
-  const filteredJobs = filterAndSortJobs(feed.jobs, search);
+  const filteredJobs = filterAndSortJobs(feed.jobs, search, new Date(), {
+    evidenceRanking: getFeatureFlags().evidenceRanking,
+  });
   const diversifiedJobs = diversifyJobResults(filteredJobs);
   const result = paginateJobs(diversifiedJobs, search.page);
   const categories = [

@@ -4,6 +4,8 @@ import { annualizedSalaryMinimum } from "./normalize";
 import { hasJobEvidence, type AfricaEvidenceKey } from "./evidence";
 import { isJobCurrentlyPublishable } from "./publication";
 import { expandJobSearchQuery } from "./search-synonyms";
+import { rankJobs } from "@/lib/search/ranking";
+import { toRankableJob } from "@/lib/search/rank-adapter";
 import type { Job } from "./types";
 
 const stringValue = z.preprocess(
@@ -272,10 +274,20 @@ export function nigeriaValueTier(job: Job) {
   return 0;
 }
 
+export interface JobSortOptions {
+  /**
+   * Rank on evidence rather than eligibility-tier-then-date. Supplied by the
+   * caller rather than read here: this module is reachable from client
+   * components, and `@/lib/env` is server-only.
+   */
+  evidenceRanking?: boolean;
+}
+
 export function filterAndSortJobs(
   jobs: Job[],
   search: JobSearch,
   now = new Date(),
+  options?: JobSortOptions,
 ): Job[] {
   const nowValue = now.valueOf();
   const filtered = jobs.filter((job) => {
@@ -389,13 +401,25 @@ export function filterAndSortJobs(
     return true;
   });
 
+  // Explicit user sorts are never reordered by relevance: someone who asked
+  // for newest wants newest.
+  if (search.sort === "newest") {
+    return filtered.toSorted(
+      (a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt),
+    );
+  }
+  if (search.sort === "salary") {
+    return filtered.toSorted(
+      (a, b) =>
+        (annualizedSalaryMinimum(b) ?? -1) - (annualizedSalaryMinimum(a) ?? -1),
+    );
+  }
+
+  if (options?.evidenceRanking) {
+    return rankByEvidence(filtered, search, now);
+  }
+
   return filtered.toSorted((a, b) => {
-    if (search.sort === "newest")
-      return Date.parse(b.postedAt) - Date.parse(a.postedAt);
-    if (search.sort === "salary")
-      return (
-        (annualizedSalaryMinimum(b) ?? -1) - (annualizedSalaryMinimum(a) ?? -1)
-      );
     const scoreDifference =
       relevanceScore(b, search) - relevanceScore(a, search);
     return (
@@ -404,6 +428,39 @@ export function filterAndSortJobs(
       Date.parse(b.postedAt) - Date.parse(a.postedAt)
     );
   });
+}
+
+/**
+ * The default order under the evidence ranker.
+ *
+ * Lexical relevance is normalised against the best-scoring job in this result
+ * set rather than an absolute scale, because the existing scorer has no fixed
+ * ceiling. With no query every job scores 0, so relevance contributes equally
+ * and the remaining signals — eligibility, freshness, source, destination,
+ * salary disclosure — decide the order. That is precisely the browse case
+ * that used to collapse to "newest within an eligibility tier".
+ */
+function rankByEvidence(jobs: Job[], search: JobSearch, now: Date): Job[] {
+  const relevance = new Map(
+    jobs.map((job) => [job.id, relevanceScore(job, search)]),
+  );
+  const best = Math.max(0, ...relevance.values());
+  const byId = new Map(jobs.map((job) => [job.id, job]));
+
+  const { organic, sponsored } = rankJobs(
+    jobs.map((job) =>
+      toRankableJob(job, {
+        textRelevance: best > 0 ? (relevance.get(job.id) ?? 0) / best : 1,
+        now,
+      }),
+    ),
+  );
+
+  // Sponsored jobs are returned after organic results rather than interleaved.
+  // Placement belongs to the surface that can label them, not to the sort.
+  return [...organic, ...sponsored]
+    .map((entry) => byId.get(entry.job.id))
+    .filter((job): job is Job => job !== undefined);
 }
 
 function locationCluster(job: Job) {
