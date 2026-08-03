@@ -214,8 +214,21 @@ export interface RankingResult {
  */
 export function rankJobs(jobs: readonly RankableJob[]): RankingResult {
   const scored = jobs.map(scoreJob);
+  /*
+   * Ties break on recency before identity.
+   *
+   * A/B against real inventory found why this matters: SalaryPadi's current
+   * jobs are near-homogeneous — almost all Nigeria-eligible, from an employer
+   * ATS, with no disclosed salary and checked within the same hour — so their
+   * scores tie constantly. Breaking those ties on job id sorted the board
+   * alphabetically, which is worse for a reader than the newest-first order it
+   * replaced. Identity remains the final tiebreak so pagination stays stable.
+   */
   const byScore = (a: RankedJob, b: RankedJob) =>
-    b.score - a.score || a.job.id.localeCompare(b.job.id);
+    b.score - a.score ||
+    (a.job.daysSincePosted ?? Number.POSITIVE_INFINITY) -
+      (b.job.daysSincePosted ?? Number.POSITIVE_INFINITY) ||
+    a.job.id.localeCompare(b.job.id);
 
   return {
     organic: scored.filter((entry) => !entry.job.sponsored).toSorted(byScore),
