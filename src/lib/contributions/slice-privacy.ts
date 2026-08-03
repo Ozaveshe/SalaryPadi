@@ -1,5 +1,5 @@
 /**
- * Which salary slices may be published at all.
+ * Which contribution slices may be published at all.
  *
  * Cohort thresholds answer "are there enough people in this cell?". They do
  * not answer the harder question: "does this cell describe so few people that
@@ -27,8 +27,26 @@ export type SliceDimension =
   | "employment_type"
   | "period_month";
 
-export interface SalarySlice {
+/**
+ * What the figure is a statement about.
+ *
+ * This decides interpretability, not privacy. A pay figure without a role is
+ * meaningless — "the median at Moniepoint" answers no question anyone asked.
+ * A statement about an employer's own practice (its rating, its benefits,
+ * whether it pays on time) is meaningful precisely because it names the
+ * employer, and has no role to carry.
+ *
+ * The distinction is explicit because extending this rule from salary to the
+ * other workers is exactly where it would otherwise be got wrong: applying
+ * the salary interpretability rule to a company rating suppresses every
+ * rating, for a reason that has nothing to do with privacy.
+ */
+export type SliceSubject = "pay" | "employer_practice";
+
+export interface ContributionSlice {
   dimensions: readonly SliceDimension[];
+  /** Defaults to pay, which is the stricter reading. */
+  subject?: SliceSubject;
 }
 
 export type SliceVerdict =
@@ -91,7 +109,7 @@ export const MIN_DISTINCT_EMPLOYERS = 2;
  * a large cohort from arguing its way past a shape that should never be
  * published.
  */
-export function assessSlice(slice: SalarySlice): SliceVerdict {
+export function assessSlice(slice: ContributionSlice): SliceVerdict {
   const dimensions = new Set(slice.dimensions);
 
   for (const dimension of dimensions) {
@@ -103,11 +121,17 @@ export function assessSlice(slice: SalarySlice): SliceVerdict {
     }
   }
 
-  if (!dimensions.has("role")) {
+  // Interpretability, checked before privacy: a figure nobody can read is not
+  // made publishable by having enough contributors behind it.
+  const subject = slice.subject ?? "pay";
+  const required = subject === "pay" ? "role" : "employer";
+  if (!dimensions.has(required)) {
     return {
       publishable: false,
       reason:
-        "A salary aggregate without a role dimension is not interpretable and is not published.",
+        subject === "pay"
+          ? "A pay aggregate without a role dimension is not interpretable and is not published."
+          : "An aggregate about an employer's practice must name the employer it describes.",
     };
   }
 
@@ -136,7 +160,7 @@ export function assessSlice(slice: SalarySlice): SliceVerdict {
 }
 
 export interface CohortInput {
-  slice: SalarySlice;
+  slice: ContributionSlice;
   /** Distinct contributing accounts, not submissions. */
   distinctContributors: number;
   /** Distinct employers, where the slice spans more than one. */
@@ -161,7 +185,9 @@ export function decidePublication(input: CohortInput): PublicationDecision {
       publish: false,
       reason: verdict.reason,
       publicMessage:
-        "We do not publish pay figures at this level of detail, to protect the people who contributed them.",
+        (input.slice.subject ?? "pay") === "pay"
+          ? "We do not publish pay figures at this level of detail, to protect the people who contributed them."
+          : "We do not publish this at a level of detail that would identify the people who reported it.",
     };
   }
 
@@ -178,12 +204,11 @@ export function decidePublication(input: CohortInput): PublicationDecision {
    * employer supplies nearly all of it.
    *
    * The test is whether the slice *names* an employer, not whether it is
-   * general. Wiring this rule into the salary worker exposed why: that
-   * worker's broadest cell is role + country + employment_type, which has one
-   * narrowing dimension and is therefore sensitive — so a tier check let
-   * exactly the disguised-employer case through. A slice that already says
-   * "Moniepoint" is held to the employer threshold and needs no such check;
-   * every slice that does not is a candidate for the disguise.
+   * general. Gating on the general tier let every slice carrying a narrowing
+   * dimension escape the check, which is where the disguise matters more, not
+   * less. A slice that already says "Moniepoint" is held to the employer
+   * threshold and needs no such check; every slice that does not is a
+   * candidate for the disguise.
    */
   if (
     input.distinctEmployers !== undefined &&
@@ -221,13 +246,43 @@ export function decidePublication(input: CohortInput): PublicationDecision {
 export function salaryCellSlice(cell: {
   namesEmployer: boolean;
   namesOffice: boolean;
-}): SalarySlice {
+}): ContributionSlice {
   return {
+    subject: "pay",
     dimensions: [
       "role",
       "country",
       ...(cell.namesEmployer ? (["employer"] as const) : []),
       ...(cell.namesOffice ? (["office"] as const) : []),
+    ],
+  };
+}
+
+/**
+ * The slice an employer-practice aggregate cell describes.
+ *
+ * Covers the three workers that report on a company rather than on pay:
+ * `security.refresh_company_ratings` (cell: company), and the benefit and
+ * pay-reliability halves of `security.refresh_company_workplace_aggregates`
+ * (cell: company + country).
+ *
+ * A benefit cell also groups by benefit code. That is *what is being
+ * measured*, not who the cohort is — "does this employer offer a pension" and
+ * "does this employer offer transport support" describe the same group of
+ * people answering different questions. Treating it as a dimension would
+ * suppress cells for being specific about the question asked.
+ *
+ * Every one of these names its employer, so the disguised-employer rule never
+ * applies: they are employer figures and they say so.
+ */
+export function employerPracticeCellSlice(cell: {
+  namesCountry: boolean;
+}): ContributionSlice {
+  return {
+    subject: "employer_practice",
+    dimensions: [
+      "employer",
+      ...(cell.namesCountry ? (["country"] as const) : []),
     ],
   };
 }
