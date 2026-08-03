@@ -143,6 +143,25 @@ describe("ranking signals", () => {
     expect(organic[0]?.job.id).toBe("plain");
   });
 
+  it("breaks a score tie on recency, not alphabetically", () => {
+    /*
+     * Found by A/B against real inventory: SalaryPadi's current jobs are
+     * near-homogeneous, so scores tie constantly. Breaking those ties on job
+     * id sorted the whole board alphabetically, which is worse for a reader
+     * than the newest-first order it replaced.
+     */
+    const older = job({ id: "aaa-older", daysSincePosted: 9 });
+    const newer = job({ id: "zzz-newer", daysSincePosted: 8 });
+    const { organic } = rankJobs([older, newer]);
+    expect(organic[0]?.job.id).toBe("zzz-newer");
+  });
+
+  it("falls back to identity only when recency also ties", () => {
+    const a = job({ id: "a", daysSincePosted: 5 });
+    const b = job({ id: "b", daysSincePosted: 5 });
+    expect(rankJobs([b, a]).organic.map((e) => e.job.id)).toEqual(["a", "b"]);
+  });
+
   it("is deterministic for equally scored jobs", () => {
     const a = job({ id: "a" });
     const b = job({ id: "b" });
