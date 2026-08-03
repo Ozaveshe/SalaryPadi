@@ -3587,18 +3587,17 @@ a:hover {
   overflow: hidden;
   margin-top: 1rem;
   border-radius: var(--radius-medium);
-  background:
-    radial-gradient(
-      48rem 24rem at 88% -25%,
-      rgb(139 92 246 / 20%),
-      transparent 60%
-    ),
-    radial-gradient(
-      38rem 20rem at -12% 115%,
-      rgb(245 158 11 / 13%),
-      transparent 55%
-    ),
-    var(--ink-950);
+  /*
+   * A flat panel, not a lit one.
+   *
+   * Two off-canvas radial blobs — violet from the top right, amber from the
+   * bottom left — put an uneven wash behind the headline and the coverage
+   * card. They read as a smudge rather than as depth, they made the card's
+   * white edge sit on a different tint on each side, and they were the only
+   * decoration on the page doing no work. The panel carries the brand on its
+   * own.
+   */
+  background: var(--ink-950);
   padding: clamp(1.5rem, 4.5vw, 3.25rem);
   color: var(--ink-50);
 }
