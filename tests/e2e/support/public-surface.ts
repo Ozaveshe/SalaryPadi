@@ -304,6 +304,15 @@ export async function scanCustomerSurface(page: Page): Promise<SurfaceScan> {
     text: normalize(raw.chunks.join(" ")),
     leaves: raw.leaves.map(normalize),
     rawLeaves: raw.leaves.map((value) => value.replace(/\s+/g, " ").trim()),
+    // Metadata fields are joined with a NON-WHITESPACE sentinel. `normalize`
+    // collapses runs of whitespace into a single space, so a whitespace
+    // separator would let a prohibited phrase match across two unrelated
+    // fields: a meta description ending "...coverage" followed by an
+    // aria-label starting "complete" would be reported as "coverage
+    // complete". "|||" survives normalisation, appears in no prohibited
+    // phrase, and never occurs in customer copy. Keep it printable ASCII --
+    // a raw NUL byte here makes grep and ripgrep classify this whole file as
+    // binary and hide every match in it.
     metadataText: normalize(
       [
         raw.metaDescription ?? "",
@@ -313,7 +322,7 @@ export async function scanCustomerSurface(page: Page): Promise<SurfaceScan> {
         ...raw.ariaLabels,
         ...raw.titleAttributes,
         ...raw.accessibleNames,
-      ].join("   "),
+      ].join(" ||| "),
     ),
     metadata,
     html: raw.html,
