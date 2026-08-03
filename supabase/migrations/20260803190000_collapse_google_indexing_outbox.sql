@@ -59,15 +59,6 @@ begin
       <= clock_timestamp() - interval '10 minutes'
     and outbox.attempts < 5;
 
-  update private.google_indexing_outbox outbox
-  set status = 'dead',
-      error_code = 'ineligible_before_delivery',
-      completed_at = clock_timestamp(),
-      updated_at = clock_timestamp()
-  where outbox.status = 'pending'
-    and outbox.notification_kind = 'URL_UPDATED'
-    and not security.google_indexing_job_is_eligible(outbox.job_id);
-
   -- A removal makes every earlier update for that job moot.
   update private.google_indexing_outbox outbox
   set status = 'dead',
@@ -102,6 +93,25 @@ begin
       updated_at = clock_timestamp()
   from ranked
   where outbox.id = ranked.id and ranked.rn > 1;
+
+  /*
+   * Eligibility is checked last, on what survived.
+   *
+   * It used to run first, which meant a job that became ineligible had all
+   * fourteen of its stale notifications closed as `ineligible_before_delivery`
+   * when thirteen of them were simply superseded. Both reasons are true of
+   * those rows; the more specific one is the more useful thing to have
+   * recorded, and checking eligibility once at the end also spares thirteen
+   * calls to a query that walks the source policy and provenance chain.
+   */
+  update private.google_indexing_outbox outbox
+  set status = 'dead',
+      error_code = 'ineligible_before_delivery',
+      completed_at = clock_timestamp(),
+      updated_at = clock_timestamp()
+  where outbox.status = 'pending'
+    and outbox.notification_kind = 'URL_UPDATED'
+    and not security.google_indexing_job_is_eligible(outbox.job_id);
 
   return query
   with claimed as (

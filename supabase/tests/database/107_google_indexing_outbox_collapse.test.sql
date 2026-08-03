@@ -38,14 +38,17 @@ select
   'https://employer.example.test/jobs/' || n
 from generate_series(1, 3) n;
 
--- Two of them carry a backlog of repeated updates.
+-- Two of them carry a backlog of repeated notifications. URL_DELETED is used
+-- here on purpose: the eligibility purge only ever targets URL_UPDATED, so
+-- the collapse rule is observed on its own rather than through a full
+-- published-job-and-provenance fixture.
 insert into private.google_indexing_outbox (
   job_id, job_slug, notification_kind, idempotency_key, status, created_at
 )
 select
   ('c3000000-0000-0000-0000-' || lpad(job::text, 12, '0'))::uuid,
   'job-' || job,
-  'URL_UPDATED',
+  'URL_DELETED',
   'test:' || job || ':' || n,
   'pending',
   now() - make_interval(mins => 60 - n)
@@ -53,7 +56,7 @@ from generate_series(1, 2) job, generate_series(1, 5) n;
 
 select is(
   (select count(*)::integer from private.google_indexing_outbox
-   where status = 'pending' and job_slug like 'job-%'),
+   where status = 'pending' and job_slug in ('job-1', 'job-2')),
   10,
   'ten pending notifications describe two jobs before any claim'
 );
@@ -65,14 +68,14 @@ select api.google_indexing_claim_notifications(1);
 select is(
   (select count(*)::integer from private.google_indexing_outbox
    where status = 'dead' and error_code = 'superseded_by_newer'
-     and job_slug like 'job-%'),
+     and job_slug in ('job-1', 'job-2')),
   8,
   'the claim collapses each job to its newest notification'
 );
 
 select is(
   (select count(*)::integer from private.google_indexing_outbox
-   where status in ('pending', 'processing') and job_slug like 'job-%'),
+   where status in ('pending', 'processing') and job_slug in ('job-1', 'job-2')),
   2,
   'one notification per job survives, so the second job is not starved'
 );
@@ -80,7 +83,7 @@ select is(
 select ok(
   (select bool_and(completed_at is not null)
    from private.google_indexing_outbox
-   where error_code = 'superseded_by_newer' and job_slug like 'job-%'),
+   where error_code = 'superseded_by_newer' and job_slug in ('job-1', 'job-2')),
   'a superseded notification is closed rather than left hanging'
 );
 
