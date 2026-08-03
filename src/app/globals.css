@@ -487,13 +487,24 @@ a:hover {
   font-size: clamp(1rem, 2vw, 1.125rem);
 }
 
+/*
+ * A stack packs its children at the top.
+ *
+ * Grid's default `align-content` is `normal`, which stretches auto-sized rows
+ * to fill the container. A stack placed beside a long column gets stretched to
+ * that column's height, and the stretch is shared out between its rows — so a
+ * three-row sidebar card spread its heading, its list and its link hundreds of
+ * pixels apart, with no rule anywhere saying to. `start` is what a stack means.
+ */
 .stack {
   display: grid;
+  align-content: start;
   gap: 1rem;
 }
 
 .stack-lg {
   display: grid;
+  align-content: start;
   gap: clamp(2rem, 5vw, 3.5rem);
 }
 
@@ -711,6 +722,101 @@ a:hover {
 
 .data-list dd {
   color: var(--text-primary);
+}
+
+/*
+ * The sidebar variant: label above value, not beside it.
+ *
+ * Two columns inside a 20rem aside leaves about 160px for the value, so
+ * "One Acre Fund careers (Greenhouse board)" wrapped onto three lines next to
+ * a one-word label. Stacking gives the value the full width and reads in one
+ * line, and the row keeps its rule so the grouping is still obvious.
+ */
+.data-list-stacked {
+  display: block;
+}
+
+.data-list-stacked > div {
+  display: block;
+  border-top: 1px solid var(--border-default);
+  padding-block: 0.7rem;
+}
+
+.data-list-stacked > div:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.data-list-stacked dt,
+.data-list-stacked dd {
+  border-top: 0;
+  padding-block: 0;
+}
+
+.data-list-stacked dt {
+  margin-bottom: 0.15rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.72rem;
+}
+
+/* Job description, rebuilt from stored plain text. */
+.job-description {
+  max-width: var(--content-reading);
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.job-description > * + * {
+  margin-top: 0.85rem;
+}
+
+.job-description-heading {
+  margin-top: 1.75rem;
+  color: var(--text-primary);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.job-description > .job-description-heading:first-child {
+  margin-top: 0;
+}
+
+.job-description-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding-left: 1.15rem;
+  list-style: disc;
+}
+
+.job-description-list li::marker {
+  color: var(--text-muted);
+}
+
+/*
+ * A deadline is the one fact on this page that expires, so it is the one
+ * detail that does not sit in a row of equals.
+ */
+.job-deadline {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--border-strong, var(--border-default));
+  border-radius: var(--radius-medium);
+  background: var(--surface-raised, var(--surface-default));
+  padding: 0.7rem 0.85rem;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.job-deadline strong {
+  font-weight: 700;
+}
+
+.job-deadline-soon {
+  border-color: var(--gold-400, currentColor);
 }
 
 .breadcrumbs ol {

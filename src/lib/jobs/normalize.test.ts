@@ -95,6 +95,47 @@ describe("job normalization", () => {
     expect(result).not.toContain("<script");
   });
 
+  it("strips markup a provider sent HTML-escaped", () => {
+    /*
+     * Greenhouse sends its `content` field escaped, so a single strip pass
+     * found no tags and the entity decode then produced literal markup. This
+     * is what put visible <h3> and &nbsp; in 257 stored descriptions.
+     */
+    const result = htmlToPlainText(
+      "&lt;h3&gt;About One Acre Fund&lt;/h3&gt;&lt;p&gt;Founded in 2006.&amp;nbsp;&lt;/p&gt;",
+    );
+    expect(result).toBe("About One Acre Fund\nFounded in 2006.");
+    expect(result).not.toMatch(/<[a-z]/i);
+    expect(result).not.toContain("&nbsp;");
+  });
+
+  it("never returns markup, whatever the encoding depth", () => {
+    for (const input of [
+      "<p>plain</p>",
+      "&lt;p&gt;once&lt;/p&gt;",
+      "&amp;lt;p&amp;gt;twice&amp;lt;/p&amp;gt;",
+    ]) {
+      expect(htmlToPlainText(input)).not.toMatch(/<\/?[a-z]/i);
+    }
+  });
+
+  it("keeps list items readable as bullets", () => {
+    // The only structure that survives to storage, so the job page can read
+    // it back and render a real list instead of a run-on paragraph.
+    const result = htmlToPlainText(
+      "<p>Responsibilities</p><ul><li>Lead delivery</li><li>Report weekly</li></ul>",
+    );
+    expect(result).toContain("- Lead delivery");
+    expect(result).toContain("- Report weekly");
+  });
+
+  it("leaves angle brackets in prose alone rather than inventing a tag", () => {
+    // Decoding before stripping would turn this into markup and delete it.
+    expect(htmlToPlainText("<p>Use &lt;name&gt; as the placeholder.</p>")).toBe(
+      "Use <name> as the placeholder.",
+    );
+  });
+
   it("normalizes a Remotive record and keeps attribution", () => {
     const job = normalizeRemotiveJob(
       {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import {
   BadgeDollarSign,
   Building2,
+  CalendarClock,
   ExternalLink,
   Flag,
   Heart,
@@ -16,6 +17,7 @@ import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { CompanyLogo } from "@/components/companies/company-logo";
 import { JobCard } from "@/components/jobs/job-card";
+import { JobDescription } from "@/components/jobs/job-description";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import {
   JobQuickFacts,
@@ -43,6 +45,7 @@ import {
 import { getAppOrigin } from "@/lib/env";
 import { getReferenceCurrencyRates } from "@/lib/currency/repository";
 import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
+import { jobDeadlineNotice } from "@/lib/jobs/deadline";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
 import { getJobBySlug } from "@/lib/jobs/repository";
 import { searchSalaryAggregatesResult } from "@/lib/salaries/repository";
@@ -142,6 +145,7 @@ export default async function JobDetailPage({
   ]);
   const nairaEstimate = estimateNairaTakeHome(job.salary, currencyRates);
   const postingAge = jobPostingAge(job);
+  const deadline = jobDeadlineNotice(job.validThrough, new Date());
   const companyRating = ratingResult.data;
   const companyReviews = reviewsResult.data;
   const companyInterviews = interviewsResult.data;
@@ -209,6 +213,32 @@ export default async function JobDetailPage({
           ) : null;
         })()}
         <JobQuickFacts job={job} nairaEstimate={nairaEstimate} />
+        {deadline.state !== "none" ? (
+          <p
+            className={[
+              "job-deadline",
+              deadline.state === "open" && deadline.urgent
+                ? "job-deadline-soon"
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            <CalendarClock aria-hidden="true" size={17} />
+            <span>
+              {deadline.state === "closed" ? (
+                <strong>{deadline.label}</strong>
+              ) : (
+                <>
+                  <strong>{deadline.label}</strong>
+                  {deadline.daysRemaining > 1
+                    ? ` · ${deadline.daysRemaining} days left`
+                    : ""}
+                </>
+              )}
+            </span>
+          </p>
+        ) : null}
         <div className="job-actions job-apply-bar" aria-label="Job actions">
           <a
             className="button"
@@ -325,7 +355,7 @@ export default async function JobDetailPage({
             <h2 className="section-title" id="description-heading">
               Role details
             </h2>
-            <p className="description-copy">{job.description}</p>
+            <JobDescription description={job.description} />
           </section>
           {job.requirements ? (
             <section
@@ -358,7 +388,7 @@ export default async function JobDetailPage({
             <h2 className="text-lg font-bold" id="source-heading">
               Source and freshness
             </h2>
-            <dl className="data-list">
+            <dl className="data-list data-list-stacked">
               <div>
                 <dt>Source</dt>
                 <dd>{job.source.name}</dd>
