@@ -40,9 +40,11 @@ import {
  * Sized against the measured run cost rather than guessed. Over 96 consecutive
  * production runs at one source per run the whole invocation averaged 4.2s,
  * p95 6.9s and peaked at 9.2s, including the registry read and the wasted
- * claim attempts on sources that were not due. The operation budget is 20s and
- * the loop refuses to start another source below 6s remaining, so roughly 14s
- * is available for claiming; four sources fit that with room for a slow one.
+ * claim attempts on sources that were not due. The operation budget is 20s.
+ *
+ * This is a ceiling, not a target: `SOURCE_TIME_RESERVE_MS` decides how many
+ * are actually started, and a run that stops early on time has done nothing
+ * wrong.
  *
  * Raising this does not shorten any source's own cadence. Per-source interval,
  * request spacing and daily budget are all enforced inside
@@ -56,6 +58,28 @@ const MAX_BATCH_RECORDS = 200;
 const MAX_BATCH_BYTES = 1024 * 1024;
 const SOURCE_FETCH_TIMEOUT_MS = 8_000;
 const CLEANUP_TIMEOUT_MS = 3_000;
+
+/**
+ * Budget a source must have left before the loop will claim it.
+ *
+ * This was 6s, which is below what one source costs. The measured figures in
+ * the comment above are 4.2s average and 6.9s p95 for a whole source, and the
+ * fetch alone is allowed 8s — so roughly one start in twenty began work it
+ * could not finish, and the run died mid-source. Production bore that out:
+ * `ats_source_sync` failed 3-11 times a day for at least a week, always with
+ * `ats_source_deadline_exceeded` on the last source claimed.
+ *
+ * The cost of that was not just a red health check. `worker_claim_authorized_
+ * ats_source` writes the claim row *before* the fetch, and a claim blocks the
+ * source for its whole fetch interval — two hours for most boards. A source
+ * killed by the deadline therefore lost its slot without importing anything.
+ * Refusing to start it is a throughput gain, not a sacrifice.
+ *
+ * Ten seconds covers the measured peak of 9.2s. The registry walk does not
+ * suffer: most runs already end in `ats_sources_not_due`, so per-source
+ * cadence, not claims per run, is what bounds how often a board is visited.
+ */
+const SOURCE_TIME_RESERVE_MS = 10_000;
 
 type AtsSourceSyncRpc = (
   functionName: string,
@@ -358,6 +382,10 @@ export async function runAtsSourceSync(
   /** Sources that offered records and had every one of them rejected. */
   let quarantinedSources = 0;
   let failedSources = 0;
+  /** Sources the worker's own budget cut short. Not the source's fault. */
+  let interruptedSources = 0;
+  /** The most any one source in this run has cost, for the claim reserve. */
+  let slowestSourceMs = 0;
   let providerRecords = 0;
   let storedRecords = 0;
   let filteredRecords = 0;
@@ -373,7 +401,15 @@ export async function runAtsSourceSync(
       inspectionStopped = "claim_limit";
       break;
     }
-    if (execution.remainingMs() < 6_000) {
+    /*
+     * The reserve rises to whatever this run has actually seen a source cost.
+     * A fixed number is a guess about every board at once; boards differ by an
+     * order of magnitude, and the slow ones are exactly the ones that overran.
+     * Measuring from the remaining budget rather than a clock keeps this
+     * honest under an injected time source in tests.
+     */
+    const reserveMs = Math.max(SOURCE_TIME_RESERVE_MS, slowestSourceMs + 1_000);
+    if (execution.remainingMs() < reserveMs) {
       inspectionStopped = "time_budget";
       break;
     }
@@ -405,6 +441,7 @@ export async function runAtsSourceSync(
 
     let importRunId: string | null = null;
     let fetchedCount = 0;
+    const remainingBeforeSource = execution.remainingMs();
     try {
       const sourceSignal = boundedSignal(
         execution.signal,
@@ -518,8 +555,26 @@ export async function runAtsSourceSync(
       else if (normalized.jobs.length > 0) partialSources += 1;
       else quarantinedSources += 1;
     } catch (reason) {
-      failedSources += 1;
       const code = safeErrorCode(reason);
+      /*
+       * Whose deadline ended this source decides whether it is a fault.
+       *
+       * A source that exceeded its own fetch timeout is slow, and that is the
+       * board's problem to report. A source cut off because the *worker* ran
+       * out of budget is not: the run simply walked further than it had time
+       * for. Both arrive here as an AbortError, and the only thing that tells
+       * them apart is whether the operation signal is the one that fired.
+       *
+       * Counting the second as a source failure is what kept this worker red.
+       * Runs that imported dozens of records across three boards were filed as
+       * failures because the clock stopped them partway through a fourth.
+       */
+      if (execution.signal.aborted) {
+        interruptedSources += 1;
+        inspectionStopped = "time_budget";
+      } else {
+        failedSources += 1;
+      }
       failureCodes.add(code);
       // The operation signal can already be aborted here. The tracked worker
       // reserves four seconds after its operation budget, so use an independent
@@ -554,6 +609,11 @@ export async function runAtsSourceSync(
         secondaryFailureCount += 1;
         secondaryFailureCodes.add(secondaryFailure.code);
       }
+    } finally {
+      slowestSourceMs = Math.max(
+        slowestSourceMs,
+        Math.max(0, remainingBeforeSource - execution.remainingMs()),
+      );
     }
   }
 
@@ -568,6 +628,7 @@ export async function runAtsSourceSync(
     partial_sources: partialSources,
     quarantined_sources: quarantinedSources,
     failed_sources: failedSources,
+    interrupted_sources: interruptedSources,
     provider_records: providerRecords,
     stored_records: storedRecords,
     filtered_records: filteredRecords,
@@ -594,6 +655,18 @@ export async function runAtsSourceSync(
    */
   if (failedSources > 0 || quarantinedSources > 0) {
     throw new OperationalError("ats_source_sync_incomplete", summary);
+  }
+  /*
+   * An interrupted source is the same kind of event as stopping on the claim
+   * limit: the run went as far as its budget allowed. It fails only when the
+   * budget bought nothing, which would mean the very first source overran and
+   * something is wrong with the reserve rather than with the schedule.
+   */
+  if (
+    interruptedSources > 0 &&
+    completedSources + partialSources + duplicateSources === 0
+  ) {
+    throw new OperationalError("ats_source_sync_interrupted", summary);
   }
   /*
    * Running out of time is only a fault when the run achieved nothing with it.
