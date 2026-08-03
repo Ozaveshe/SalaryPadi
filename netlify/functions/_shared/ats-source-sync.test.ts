@@ -72,6 +72,20 @@ function claimedPolicy(overrides: Record<string, unknown> = {}) {
   return { claimed: true, policy: policyRow(overrides) };
 }
 
+/** Returns a snapshot whose records belong to whichever source was claimed. */
+function fetchForClaimedSource() {
+  return vi.fn(async (source: { key: string }) => {
+    const snapshot = fetched();
+    return {
+      ...snapshot,
+      records: snapshot.records.map((record) => ({
+        ...record,
+        sourceKey: source.key,
+      })),
+    };
+  });
+}
+
 function fetched(overrides: Partial<AtsFetchResult> = {}): AtsFetchResult {
   return {
     checkedAt: now.toISOString(),
@@ -853,13 +867,169 @@ describe("ATS source sync worker", () => {
         },
       ),
     ).rejects.toMatchObject({
-      code: "ats_source_sync_incomplete",
-      summary: { failed_sources: 1 },
+      // The only source claimed was cut short, so the run bought nothing with
+      // its budget and still fails — but as an interruption, not as a source
+      // fault. Nothing is wrong with this board.
+      code: "ats_source_sync_interrupted",
+      summary: { failed_sources: 0, interrupted_sources: 1 },
     });
     expect(operation.signal.aborted).toBe(true);
     expect(cleanupSignal).toBeDefined();
     expect(cleanupSignal).not.toBe(operation.signal);
     expect(cleanupSignal?.aborted).toBe(false);
+  });
+
+  it("succeeds when the budget cuts a later source short", async () => {
+    /*
+     * The regression this file exists to prevent. In production the worker
+     * failed 3-11 times a day: runs that imported dozens of records across
+     * three boards were filed as failures because the clock stopped them
+     * partway through a fourth. Work done is work done.
+     */
+    setEnvironment("true");
+    const operation = new AbortController();
+    let claims = 0;
+    const callRpc = vi.fn(
+      async (
+        name: string,
+        parameters?: Record<string, unknown>,
+      ): Promise<unknown> => {
+        if (name === "worker_list_authorized_ats_sources") {
+          return [
+            policyRow(),
+            policyRow({ adapter_key: "employer_ats_second" }),
+          ];
+        }
+        if (name === "worker_claim_authorized_ats_source") {
+          claims += 1;
+          return claimedPolicy({ adapter_key: parameters?.p_adapter_key });
+        }
+        if (name === "worker_begin_ats_snapshot") {
+          return [
+            {
+              import_run_id: "30000000-0000-4000-8000-000000000001",
+              should_run: true,
+            },
+          ];
+        }
+        if (name === "worker_store_ats_snapshot_batch") {
+          if (claims > 1) {
+            operation.abort(new DOMException("deadline", "AbortError"));
+            throw operation.signal.reason;
+          }
+          return storeAck();
+        }
+        if (name === "worker_finalize_ats_snapshot") return finalizeAck();
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+    );
+
+    await expect(
+      runAtsSourceSync(
+        { signal: operation.signal, remainingMs: () => 20_000 },
+        {
+          rpc: callRpc,
+          fetchSource: fetchForClaimedSource(),
+          now: () => now,
+          randomUuid: () => "40000000-0000-4000-8000-000000000001",
+        },
+      ),
+    ).resolves.toMatchObject({
+      status: "succeeded",
+      summary: {
+        completed_sources: 1,
+        failed_sources: 0,
+        interrupted_sources: 1,
+        inspection_stopped: "time_budget",
+      },
+    });
+  });
+
+  it("still calls a source's own timeout a source failure", async () => {
+    // Only the worker's deadline is excused. A board that cannot answer inside
+    // its own fetch timeout is slow, and that is the board's problem to report.
+    setEnvironment("true");
+    const callRpc = vi.fn(async (name: string): Promise<unknown> => {
+      if (name === "worker_list_authorized_ats_sources") return [policyRow()];
+      if (name === "worker_claim_authorized_ats_source") return claimedPolicy();
+      if (name === "worker_record_source_import") return null;
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+
+    await expect(
+      runAtsSourceSync(
+        {
+          // Never aborted: the source timed out, the run did not.
+          signal: new AbortController().signal,
+          remainingMs: () => 20_000,
+        },
+        {
+          rpc: callRpc,
+          fetchSource: vi
+            .fn()
+            .mockRejectedValue(new DOMException("slow board", "TimeoutError")),
+          now: () => now,
+          randomUuid: () => "40000000-0000-4000-8000-000000000001",
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "ats_source_sync_incomplete",
+      summary: { failed_sources: 1, interrupted_sources: 0 },
+    });
+  });
+
+  it("raises the claim reserve to what a source has actually cost", async () => {
+    /*
+     * A flat reserve is a guess about every board at once. Here the first
+     * source costs 9.8s, leaving 10.2s — enough to pass a flat ten-second
+     * reserve, and not enough to finish another source like the one just
+     * measured. The run stops instead of starting work it cannot finish.
+     */
+    setEnvironment("true");
+    let remaining = 20_000;
+    const callRpc = vi.fn(async (name: string): Promise<unknown> => {
+      if (name === "worker_list_authorized_ats_sources") {
+        return [policyRow(), policyRow({ adapter_key: "second_workable" })];
+      }
+      if (name === "worker_claim_authorized_ats_source") return claimedPolicy();
+      if (name === "worker_begin_ats_snapshot") {
+        return [
+          {
+            import_run_id: "30000000-0000-4000-8000-000000000001",
+            should_run: true,
+          },
+        ];
+      }
+      if (name === "worker_store_ats_snapshot_batch") return storeAck();
+      if (name === "worker_finalize_ats_snapshot") {
+        remaining = 10_200;
+        return finalizeAck();
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+
+    await expect(
+      runAtsSourceSync(
+        {
+          signal: new AbortController().signal,
+          remainingMs: () => remaining,
+        },
+        {
+          rpc: callRpc,
+          fetchSource: fetchForClaimedSource(),
+          now: () => now,
+          randomUuid: () => "40000000-0000-4000-8000-000000000001",
+        },
+      ),
+    ).resolves.toMatchObject({
+      status: "succeeded",
+      summary: {
+        claimed_sources: 1,
+        completed_sources: 1,
+        interrupted_sources: 0,
+        inspection_stopped: "time_budget",
+      },
+    });
   });
 
   it("exposes an unavailable terminal snapshot write in the aggregate summary", async () => {
