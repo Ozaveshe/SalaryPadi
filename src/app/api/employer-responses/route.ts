@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/rpc-result";
 import { getAuthenticatedApiContext } from "@/lib/auth/api";
 import { containsLikelyPrivateContact } from "@/lib/contributions/schemas";
+import { mayEmployerEdit } from "@/lib/employers/data-boundaries";
 import { getAppOrigin } from "@/lib/env";
 import { noStoreJson } from "@/lib/http/json";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
@@ -49,6 +50,19 @@ export async function POST(request: Request) {
     );
   const authenticated = await getAuthenticatedApiContext();
   if (!authenticated.ok) return authenticated.response;
+  /*
+   * The boundary decides, not this route.
+   *
+   * A statement here is the employer's own words about their company, which
+   * `response_statement` classifies as editable and labels employer_provided.
+   * Asking the boundary rather than assuming it means the next field added to
+   * this form has to be classified before it can be written, which is the
+   * point of having a boundary at all.
+   */
+  const boundary = mayEmployerEdit("response_statement");
+  if (!boundary.allowed) {
+    return noStoreJson({ error: boundary.reason }, { status: 403 });
+  }
   const operation = await attemptApiOperation(
     "employers.responses.submit",
     "employer_response_submit_failed",
