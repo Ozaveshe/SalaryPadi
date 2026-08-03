@@ -1,3 +1,4 @@
+import { SALARYPADI_TIME_ZONE } from "@/lib/time/zone";
 import type { CompanyRating, CompanySummary } from "@/lib/companies/repository";
 import type { RepositoryResult } from "@/lib/data/repository-result";
 import type { EditorialArticle } from "@/lib/editorial/repository";
@@ -229,7 +230,7 @@ export function buildInsightOpenGraphModel(
   const published = Number.isFinite(publishedAt)
     ? new Intl.DateTimeFormat("en-NG", {
         dateStyle: "long",
-        timeZone: "UTC",
+        timeZone: SALARYPADI_TIME_ZONE,
       }).format(new Date(publishedAt))
     : null;
   return {

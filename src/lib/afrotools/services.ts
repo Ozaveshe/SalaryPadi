@@ -1,3 +1,4 @@
+import { currentZonedYear } from "@/lib/time/zone";
 import "server-only";
 
 import {
@@ -104,7 +105,9 @@ export async function calculateAfroToolsPaye(
   if (!calculation.success || !rules.success) throw invalidAfroToolsResponse();
   const verifiedAt = Date.parse(calculation.data._meta.timestamp);
   const verificationAgeMs = now.valueOf() - verifiedAt;
-  const currentRulesYear = String(now.getUTCFullYear());
+  // Nigerian PAYE rules are published against the Nigerian tax year, so the
+  // year is read on the Nigerian clock rather than UTC's.
+  const currentRulesYear = String(currentZonedYear(now));
   if (
     !Number.isFinite(verifiedAt) ||
     verificationAgeMs < -5 * 60 * 1_000 ||

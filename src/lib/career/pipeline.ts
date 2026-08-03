@@ -68,7 +68,7 @@ export type Deadline = {
  * Reads a self-set next-action date as an urgency.
  *
  * The comparison runs on the UTC calendar because that is the calendar the date
- * is displayed on (`formatDate` pins `timeZone: "UTC"`). Comparing against a
+ * is displayed on (`formatDate` pins the operating zone). Comparing against a
  * local calendar instead would let a date rendered as today be described as
  * tomorrow.
  *

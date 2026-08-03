@@ -48,6 +48,14 @@ const referenceRateSchema = z
       });
     }
 
+    /*
+     * Read in UTC on purpose, and not on SalaryPadi's own clock.
+     *
+     * `data_period` is the European Commission's label for its own monthly
+     * rate set. Reinterpreting that month in Lagos would put a rate published
+     * for, say, 1 September into August for the hour either side of midnight
+     * and reject it as mismatched. A provider's calendar is the provider's.
+     */
     const expectedPeriod = `${observedAt.getUTCFullYear()}-${String(
       observedAt.getUTCMonth() + 1,
     ).padStart(2, "0")}-01`;

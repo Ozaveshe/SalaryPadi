@@ -167,6 +167,29 @@ The automated path runs only from a Netlify Function with a Functions-only produ
 | `currency_rates`         | `currency-rates`         | Daily at 02:25             | Reviewed InforEuro rate set, data month, source URL, and 42 cross-rates    | Keep the last disclosed set; UI must label it stale and allow manual override |
 | `operations_maintenance` | `operations-maintenance` | Daily at 02:45             | Expiry, retention, delivery recovery, and aggregate counts                 | Run the focused RPC only after diagnosing the failed step                     |
 
+### Clocks
+
+SalaryPadi presents every date and time in **West Africa Time**
+(`Africa/Lagos`), from the single constant in
+[`src/lib/time/zone.ts`](../src/lib/time/zone.ts). Country-scoped surfaces use
+their pack's own zone instead — Accra, Nairobi, Johannesburg — via
+`formatCountryDate`.
+
+Three things stay on UTC deliberately:
+
+- **Storage.** Every timestamp column is `timestamptz` and records an instant.
+  A zone belongs to how an instant is shown, not to what is stored.
+- **Worker schedules.** The times in the table above are UTC, because Netlify
+  cron is UTC and has no zone option. What matters for the editorial chain is
+  the _ordering_ of its steps, not the absolute hour; the one reader-facing
+  moment, `editorial_publish` at 08:00 UTC, already lands at 09:00 WAT.
+- **A provider's own calendar.** The currency rates carry a data month set by
+  the European Commission, and reinterpreting that month in Lagos would
+  mismatch the provider's own labelling.
+
+A test (`src/lib/time/zone-usage.test.ts`) fails on any new UTC date reasoning
+in `src` that is not one of those stated exceptions.
+
 Every function first creates an idempotent `private.worker_runs` row. Scheduled invocation keys prevent a duplicate Netlify delivery from running the same interval twice. Normal logs contain task keys, counts, provider-safe IDs, and error codes only—never recipient addresses, alert queries, contribution text, salary amounts, or secrets.
 
 Each ATS invocation claims at most four due authorized sources, and starts one only while at least `SOURCE_TIME_RESERVE_MS` of the operation budget remains. Do not increase that cap or the per-source deadline without load evidence and a reviewed Netlify runtime budget. A recent disabled skip proves the kill switch and schedule are alive; it does not prove employer authorization or provider availability.

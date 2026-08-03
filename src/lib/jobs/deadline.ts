@@ -6,9 +6,13 @@
  * everything on a job page it is the one fact that expires, and the one a
  * reader is worst served by discovering late.
  *
- * Days are counted in whole calendar days from the start of today, so "closes
- * tomorrow" does not become "closes in 0 days" because of the clock time.
+ * Days are counted in whole calendar days on SalaryPadi's own clock, so
+ * "closes tomorrow" does not become "closes in 0 days" because of the clock
+ * time, and a deadline is not called yesterday's because Lagos is an hour
+ * ahead of UTC.
  */
+
+import { SALARYPADI_TIME_ZONE, zonedDaysBetween } from "@/lib/time/zone";
 
 export type DeadlineNotice =
   | { state: "none" }
@@ -18,22 +22,12 @@ export type DeadlineNotice =
 /** Inside this many days the deadline is called out rather than just stated. */
 export const DEADLINE_URGENT_DAYS = 7;
 
-const DAY_MS = 86_400_000;
-
-function startOfDay(value: Date) {
-  return Date.UTC(
-    value.getUTCFullYear(),
-    value.getUTCMonth(),
-    value.getUTCDate(),
-  );
-}
-
 function formatDeadlineDate(value: Date) {
   return new Intl.DateTimeFormat("en-NG", {
     day: "numeric",
     month: "short",
     year: "numeric",
-    timeZone: "UTC",
+    timeZone: SALARYPADI_TIME_ZONE,
   }).format(value);
 }
 
@@ -45,9 +39,7 @@ export function jobDeadlineNotice(
   const parsed = new Date(validThrough);
   if (Number.isNaN(parsed.getTime())) return { state: "none" };
 
-  const daysRemaining = Math.round(
-    (startOfDay(parsed) - startOfDay(now)) / DAY_MS,
-  );
+  const daysRemaining = zonedDaysBetween(now, parsed);
   const date = formatDeadlineDate(parsed);
 
   if (daysRemaining < 0) {

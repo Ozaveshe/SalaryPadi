@@ -1,3 +1,8 @@
+import {
+  SALARYPADI_TIME_ZONE,
+  SALARYPADI_TIME_ZONE_LABEL,
+} from "@/lib/time/zone";
+
 export function formatDate(
   value: string,
   options?: Intl.DateTimeFormatOptions,
@@ -6,7 +11,7 @@ export function formatDate(
   if (Number.isNaN(date.getTime())) return "Unknown";
   return new Intl.DateTimeFormat("en-NG", {
     dateStyle: "medium",
-    timeZone: "UTC",
+    timeZone: SALARYPADI_TIME_ZONE,
     ...options,
   }).format(date);
 }
@@ -15,10 +20,12 @@ export function formatDate(
  * A provenance timestamp rendered identically for every visitor.
  *
  * Evidence timestamps are a truth claim, so they are pinned to one locale and
- * to UTC and carry the zone in the text. Rendering them through the visitor's
- * implicit locale left "when was this verified" ambiguous and disagreed with
- * every other date on the site. Returns null for an unparseable value so the
- * caller can omit the clause rather than print a placeholder.
+ * one zone and carry that zone in the text. Rendering them through the
+ * visitor's implicit locale left "when was this verified" ambiguous and
+ * disagreed with every other date on the site. The zone is the product's own —
+ * a Nigerian reader should not have to subtract an hour to place an evidence
+ * timestamp. Returns null for an unparseable value so the caller can omit the
+ * clause rather than print a placeholder.
  */
 export function formatDateTime(value: string): string | null {
   const date = new Date(value);
@@ -26,9 +33,9 @@ export function formatDateTime(value: string): string | null {
   const formatted = new Intl.DateTimeFormat("en-NG", {
     dateStyle: "medium",
     timeStyle: "short",
-    timeZone: "UTC",
+    timeZone: SALARYPADI_TIME_ZONE,
   }).format(date);
-  return `${formatted} UTC`;
+  return `${formatted} ${SALARYPADI_TIME_ZONE_LABEL}`;
 }
 
 /**
