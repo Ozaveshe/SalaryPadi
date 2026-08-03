@@ -5,13 +5,13 @@
 `api.privacy_thresholds` is a versioned, per-metric table — not a single
 global number. Measured on 2026-08-02:
 
-| Metric                         | Distinct contributors | For a range | Max age   |
-| ------------------------------ | --------------------- | ----------- | --------- |
-| `salary_employer_role_country` | 3                     | 5           | 36 months |
-| `company_overall_rating`       | 5                     | 5           | 36 months |
-| `interview_aggregate`          | 3                     | 5           | 36 months |
-| `company_benefit_aggregate`    | 5                     | 5           | 36 months |
-| `pay_reliability_aggregate`    | 5                     | 10          | 24 months |
+| Metric                         | Distinct contributors     | For a range | Max age   |
+| ------------------------------ | ------------------------- | ----------- | --------- |
+| `salary_employer_role_country` | 3 (10 naming an employer) | 5           | 36 months |
+| `company_overall_rating`       | 5                         | 5           | 36 months |
+| `interview_aggregate`          | 3                         | 5           | 36 months |
+| `company_benefit_aggregate`    | 5                         | 5           | 36 months |
+| `pay_reliability_aggregate`    | 5                         | 10          | 24 months |
 
 Every metric also carries a **24-hour minimum publication lag**, which
 defends against timing attacks: without it, watching a cell change the moment
@@ -52,13 +52,47 @@ combination describes a handful of named people at the size of company
 SalaryPadi actually covers, which is far smaller than the multinationals
 these thresholds are usually designed around.
 
-A slice with no narrowing dimensions is _general_ (5 contributors). One or
-two makes it _sensitive_ (10).
+A slice with no narrowing dimensions is _general_. One or two makes it
+_sensitive_. The module carries default counts (5 and 10);
+`app.privacy_rule_versions` is the authority per metric, so a threshold can
+be changed by a reviewed rule row rather than a deploy.
 
 ### One more trap
 
-A "general" `role + country` cell drawn from a **single employer** is an
-employer cell wearing a disguise, and is refused even above threshold.
+A `role + country` cell drawn from a **single employer** is an employer cell
+wearing a disguise, and is refused even above threshold.
+
+This check used to be gated on the general tier, which meant any slice
+carrying a narrowing dimension escaped it — precisely the slices where the
+disguise matters more. It now applies to every slice that does not name its
+employer.
+
+## What the worker enforces (2026-08-03)
+
+`security.refresh_salary_aggregates()` is the worker that publishes salary
+figures. It applied the threshold table alone. It now applies the shape rule
+too:
+
+| Cell              | Requirement                                           |
+| ----------------- | ----------------------------------------------------- |
+| Names an employer | `min_sensitive_contributors` (10)                     |
+| Names no employer | `min_distinct_contributors` (3) **and** ≥ 2 employers |
+| Office-scoped     | Never released, at any count                          |
+
+The employer threshold is the change with product consequences: a company
+median used to publish off three people and now needs ten. Three colleagues
+at one Nigerian company can identify each other's pay from a median; that is
+the disclosure the count was supposed to prevent.
+
+`app.salary_aggregate_snapshots` carries an `office_id` column, so the
+office rule is enforced by a **check constraint** as well as by the worker —
+`not (is_released and office_id is not null)`. A cell at that granularity may
+be computed; it may never be released.
+
+The employer-spread rule counts _identified_ employers. Contributions that
+name no employer cannot be shown to come from different ones, so they do not
+count towards the spread and a cell of entirely anonymous-employer
+contributions fails closed.
 
 ## Shape is decided before size, on purpose
 
@@ -87,6 +121,6 @@ asserted by test to contain no digits.
 
 - Verification-evidence retention automation (payslips, offer letters) with
   scheduled deletion.
-- Wiring `decidePublication()` into the aggregate snapshot worker, which
-  currently applies the threshold table alone.
+- The same shape gate for the review, interview, benefit and pay-reliability
+  workers. Only the salary worker enforces it today.
 - Contribution export and per-item deletion flows.

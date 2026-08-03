@@ -4,6 +4,11 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, security, audit;
 select plan(21);
 
+-- Naming an employer makes a cell a sensitive slice, so it needs the higher
+-- contributor count. A cell that names no employer keeps the general
+-- threshold but must span at least two identified employers, or it is that
+-- one employer's pay figure wearing a national label.
+
 insert into auth.users (
   id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 )
@@ -11,7 +16,7 @@ select
   ('90000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
   'authenticated', 'authenticated', format('salary%s@example.test', n),
   '{}'::jsonb, '{}'::jsonb, now(), now()
-from generate_series(1, 5) n
+from generate_series(1, 12) n
 on conflict (id) do nothing;
 
 insert into app.role_families (id, slug, name)
@@ -21,19 +26,23 @@ on conflict (id) do nothing;
 insert into app.companies (
   id, slug, display_name, website_url, website_domain, record_status
 )
-values (
-  '92000000-0000-0000-0000-000000000001', 'salary-example', 'Salary Example',
-  'https://salary.example.test', 'salary.example.test', 'published'
-)
+values
+  ('92000000-0000-0000-0000-000000000001', 'salary-example', 'Salary Example',
+   'https://salary.example.test', 'salary.example.test', 'published'),
+  ('92000000-0000-0000-0000-000000000002', 'second-salary-example',
+   'Second Salary Example', 'https://second-salary.example.test',
+   'second-salary.example.test', 'published')
 on conflict (id) do nothing;
 
+-- Nine distinct contributors at one employer, one of whom submits twice.
 insert into private.contributions (
   id, contributor_user_id, kind, state, content_hash, submitted_at
 )
-values
-  ('93000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000001', 'salary', 'approved', repeat('1', 64), now() - interval '4 days'),
-  ('93000000-0000-0000-0000-000000000002', '90000000-0000-0000-0000-000000000001', 'salary', 'approved', repeat('2', 64), now() - interval '3 days'),
-  ('93000000-0000-0000-0000-000000000003', '90000000-0000-0000-0000-000000000002', 'salary', 'approved', repeat('3', 64), now() - interval '2 days');
+select
+  ('93000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
+  ('90000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
+  'salary', 'approved', lpad(n::text, 64, '0'), now() - make_interval(days => 30 - n)
+from generate_series(1, 9) n;
 
 insert into private.salary_submissions (
   contribution_id, role_title, role_family_id, role_family_name_input,
@@ -42,10 +51,37 @@ insert into private.salary_submissions (
   base_salary, currency_code, pay_period, gross_net,
   annualized_amount, normalization_version, reported_at
 )
-values
-  ('93000000-0000-0000-0000-000000000001', 'Product Designer', '91000000-0000-0000-0000-000000000001', 'Product Design', '92000000-0000-0000-0000-000000000001', 'NG', 'remote', 'full_time', 'employee', 'mid', 100000, 'NGN', 'monthly', 'gross', 1200000, 'test-v1', current_date - 60),
-  ('93000000-0000-0000-0000-000000000002', 'Product Designer', '91000000-0000-0000-0000-000000000001', 'Product Design', '92000000-0000-0000-0000-000000000001', 'NG', 'remote', 'full_time', 'employee', 'mid', 150000, 'NGN', 'monthly', 'gross', 1800000, 'test-v1', current_date - 45),
-  ('93000000-0000-0000-0000-000000000003', 'Product Designer', '91000000-0000-0000-0000-000000000001', 'Product Design', '92000000-0000-0000-0000-000000000001', 'NG', 'remote', 'full_time', 'employee', 'mid', 200000, 'NGN', 'monthly', 'gross', 2400000, 'test-v1', current_date - 30);
+select
+  ('93000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
+  'Product Designer', '91000000-0000-0000-0000-000000000001', 'Product Design',
+  '92000000-0000-0000-0000-000000000001', 'NG',
+  'remote', 'full_time', 'employee', 'mid',
+  n * 100000, 'NGN', 'monthly', 'gross',
+  n * 1000000, 'test-v1', current_date - (60 - n)
+from generate_series(1, 9) n;
+
+-- A tenth submission, but from an account that has already contributed.
+insert into private.contributions (
+  id, contributor_user_id, kind, state, content_hash, submitted_at
+)
+values (
+  '93000000-0000-0000-0000-000000000010',
+  '90000000-0000-0000-0000-000000000001', 'salary', 'approved',
+  lpad('10', 64, '0'), now() - interval '2 days'
+);
+insert into private.salary_submissions (
+  contribution_id, role_title, role_family_id, role_family_name_input,
+  company_id, country_code, work_arrangement, employment_type,
+  engagement_type, seniority, base_salary, currency_code, pay_period,
+  gross_net, annualized_amount, normalization_version, reported_at
+)
+values (
+  '93000000-0000-0000-0000-000000000010', 'Product Designer',
+  '91000000-0000-0000-0000-000000000001', 'Product Design',
+  '92000000-0000-0000-0000-000000000001', 'NG', 'remote', 'full_time',
+  'employee', 'mid', 1100000, 'NGN', 'monthly', 'gross', 11000000,
+  'test-v1', current_date - 5
+);
 
 select security.refresh_salary_aggregates();
 
@@ -59,7 +95,7 @@ select is(
   (select count(*)::integer from api.salary_aggregates
    where company_id = '92000000-0000-0000-0000-000000000001'),
   0,
-  'multiple rows from only two distinct contributors remain suppressed'
+  'ten submissions from nine distinct contributors leave an employer cell suppressed'
 );
 
 reset role;
@@ -67,23 +103,22 @@ insert into private.contributions (
   id, contributor_user_id, kind, state, content_hash, submitted_at
 )
 values (
-  '93000000-0000-0000-0000-000000000004',
-  '90000000-0000-0000-0000-000000000003', 'salary', 'approved', repeat('4', 64),
-  now() - interval '2 days'
+  '93000000-0000-0000-0000-000000000011',
+  '90000000-0000-0000-0000-000000000010', 'salary', 'approved',
+  lpad('11', 64, '0'), now() - interval '2 days'
 );
 insert into private.salary_submissions (
   contribution_id, role_title, role_family_id, role_family_name_input,
-  company_id, country_code,
-  work_arrangement, employment_type, engagement_type, seniority,
-  base_salary, currency_code, pay_period, gross_net,
-  annualized_amount, normalization_version, reported_at
+  company_id, country_code, work_arrangement, employment_type,
+  engagement_type, seniority, base_salary, currency_code, pay_period,
+  gross_net, annualized_amount, normalization_version, reported_at
 )
 values (
-  '93000000-0000-0000-0000-000000000004', 'Product Designer',
+  '93000000-0000-0000-0000-000000000011', 'Product Designer',
   '91000000-0000-0000-0000-000000000001', 'Product Design',
-  '92000000-0000-0000-0000-000000000001',
-  'NG', 'remote', 'full_time', 'employee', 'mid', 300000, 'NGN', 'monthly',
-  'gross', 3600000, 'test-v1', current_date - 15
+  '92000000-0000-0000-0000-000000000001', 'NG', 'remote', 'full_time',
+  'employee', 'mid', 1000000, 'NGN', 'monthly', 'gross', 10000000,
+  'test-v1', current_date - 4
 );
 select security.refresh_salary_aggregates();
 
@@ -97,37 +132,37 @@ select is(
   (select count(*)::integer from api.salary_aggregates
    where company_id = '92000000-0000-0000-0000-000000000001'),
   1,
-  'three distinct approved contributors release one employer cell'
+  'the tenth distinct contributor releases the employer cell'
 );
 select is(
   (select sample_size from api.salary_aggregates
    where company_id = '92000000-0000-0000-0000-000000000001'),
-  3,
-  'duplicate submissions by one account count once'
+  10,
+  'two submissions by one account count once'
 );
 select is(
   (select median_annual from api.salary_aggregates
    where company_id = '92000000-0000-0000-0000-000000000001'),
-  2400000.00::numeric,
+  6500000.00::numeric,
   'released median uses the latest submission per contributor and is rounded'
 );
 select is(
   (select p25_annual from api.salary_aggregates
    where company_id = '92000000-0000-0000-0000-000000000001'),
-  null::numeric,
-  'three-contributor cell does not expose p25'
+  4250000.00::numeric,
+  'released cell exposes a rounded lower percentile'
 );
 select is(
   (select p75_annual from api.salary_aggregates
    where company_id = '92000000-0000-0000-0000-000000000001'),
-  null::numeric,
-  'three-contributor cell does not expose p75'
+  8750000.00::numeric,
+  'released cell exposes a rounded upper percentile'
 );
 select is(
   (select confidence_label from api.salary_aggregates
    where company_id = '92000000-0000-0000-0000-000000000001'),
-  'low',
-  'three-contributor cell is labelled low confidence'
+  'high',
+  'a ten-contributor cell is labelled high confidence'
 );
 select ok(
   (select source_month_from = date_trunc('month', source_month_from)::date
@@ -141,11 +176,16 @@ select ok(
    where company_id = '92000000-0000-0000-0000-000000000001'),
   'released aggregate carries its privacy rule version'
 );
+select is(
+  (select count(*)::integer from api.salary_aggregates where company_id is null),
+  0,
+  'a national cell supplied by a single employer is not published'
+);
 
 reset role;
 update private.contributions
 set decided_at = clock_timestamp()
-where id = '93000000-0000-0000-0000-000000000004';
+where id = '93000000-0000-0000-0000-000000000011';
 select security.refresh_salary_aggregates();
 select set_config(
   'request.jwt.claims',
@@ -159,29 +199,28 @@ select is(
   0,
   'freshly approved salary data observes the publication lag even when submitted earlier'
 );
+
 reset role;
 update private.contributions
 set decided_at = clock_timestamp() - interval '2 days'
-where id = '93000000-0000-0000-0000-000000000004';
-select security.refresh_salary_aggregates();
+where id = '93000000-0000-0000-0000-000000000011';
 
-reset role;
+-- A second employer, which is what lets the national cell publish at all.
 insert into private.contributions (
   id, contributor_user_id, kind, state, content_hash, submitted_at
 )
 values
-  ('93000000-0000-0000-0000-000000000005', '90000000-0000-0000-0000-000000000004', 'salary', 'approved', repeat('5', 64), now() - interval '2 days'),
-  ('93000000-0000-0000-0000-000000000006', '90000000-0000-0000-0000-000000000005', 'salary', 'approved', repeat('6', 64), now() - interval '2 days');
+  ('93000000-0000-0000-0000-000000000012', '90000000-0000-0000-0000-000000000011', 'salary', 'approved', lpad('12', 64, '0'), now() - interval '2 days'),
+  ('93000000-0000-0000-0000-000000000013', '90000000-0000-0000-0000-000000000012', 'salary', 'approved', lpad('13', 64, '0'), now() - interval '2 days');
 insert into private.salary_submissions (
   contribution_id, role_title, role_family_id, role_family_name_input,
-  company_id, country_code,
-  work_arrangement, employment_type, engagement_type, seniority,
-  base_salary, currency_code, pay_period, gross_net,
-  annualized_amount, normalization_version, reported_at
+  company_id, country_code, work_arrangement, employment_type,
+  engagement_type, seniority, base_salary, currency_code, pay_period,
+  gross_net, annualized_amount, normalization_version, reported_at
 )
 values
-  ('93000000-0000-0000-0000-000000000005', 'Product Designer', '91000000-0000-0000-0000-000000000001', 'Product Design', '92000000-0000-0000-0000-000000000001', 'NG', 'remote', 'full_time', 'employee', 'mid', 400000, 'NGN', 'monthly', 'gross', 4800000, 'test-v1', current_date - 10),
-  ('93000000-0000-0000-0000-000000000006', 'Product Designer', '91000000-0000-0000-0000-000000000001', 'Product Design', '92000000-0000-0000-0000-000000000001', 'NG', 'remote', 'full_time', 'employee', 'mid', 500000, 'NGN', 'monthly', 'gross', 6000000, 'test-v1', current_date - 5);
+  ('93000000-0000-0000-0000-000000000012', 'Product Designer', '91000000-0000-0000-0000-000000000001', 'Product Design', '92000000-0000-0000-0000-000000000002', 'NG', 'remote', 'full_time', 'employee', 'mid', 2000000, 'NGN', 'monthly', 'gross', 20000000, 'test-v1', current_date - 3),
+  ('93000000-0000-0000-0000-000000000013', 'Product Designer', '91000000-0000-0000-0000-000000000001', 'Product Design', '92000000-0000-0000-0000-000000000002', 'NG', 'remote', 'full_time', 'employee', 'mid', 2200000, 'NGN', 'monthly', 'gross', 22000000, 'test-v1', current_date - 2);
 select security.refresh_salary_aggregates();
 
 select set_config(
@@ -191,16 +230,20 @@ select set_config(
 );
 set local role anon;
 select is(
-  (select sample_size from api.salary_aggregates
-   where company_id = '92000000-0000-0000-0000-000000000001'),
-  5,
-  'five distinct contributors are counted in the released cell'
+  (select sample_size from api.salary_aggregates where company_id is null),
+  12,
+  'the national cell counts one row per contributor across employers'
 );
-select ok(
-  (select p25_annual is not null and p75_annual is not null
-   from api.salary_aggregates
-   where company_id = '92000000-0000-0000-0000-000000000001'),
-  'five-contributor cell exposes the percentile band'
+select is(
+  (select median_annual from api.salary_aggregates where company_id is null),
+  7500000.00::numeric,
+  'national median uses only the latest eligible row per contributor'
+);
+select is(
+  (select count(*)::integer from api.salary_aggregates
+   where company_id = '92000000-0000-0000-0000-000000000002'),
+  0,
+  'the second employer stays suppressed at two contributors'
 );
 select ok(
   not exists (
@@ -212,66 +255,17 @@ select ok(
 );
 select is(
   (select count(*)::integer from api.salary_aggregates
-   where company_id = '92000000-0000-0000-0000-000000000001'
-     and currency_code <> 'NGN'),
+   where currency_code <> 'NGN'),
   0,
   'salary aggregate does not silently mix currencies'
 );
 
 reset role;
-insert into app.companies (
-  id, slug, display_name, website_url, website_domain, record_status
-)
-values (
-  '92000000-0000-0000-0000-000000000002', 'second-salary-example',
-  'Second Salary Example', 'https://second-salary.example.test',
-  'second-salary.example.test', 'published'
-);
-insert into private.contributions (
-  id, contributor_user_id, kind, state, content_hash, submitted_at
-)
-values (
-  '93000000-0000-0000-0000-000000000007',
-  '90000000-0000-0000-0000-000000000001', 'salary', 'approved', repeat('7', 64),
-  now() - interval '2 days'
-);
-insert into private.salary_submissions (
-  contribution_id, role_title, role_family_id, role_family_name_input,
-  company_id, country_code, work_arrangement, employment_type,
-  engagement_type, seniority, base_salary, currency_code, pay_period,
-  gross_net, annualized_amount, normalization_version, reported_at
-)
-values (
-  '93000000-0000-0000-0000-000000000007', 'Product Designer',
-  '91000000-0000-0000-0000-000000000001', 'Product Design',
-  '92000000-0000-0000-0000-000000000002', 'NG', 'remote', 'full_time',
-  'employee', 'mid', 1000000, 'NGN', 'monthly', 'gross', 12000000,
-  'test-v1', current_date - 2
-);
-select security.refresh_salary_aggregates();
-select set_config(
-  'request.jwt.claims',
-  jsonb_build_object('role', 'anon', 'aal', 'aal1', 'is_anonymous', false)::text,
-  true
-);
-set local role anon;
-select is(
-  (select sample_size from api.salary_aggregates where company_id is null),
-  5,
-  'broader role-country cell still counts one row per contributor across companies'
-);
-select is(
-  (select median_annual from api.salary_aggregates where company_id is null),
-  4800000.00::numeric,
-  'broader role-country median uses only the latest eligible row per contributor'
-);
-
-reset role;
 update private.contributions set state = 'removed', withdrawn_at = now()
 where id in (
-  '93000000-0000-0000-0000-000000000004',
-  '93000000-0000-0000-0000-000000000005',
-  '93000000-0000-0000-0000-000000000006'
+  '93000000-0000-0000-0000-000000000011',
+  '93000000-0000-0000-0000-000000000012',
+  '93000000-0000-0000-0000-000000000013'
 );
 select security.refresh_salary_aggregates();
 
@@ -310,7 +304,7 @@ select is(
 );
 select is(
   (select count(*)::integer from api.my_contributions),
-  3,
+  2,
   'contributor can see only safe status metadata for their own contributions'
 );
 select ok(

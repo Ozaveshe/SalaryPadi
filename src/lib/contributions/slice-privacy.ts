@@ -77,6 +77,13 @@ export const GENERAL_MIN_CONTRIBUTORS = 5;
 export const SENSITIVE_MIN_CONTRIBUTORS = 10;
 
 /**
+ * Distinct employers a slice must span when it does not name one.
+ *
+ * Below this, the slice is an employer figure that happens not to say so.
+ */
+export const MIN_DISTINCT_EMPLOYERS = 2;
+
+/**
  * Decide whether a slice may be published, and at what threshold.
  *
  * Deliberately independent of the submission count: the caller checks the
@@ -166,20 +173,61 @@ export function decidePublication(input: CohortInput): PublicationDecision {
     };
   }
 
-  // A cell spanning several employers still hides individuals badly if one
-  // employer supplies nearly all of it.
+  /*
+   * A cell spanning several employers still hides individuals badly if one
+   * employer supplies nearly all of it.
+   *
+   * The test is whether the slice *names* an employer, not whether it is
+   * general. Wiring this rule into the salary worker exposed why: that
+   * worker's broadest cell is role + country + employment_type, which has one
+   * narrowing dimension and is therefore sensitive — so a tier check let
+   * exactly the disguised-employer case through. A slice that already says
+   * "Moniepoint" is held to the employer threshold and needs no such check;
+   * every slice that does not is a candidate for the disguise.
+   */
   if (
     input.distinctEmployers !== undefined &&
-    input.distinctEmployers < 2 &&
-    verdict.tier === "general"
+    input.distinctEmployers < MIN_DISTINCT_EMPLOYERS &&
+    !input.slice.dimensions.includes("employer")
   ) {
     return {
       publish: false,
       reason:
-        "A general slice drawn from a single employer is effectively an employer slice.",
+        "A slice that does not name an employer but is drawn from one is an employer slice in disguise.",
       publicMessage: "Insufficient verified data to publish a figure yet.",
     };
   }
 
   return { publish: true, tier: verdict.tier };
+}
+
+/**
+ * The slice a salary aggregate cell describes.
+ *
+ * `security.refresh_salary_aggregates()` groups by company, role family,
+ * country, currency, gross/net, engagement type and — as of the shape gate —
+ * refuses to release an office-scoped cell at all. This function is the one
+ * place that says which of those grouping columns are *identity* dimensions
+ * and which are merely units of measure, so the SQL worker and this rule can
+ * be read against each other.
+ *
+ * Currency, gross/net and engagement type are excluded deliberately. The
+ * worker groups by them so that a published number means something — mixing
+ * naira with dollars, or staff salaries with contractor day rates, produces a
+ * median that describes nobody. They change what the figure *means*, not who
+ * it describes, and counting them as narrowing would push every cell to the
+ * sensitive tier for the offence of stating its units.
+ */
+export function salaryCellSlice(cell: {
+  namesEmployer: boolean;
+  namesOffice: boolean;
+}): SalarySlice {
+  return {
+    dimensions: [
+      "role",
+      "country",
+      ...(cell.namesEmployer ? (["employer"] as const) : []),
+      ...(cell.namesOffice ? (["office"] as const) : []),
+    ],
+  };
 }

@@ -5,6 +5,7 @@ import {
   SENSITIVE_MIN_CONTRIBUTORS,
   assessSlice,
   decidePublication,
+  salaryCellSlice,
   type SliceDimension,
 } from "./slice-privacy";
 
@@ -119,6 +120,94 @@ describe("publication decision", () => {
       distinctEmployers: 1,
     });
     expect(decision.publish).toBe(false);
+  });
+
+  it("refuses the disguise in a sensitive slice too", () => {
+    /*
+     * Regression: this check used to be gated on the general tier, so any
+     * slice carrying a narrowing dimension escaped it — a role + country +
+     * employment_type cell drawn entirely from one company published as a
+     * national figure. The disguise is worse there, not better.
+     */
+    const decision = decidePublication({
+      slice: slice("role", "country", "employment_type"),
+      distinctContributors: 40,
+      distinctEmployers: 1,
+    });
+    expect(decision.publish).toBe(false);
+    if (!decision.publish) {
+      expect(decision.reason).toMatch(/employer slice in disguise/);
+    }
+  });
+
+  it("does not apply the disguise check to a slice that names its employer", () => {
+    // One employer is the whole point of an employer slice; it is already
+    // held to the employer threshold.
+    expect(
+      decidePublication({
+        slice: slice("role", "country", "employer"),
+        distinctContributors: 10,
+        distinctEmployers: 1,
+      }).publish,
+    ).toBe(true);
+  });
+});
+
+describe("the salary worker's cells", () => {
+  it("treats the national cell as general", () => {
+    const verdict = assessSlice(
+      salaryCellSlice({ namesEmployer: false, namesOffice: false }),
+    );
+    expect(verdict).toMatchObject({
+      publishable: true,
+      tier: "general",
+      minContributors: GENERAL_MIN_CONTRIBUTORS,
+    });
+  });
+
+  it("does not let units of measure narrow a cell", () => {
+    /*
+     * The worker also groups by currency, gross/net and engagement type so a
+     * published median means something. Counting those as narrowing would
+     * push every cell to the sensitive tier for stating its units.
+     */
+    expect(
+      salaryCellSlice({ namesEmployer: false, namesOffice: false }).dimensions,
+    ).toEqual(["role", "country"]);
+  });
+
+  it("makes a company cell sensitive", () => {
+    expect(
+      assessSlice(salaryCellSlice({ namesEmployer: true, namesOffice: false })),
+    ).toMatchObject({
+      tier: "sensitive",
+      minContributors: SENSITIVE_MIN_CONTRIBUTORS,
+    });
+  });
+
+  it("refuses a national cell supplied by one employer", () => {
+    // The disguised-employer case, in the exact shape the worker emits.
+    expect(
+      decidePublication({
+        slice: salaryCellSlice({ namesEmployer: false, namesOffice: false }),
+        distinctContributors: 40,
+        distinctEmployers: 1,
+      }).publish,
+    ).toBe(false);
+  });
+
+  it("never releases an office-scoped cell, whoever asks", () => {
+    // app.salary_aggregate_snapshots carries an office_id column, so this is
+    // a real slot in the schema rather than a hypothetical one.
+    for (const namesEmployer of [true, false]) {
+      expect(
+        decidePublication({
+          slice: salaryCellSlice({ namesEmployer, namesOffice: true }),
+          distinctContributors: 1_000,
+          distinctEmployers: 50,
+        }).publish,
+      ).toBe(false);
+    }
   });
 
   it("explains an unpublishable shape without naming the dimension publicly", () => {
