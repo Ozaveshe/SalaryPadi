@@ -1866,36 +1866,69 @@ a:hover {
   color: var(--interactive-primary);
 }
 
-.home-proof-grid {
+/*
+ * One number leads, the rest support it.
+ *
+ * Three equal columns read as three equal facts, and the first two differed by
+ * a single role — "375 current" beside "374 open to Nigeria/Africa" looks
+ * precise and tells a reader nothing. The figure that answers the headline's
+ * promise is the one that gets the size; the total becomes the context that
+ * makes it meaningful, which is honest whether the ratio is flattering or not.
+ */
+.home-proof-lead {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.15rem;
   margin: 0;
   border-block: 1px solid var(--border-default);
+  padding-block: 1.1rem;
 }
 
-.home-proof-grid > div {
-  padding-block: 1rem;
+.home-proof-lead-value {
+  font-size: clamp(2.6rem, 7vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
 }
-.home-proof-grid > div + div {
-  border-left: 1px solid var(--border-default);
-  padding-left: 1rem;
+
+.home-proof-lead-label {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.35;
+  text-wrap: balance;
 }
-.home-proof-grid dt {
+
+.home-proof-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+
+.home-proof-facts dt {
   color: var(--text-muted);
   font-size: 0.72rem;
   font-weight: 700;
-}
-.home-proof-grid dd {
-  margin: 0.2rem 0 0;
-  font-size: 2rem;
-  font-weight: 800;
-  letter-spacing: -0.05em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.home-proof-grid .home-proof-value-state {
-  overflow-wrap: anywhere;
-  font-size: 1rem;
-  letter-spacing: 0;
+.home-proof-facts dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The feed's condition, said once, where the numbers are. */
+.home-proof-state {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
   line-height: 1.35;
 }
 

@@ -106,16 +106,22 @@ export default async function HomePage() {
     (source) => source.state === "live",
   );
   const feedIsConclusive = feed.state === "live";
-  const jobCountLabel = feedIsConclusive
-    ? String(feed.jobs.length)
-    : feed.state === "degraded"
-      ? `${feed.jobs.length} available (partial)`
-      : "Unavailable";
-  const eligibleCountLabel = feedIsConclusive
-    ? String(explicitlyOpenJobs.length)
-    : feed.state === "degraded"
-      ? `${explicitlyOpenJobs.length} available (partial)`
-      : "Unavailable";
+  /*
+   * Counts, and the one place the feed's condition is stated.
+   *
+   * Every value used to carry its own "(partial)" suffix, so a degraded read
+   * printed the word six times on one screen and pushed each number onto three
+   * wrapped lines. A condition belongs to the reading, not to each number in
+   * it: the chip says it once and the figures stay figures.
+   */
+  const coverage =
+    feed.state === "unavailable"
+      ? null
+      : {
+          openToRegion: explicitlyOpenJobs.length,
+          checked: feed.jobs.length,
+          inNigeria: localNigeriaJobs.length,
+        };
 
   return (
     <div className="site-shell stack-lg">
@@ -123,9 +129,17 @@ export default async function HomePage() {
         <div className="home-hero-copy">
           <p className="home-kicker">
             <span className={`live-dot live-dot-${feed.state}`} />
+            {/*
+             * State the fact, not a claim about ourselves. "Job availability is
+             * shown honestly" asks to be believed; naming what is actually
+             * happening to the sources lets a reader judge for themselves, and
+             * matches the chip on the coverage card word for word.
+             */}
             {feed.state === "live"
-              ? "Source checks are current"
-              : "Job availability is shown honestly"}
+              ? "Every source checked and current"
+              : feed.state === "degraded"
+                ? "A source is still being checked"
+                : "A source check did not complete"}
           </p>
           <p className="eyebrow">Career decisions built for Africans</p>
           <h1 className="page-title" id="home-heading">
@@ -190,42 +204,39 @@ export default async function HomePage() {
             </div>
             <DatabaseZap aria-hidden="true" size={25} />
           </div>
-          <dl className="home-proof-grid">
-            <div>
-              <dt>Current roles</dt>
-              <dd
-                className={
-                  feedIsConclusive ? undefined : "home-proof-value-state"
-                }
-              >
-                {jobCountLabel}
-              </dd>
-            </div>
-            <div>
-              <dt>Open to Nigeria/Africa</dt>
-              <dd
-                className={
-                  feedIsConclusive ? undefined : "home-proof-value-state"
-                }
-              >
-                {eligibleCountLabel}
-              </dd>
-            </div>
-            <div>
-              <dt>Local roles in Nigeria</dt>
-              <dd
-                className={
-                  feedIsConclusive ? undefined : "home-proof-value-state"
-                }
-              >
-                {feedIsConclusive
-                  ? String(localNigeriaJobs.length)
-                  : feed.state === "degraded"
-                    ? `${localNigeriaJobs.length} available (partial)`
-                    : "Unavailable"}
-              </dd>
-            </div>
-          </dl>
+          {coverage ? (
+            <>
+              {!feedIsConclusive ? (
+                <p className="home-proof-state">
+                  <span className={`live-dot live-dot-${feed.state}`} />
+                  Counts are partial while a source finishes checking
+                </p>
+              ) : null}
+              <p className="home-proof-lead">
+                <span className="home-proof-lead-value">
+                  {coverage.openToRegion.toLocaleString("en-NG")}
+                </span>
+                <span className="home-proof-lead-label">
+                  roles state they are open to Nigeria or Africa
+                </span>
+              </p>
+              <dl className="home-proof-facts">
+                <div>
+                  <dt>Roles checked</dt>
+                  <dd>{coverage.checked.toLocaleString("en-NG")}</dd>
+                </div>
+                <div>
+                  <dt>Based in Nigeria</dt>
+                  <dd>{coverage.inNigeria.toLocaleString("en-NG")}</dd>
+                </div>
+              </dl>
+            </>
+          ) : (
+            <p className="home-proof-state">
+              <span className={`live-dot live-dot-${feed.state}`} />
+              Counts are unavailable because a source check did not complete
+            </p>
+          )}
           {hiringEmployers.length > 0 ? (
             <div
               className="home-hiring-strip"
