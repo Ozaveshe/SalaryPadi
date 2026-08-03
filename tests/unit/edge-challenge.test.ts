@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { looksLikeEdgeChallenge } from "../e2e/support/public-surface";
+import {
+  isRemoteTarget,
+  looksLikeEdgeChallenge,
+} from "../e2e/support/public-surface";
 
 /**
  * Guards the one decision that separates "production is broken" from
@@ -70,5 +73,39 @@ describe("looksLikeEdgeChallenge", () => {
   it("treats empty and whitespace-only text as not a challenge", () => {
     expect(looksLikeEdgeChallenge("")).toBe(false);
     expect(looksLikeEdgeChallenge("   \n\t  ")).toBe(false);
+  });
+});
+
+/**
+ * Decides whether the production guards arm at all. Arming locally would add a
+ * failure mode to every developer's run for a condition a dev server cannot
+ * produce; NOT arming against the deployed target is the whole bug this exists
+ * to prevent.
+ */
+describe("isRemoteTarget", () => {
+  it("arms for the deployed target", () => {
+    expect(isRemoteTarget("https://salarypadi.com")).toBe(true);
+    expect(isRemoteTarget("https://main--salarypadi.netlify.app")).toBe(true);
+  });
+
+  it("stays inert for the local dev server on any port or scheme", () => {
+    expect(isRemoteTarget("http://localhost:3000")).toBe(false);
+    expect(isRemoteTarget("http://127.0.0.1:3000")).toBe(false);
+    expect(isRemoteTarget("http://[::1]:3000")).toBe(false);
+    // The quality gate builds against an HTTPS origin, which is still local.
+    expect(isRemoteTarget("https://localhost:3000")).toBe(false);
+  });
+
+  it("stays inert when no baseURL is configured", () => {
+    expect(isRemoteTarget(undefined)).toBe(false);
+    expect(isRemoteTarget("")).toBe(false);
+  });
+
+  it("does not throw on an unparseable baseURL", () => {
+    expect(isRemoteTarget("not a url")).toBe(false);
+  });
+
+  it("is not fooled by a hostname that merely contains 'localhost'", () => {
+    expect(isRemoteTarget("https://localhost.evil.example")).toBe(true);
   });
 });

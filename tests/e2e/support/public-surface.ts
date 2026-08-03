@@ -348,6 +348,24 @@ const EDGE_CHALLENGE_MARKERS = [
   "security by",
 ] as const;
 
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/**
+ * Whether `baseURL` points at something outside this machine — i.e. at a
+ * target that can sit behind a CDN and its bot protection. A dev server never
+ * challenges, so guards keyed on this stay inert for local runs.
+ */
+export function isRemoteTarget(baseURL: string | undefined): boolean {
+  if (!baseURL) return false;
+  try {
+    return !LOCAL_HOSTNAMES.has(new URL(baseURL).hostname);
+  } catch {
+    // An unparseable baseURL is a configuration problem the suite will hit on
+    // its first navigation; it is not this guard's job to report it.
+    return false;
+  }
+}
+
 /**
  * Whether rendered page text is an edge challenge rather than the site.
  *
