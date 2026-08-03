@@ -3,23 +3,29 @@
 ## What already existed
 
 `api.privacy_thresholds` is a versioned, per-metric table — not a single
-global number. Measured on 2026-08-02:
+global number. As of 2026-08-03, after the shape gate landed:
 
 | Metric                         | Distinct contributors     | For a range | Max age   |
 | ------------------------------ | ------------------------- | ----------- | --------- |
 | `salary_employer_role_country` | 3 (10 naming an employer) | 5           | 36 months |
-| `company_overall_rating`       | 5                         | 5           | 36 months |
-| `interview_aggregate`          | 3                         | 5           | 36 months |
-| `company_benefit_aggregate`    | 5                         | 5           | 36 months |
-| `pay_reliability_aggregate`    | 5                         | 10          | 24 months |
+| `company_overall_rating`       | 10                        | 5           | 36 months |
+| `interview_aggregate`          | 3 (no worker yet)         | 5           | 36 months |
+| `company_benefit_aggregate`    | 10                        | 5           | 36 months |
+| `pay_reliability_aggregate`    | 10                        | 10 (unused) | 24 months |
 
 Every metric also carries a **24-hour minimum publication lag**, which
 defends against timing attacks: without it, watching a cell change the moment
 after someone submits attributes the figure to them.
 
-Pay reliability is deliberately the strictest — allegations about an employer
-failing to pay people are the most damaging thing on the platform if wrong,
-and the most identifying if the cohort is small.
+Pay reliability was described as the strictest metric — allegations about an
+employer failing to pay people are the most damaging thing on the platform if
+wrong, and the most identifying if the cohort is small. That was only half
+true. Its release threshold was 5, the same as benefits and ratings; the 10
+sat in `min_range_contributors`, which its worker never reads because it
+publishes a dominant pattern rather than a range. Its release threshold is
+now 10 like the others, and its genuine extra strictness is the shorter
+24-month evidence window. If it should be stricter still, that is a rule-row
+change and a deliberate one.
 
 ## What was missing: shape
 
@@ -94,6 +100,39 @@ name no employer cannot be shown to come from different ones, so they do not
 count towards the spread and a cell of entirely anonymous-employer
 contributions fails closed.
 
+### The other three workers
+
+`security.refresh_company_ratings()` and both halves of
+`security.refresh_company_workplace_aggregates()` publish statements about a
+**named company** — its rating, its benefits, whether it pays on time. Every
+cell they emit names an employer, so every cell is a sensitive slice and all
+three now require `min_sensitive_contributors` (10) rather than the general
+count (5).
+
+The disguised-employer rule never applies to them: they are employer figures
+and they say so.
+
+**One rule does not carry across.** The pay rule refuses a slice with no role
+dimension, because a median with no role answers no question. A company
+rating has no role to carry. Applying the pay rule to it would suppress every
+rating for a reason that has nothing to do with privacy — so `SliceSubject`
+separates interpretability (which varies by subject) from privacy (which does
+not). A `pay` slice must name a role; an `employer_practice` slice must name
+the employer it describes.
+
+A benefit cell also groups by benefit code. That is _what is being measured_,
+not who the cohort is: "does this employer offer a pension" and "does it offer
+transport support" describe the same people answering different questions.
+
+### One thing the run records cannot tell you
+
+`app.aggregate_runs` now carries a row per metric per refresh, including for
+benefits and pay reliability, which previously recorded nothing at all. On
+failure, though, the "mark this run failed" update is rolled back with the
+rest of the aborted transaction — so a failed refresh leaves **no** row rather
+than a failed one. The signal to watch is a **missing** run for a metric that
+should have refreshed, not a run with `status = 'failed'`.
+
 ## Shape is decided before size, on purpose
 
 `assessSlice()` never sees the contributor count. Keeping the two apart means
@@ -121,6 +160,6 @@ asserted by test to contain no digits.
 
 - Verification-evidence retention automation (payslips, offer letters) with
   scheduled deletion.
-- The same shape gate for the review, interview, benefit and pay-reliability
-  workers. Only the salary worker enforces it today.
+- An interview aggregate worker. `interview_aggregate` has a rule row and a
+  threshold, and no worker reads either.
 - Contribution export and per-item deletion flows.

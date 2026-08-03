@@ -5,6 +5,7 @@ import {
   SENSITIVE_MIN_CONTRIBUTORS,
   assessSlice,
   decidePublication,
+  employerPracticeCellSlice,
   salaryCellSlice,
   type SliceDimension,
 } from "./slice-privacy";
@@ -48,8 +49,44 @@ describe("slice shape", () => {
     ).toBe(false);
   });
 
-  it("refuses a slice with no role dimension as uninterpretable", () => {
+  it("refuses a pay slice with no role dimension as uninterpretable", () => {
     expect(assessSlice(slice("country", "employer")).publishable).toBe(false);
+  });
+
+  it("does not demand a role of a statement about an employer", () => {
+    /*
+     * A company rating has no role to carry, and applying the pay rule to it
+     * would suppress every rating for a reason that has nothing to do with
+     * privacy. Interpretability is per subject; privacy is not.
+     */
+    const verdict = assessSlice({
+      dimensions: ["employer"],
+      subject: "employer_practice",
+    });
+    expect(verdict.publishable).toBe(true);
+  });
+
+  it("demands that an employer-practice slice name its employer", () => {
+    const verdict = assessSlice({
+      dimensions: ["country"],
+      subject: "employer_practice",
+    });
+    expect(verdict.publishable).toBe(false);
+    if (!verdict.publishable) {
+      expect(verdict.reason).toMatch(/must name the employer/);
+    }
+  });
+
+  it("still refuses an office dimension whatever the subject", () => {
+    // Privacy does not vary by subject; only interpretability does.
+    for (const subject of ["pay", "employer_practice"] as const) {
+      expect(
+        assessSlice({
+          dimensions: ["role", "employer", "office"],
+          subject,
+        }).publishable,
+      ).toBe(false);
+    }
   });
 
   it("refuses to stack more than two narrowing dimensions", () => {
@@ -192,6 +229,55 @@ describe("the salary worker's cells", () => {
         slice: salaryCellSlice({ namesEmployer: false, namesOffice: false }),
         distinctContributors: 40,
         distinctEmployers: 1,
+      }).publish,
+    ).toBe(false);
+  });
+});
+
+describe("the employer-practice workers' cells", () => {
+  it("treats a rating, benefit or reliability cell as sensitive", () => {
+    // All three name an employer, so all three cost the higher count.
+    for (const namesCountry of [true, false]) {
+      expect(
+        assessSlice(employerPracticeCellSlice({ namesCountry })),
+      ).toMatchObject({
+        publishable: true,
+        tier: "sensitive",
+        minContributors: SENSITIVE_MIN_CONTRIBUTORS,
+      });
+    }
+  });
+
+  it("never applies the disguised-employer rule to them", () => {
+    // One employer is the whole point of a company figure.
+    expect(
+      decidePublication({
+        slice: employerPracticeCellSlice({ namesCountry: true }),
+        distinctContributors: 10,
+        distinctEmployers: 1,
+      }).publish,
+    ).toBe(true);
+  });
+
+  it("does not talk about pay when suppressing one", () => {
+    const decision = decidePublication({
+      slice: employerPracticeCellSlice({ namesCountry: true }),
+      distinctContributors: 4,
+    });
+    expect(decision.publish).toBe(false);
+    if (!decision.publish) {
+      expect(decision.publicMessage).not.toMatch(/\d/);
+    }
+  });
+
+  it("refuses an office-scoped employer-practice cell at any count", () => {
+    expect(
+      decidePublication({
+        slice: {
+          ...employerPracticeCellSlice({ namesCountry: true }),
+          dimensions: ["employer", "country", "office"],
+        },
+        distinctContributors: 1_000,
       }).publish,
     ).toBe(false);
   });
