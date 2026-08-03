@@ -39,10 +39,12 @@ describe("format helpers", () => {
   it("renders provenance timestamps in one fixed zone for every visitor", () => {
     const formatted = formatDateTime("2026-07-11T09:30:00.000Z");
     expect(formatted).toContain("2026");
-    expect(formatted).toContain("UTC");
-    // Pinned to UTC rather than the visitor's zone, so the same evidence never
-    // reads as a different moment for two people.
-    expect(formatted).toContain("09:30");
+    // Pinned to the product's own clock rather than the visitor's, so the same
+    // evidence never reads as a different moment for two people — and named in
+    // the text, so nobody has to guess which clock it is.
+    expect(formatted).toContain("WAT");
+    expect(formatted).toContain("10:30");
+    expect(formatted).not.toContain("UTC");
   });
 
   it("omits an unparseable provenance timestamp instead of guessing", () => {

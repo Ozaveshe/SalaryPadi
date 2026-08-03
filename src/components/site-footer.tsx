@@ -1,3 +1,4 @@
+import { currentZonedYear } from "@/lib/time/zone";
 import Link from "next/link";
 
 import { Brand } from "@/components/brand";
@@ -56,8 +57,8 @@ export function SiteFooter() {
             and decision tools in one path. Missing evidence stays missing.
           </p>
           <p className="m-0 text-xs text-[#b9cec5]">
-            © {new Date().getUTCFullYear()} SalaryPadi. Built for informed
-            career decisions.
+            © {currentZonedYear()} SalaryPadi. Built for informed career
+            decisions.
           </p>
         </div>
         <div className="footer-nav-groups">

@@ -24,8 +24,8 @@ describe("job application deadline", () => {
   });
 
   it("counts whole days, not hours", () => {
-    // A deadline an hour before midnight tomorrow still closes tomorrow.
-    const notice = jobDeadlineNotice("2026-08-04T23:00:00.000Z", now);
+    // An hour before midnight in Lagos tomorrow still closes tomorrow.
+    const notice = jobDeadlineNotice("2026-08-04T22:00:00.000Z", now);
     expect(notice).toMatchObject({ daysRemaining: 1, urgent: true });
     if (notice.state === "open") {
       expect(notice.label).toBe("Applications close tomorrow, 4 Aug 2026");
@@ -33,10 +33,24 @@ describe("job application deadline", () => {
   });
 
   it("names today rather than saying zero days", () => {
-    const notice = jobDeadlineNotice("2026-08-03T23:59:00.000Z", now);
+    const notice = jobDeadlineNotice("2026-08-03T22:59:00.000Z", now);
     expect(notice).toMatchObject({ daysRemaining: 0, urgent: true });
     if (notice.state === "open") {
       expect(notice.label).toContain("close today");
+    }
+  });
+
+  it("reads the deadline on Lagos time, not UTC", () => {
+    /*
+     * 23:30 UTC is already tomorrow in Lagos. Counted in UTC this deadline
+     * closes today; counted where the reader is, they have another day. Being
+     * wrong in that direction tells someone they have missed a deadline they
+     * have not.
+     */
+    const notice = jobDeadlineNotice("2026-08-03T23:30:00.000Z", now);
+    expect(notice).toMatchObject({ daysRemaining: 1 });
+    if (notice.state === "open") {
+      expect(notice.label).toBe("Applications close tomorrow, 4 Aug 2026");
     }
   });
 

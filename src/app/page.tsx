@@ -1,3 +1,4 @@
+import { SALARYPADI_TIME_ZONE } from "@/lib/time/zone";
 import type { Metadata } from "next";
 import {
   ArrowRight,
@@ -94,11 +95,11 @@ export default async function HomePage() {
       `Checked ${checkedAt.toLocaleDateString("en-NG", {
         day: "numeric",
         month: "short",
-        timeZone: "UTC",
+        timeZone: SALARYPADI_TIME_ZONE,
       })}, ${checkedAt.toLocaleTimeString("en-NG", {
         hour: "2-digit",
         minute: "2-digit",
-        timeZone: "UTC",
+        timeZone: SALARYPADI_TIME_ZONE,
         timeZoneName: "short",
       })}`;
   const healthySources = feed.sources.filter(
