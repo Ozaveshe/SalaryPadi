@@ -213,15 +213,20 @@ select is(
   2,
   'the workplace worker records a run for each metric it publishes'
 );
+-- Asserted per metric rather than "the latest run", because started_at
+-- defaults to now() and every run in this file shares one transaction
+-- timestamp. In production each refresh is its own transaction; here the
+-- runs are not orderable, so the claim is made over all of them.
 select ok(
-  (select bool_and(status = 'succeeded' and released_cells = 1)
-   from (
-     select distinct on (metric) status, released_cells
-     from app.aggregate_runs
-     where metric in ('company_benefit_aggregate', 'pay_reliability_aggregate')
-     order by metric, started_at desc
-   ) latest),
-  'the latest workplace runs record success and what they released'
+  (select bool_and(status = 'succeeded') from app.aggregate_runs
+   where metric in ('company_benefit_aggregate', 'pay_reliability_aggregate'))
+  and (select bool_and(released = 1) from (
+    select metric, max(released_cells) as released
+    from app.aggregate_runs
+    where metric in ('company_benefit_aggregate', 'pay_reliability_aggregate')
+    group by metric
+  ) per_metric),
+  'every workplace run succeeds, and each metric records the cell it released'
 );
 
 select * from finish();
