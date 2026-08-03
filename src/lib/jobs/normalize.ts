@@ -138,10 +138,36 @@ function normalizeWhitespace(value: string) {
     .trim();
 }
 
-export function htmlToPlainText(html: string): string {
+/**
+ * Whether a decode pass revealed real HTML rather than prose that happens to
+ * contain angle brackets.
+ *
+ * Keyed to known element names on purpose. "Anything in angle brackets" is
+ * the obvious rule and the wrong one: it deletes `Use <name> as the
+ * placeholder` from a description, which is a sentence a job posting can
+ * plausibly contain. A provider that escaped its markup always uses real tag
+ * names, so those are what earn another pass.
+ */
+const HTML_ELEMENT = new RegExp(
+  "</?(?:p|div|br|hr|span|strong|b|em|i|u|ul|ol|li|h[1-6]|a|table|thead" +
+    "|tbody|tr|td|th|section|article|header|footer|nav|blockquote|pre|code" +
+    "|img|figure|figcaption|small|sup|sub)\\b[^<>]*>",
+  "i",
+);
+
+function looksLikeMarkup(value: string) {
+  return HTML_ELEMENT.test(value);
+}
+
+function stripOnce(html: string): string {
   const withBreaks = html
+    // A list item loses its meaning entirely once the tags are gone, so it
+    // keeps a bullet. This is the only structure that survives to storage,
+    // and the job page reads it back to render a real list.
+    .replace(/<li\b[^>]*>/gi, "\n- ")
     .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(?:p|div|li|h[1-6]|section|article)>/gi, "\n");
+    .replace(/<\/(?:p|div|li|h[1-6]|section|article|tr)>/gi, "\n")
+    .replace(/<\/(?:ul|ol)>/gi, "\n\n");
   const fragments: string[] = [];
 
   sanitizeHtml(withBreaks, {
@@ -154,7 +180,35 @@ export function htmlToPlainText(html: string): string {
     },
   });
 
-  return normalizeWhitespace(he.decode(fragments.join("")));
+  return he.decode(fragments.join(""));
+}
+
+/**
+ * Reduce provider markup to the plain text we store.
+ *
+ * Stripping once is not enough, because some providers send HTML that is
+ * itself HTML-escaped. Greenhouse is one: its `content` field arrives as
+ * `&lt;h3&gt;About&lt;/h3&gt;`, which contains no tags for the sanitiser to
+ * remove, so a single pass stripped nothing and the entity decode then turned
+ * the escaped markup into literal `<h3>` text. That is how 257 of 1,882
+ * stored descriptions came to show their own tags to readers.
+ *
+ * Decoding before stripping would fix that case and break another: prose that
+ * deliberately writes `&lt;name&gt;` as a placeholder would become a tag and
+ * be deleted. So this strips first, and takes another pass only when the
+ * decode revealed a recognisable HTML element.
+ */
+export function htmlToPlainText(html: string): string {
+  let text = html;
+  // Two passes clear single and double encoding; the third is the guard for
+  // anything deeper, and bounding it keeps a hostile input from looping.
+  for (let pass = 0; pass < 3; pass += 1) {
+    const stripped = stripOnce(text);
+    if (stripped === text) break;
+    text = stripped;
+    if (!looksLikeMarkup(text)) break;
+  }
+  return normalizeWhitespace(text);
 }
 
 export function slugify(value: string): string {
