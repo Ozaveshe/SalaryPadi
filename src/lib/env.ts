@@ -132,6 +132,13 @@ const serverEnvironmentSchema = z
       .enum(["true", "false"])
       .default("false")
       .transform((value) => value === "true"),
+    // Evidence-based job ranking. Off by default: it reorders the busiest
+    // surface on the site, so it ships dark and is turned on deliberately
+    // after the before/after comparison has been looked at.
+    FEATURE_EVIDENCE_RANKING: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     ALLOW_DEMO_DATA: z
       .enum(["true", "false"])
       .default("false")
@@ -276,6 +283,7 @@ export function parseServerEnvironment(
     AUTH_LINKEDIN_ENABLED: environment.AUTH_LINKEDIN_ENABLED,
     EDITORIAL_AUTOMATION_ENABLED: environment.EDITORIAL_AUTOMATION_ENABLED,
     NEXT_PUBLIC_FEATURE_INSIGHTS: environment.NEXT_PUBLIC_FEATURE_INSIGHTS,
+    FEATURE_EVIDENCE_RANKING: environment.FEATURE_EVIDENCE_RANKING,
     ALLOW_DEMO_DATA: environment.ALLOW_DEMO_DATA,
     ANALYTICS_PROVIDER: environment.ANALYTICS_PROVIDER,
     EMAIL_PROVIDER: environment.EMAIL_PROVIDER,
@@ -327,7 +335,11 @@ export function getAuthProviderFlags() {
 }
 
 export function getFeatureFlags() {
-  return { insights: getServerEnvironment().NEXT_PUBLIC_FEATURE_INSIGHTS };
+  const environment = getServerEnvironment();
+  return {
+    insights: environment.NEXT_PUBLIC_FEATURE_INSIGHTS,
+    evidenceRanking: environment.FEATURE_EVIDENCE_RANKING,
+  };
 }
 
 export function getGoogleAnalyticsId() {
