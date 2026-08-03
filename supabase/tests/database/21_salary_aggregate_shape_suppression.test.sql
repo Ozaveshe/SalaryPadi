@@ -148,6 +148,7 @@ select throws_ok(
       6000000, current_date - 60, current_date - 30, 'high', true, true
   $$,
   '23514',
+  null,
   'an office-scoped salary cell cannot be released at any sample size'
 );
 
