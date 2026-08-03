@@ -20,7 +20,25 @@ values (
 )
 on conflict (id) do nothing;
 
--- Two jobs, so the fairness claim can be observed rather than assumed.
+-- Three jobs, so fairness across jobs can be observed rather than assumed.
+insert into app.jobs (
+  id, company_id, source_id, external_source_id, slug, status,
+  title, description_text, work_arrangement, employment_type,
+  application_url, source_url
+)
+select
+  ('c3000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
+  'c2000000-0000-0000-0000-000000000001',
+  (select id from app.job_sources where adapter_key = 'salarypadi_employer_submissions'),
+  'indexing-outbox-test-' || n, 'job-' || n, 'draft',
+  'Indexing outbox test role ' || n,
+  'This test-only role exercises Google indexing outbox collapse.',
+  'remote', 'full_time',
+  'https://employer.example.test/jobs/' || n,
+  'https://employer.example.test/jobs/' || n
+from generate_series(1, 3) n;
+
+-- Two of them carry a backlog of repeated updates.
 insert into private.google_indexing_outbox (
   job_id, job_slug, notification_kind, idempotency_key, status, created_at
 )
