@@ -3581,65 +3581,27 @@ a:hover {
   color: var(--gold-800);
 }
 
-/* Hero: deep-ink band, light copy, floating white search card. */
-.home-start {
-  position: relative;
-  overflow: hidden;
-  margin-top: 1rem;
-  border-radius: var(--radius-medium);
-  /*
-   * A flat panel, not a lit one.
-   *
-   * Two off-canvas radial blobs — violet from the top right, amber from the
-   * bottom left — put an uneven wash behind the headline and the coverage
-   * card. They read as a smudge rather than as depth, they made the card's
-   * white edge sit on a different tint on each side, and they were the only
-   * decoration on the page doing no work. The panel carries the brand on its
-   * own.
-   */
-  background: var(--ink-950);
-  padding: clamp(1.5rem, 4.5vw, 3.25rem);
-  color: var(--ink-50);
-}
-
-.home-start::before {
-  display: none;
-}
-
+/*
+ * Hero: no panel.
+ *
+ * The hero sat on a deep-ink slab, which forced a second colour scheme onto
+ * one section: the title, the lede, the eyebrow, the kicker, the live dot and
+ * the focus ring all needed an override to stay legible on it, and the white
+ * search and coverage cards read as cut-outs floating on a different page.
+ * The page's own warm background already separates a white card from its
+ * surroundings, so the slab was buying contrast the palette gives for free.
+ *
+ * Everything below the type scale is deliberately absent: with the slab gone,
+ * each of those elements inherits the light defaults the rest of the site
+ * uses, including the accessible gold the eyebrow needs on a light surface.
+ */
 .home-start .page-title {
-  color: var(--white);
   font-size: clamp(2.15rem, 5vw, 3.4rem);
   line-height: 1.05;
 }
 
-.home-start .lede {
-  color: var(--ink-200);
-}
-
-.home-hero-copy .eyebrow {
-  color: var(--gold-400);
-}
-
-.home-kicker {
-  border-color: var(--ink-700);
-  background: rgb(255 255 255 / 7%);
-  color: var(--ink-200);
-}
-
-.home-start .live-dot-live {
-  background: var(--gold-400);
-}
-
 .home-search {
-  border-radius: var(--radius-medium);
-  background: var(--surface-default);
   padding: clamp(0.9rem, 2vw, 1.25rem);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-large);
-}
-
-.home-start :focus-visible {
-  outline-color: var(--gold-400);
 }
 
 /* Polish pass: micro-motion, pill chips, focus color, brand glyph ink. */
