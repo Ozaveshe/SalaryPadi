@@ -19,6 +19,34 @@ sales call.
 Both checks **fail closed**: an unclassified field is not editable, and an
 unclassified commercial idea is not sellable until someone classifies it.
 
+## Where it is enforced (2026-08-03)
+
+SalaryPadi has **no employer profile editor**. An employer can do three
+things, and each creates a case for review rather than editing a record:
+submit a job, submit a factual correction or right of reply, and claim a
+company. Those three routes are declared in
+[`src/lib/employers/write-paths.ts`](../src/lib/employers/write-paths.ts)
+with the boundary fields each one writes; only the response route writes one
+at all (`response_statement`), and it now asks the boundary rather than
+assuming.
+
+Two properties hold the line underneath that registry:
+
+- **No signed-in account holds an INSERT, UPDATE or DELETE grant on any table
+  in `app`, `api` or `private`.** Every employer write reaches storage through
+  a security-definer function. A convenience grant would make the whole
+  boundary advisory, so this is pinned by pgTAP.
+- **A new employer-facing route fails CI** until it declares what it writes,
+  and the declaration is checked against `mayEmployerEdit()`.
+
+### One name, two meanings
+
+The employer job submission form asks for `eligibility_evidence` — the
+employer quoting their own posting's wording about who may apply. The
+boundary's `eligibility_evidence` is SalaryPadi's independent reading of that
+posting, and is protected. Same name, opposite owner. A test pins the
+distinction so that neither is mistaken for the other later.
+
 ## What a verified employer may edit
 
 `company_description`, `careers_information`, `locations`,
