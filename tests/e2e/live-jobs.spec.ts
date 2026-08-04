@@ -1,4 +1,8 @@
-import { expect, test } from "@playwright/test";
+import {
+  assertResponseNotChallenged,
+  expect,
+  test,
+} from "./support/production-guard";
 
 test.describe("production job source canary", () => {
   test.skip(
@@ -11,6 +15,9 @@ test.describe("production job source canary", () => {
     request,
   }) => {
     const healthResponse = await request.get("/api/health");
+    // Otherwise a challenged canary reports "expected 200, received 403" and
+    // sends the reader looking at /api/health instead of at the edge.
+    await assertResponseNotChallenged(healthResponse, "/api/health");
     expect(healthResponse.status()).toBe(200);
     const health = (await healthResponse.json()) as {
       status?: unknown;

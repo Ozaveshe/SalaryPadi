@@ -193,8 +193,23 @@ async function main() {
     });
     payload = await readBoundedJson(response, MAX_HEALTH_RESPONSE_BYTES);
   } catch (reason) {
+    /**
+     * The name alone is not a diagnosis. Every realistic failure here — an
+     * edge bot-protection challenge, an error page served as HTML, a
+     * truncated body — arrives as a bare `SyntaxError` out of JSON.parse, and
+     * the byte-limit guard throws a plain `Error` whose entire message would
+     * be discarded. When the fetch itself succeeded the response is still in
+     * hand, and its status and content type are the whole story.
+     */
+    const name = reason instanceof Error ? reason.name : "unknown";
+    const message = reason instanceof Error ? reason.message : String(reason);
+    const served = response
+      ? ` (HTTP ${response.status}, content-type ${
+          response.headers.get("content-type") ?? "none"
+        })`
+      : "";
     console.error(
-      `FAIL platform health request failed: ${reason instanceof Error ? reason.name : "unknown"}`,
+      `FAIL platform health request failed: ${name}: ${message}${served}`,
     );
     process.exitCode = PLATFORM_HEALTH_EXIT_CODES.network;
     return;
