@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(40);
+select plan(47);
 
 select has_table('ingest', 'job_source_occurrences', 'source occurrences exist');
 select has_table('ingest', 'job_occurrence_links', 'occurrence links exist');
@@ -320,6 +320,104 @@ select is(
    where id = '97000000-0000-4000-8000-000000000013'),
   'closed',
   'elapsed deadlines close on the lifecycle pass'
+);
+
+-- Source-absence closure: a sourced job the provider stopped showing closes
+-- after seven unseen days, but ONLY when the source itself demonstrably kept
+-- importing since well after the job's last sighting. A source that went
+-- quiet proves nothing about its jobs and must not close them.
+insert into app.job_sources (
+  id, adapter_key, name, source_type, status, terms_url,
+  attribution_required, attribution_text, allow_public_listing, terms_reviewed_at,
+  terms_version, authorization_basis, authorization_evidence_ref,
+  authorization_reviewed_at, policy_state, authority, allowed_fields,
+  policy_review_due_at, raw_retention, last_successful_import_at
+) values (
+  '97000000-0000-4000-8000-000000000020', 'test_absence_feed', 'Absence Feed',
+  'secondary_feed', 'active', 'https://example.test/terms', true,
+  'Source: Absence Feed', true, now(), 'absence-feed-v1', 'documented_public_api',
+  'test-fixture:job-supply-system', now(), 'enabled', 'secondary_feed',
+  array['title', 'description', 'application_url', 'source_url'],
+  now() + interval '30 days', interval '30 days', clock_timestamp()
+), (
+  '97000000-0000-4000-8000-000000000021', 'test_quiet_feed', 'Quiet Feed',
+  'secondary_feed', 'paused', 'https://example.test/terms', true,
+  'Source: Quiet Feed', true, now(), 'quiet-feed-v1', 'documented_public_api',
+  'test-fixture:job-supply-system', now(), 'enabled', 'secondary_feed',
+  array['title', 'description', 'application_url', 'source_url'],
+  now() + interval '30 days', interval '30 days',
+  clock_timestamp() - interval '9 days'
+)
+on conflict (id) do nothing;
+
+insert into app.jobs (
+  id, company_id, source_id, external_source_id, slug, status, title,
+  description_text, employment_type, application_url, source_url,
+  last_seen_at, dedup_fingerprint
+) values (
+  '97000000-0000-4000-8000-000000000022',
+  '97000000-0000-4000-8000-000000000010',
+  '97000000-0000-4000-8000-000000000020',
+  'absence-unseen', 'absence-unseen', 'published', 'Unseen Feed Role',
+  'A role its healthy source stopped showing eight days ago.',
+  'full_time', 'https://feed.example.test/apply/unseen',
+  'https://feed.example.test/jobs/unseen',
+  clock_timestamp() - interval '8 days', repeat('a', 64)
+), (
+  '97000000-0000-4000-8000-000000000023',
+  '97000000-0000-4000-8000-000000000010',
+  '97000000-0000-4000-8000-000000000021',
+  'quiet-unseen', 'quiet-unseen', 'published', 'Quiet Source Role',
+  'A role unseen only because its source stopped importing.',
+  'full_time', 'https://feed.example.test/apply/quiet',
+  'https://feed.example.test/jobs/quiet',
+  clock_timestamp() - interval '8 days', repeat('b', 64)
+);
+
+select lives_ok(
+  $$ select api.worker_run_job_lifecycle() $$,
+  'absence lifecycle worker runs after the fixture setup'
+);
+select is(
+  (select lifecycle_state::text from app.jobs
+   where id = '97000000-0000-4000-8000-000000000022'),
+  'closed',
+  'a job its healthy source stopped showing for seven days closes'
+);
+select is(
+  (select lifecycle_state::text from app.jobs
+   where id = '97000000-0000-4000-8000-000000000023'),
+  'open',
+  'a quiet source closes nothing: source silence is not job closure'
+);
+
+-- Two-strike apply-link state: one definitive failure records but does not
+-- unpublish; the second consecutive failure does.
+select ok(
+  api.worker_record_apply_link_check(
+    '97000000-0000-4000-8000-000000000023',
+    clock_timestamp(), 'broken', 404, 'job_not_found', 120
+  ),
+  'first definitive apply-link failure is recorded'
+);
+select is(
+  (select apply_link_state::text from app.jobs
+   where id = '97000000-0000-4000-8000-000000000023'),
+  'indeterminate',
+  'one definitive failure arms the counter without the broken state'
+);
+select ok(
+  api.worker_record_apply_link_check(
+    '97000000-0000-4000-8000-000000000023',
+    clock_timestamp(), 'broken', 404, 'job_not_found', 120
+  ),
+  'second consecutive apply-link failure is recorded'
+);
+select is(
+  (select apply_link_state::text from app.jobs
+   where id = '97000000-0000-4000-8000-000000000023'),
+  'broken',
+  'two consecutive definitive failures make the operative state broken'
 );
 
 update private.job_source_dependencies dependency
