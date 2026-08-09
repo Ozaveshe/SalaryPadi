@@ -64,75 +64,86 @@ export default async function CompanyReviewsPage({
                 : `${reviews.length} approved review${reviews.length === 1 ? "" : "s"}; the overall rating remains suppressed until the minimum sample is reached.`}
             </div>
             <div className="stack">
-              {reviews.map((review) => (
-                <article className="surface surface-pad stack" key={review.id}>
-                  <div className="split">
-                    <div>
-                      <p className="eyebrow">
-                        {review.country_code === "WITHHELD"
-                          ? "Country withheld"
-                          : review.country_code}{" "}
-                        · {review.role_family ?? "Role not published"}
-                      </p>
-                      <h3 className="m-0 text-xl font-bold">
-                        {review.overall_rating?.toFixed(1) ?? "Unrated"} / 5
-                      </h3>
+              {reviews.map((review) => {
+                // A field the contributor did not score is omitted, never
+                // printed as a null-state label — the presentation contract
+                // in src/lib/presentation/public-field.ts.
+                const scores = [
+                  ["Compensation", review.compensation_rating],
+                  ["Pay reliability", review.pay_reliability_rating],
+                  ["Management", review.management_rating],
+                  ["Work-life balance", review.work_life_rating],
+                  ["Career growth", review.career_growth_rating],
+                  [
+                    "Employment status",
+                    review.employment_status
+                      ? formatEnum(review.employment_status)
+                      : null,
+                  ],
+                ].filter(
+                  (entry): entry is [string, string | number] =>
+                    entry[1] !== null && entry[1] !== undefined,
+                );
+                return (
+                  <article
+                    className="surface surface-pad stack"
+                    key={review.id}
+                  >
+                    <div className="split">
+                      <div>
+                        <p className="eyebrow">
+                          {[
+                            review.country_code === "WITHHELD"
+                              ? "Country withheld"
+                              : review.country_code,
+                            review.role_family,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                        <h3 className="m-0 text-xl font-bold">
+                          {review.overall_rating !== null &&
+                          review.overall_rating !== undefined
+                            ? `${review.overall_rating.toFixed(1)} / 5`
+                            : "Workplace review"}
+                        </h3>
+                      </div>
+                      <span className="source-note">
+                        Published {formatDate(review.published_at)}
+                      </span>
                     </div>
-                    <span className="source-note">
-                      Published {formatDate(review.published_at)}
-                    </span>
-                  </div>
-                  <dl className="data-list">
-                    <div>
-                      <dt>Compensation</dt>
-                      <dd>{review.compensation_rating ?? "Not scored"}</dd>
-                    </div>
-                    <div>
-                      <dt>Pay reliability</dt>
-                      <dd>{review.pay_reliability_rating ?? "Not scored"}</dd>
-                    </div>
-                    <div>
-                      <dt>Management</dt>
-                      <dd>{review.management_rating ?? "Not scored"}</dd>
-                    </div>
-                    <div>
-                      <dt>Work-life balance</dt>
-                      <dd>{review.work_life_rating ?? "Not scored"}</dd>
-                    </div>
-                    <div>
-                      <dt>Career growth</dt>
-                      <dd>{review.career_growth_rating ?? "Not scored"}</dd>
-                    </div>
-                    <div>
-                      <dt>Employment status</dt>
-                      <dd>
-                        {review.employment_status
-                          ? formatEnum(review.employment_status)
-                          : "Not published"}
-                      </dd>
-                    </div>
-                  </dl>
-                  {review.pros ? (
-                    <div>
-                      <strong>What worked well</strong>
-                      <p>{review.pros}</p>
-                    </div>
-                  ) : null}
-                  {review.cons ? (
-                    <div>
-                      <strong>What could be better</strong>
-                      <p>{review.cons}</p>
-                    </div>
-                  ) : null}
-                  {review.advice_to_management ? (
-                    <div>
-                      <strong>Advice to management</strong>
-                      <p>{review.advice_to_management}</p>
-                    </div>
-                  ) : null}
-                  <p className="source-note m-0">{review.provenance_label}</p>
-                </article>
-              ))}
+                    {scores.length > 0 ? (
+                      <dl className="data-list">
+                        {scores.map(([label, value]) => (
+                          <div key={label}>
+                            <dt>{label}</dt>
+                            <dd>{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
+                    {review.pros ? (
+                      <div>
+                        <strong>What worked well</strong>
+                        <p>{review.pros}</p>
+                      </div>
+                    ) : null}
+                    {review.cons ? (
+                      <div>
+                        <strong>What could be better</strong>
+                        <p>{review.cons}</p>
+                      </div>
+                    ) : null}
+                    {review.advice_to_management ? (
+                      <div>
+                        <strong>Advice to management</strong>
+                        <p>{review.advice_to_management}</p>
+                      </div>
+                    ) : null}
+                    <p className="source-note m-0">{review.provenance_label}</p>
+                  </article>
+                );
+              })}
             </div>
           </>
         ) : reviewsResult.state === "ready" ? (

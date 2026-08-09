@@ -101,4 +101,23 @@ test.describe("route-level public truth", () => {
     test.skip(!slug, "No company available to audit on this base URL.");
     await auditRoute(page, `/companies/${slug}`, `company-${slug}`);
   });
+
+  test("community-evidence subroutes omit absent fields", async ({ page }) => {
+    // The 2026-08 audit found standalone null-state labels ("Not scored",
+    // "Not published", "Unrated") on exactly these two subroutes, outside
+    // the original sweep. An unscored or unpublished field is omitted.
+    await visit(page, "/companies");
+    const slug = await firstSlug(page, ".company-row h2 a", "/companies/");
+    test.skip(!slug, "No company available to audit on this base URL.");
+    await auditRoute(
+      page,
+      `/companies/${slug}/reviews`,
+      `company-${slug}-reviews`,
+    );
+    await auditRoute(
+      page,
+      `/companies/${slug}/interviews`,
+      `company-${slug}-interviews`,
+    );
+  });
 });

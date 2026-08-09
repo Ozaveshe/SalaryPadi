@@ -52,81 +52,91 @@ export default async function CompanyInterviewsPage({
         />
         {interviews.length > 0 ? (
           <div className="stack">
-            {interviews.map((interview) => (
-              <article className="surface surface-pad stack" key={interview.id}>
-                <div className="split">
-                  <div>
-                    <p className="eyebrow">
-                      {interview.country_code === "WITHHELD"
-                        ? "Country withheld"
-                        : interview.country_code}{" "}
-                      · {interview.role_family ?? "Role not published"}
-                    </p>
-                    <h3 className="m-0 text-xl font-bold">
-                      {interview.outcome
-                        ? formatEnum(interview.outcome)
-                        : "Outcome not published"}
-                    </h3>
+            {interviews.map((interview) => {
+              // Absent fields are omitted, never printed as null-state
+              // labels — the presentation contract in
+              // src/lib/presentation/public-field.ts.
+              const facts = [
+                [
+                  "Seniority",
+                  interview.seniority ? formatEnum(interview.seniority) : null,
+                ],
+                ["Application source", interview.application_source],
+                ["Duration", interview.approximate_duration_label],
+                ["Difficulty", interview.difficulty],
+                [
+                  "Feedback received",
+                  interview.feedback_received === null
+                    ? null
+                    : interview.feedback_received
+                      ? "Yes"
+                      : "No",
+                ],
+              ].filter(
+                (entry): entry is [string, string | number] =>
+                  entry[1] !== null && entry[1] !== undefined,
+              );
+              return (
+                <article
+                  className="surface surface-pad stack"
+                  key={interview.id}
+                >
+                  <div className="split">
+                    <div>
+                      <p className="eyebrow">
+                        {[
+                          interview.country_code === "WITHHELD"
+                            ? "Country withheld"
+                            : interview.country_code,
+                          interview.role_family,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                      <h3 className="m-0 text-xl font-bold">
+                        {interview.outcome
+                          ? formatEnum(interview.outcome)
+                          : "Interview experience"}
+                      </h3>
+                    </div>
+                    <span className="source-note">
+                      Published {formatDate(interview.published_at)}
+                    </span>
                   </div>
-                  <span className="source-note">
-                    Published {formatDate(interview.published_at)}
-                  </span>
-                </div>
-                <dl className="data-list">
-                  <div>
-                    <dt>Seniority</dt>
-                    <dd>
-                      {interview.seniority
-                        ? formatEnum(interview.seniority)
-                        : "Not published"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Application source</dt>
-                    <dd>{interview.application_source ?? "Not published"}</dd>
-                  </div>
-                  <div>
-                    <dt>Duration</dt>
-                    <dd>
-                      {interview.approximate_duration_label ?? "Not published"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Difficulty</dt>
-                    <dd>{interview.difficulty ?? "Not scored"}</dd>
-                  </div>
-                  <div>
-                    <dt>Feedback received</dt>
-                    <dd>
-                      {interview.feedback_received === null
-                        ? "Not published"
-                        : interview.feedback_received
-                          ? "Yes"
-                          : "No"}
-                    </dd>
-                  </div>
-                </dl>
-                {interview.stages.length > 0 ? (
-                  <div>
-                    <strong>Stages</strong>
-                    <p>{interview.stages.join(" → ")}</p>
-                  </div>
-                ) : null}
-                {interview.question_themes ? (
-                  <div>
-                    <strong>Question themes</strong>
-                    <p>{interview.question_themes}</p>
-                  </div>
-                ) : null}
-                {interview.general_experience ? (
-                  <div>
-                    <strong>General experience</strong>
-                    <p>{interview.general_experience}</p>
-                  </div>
-                ) : null}
-                <p className="source-note m-0">{interview.provenance_label}</p>
-              </article>
-            ))}
+                  {facts.length > 0 ? (
+                    <dl className="data-list">
+                      {facts.map(([label, value]) => (
+                        <div key={label}>
+                          <dt>{label}</dt>
+                          <dd>{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
+                  {interview.stages.length > 0 ? (
+                    <div>
+                      <strong>Stages</strong>
+                      <p>{interview.stages.join(" → ")}</p>
+                    </div>
+                  ) : null}
+                  {interview.question_themes ? (
+                    <div>
+                      <strong>Question themes</strong>
+                      <p>{interview.question_themes}</p>
+                    </div>
+                  ) : null}
+                  {interview.general_experience ? (
+                    <div>
+                      <strong>General experience</strong>
+                      <p>{interview.general_experience}</p>
+                    </div>
+                  ) : null}
+                  <p className="source-note m-0">
+                    {interview.provenance_label}
+                  </p>
+                </article>
+              );
+            })}
           </div>
         ) : interviewsResult.state === "ready" ? (
           <div className="empty-state">

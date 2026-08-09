@@ -68,6 +68,15 @@ export const PROHIBITED_STANDALONE_LABELS = [
   "n/a",
   "null",
   "undefined",
+  // Null-state labels the 2026-08 audit found shipping as standalone <dd>
+  // values on the company reviews and interviews subroutes. An unscored or
+  // unpublished field is omitted, never labelled. Bare "not published" is
+  // deliberately NOT banned: formatCountryNumber/formatSalaryAmount pin it
+  // as the honest absence statement for a figure the source did not publish.
+  "not scored",
+  "unrated",
+  "role not published",
+  "outcome not published",
 ] as const;
 
 /**
