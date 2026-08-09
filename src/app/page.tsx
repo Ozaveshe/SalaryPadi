@@ -324,6 +324,21 @@ export default async function HomePage() {
             <span>Salary, review, interview and employer paths.</span>
             <FilePlus2 aria-hidden="true" size={18} />
           </Link>
+          <Link href="/saved">
+            <strong>Save jobs and track applications</strong>
+            <span>
+              Keep roles, applications, interviews and offers in one private
+              place.
+            </span>
+            <ArrowRight aria-hidden="true" size={18} />
+          </Link>
+          <Link href="/for-employers">
+            <strong>Hire with a verified profile</strong>
+            <span>
+              Post roles and claim your company. Payment never buys trust.
+            </span>
+            <Building2 aria-hidden="true" size={18} />
+          </Link>
         </div>
       </section>
 

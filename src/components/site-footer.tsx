@@ -2,51 +2,52 @@ import { currentZonedYear } from "@/lib/time/zone";
 import Link from "next/link";
 
 import { Brand } from "@/components/brand";
+import { getFeatureFlags } from "@/lib/env";
+import { PRODUCT_SURFACES } from "@/lib/product/surfaces";
 
-const footerGroups = [
-  {
-    label: "Explore",
-    links: [
-      ["Jobs", "/jobs"],
-      ["Companies", "/companies"],
-      ["Salaries", "/salaries"],
-      ["Tools", "/tools"],
-      ["Insights", "/insights"],
-    ],
-  },
-  {
-    label: "Contribute",
-    links: [
-      ["Add salary", "/contribute/salary"],
-      ["Add review", "/contribute/review"],
-      ["Add benefits", "/contribute/benefits"],
-      ["Pay reliability", "/contribute/pay-reliability"],
-      ["Add interview", "/contribute/interview"],
-    ],
-  },
-  {
-    label: "For employers",
-    links: [
-      ["Post a job", "/post-a-job"],
-      [
-        "Claim your company",
-        "mailto:support@salarypadi.com?subject=Company%20claim%20request",
-      ],
-    ],
-  },
-  {
-    label: "Trust",
-    links: [
-      ["About", "/about"],
-      ["Methodology", "/methodology"],
-      ["Trust & safety", "/trust-and-safety"],
-      ["Privacy", "/privacy"],
-      ["Terms", "/terms"],
-    ],
-  },
+/**
+ * The footer derives its primary group from the same surface model as the
+ * header and mobile drawer, so the two navigations cannot drift apart —
+ * the 2026-08 audit found this file hand-listing a six-entry navigation the
+ * surface consolidation had already replaced, and shipping /insights
+ * regardless of its feature flag.
+ */
+const CONTRIBUTE_LINKS = [
+  ["Add salary", "/contribute/salary"],
+  ["Add review", "/contribute/review"],
+  ["Add benefits", "/contribute/benefits"],
+  ["Pay reliability", "/contribute/pay-reliability"],
+  ["Add interview", "/contribute/interview"],
+] as const;
+
+const EMPLOYER_LINKS = [
+  ["Post a job", "/post-a-job"],
+  ["Claim your company", "/for-employers"],
+] as const;
+
+const TRUST_LINKS = [
+  ["About", "/about"],
+  ["Methodology", "/methodology"],
+  ["Trust & safety", "/trust-and-safety"],
+  ["Privacy", "/privacy"],
+  ["Terms", "/terms"],
 ] as const;
 
 export function SiteFooter() {
+  const exploreLinks: readonly (readonly [string, string])[] = [
+    ...PRODUCT_SURFACES.map(
+      (surface) => [surface.label, surface.href] as const,
+    ),
+    ...(getFeatureFlags().insights
+      ? ([["Insights", "/insights"]] as const)
+      : []),
+  ];
+  const footerGroups = [
+    { label: "Explore", links: exploreLinks },
+    { label: "Contribute", links: CONTRIBUTE_LINKS },
+    { label: "For employers", links: EMPLOYER_LINKS },
+    { label: "Trust", links: TRUST_LINKS },
+  ];
   return (
     <footer className="site-footer">
       <div className="site-shell footer-grid">
@@ -69,17 +70,11 @@ export function SiteFooter() {
               key={group.label}
             >
               <strong>{group.label}</strong>
-              {group.links.map(([label, href]) =>
-                href.startsWith("mailto:") ? (
-                  <a href={href} key={href}>
-                    {label}
-                  </a>
-                ) : (
-                  <Link href={href} key={href}>
-                    {label}
-                  </Link>
-                ),
-              )}
+              {group.links.map(([label, href]) => (
+                <Link href={href} key={href}>
+                  {label}
+                </Link>
+              ))}
             </nav>
           ))}
         </div>
