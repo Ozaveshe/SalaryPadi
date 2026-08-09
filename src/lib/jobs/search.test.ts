@@ -6,6 +6,7 @@ import {
   filterAndSortJobs,
   hasAdvancedJobFilters,
   jobAlertSearchSpecSchema,
+  nigeriaValueTier,
   paginateJobs,
   parseJobSearch,
   parseStoredJobAlertSearch,
@@ -370,5 +371,37 @@ describe("advanced filter disclosure", () => {
         }),
       ),
     ).toBe(false);
+  });
+});
+
+describe("nigeriaValueTier", () => {
+  const checkedAt = "2026-07-10T00:00:00.000Z";
+  const remoteFor = (location: string, id: number) =>
+    normalizeRemotiveJob(
+      { ...base, id, candidate_required_location: location },
+      checkedAt,
+    );
+
+  it("does not lift a Nigeria-excluded Africa role above an eligibility-unclear one", () => {
+    // "Kenya, Ghana": Africa-eligible but Nigeria not_eligible. It must not
+    // outrank a plain-remote role of unclear eligibility — the exact card ↔
+    // ranker contradiction (the card labels it "not including Nigeria").
+    const excludedAfrica = remoteFor("Kenya, Ghana", 21);
+    const unclearRemote = remoteFor("Remote", 22);
+    expect(excludedAfrica.eligibility.nigeria).toBe("not_eligible");
+    expect(excludedAfrica.eligibility.africa).toBe("eligible");
+    expect(nigeriaValueTier(excludedAfrica)).toBe(0);
+    expect(nigeriaValueTier(excludedAfrica)).toBeLessThanOrEqual(
+      nigeriaValueTier(unclearRemote),
+    );
+  });
+
+  it("still lifts an Africa-inclusive role that does not exclude Nigeria", () => {
+    // EMEA remote: Africa-eligible, Nigeria unclear (not excluded) — a Nigerian
+    // may well be able to apply, so it keeps its lift above unclear roles.
+    const emeaRemote = remoteFor("EMEA", 23);
+    expect(emeaRemote.eligibility.africa).toBe("eligible");
+    expect(emeaRemote.eligibility.nigeria).not.toBe("not_eligible");
+    expect(nigeriaValueTier(emeaRemote)).toBe(1);
   });
 });

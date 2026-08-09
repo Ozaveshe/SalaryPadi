@@ -82,6 +82,32 @@ describe("eligibility classification", () => {
       });
     },
   );
+
+  it.each([
+    "Work from anywhere in the world. Team hires in Spain.",
+    "Global remote. Candidates based in India.",
+  ])(
+    "stays unclear when broad wording conflicts with a foreign-only country list: %s",
+    (value) => {
+      // The source contradicts itself — "anywhere" plus a single non-African
+      // country. Neither the broad phrase nor the stray country is trustworthy,
+      // so the badge must stay neutral rather than paint a false green.
+      const result = classifyEligibility(value, checkedAt);
+      expect(result.scope).toBe("unclear");
+      expect(result.nigeria).toBe("unclear");
+    },
+  );
+
+  it("keeps worldwide eligibility when the named country agrees (Nigeria/African)", () => {
+    // A worldwide role that also names Nigeria is not a conflict — the broad
+    // signal and the country point the same way.
+    expect(
+      classifyEligibility(
+        "Work from anywhere in the world. Nigeria welcome.",
+        checkedAt,
+      ).nigeria,
+    ).toBe("eligible");
+  });
 });
 
 describe("job normalization", () => {

@@ -21,9 +21,15 @@ import type { EligibilityState, RankableJob, SourceAuthority } from "./ranking";
  * A ranking engine must not be the place where eligibility quietly improves.
  */
 export function eligibilityStateFor(job: Job): EligibilityState {
-  const { nigeria, africa, excludedCountries } = job.eligibility;
+  const { nigeria, africa } = job.eligibility;
 
-  if (excludedCountries.includes("NG") || nigeria === "not_eligible") {
+  // `nigeria === "not_eligible"` is authoritative: the classifier sets it
+  // whenever the evidence excludes Nigeria — by name, or via a named-country
+  // list that omits it. An earlier guard here also tested
+  // `excludedCountries.includes("NG")`, but `excludedCountries` holds display
+  // names ("Nigeria"), so comparing them to the code "NG" never matched. The
+  // axis check already covers every exclusion path, so the dead clause is gone.
+  if (nigeria === "not_eligible") {
     return "not_eligible";
   }
   // The bare `nigeria` axis answers "may a Nigerian apply"; the ranking

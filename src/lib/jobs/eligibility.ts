@@ -304,8 +304,25 @@ export function classifyEligibilityEvidence(
       normalized,
     );
 
+  // A named-country list that omits both Nigeria and every African country is
+  // a binding restriction that *conflicts* with loose "worldwide" / "Africa" /
+  // "EMEA" wording — e.g. "Fully remote — Spain" or a role that names only
+  // India. Letting the broad phrase win paints a false success-toned "you can
+  // apply" badge on a role restricted elsewhere; letting the stray country name
+  // win wrongly excludes a genuinely Africa-wide role. When the two disagree,
+  // neither is trustworthy, so the scope is unclear and the badge stays neutral.
+  // Only an unconflicted signal earns a confident eligible / not-eligible call.
+  const namedForeignOnly =
+    includedCodes.size > 0 &&
+    !includedCodes.has("NG") &&
+    ![...includedCodes].some(
+      (code) => countryByCode.get(code)?.african === true,
+    );
+  const broadRegionSignal = worldwide || hasAfricaRegion || hasEmea;
+
   let scope: RemoteEligibilityScope;
-  if (worldwide) scope = "worldwide";
+  if (broadRegionSignal && namedForeignOnly) scope = "unclear";
+  else if (worldwide) scope = "worldwide";
   else if (hasAfricaRegion) scope = "africa";
   else if (includedCodes.size === 1 && includedCodes.has("NG"))
     scope = "nigeria";

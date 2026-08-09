@@ -278,7 +278,16 @@ export function nigeriaValueTier(job: Job) {
   if (job.workMode === "remote" && job.eligibility.nigeria === "eligible") {
     return 2;
   }
-  if (job.workMode === "remote" && job.eligibility.africa === "eligible") {
+  // Africa-wide evidence lifts a remote role above eligibility-unclear ones —
+  // but only when Nigeria is not itself excluded. A role open across named
+  // African countries *except* Nigeria (nigeria === "not_eligible") must never
+  // outrank a role a Nigerian might actually be able to apply to; that would
+  // contradict the card, which labels the same job "not including Nigeria".
+  if (
+    job.workMode === "remote" &&
+    job.eligibility.africa === "eligible" &&
+    job.eligibility.nigeria !== "not_eligible"
+  ) {
     return 1;
   }
   return 0;

@@ -99,16 +99,19 @@ describe("eligibility mapping", () => {
   });
 
   it("lets an explicit exclusion beat everything else", () => {
-    // Africa-eligible plus a Nigeria exclusion is still not eligible.
+    // Africa-eligible plus a Nigeria exclusion is still not eligible. The
+    // classifier records the exclusion as nigeria === "not_eligible" (the
+    // authoritative axis) and lists the display name in excludedCountries;
+    // the ranking state must sink regardless of the Africa axis.
     expect(
       eligibilityStateFor(
         job({
           eligibility: {
-            scope: "worldwide",
-            nigeria: "eligible",
+            scope: "named_countries",
+            nigeria: "not_eligible",
             africa: "eligible",
-            includedCountries: [],
-            excludedCountries: ["NG"],
+            includedCountries: ["Kenya", "Ghana"],
+            excludedCountries: ["Nigeria"],
           },
         }),
       ),
