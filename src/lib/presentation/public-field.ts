@@ -63,8 +63,11 @@ const MAX_LOCATION_LENGTH = 120;
 /** Location text suitable for public display, or null when unhelpful. */
 export function publicLocation(job: Job): string | null {
   // Some feeds append the description to the location field, markup and all.
-  // Take only the leading segment before the first tag or line break.
-  const location = (job.locationDisplay.split(/[<\r\n]/)[0] ?? "").trim();
+  // Take only the leading segment before the first tag or line break. A row
+  // with no location field at all is treated the same as an empty one.
+  const location = (
+    (job.locationDisplay ?? "").split(/[<\r\n]/)[0] ?? ""
+  ).trim();
   if (!location) return null;
   if (location.length > MAX_LOCATION_LENGTH) return null;
   if (/^(location not stated|not stated by the source)/i.test(location)) {
