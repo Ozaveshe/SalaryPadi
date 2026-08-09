@@ -115,7 +115,18 @@ export default async function PostAJobPage({
               </div>
               <div className="field">
                 <label htmlFor="work_mode">Work mode</label>
-                <select className="select" id="work_mode" name="work_mode">
+                {/* No preselected value: an untouched control must never
+                    become a stated fact about the role. */}
+                <select
+                  className="select"
+                  id="work_mode"
+                  name="work_mode"
+                  defaultValue=""
+                  required
+                >
+                  <option value="" disabled>
+                    Choose a work mode
+                  </option>
                   <option value="onsite">Onsite</option>
                   <option value="hybrid">Hybrid</option>
                   <option value="remote">Remote</option>
@@ -212,12 +223,21 @@ export default async function PostAJobPage({
           <legend>Eligibility evidence</legend>
           <div className="form-grid">
             <div className="field">
-              <label htmlFor="eligibility_scope">Scope</label>
+              <label htmlFor="eligibility_scope">Who can apply</label>
+              {/* This value is published as reviewed eligibility, so the
+                  submitter must choose it deliberately. The old control
+                  preselected "Nigeria": an untouched form silently became a
+                  verified Nigeria-eligible claim. */}
               <select
                 className="select"
                 id="eligibility_scope"
                 name="eligibility_scope"
+                defaultValue=""
+                required
               >
+                <option value="" disabled>
+                  Choose who can apply
+                </option>
                 <option value="nigeria">Nigeria</option>
                 <option value="africa">Africa</option>
                 <option value="worldwide">Worldwide</option>
@@ -267,11 +287,18 @@ export default async function PostAJobPage({
             </div>
             <div className="field">
               <label htmlFor="visa_sponsorship">Visa sponsorship</label>
+              {/* No preselected "No": an unanswered question is "Not sure",
+                  never a stated denial of sponsorship. */}
               <select
                 className="select"
                 id="visa_sponsorship"
                 name="visa_sponsorship"
+                defaultValue=""
+                required
               >
+                <option value="" disabled>
+                  Choose an answer
+                </option>
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
                 <option value="unclear">Not sure</option>
