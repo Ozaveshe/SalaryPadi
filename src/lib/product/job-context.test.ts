@@ -4,6 +4,7 @@ import type { Job } from "@/lib/jobs/types";
 import {
   contextAmountFor,
   contextIsNairaPaye,
+  contextPeriodFitsCalculator,
   jobContextFrom,
   readJobContext,
   withJobContext,
@@ -68,7 +69,10 @@ describe("job context handoff", () => {
     expect(params.has("amount")).toBe(false);
   });
 
-  it("omits pay periods the calculators cannot accept", () => {
+  it("carries an hourly period for Offer Compare but bars it from the calculators", () => {
+    // Offer Compare handles hourly/daily/weekly natively, so the period
+    // travels; the monthly/annual calculators must refuse to prefill it —
+    // silently treating an hourly rate as a monthly salary misstates pay.
     const hourly = job({
       salary: {
         originalText: "$40/hour",
@@ -79,10 +83,30 @@ describe("job context handoff", () => {
         grossNet: "unknown",
       },
     } as Partial<Job>);
+    const url = withJobContext("/tools/offer-compare", jobContextFrom(hourly));
+    const params = new URLSearchParams(url.split("?")[1]);
+    expect(params.get("period")).toBe("hourly");
+    const roundTripped = readJobContext(Object.fromEntries(params.entries()));
+    expect(roundTripped?.period).toBe("hourly");
+    expect(contextPeriodFitsCalculator(roundTripped)).toBe(false);
+  });
+
+  it("omits a period the tools cannot reason about at all", () => {
+    const unknownPeriod = job({
+      salary: {
+        originalText: "Competitive",
+        currency: "USD",
+        minimum: 1000,
+        maximum: null,
+        payPeriod: "unknown",
+        grossNet: "unknown",
+      },
+    } as Partial<Job>);
     const params = new URLSearchParams(
-      withJobContext("/tools/take-home-pay", jobContextFrom(hourly)).split(
-        "?",
-      )[1],
+      withJobContext(
+        "/tools/offer-compare",
+        jobContextFrom(unknownPeriod),
+      ).split("?")[1],
     );
     expect(params.has("period")).toBe(false);
   });

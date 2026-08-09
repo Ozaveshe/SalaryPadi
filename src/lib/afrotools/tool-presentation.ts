@@ -3,6 +3,11 @@ import type { AfroToolsCatalogTool } from "./catalog";
 const localRoutes = {
   "ng-paye": "/tools/take-home-pay",
   "currency-converter": "/tools/salary-converter",
+  // SalaryPadi has its own offer comparison. Sending the user to an external
+  // destination for the exact task the product built — while the in-product
+  // tool was absent from /tools entirely — was the 2026-08 audit's "shipped
+  // off-site for its own core job" finding.
+  "job-offer-evaluator": "/tools/offer-compare",
 } as const;
 
 const outcomes: Record<string, { title: string; description: string }> = {

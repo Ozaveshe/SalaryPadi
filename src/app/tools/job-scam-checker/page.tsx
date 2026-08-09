@@ -3,7 +3,9 @@ import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
+import { JobContextBanner } from "@/components/product/job-context-banner";
 import { ScamChecker } from "@/components/tools/scam-checker";
+import { readJobContext } from "@/lib/product/job-context";
 
 export const metadata: Metadata = {
   title: "Job scam checker",
@@ -12,7 +14,12 @@ export const metadata: Metadata = {
   alternates: { canonical: "/tools/job-scam-checker" },
 };
 
-export default function ScamCheckerPage() {
+export default async function ScamCheckerPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const context = readJobContext(await searchParams);
   return (
     <div className="site-shell stack-lg">
       <Breadcrumbs
@@ -22,6 +29,12 @@ export default function ScamCheckerPage() {
           { label: "Job scam checker" },
         ]}
       />
+      {context ? (
+        <JobContextBanner
+          action="Checking warning signs for"
+          context={context}
+        />
+      ) : null}
       <PageHeading
         eyebrow="Cautious safety tool"
         title="Slow down a suspicious job message"

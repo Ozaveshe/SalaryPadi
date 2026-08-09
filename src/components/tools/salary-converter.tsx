@@ -22,7 +22,17 @@ import {
 import { ToolResultRegion } from "./tool-result-region";
 import { ToolUserError } from "./tool-user-error";
 
-export function SalaryConverter() {
+export interface SalaryConverterDefaults {
+  amount?: number;
+  from?: string;
+  period?: "monthly" | "annual";
+}
+
+export function SalaryConverter({
+  defaults,
+}: {
+  defaults?: SalaryConverterDefaults;
+} = {}) {
   const { result, error, loading, run } =
     useToolRequest<SalaryConversionResult>("Conversion failed.");
 
@@ -79,7 +89,7 @@ export function SalaryConverter() {
                 type="number"
                 min="1"
                 max="1000000000000"
-                defaultValue="1000"
+                defaultValue={defaults?.amount ?? "1000"}
                 required
               />
             </div>
@@ -89,7 +99,7 @@ export function SalaryConverter() {
                 className="input"
                 id="from_currency"
                 name="from"
-                defaultValue="USD"
+                defaultValue={defaults?.from ?? "USD"}
                 pattern="[A-Za-z]{3}"
                 maxLength={3}
                 required
@@ -109,7 +119,12 @@ export function SalaryConverter() {
             </div>
             <div className="field">
               <label htmlFor="salary_period">Period</label>
-              <select className="select" id="salary_period" name="period">
+              <select
+                className="select"
+                id="salary_period"
+                name="period"
+                defaultValue={defaults?.period ?? "monthly"}
+              >
                 <option value="monthly">Monthly</option>
                 <option value="annual">Annual</option>
               </select>

@@ -35,8 +35,31 @@ const CONTEXT_KEYS = {
   period: "period",
 } as const;
 
-/** Periods the calculators accept. Anything else travels as no period at all. */
-const TOOL_PERIODS = new Set<PayPeriod>(["monthly", "annual"]);
+/**
+ * Periods that may travel with the context. Offer Compare accepts all of
+ * them; the monthly/annual-only calculators must check
+ * `contextPeriodFitsCalculator` before prefilling, so an hourly rate never
+ * silently becomes a monthly salary. "unknown" travels as no period at all.
+ */
+const TOOL_PERIODS = new Set<PayPeriod>([
+  "hourly",
+  "daily",
+  "weekly",
+  "monthly",
+  "annual",
+]);
+
+/** Whether the monthly/annual calculators can honestly use this period. */
+export function contextPeriodFitsCalculator(
+  context: JobContext | null,
+): boolean {
+  return (
+    context !== null &&
+    (context.period === null ||
+      context.period === "monthly" ||
+      context.period === "annual")
+  );
+}
 
 const MAX_TEXT = 120;
 

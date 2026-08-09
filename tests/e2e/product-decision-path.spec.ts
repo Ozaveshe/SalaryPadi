@@ -56,14 +56,14 @@ test.describe("continuous job decision path", () => {
     await expect(
       page.getByText("Using the reviewed bundled fallback catalog."),
     ).toBeVisible();
-    await expect(page.getByText("Use inside SalaryPadi · 2")).toBeVisible();
-    await expect(page.getByText("Continue on AfroTools · 13")).toBeVisible();
+    await expect(page.getByText("Use inside SalaryPadi · 3")).toBeVisible();
+    await expect(page.getByText("Continue on AfroTools · 12")).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Use in SalaryPadi" }),
-    ).toHaveCount(2);
+    ).toHaveCount(3);
     await expect(
       page.getByRole("link", { name: /Continue on AfroTools/ }),
-    ).toHaveCount(13);
+    ).toHaveCount(12);
     await expect(
       page.getByText(
         /synchronized cache|integration type|catalog timestamp|widget/i,

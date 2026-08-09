@@ -5,7 +5,12 @@ import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { JobContextBanner } from "@/components/product/job-context-banner";
 import { TakeHomeCalculator } from "@/components/tools/take-home-calculator";
-import { contextIsNairaPaye, readJobContext } from "@/lib/product/job-context";
+import {
+  contextIsNairaPaye,
+  contextPeriodFitsCalculator,
+  readJobContext,
+  withJobContext,
+} from "@/lib/product/job-context";
 
 export const metadata: Metadata = {
   title: "Nigeria take-home pay calculator",
@@ -21,8 +26,14 @@ export default async function TakeHomePayPage({
 }) {
   const context = readJobContext(await searchParams);
   // A role advertised in dollars can still prefill the amount, but the naira
-  // PAYE result would not describe that pay, so the figure is not carried over.
-  const prefillsAmount = context !== null && contextIsNairaPaye(context);
+  // PAYE result would not describe that pay, so the figure is not carried
+  // over. Likewise an hourly/daily/weekly rate: this calculator reasons about
+  // monthly or annual pay, and prefilling a weekly rate as a monthly salary
+  // would misstate the tax outcome.
+  const prefillsAmount =
+    context !== null &&
+    contextIsNairaPaye(context) &&
+    contextPeriodFitsCalculator(context);
 
   return (
     <div className="site-shell stack-lg">
@@ -45,12 +56,23 @@ export default async function TakeHomePayPage({
         description="Run gross-to-net or net-to-gross calculations against versioned AfroTools PAYE data. If rules or responses cannot be verified, SalaryPadi shows no result."
       />
       {context && !prefillsAmount ? (
-        <p className="field-help">
-          This role advertises pay in {context.currency}. The calculator covers
-          Nigerian PAYE on naira pay, so the advertised amount has not been
-          carried over — convert it first with the{" "}
-          <a href="/tools/salary-converter">salary converter</a>.
-        </p>
+        contextIsNairaPaye(context) ? (
+          <p className="field-help">
+            This role advertises {context.period ?? "non-monthly"} pay. The
+            calculator reasons about monthly or annual naira pay, so the
+            advertised rate has not been carried over.
+          </p>
+        ) : (
+          <p className="field-help">
+            This role advertises pay in {context.currency}. The calculator
+            covers Nigerian PAYE on naira pay, so the advertised amount has not
+            been carried over — convert it first with the{" "}
+            <a href={withJobContext("/tools/salary-converter", context)}>
+              salary converter
+            </a>
+            .
+          </p>
+        )
       ) : null}
       <BrandArt className="page-art" id="tool-take-home-pay" />
       <TakeHomeCalculator

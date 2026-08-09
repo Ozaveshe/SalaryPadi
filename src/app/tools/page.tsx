@@ -24,7 +24,7 @@ export default async function ToolsPage() {
       <PageHeading
         eyebrow="Practical career tools"
         title="Start with the decision you need to make"
-        description="Use two calculation experiences inside SalaryPadi or continue to thirteen reviewed AfroTools destinations. Each card describes the outcome, not the plumbing."
+        description="Use the calculation experiences inside SalaryPadi or continue to a reviewed AfroTools destination. Each card describes the outcome, not the plumbing."
       />
       <BrandArt className="page-art" id="tools-index" />
       {snapshot ? (
@@ -57,7 +57,9 @@ export default async function ToolsPage() {
         <>
           <section className="stack" aria-labelledby="inside-tools-heading">
             <div className="section-intro">
-              <p className="eyebrow">Use inside SalaryPadi · 2</p>
+              <p className="eyebrow">
+                Use inside SalaryPadi · {grouped.inside.length}
+              </p>
               <h2 className="section-title" id="inside-tools-heading">
                 Keep the calculation in this decision path
               </h2>
@@ -82,7 +84,9 @@ export default async function ToolsPage() {
 
           <section className="stack" aria-labelledby="external-tools-heading">
             <div className="section-intro">
-              <p className="eyebrow">Continue on AfroTools · 13</p>
+              <p className="eyebrow">
+                Continue on AfroTools · {grouped.external.length}
+              </p>
               <h2 className="section-title" id="external-tools-heading">
                 Open a focused tool for the next task
               </h2>
