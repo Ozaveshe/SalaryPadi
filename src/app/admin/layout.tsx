@@ -11,6 +11,7 @@ export const metadata: Metadata = {
 const adminNavigation = [
   ["Overview", "/admin"],
   ["Jobs", "/admin/jobs"],
+  ["Duplicates", "/admin/duplicates"],
   ["Imports", "/admin/imports"],
   ["Sources", "/admin/sources"],
   ["Source health", "/admin/source-health"],

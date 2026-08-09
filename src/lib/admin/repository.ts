@@ -14,6 +14,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type AdminResource =
   | "jobs"
+  | "duplicates"
   | "imports"
   | "sources"
   | "companies"

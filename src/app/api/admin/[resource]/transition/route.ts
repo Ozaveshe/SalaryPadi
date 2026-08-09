@@ -31,6 +31,10 @@ const resources = new Set<AdminResource>([
 ]);
 const allowedActions: Record<AdminResource, ReadonlySet<string>> = {
   jobs: new Set(["approve", "expire", "remove", "restore"]),
+  // Read-only queue: intentionally absent from `resources` above, so a
+  // transition POST 404s before it reaches here. The empty set keeps the
+  // Record total over AdminResource.
+  duplicates: new Set(),
   imports: new Set(),
   sources: new Set(["enable", "disable", "request_review"]),
   companies: new Set(["verify", "request_evidence", "remove"]),
