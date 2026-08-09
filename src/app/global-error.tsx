@@ -35,6 +35,9 @@ export default function GlobalError({
             >
               Try again
             </button>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages --
+                this boundary renders because the app (and its router) just
+                crashed; a full-document navigation is the only safe way home */}
             <a className="button button-secondary" href="/">
               Go to the homepage
             </a>
