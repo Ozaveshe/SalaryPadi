@@ -175,9 +175,12 @@ export default async function HomePage() {
               className="select"
               id="home-eligibility"
               name="eligibility"
-              defaultValue="nigeria"
+              defaultValue="nigeria_open"
             >
-              <option value="nigeria">Nigeria explicitly eligible</option>
+              <option value="nigeria_open">
+                Open to Nigeria (any evidence)
+              </option>
+              <option value="nigeria">Nigeria named by the source</option>
               <option value="africa">Africa explicitly eligible</option>
               <option value="worldwide">Worldwide</option>
               <option value="unclear">Include unclear evidence</option>

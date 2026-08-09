@@ -104,9 +104,35 @@ describe("job search", () => {
     });
   });
 
-  it("filters explicitly Nigeria-eligible jobs", () => {
-    const search = parseJobSearch({ eligibility: "nigeria" });
-    expect(filterAndSortJobs(jobs, search)).toHaveLength(1);
+  it("keeps worldwide wording out of the explicit Nigeria filter", () => {
+    // The fixture's evidence is "Worldwide": a Nigerian may apply, but the
+    // source never named Nigeria. The explicit filter must not infer it.
+    expect(
+      filterAndSortJobs(jobs, parseJobSearch({ eligibility: "nigeria" })),
+    ).toHaveLength(0);
+    expect(
+      filterAndSortJobs(jobs, parseJobSearch({ eligibility: "nigeria_open" })),
+    ).toHaveLength(1);
+    expect(
+      filterAndSortJobs(jobs, parseJobSearch({ eligibility: "worldwide" })),
+    ).toHaveLength(1);
+    // Worldwide wording is not Africa evidence either.
+    expect(
+      filterAndSortJobs(jobs, parseJobSearch({ eligibility: "africa" })),
+    ).toHaveLength(0);
+  });
+
+  it("matches the explicit Nigeria filter when the source names Nigeria", () => {
+    const namedNigeria = normalizeRemotiveJob(
+      { ...base, id: 12, candidate_required_location: "Nigeria" },
+      "2026-07-10T00:00:00.000Z",
+    );
+    const matches = filterAndSortJobs(
+      [...jobs, namedNigeria],
+      parseJobSearch({ eligibility: "nigeria" }),
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.eligibility.scope).toBe("nigeria");
   });
 
   it("returns no job for a mismatched company", () => {
@@ -292,6 +318,13 @@ describe("job search", () => {
       },
     ];
     const diversified = diversifyJobResults([...repeated, ...alternatives]);
+    // An explicit user sort is honoured verbatim: no employer reshuffle.
+    expect(
+      diversifyJobResults([...repeated, ...alternatives], "newest"),
+    ).toEqual([...repeated, ...alternatives]);
+    expect(
+      diversifyJobResults([...repeated, ...alternatives], "salary"),
+    ).toEqual([...repeated, ...alternatives]);
 
     expect(diversified).toHaveLength(10);
     expect(new Set(diversified.map((job) => job.id)).size).toBe(10);

@@ -1,4 +1,5 @@
 import { formatEnum } from "@/lib/format";
+import { nigeriaEligibilityBasis } from "@/lib/jobs/eligibility";
 import type { Job } from "@/lib/jobs/types";
 
 /**
@@ -103,18 +104,41 @@ export function publicEligibilityStatement(job: Job): string | null {
     // Work mode uncertain: state only what the source stated.
     return "Role based in Nigeria";
   }
-  if (isRemote && job.eligibility.nigeria === "eligible") {
-    return "Applicants in Nigeria can apply";
-  }
-  if (isRemote && job.eligibility.africa === "eligible") {
-    return "Open to applicants in named African countries";
-  }
-  if (isRemote && job.eligibility.scope === "worldwide") {
-    return "Open to applicants worldwide";
-  }
-  if (isRemote && job.eligibility.nigeria === "not_eligible") {
+  if (!isRemote) return null;
+
+  // A Nigeria exclusion is the statement a Nigeria-first audience needs
+  // before anything else, even when the role is open elsewhere in Africa.
+  // The previous ordering printed a success-toned "open in named African
+  // countries" badge on roles a Nigerian applicant could not apply to.
+  if (job.eligibility.nigeria === "not_eligible") {
+    if (
+      job.eligibility.africa === "eligible" &&
+      job.eligibility.scope === "named_countries"
+    ) {
+      return "Open in named African countries, not including Nigeria";
+    }
     return "Not open to applicants in Nigeria";
   }
+
+  // Nigeria-eligible statements state their evidence basis: a "work from
+  // anywhere" role must not carry the Nigeria-specific claim.
+  switch (nigeriaEligibilityBasis(job.eligibility)) {
+    case "explicit":
+      return "Applicants in Nigeria can apply";
+    case "africa_wide":
+      return "Open to applicants across Africa";
+    case "worldwide_reviewed":
+      return "Open to applicants worldwide";
+    case null:
+      break;
+  }
+
+  if (job.eligibility.scope === "emea") {
+    // Africa is inside the stated region but Nigeria itself is unconfirmed;
+    // the neutral tone and the drawer carry that nuance.
+    return "Role open across Europe, the Middle East and Africa";
+  }
+
   // Anything else says nothing useful: a stated non-Nigerian workplace is
   // already its own eligibility statement, and an unclear remote scope has no
   // honest one-line summary. The card stays silent and the detail page's
@@ -130,6 +154,9 @@ export function eligibilityStatementTone(
   statement: string,
 ): "success" | "neutral" | "danger" {
   if (/^not open/i.test(statement)) return "danger";
+  // Open-elsewhere-but-not-Nigeria must never read as a green light on a
+  // Nigeria-first surface.
+  if (/not including nigeria/i.test(statement)) return "neutral";
   if (/can apply|open to applicants/i.test(statement)) return "success";
   return "neutral";
 }

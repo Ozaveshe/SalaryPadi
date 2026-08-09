@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { annualizedSalaryMinimum } from "./normalize";
+import { nigeriaEligibilityBasis } from "./eligibility";
 import { hasJobEvidence, type AfricaEvidenceKey } from "./evidence";
 import { isJobCurrentlyPublishable } from "./publication";
 import { expandJobSearchQuery } from "./search-synonyms";
@@ -28,7 +29,16 @@ export const jobSearchSchema = z.object({
   ),
   eligibility: z.preprocess(
     (value) => (Array.isArray(value) ? value[0] : value),
-    z.enum(["nigeria", "africa", "worldwide", "unclear", "all"]).default("all"),
+    z
+      .enum([
+        "nigeria",
+        "nigeria_open",
+        "africa",
+        "worldwide",
+        "unclear",
+        "all",
+      ])
+      .default("all"),
   ),
   path: z.preprocess(
     (value) => (Array.isArray(value) ? value[0] : value),
@@ -315,14 +325,30 @@ export function filterAndSortJobs(
       (job.workMode !== "remote" || job.eligibility.africa !== "eligible")
     )
       return false;
+    // "Nigeria explicitly eligible" means the source named Nigeria (or a
+    // country list including it) — not Africa-wide or work-from-anywhere
+    // wording, which have their own filter values. Matching the bare axis
+    // here made the explicit filter return every worldwide-scope job, the
+    // exact inference the label promises not to make.
     if (
       search.eligibility === "nigeria" &&
+      nigeriaEligibilityBasis(job.eligibility) !== "explicit"
+    )
+      return false;
+    // The broad "open to Nigeria" posture: explicit, Africa-wide or reviewed
+    // worldwide wording all qualify, generic "remote" never does.
+    if (
+      search.eligibility === "nigeria_open" &&
       job.eligibility.nigeria !== "eligible"
     )
       return false;
+    // Explicit Africa evidence: the source named Africa, an African country
+    // or an Africa-containing region. Worldwide wording is not Africa
+    // evidence even though Africans may apply.
     if (
       search.eligibility === "africa" &&
-      job.eligibility.africa !== "eligible"
+      (job.eligibility.africa !== "eligible" ||
+        job.eligibility.scope === "worldwide")
     )
       return false;
     if (
@@ -478,8 +504,17 @@ function locationCluster(job: Job) {
  * Reorders a sorted result set without dropping jobs. Earlier source order is
  * retained as the tie-breaker, while repeated employers and location variants
  * receive a soft penalty so the first page exposes more genuine choice.
+ *
+ * Diversity is a relevance concern only. When the user asked for an explicit
+ * order — newest posted, highest salary — the list must honour that order
+ * verbatim: "Newest posted" silently reshuffled by employer is a stated sort
+ * the product does not perform.
  */
-export function diversifyJobResults(jobs: Job[]) {
+export function diversifyJobResults(
+  jobs: Job[],
+  sort: JobSearch["sort"] = "relevance",
+) {
+  if (sort !== "relevance") return jobs;
   const remaining = jobs.map((job, index) => ({ job, index }));
   const selected: Job[] = [];
   const companyCounts = new Map<string, number>();

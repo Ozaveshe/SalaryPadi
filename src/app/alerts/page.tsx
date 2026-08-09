@@ -72,7 +72,7 @@ export default async function AlertsPage({
   };
   const prefill = parseJobSearch({
     ...input,
-    eligibility: input.eligibility ?? "nigeria",
+    eligibility: input.eligibility ?? "nigeria_open",
   });
   const returnParameters = serializeJobSearch(prefill);
   await requireViewer(`/alerts?${returnParameters.toString()}`);
@@ -130,7 +130,10 @@ export default async function AlertsPage({
               name="eligibility"
               defaultValue={prefill.eligibility}
             >
-              <option value="nigeria">Nigeria explicitly eligible</option>
+              <option value="nigeria_open">
+                Open to Nigeria (any evidence)
+              </option>
+              <option value="nigeria">Nigeria named by the source</option>
               <option value="africa">Africa explicitly eligible</option>
               <option value="worldwide">Worldwide</option>
               <option value="unclear">Needs eligibility check</option>
@@ -256,8 +259,11 @@ export default async function AlertsPage({
                           name="eligibility"
                           defaultValue={search.eligibility}
                         >
+                          <option value="nigeria_open">
+                            Open to Nigeria (any evidence)
+                          </option>
                           <option value="nigeria">
-                            Nigeria explicitly eligible
+                            Nigeria named by the source
                           </option>
                           <option value="africa">
                             Africa explicitly eligible

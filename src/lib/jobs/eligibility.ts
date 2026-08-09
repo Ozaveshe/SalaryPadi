@@ -226,6 +226,30 @@ export function eligibilityDecisionForNigeria(
   return "unclear";
 }
 
+/**
+ * Why a Nigeria-eligible decision holds. The `nigeria` axis answers "may an
+ * applicant in Nigeria apply"; this answers "on what evidence" — the source
+ * named Nigeria itself, opened the role Africa-wide, or used reviewed
+ * work-from-anywhere wording. Surfaces that promise *explicit* Nigeria
+ * evidence (the "Nigeria explicitly eligible" filter, the Nigeria badge, the
+ * `nigeria_explicit` ranking state) must check the basis, not the bare axis,
+ * or a "work from anywhere" job silently inherits Nigeria-specific claims.
+ */
+export type NigeriaEligibilityBasis =
+  "explicit" | "africa_wide" | "worldwide_reviewed";
+
+export function nigeriaEligibilityBasis(
+  eligibility: Pick<JobEligibility, "scope" | "nigeria">,
+): NigeriaEligibilityBasis | null {
+  if (eligibility.nigeria !== "eligible") return null;
+  if (eligibility.scope === "worldwide") return "worldwide_reviewed";
+  if (eligibility.scope === "africa") return "africa_wide";
+  // scope "nigeria", "named_countries" (which decides the axis on NG being
+  // named), or a reviewed per-job decision whose scope was not recorded —
+  // all of these rest on Nigeria itself being stated, not inferred.
+  return "explicit";
+}
+
 export function eligibilityDecisionForAfrica(
   scope: RemoteEligibilityScope,
   includedCodes: ReadonlySet<string>,

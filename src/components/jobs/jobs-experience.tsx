@@ -76,7 +76,7 @@ async function JobResultsSection({
   const filteredJobs = filterAndSortJobs(feed.jobs, search, new Date(), {
     evidenceRanking: getFeatureFlags().evidenceRanking,
   });
-  const diversifiedJobs = diversifyJobResults(filteredJobs);
+  const diversifiedJobs = diversifyJobResults(filteredJobs, search.sort);
   const result = paginateJobs(diversifiedJobs, search.page);
   const categories = [
     ...new Set(

@@ -8,6 +8,7 @@
  */
 
 import { classifyDestination } from "@/lib/canonical/application-destination";
+import { nigeriaEligibilityBasis } from "@/lib/jobs/eligibility";
 import type { Job } from "@/lib/jobs/types";
 
 import type { EligibilityState, RankableJob, SourceAuthority } from "./ranking";
@@ -20,17 +21,28 @@ import type { EligibilityState, RankableJob, SourceAuthority } from "./ranking";
  * A ranking engine must not be the place where eligibility quietly improves.
  */
 export function eligibilityStateFor(job: Job): EligibilityState {
-  const { nigeria, africa, scope, excludedCountries } = job.eligibility;
+  const { nigeria, africa, excludedCountries } = job.eligibility;
 
   if (excludedCountries.includes("NG") || nigeria === "not_eligible") {
     return "not_eligible";
   }
-  if (nigeria === "eligible") return "nigeria_explicit";
+  // The bare `nigeria` axis answers "may a Nigerian apply"; the ranking
+  // ladder distinguishes *why*. Mapping every eligible job to
+  // `nigeria_explicit` gave "work from anywhere" wording the same score as a
+  // role that named Nigeria, and left the two weaker rungs unreachable.
+  switch (nigeriaEligibilityBasis(job.eligibility)) {
+    case "explicit":
+      return "nigeria_explicit";
+    case "africa_wide":
+      return "africa_explicit";
+    case "worldwide_reviewed":
+      return "global_remote_reviewed";
+    case null:
+      break;
+  }
+  // EMEA scope: Africa is inside the stated region while Nigeria itself
+  // stays unconfirmed.
   if (africa === "eligible") return "africa_explicit";
-
-  // Worldwide scope counts only when the classifier recorded it as reviewed
-  // wording, which is the same bar the eligibility engine applies.
-  if (scope === "worldwide") return "global_remote_reviewed";
 
   if (job.workMode === "onsite") return "local_presence_required";
 

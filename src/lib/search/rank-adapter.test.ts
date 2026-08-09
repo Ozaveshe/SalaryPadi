@@ -48,6 +48,56 @@ describe("eligibility mapping", () => {
     ).toBe("nigeria_explicit");
   });
 
+  it("maps reviewed worldwide wording below the explicit Nigeria rung", () => {
+    // "Work from anywhere" lets a Nigerian apply, but it is not Nigeria
+    // evidence; scoring it as nigeria_explicit left this rung unreachable.
+    expect(
+      eligibilityStateFor(
+        job({
+          eligibility: {
+            scope: "worldwide",
+            nigeria: "eligible",
+            africa: "eligible",
+            includedCountries: [],
+            excludedCountries: [],
+          },
+        }),
+      ),
+    ).toBe("global_remote_reviewed");
+  });
+
+  it("maps Africa-wide wording to africa_explicit", () => {
+    expect(
+      eligibilityStateFor(
+        job({
+          eligibility: {
+            scope: "africa",
+            nigeria: "eligible",
+            africa: "eligible",
+            includedCountries: [],
+            excludedCountries: [],
+          },
+        }),
+      ),
+    ).toBe("africa_explicit");
+  });
+
+  it("maps EMEA scope to africa_explicit while Nigeria stays unconfirmed", () => {
+    expect(
+      eligibilityStateFor(
+        job({
+          eligibility: {
+            scope: "emea",
+            nigeria: "unclear",
+            africa: "eligible",
+            includedCountries: [],
+            excludedCountries: [],
+          },
+        }),
+      ),
+    ).toBe("africa_explicit");
+  });
+
   it("lets an explicit exclusion beat everything else", () => {
     // Africa-eligible plus a Nigeria exclusion is still not eligible.
     expect(

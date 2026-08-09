@@ -52,7 +52,8 @@ export function JobSearchForm({
             defaultValue={search.eligibility}
           >
             <option value="all">Any evidence</option>
-            <option value="nigeria">Nigeria explicitly eligible</option>
+            <option value="nigeria_open">Open to Nigeria (any evidence)</option>
+            <option value="nigeria">Nigeria named by the source</option>
             <option value="africa">Africa explicitly eligible</option>
             <option value="worldwide">Worldwide</option>
             <option value="unclear">Needs eligibility check</option>
