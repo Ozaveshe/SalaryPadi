@@ -22,8 +22,10 @@ supply matters more than the volume:
 
 ## Ordering of work, by leverage
 
-1. **More employers, smaller each.** The discovery queue
-   ([`employer-discovery.ts`](../src/lib/serving/employer-discovery.ts))
+1. **More employers, smaller each.** The discovery scorer
+   ([`employer-discovery.ts`](../src/lib/serving/employer-discovery.ts) — a
+   scoring function; the operational queue behind it is the board registry +
+   probe scripts, not an admin surface yet)
    scores Nigerian presence at +40 and a direct ATS board at +25, while
    capping raw volume at +10 — deliberately, because uncapped volume is what
    produced the current concentration.

@@ -5,8 +5,14 @@ rises just as readily from stale, duplicated and un-appliable listings as
 from real ones, and the difference is invisible in the number. These gates
 are what make the number mean something.
 
-Implemented in
-[`src/lib/serving/quality-gates.ts`](../src/lib/serving/quality-gates.ts).
+Specified and tested in
+[`src/lib/serving/quality-gates.ts`](../src/lib/serving/quality-gates.ts) — a
+specification under test, not the shipped gate. The gates production actually
+enforces live in the database: the `jobs_public_read` policy (published,
+open, non-fixture, deadline, cached provenance, and — since
+`20260809130000` — the apply link not confirmed broken), the per-source
+rights functions behind the provenance cache, and the lifecycle worker's
+closure rules.
 
 ## The ten gates, in evaluation order
 

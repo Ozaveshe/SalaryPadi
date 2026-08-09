@@ -27,7 +27,7 @@ The defining Nigerian job-seeker problem: most listings on most boards are not
 open to them, and the listing rarely says so plainly.
 
 1. Lands on `/jobs` from search or the homepage.
-2. Filters by eligibility — Nigeria explicitly eligible is the default posture.
+2. Filters by eligibility — “Open to Nigeria (any evidence)” is the default posture; “Nigeria named by the source” narrows to explicit evidence.
 3. Opens a job. The detail page states the eligibility evidence in the
    source's own words, and says **"eligibility not resolved from the
    posting"** when the wording does not settle it — never the bare label
@@ -70,11 +70,13 @@ Nigerian pay — technically a filled form, factually a lie.
 
 ## Journey D — "Where am I up to?"
 
-1. Saved jobs accumulate signed-out intent into one place once the user
+1. Saved jobs collect intent in one place for signed-in members (guest
+   saves and their migration are unbuilt — signed-out visitors are offered
+   sign-in first) once the user
    registers.
 2. Applying marks the job as applied in the tracker.
 3. Interviews and offers are recorded against the application.
-4. A recorded offer opens directly in Offer Compare.
+4. Offer Compare accepts the job context from any job page; a stored per-application offer record that reopens in the tool is still unbuilt.
 5. After the outcome, the user is invited to contribute salary, interview or
    pay-reliability evidence — the loop that makes the next person's Journey A
    and B better.

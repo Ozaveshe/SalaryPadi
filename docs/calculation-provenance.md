@@ -6,8 +6,12 @@ assumed in order to compute anything at all. Rendered as plain numbers they
 become indistinguishable — and the most damaging failure in this product
 follows immediately: **an assumed figure read back as an employer's promise.**
 
-Implemented in
+Specified and tested in
 [`src/lib/workspace/value-provenance.ts`](../src/lib/workspace/value-provenance.ts).
+**Not yet wired into the offer surfaces**: as of 2026-08-09 the Offer Compare
+results render unlabelled figures and no production code imports this module.
+Wiring it is open work; until then this document describes the contract, not
+the shipped behaviour.
 
 ## The six origins
 

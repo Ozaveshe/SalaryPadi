@@ -8,8 +8,15 @@ the advertised pay, or the posting is purged, the user's own history changed
 underneath them — and they are the one person who cannot be wrong about what
 they applied to.
 
-Fixed by `supabase/migrations/20260802120000_application_job_snapshot.sql` and
-[`src/lib/career/application-snapshot.ts`](../src/lib/career/application-snapshot.ts).
+Columns and module shipped in
+`supabase/migrations/20260802120000_application_job_snapshot.sql` and
+[`src/lib/career/application-snapshot.ts`](../src/lib/career/application-snapshot.ts) —
+but nothing wrote or read them until
+`supabase/migrations/20260809120000_application_snapshot_capture.sql` completed
+the write path (capture once in `upsert_application`) and the read path
+(`get_my_applications` returns the snapshot; the tracker renders it and names
+what changed since). That migration is deploy-coupled: apply it WITH the build
+that ships the widened application schema.
 
 ## What a snapshot holds
 

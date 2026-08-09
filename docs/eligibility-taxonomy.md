@@ -4,6 +4,16 @@ One vocabulary, used by search filters, job cards, collections and ranking.
 A user who learns what a badge means on a card must find it means the same
 thing in a filter.
 
+Since 2026-08-09 the shipped surfaces derive that consistency from
+`nigeriaEligibilityBasis()` in
+[`src/lib/jobs/eligibility.ts`](../src/lib/jobs/eligibility.ts): the
+`nigeria` axis answers "may an applicant in Nigeria apply", and the basis
+answers "on what evidence" (Nigeria named / Africa-wide / reviewed
+worldwide wording). Filters labelled *explicit*, the badge copy, and the
+ranking rungs (`nigeria_explicit` / `africa_explicit` /
+`global_remote_reviewed`) all read the basis, and a consistency test pins
+the card tone against the ranker state.
+
 ## The six states
 
 | State                     | Definition                                                                                          | Badge                                |
@@ -32,10 +42,11 @@ An unclear job appears in general results, clearly badged. It is **never**
 placed inside an explicitly-eligible result group, because appearing there is
 itself a claim that the reader can apply.
 
-This is enforced in two places that cannot drift apart: the quality gate
-returns a separate `eligibilityCollection`, and `mayEnterNigeriaCollection()`
-is a distinct function so a caller cannot mistake "publishable" for
-"promotable".
+The collection rule is specified in `src/lib/serving/quality-gates.ts`
+(`mayEnterNigeriaCollection()` is distinct from "publishable") — a
+specification under test rather than a shipped call path. The shipped
+enforcement is the basis helper above plus the search filters and
+presentation boundary that read it.
 
 ## Evidence, not assertion
 

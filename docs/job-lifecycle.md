@@ -96,18 +96,15 @@ so it never wins a comparison on the strength of a guess.
 is reconstructable: when it opened, when absence evidence accrued, when it
 closed and why.
 
-## Verified state (2026-08-01)
+## Verified state (2026-08-01) — measurement caveat
 
-| Figure                                | Value          |
-| ------------------------------------- | -------------- |
-| Jobs with a recorded destination kind | 1,875 of 1,875 |
-| Reached via the employer's own ATS    | 1,820          |
-| Reached via an external board         | 55             |
-| **Reached via an aggregator**         | **0**          |
-| Jobs with a broken apply link         | 0              |
-
-Zero jobs route a candidate through an aggregator, so the
-no-unnecessary-intermediary rule currently holds across the whole estate.
+The 2026-08-01 destination-kind table previously printed here was produced
+by `scripts/canonical-reconciliation.mjs` classifying destinations at
+measurement time. The `app.jobs.application_destination_kind` column itself
+has **no writer** in this codebase — receipt provenance columns from
+`20260801000000` remain unpopulated — so no standing per-job record backs
+those figures. The zero-aggregator conclusion held for that measurement;
+re-run the script for a current figure rather than citing the table.
 
 The 55 external-board rows are **conservatively** classified. They are
 One Acre Fund (37) and Zipline (18), and both send applications to the
@@ -135,6 +132,12 @@ are the model's vocabulary and are fully covered by tests. The database enum
 The remaining states are deliberately not yet added to the enum. Application
 code parses that enum with strict schemas, and adding values before the
 read path handles them is the exact contract-breakage pattern that has caused
-production incidents in this repository before. The service layer is the
-place the states are enforced today; widening the enum is a follow-up that
-must ship together with the read-path handling, not ahead of it.
+production incidents in this repository before. The states production
+actually enforces are the database pair (`job_status` ×
+`job_lifecycle_state`) with their sync triggers and the lifecycle worker's
+closure rules — deadline, direct-source reconfirmation, and (since
+`20260809130000`) source-absence closure for sourced jobs plus the
+broken-apply-link publication gate. The richer eleven-state vocabulary in
+`src/lib/canonical/job-lifecycle.ts` is a specification under test with no
+production importer; widening the enum toward it must ship together with
+the read-path handling, not ahead of it.

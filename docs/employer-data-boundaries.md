@@ -94,7 +94,7 @@ plausible-sounding commercial argument attached:
 | Salary-confidence boost      | Confidence is a property of the evidence                              |
 | Review reordering            | Not a commercial surface                                              |
 | Pay-reliability suppression  | The single most harmful thing money could buy here                    |
-| Organic ranking              | Placement is purchasable and labelled Sponsored; ranking is not       |
+| Organic ranking              | Sponsored placement is designed (ranking partition + gates) but unbuilt: no column, writer or label exists yet; organic ranking is not for sale either way |
 
 ## Roles
 

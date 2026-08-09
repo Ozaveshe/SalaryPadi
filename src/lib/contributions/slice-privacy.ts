@@ -12,7 +12,7 @@
  *
  * This module decides publishability from the *shape* of the slice, before
  * any count is consulted. It sits in front of the threshold table in
- * `api.privacy_thresholds`, which remains the authority on how many
+ * `app.privacy_rule_versions`, which remains the authority on how many
  * contributors a permitted slice needs.
  */
 

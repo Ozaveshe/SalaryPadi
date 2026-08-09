@@ -7,8 +7,9 @@ prefixes and is covered by `surfaces.test.ts`.
 
 **No routes were deleted or redirected in this change.** The navigation was
 consolidated from six header entries to four surfaces; every destination that
-left the header is listed on its surface landing page and remains at its
-original URL with its original indexing status. This is deliberate — the
+left the header remains at its original URL with its original indexing
+status (the `SurfaceLinks` listing currently renders on the salaries landing
+page; the other landings link their destinations through their own content). This is deliberate — the
 search-visible routes (`/jobs/*` landing pages, `/salaries/[country]/[role]`,
 `/companies/[slug]`) carry accumulated SEO value that a reshuffle would put at
 risk for no user benefit.
@@ -32,7 +33,7 @@ two labels for different things, so the account link is now `Account`.
 
 | Route                                   | Primary user action            | Data source             | Indexed                       |
 | --------------------------------------- | ------------------------------ | ----------------------- | ----------------------------- |
-| `/jobs`                                 | Search and filter roles        | `api.jobs` + live feeds | Yes                           |
+| `/jobs`                                 | Search and filter roles        | `api.jobs` + live feeds | No — filter combinations are deliberately noindex; the landing pages below are the indexable entries |
 | `/jobs/[slug]`                          | Read evidence, apply           | `api.jobs`              | Yes, when description is real |
 | `/jobs/nigeria`                         | Browse Nigeria-local roles     | `api.jobs`              | Yes                           |
 | `/jobs/remote`                          | Browse remote Nigeria-eligible | `api.jobs`              | Yes                           |
@@ -51,11 +52,11 @@ two labels for different things, so the account link is now `Account`.
 | -------------------------------- | ------------------------- | ----------------------- | ------- |
 | `/companies`                     | Search employers          | `api.companies`         | Yes     |
 | `/companies/[slug]`              | Inspect employer evidence | `api.companies`         | Yes     |
-| `/companies/[slug]/jobs`         | Employer's open roles     | `api.jobs`              | Yes     |
-| `/companies/[slug]/salaries`     | Employer pay evidence     | `api.salary_aggregates` | Yes     |
-| `/companies/[slug]/interviews`   | Interview reports         | community               | Yes     |
-| `/companies/[slug]/reviews`      | Employer reviews          | community               | Yes     |
-| `/companies/[slug]/benefits`     | Benefits evidence         | community               | Yes     |
+| `/companies/[slug]/jobs`         | Employer's open roles     | `api.jobs`              | No — noindex, follow |
+| `/companies/[slug]/salaries`     | Employer pay evidence     | `api.salary_aggregates` | No — noindex, follow |
+| `/companies/[slug]/interviews`   | Interview reports         | community               | No — noindex, follow |
+| `/companies/[slug]/reviews`      | Employer reviews          | community               | No — noindex, follow |
+| `/companies/[slug]/benefits`     | Benefits evidence         | community               | No — noindex, follow |
 | `/companies/[slug]/claim`        | Claim a profile           | employer flow           | No      |
 | `/companies/[slug]/respond`      | Employer response         | employer flow           | No      |
 | `/company-intelligence/requests` | Request coverage          | internal queue          | No      |

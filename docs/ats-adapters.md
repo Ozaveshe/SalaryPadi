@@ -6,13 +6,18 @@ exactly what it extracts.
 
 ## Currently implemented
 
-| Provider        | Rights basis                                               | State        |
-| --------------- | ---------------------------------------------------------- | ------------ |
-| Greenhouse      | Employer's own public board                                | Active       |
-| Lever           | Employer's own public board                                | Active       |
-| Ashby           | Employer's own public board                                | Active       |
-| Workable        | Employer's own public board                                | Active       |
-| SmartRecruiters | Transport documentation only, not republication permission | **Disabled** |
+| Provider        | Rights basis                                               | State (adapter)                                                        |
+| --------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Greenhouse      | Employer's own public board                                | Adapter live; boards active                                            |
+| Lever           | Employer's own public board                                | Adapter live; no active board                                          |
+| Ashby           | Employer's own public board                                | Adapter live; boards registered, activation per policy                 |
+| Workable        | Employer's own public board                                | Adapter live; boards active                                            |
+| SmartRecruiters | Reviewed licence (#93)                                     | Adapter live; activation per policy                                    |
+
+An adapter being live says nothing about which boards run: migrations seed
+only the three reviewed Greenhouse boards (pgTAP 90 pins that), and every
+further board is registered operationally through the source-policy chain —
+production's active estate is therefore wider than the seeded set.
 
 Owner decision 2026-07-21: an employer's own public ATS board is a valid
 basis for display, with guardrails — attribution, employer apply URL as the

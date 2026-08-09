@@ -7,7 +7,13 @@ about our pipeline, and a false one.
 
 ## The five states
 
-Implemented in [`src/lib/serving/freshness.ts`](../src/lib/serving/freshness.ts).
+Specified and tested in
+[`src/lib/serving/freshness.ts`](../src/lib/serving/freshness.ts) — no
+production read path imports it as of 2026-08-09. The shipped vocabulary is
+`JobFeedResult` (`live / degraded / disabled / unavailable`) plus
+`RepositoryResult` on the company/salary side; the behaviour the five states
+describe (a failed read never renders as zero jobs) is independently
+implemented and CI-tested on those paths.
 
 | State             | Meaning                                                         | Shows records? |
 | ----------------- | --------------------------------------------------------------- | -------------- |

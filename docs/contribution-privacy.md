@@ -2,7 +2,7 @@
 
 ## What already existed
 
-`api.privacy_thresholds` is a versioned, per-metric table — not a single
+`app.privacy_rule_versions` is a versioned, per-metric table — not a single
 global number. As of 2026-08-03, after the shape gate landed:
 
 | Metric                         | Distinct contributors     | For a range | Max age   |

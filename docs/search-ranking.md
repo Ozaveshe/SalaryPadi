@@ -77,7 +77,7 @@ Enforced by test, not convention:
   into source reliability at ×1.1 rather than given its own weight.
 - **Preference cannot rescue an ineligible job.** Opted-in personalisation
   reorders jobs a user could take; it does not surface ones they cannot.
-- **Ties break deterministically** on job id, so pagination is stable.
+- **Ties break on recency, then job id** (`rankJobs`), so equal-evidence jobs surface newest-first and pagination stays stable.
 
 ## Sponsored placement
 

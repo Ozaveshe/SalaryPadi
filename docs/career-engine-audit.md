@@ -21,7 +21,7 @@ would be building on an unmeasurable claim.
 | 8   | Salary extraction      | `canonical/salary-evidence.ts`                      | Rules                    | **Not wired**     |
 | 9   | Search retrieval       | Postgres FTS over `search_document`                 | Lexical                  | Live              |
 | 10  | Ranking                | `nigeriaValueTier` then `postedAt`                  | Rules                    | **Live (old)**    |
-| 10b | Ranking v2             | `search/ranking.ts`                                 | Weighted linear          | **Not wired**     |
+| 10b | Ranking v2             | `search/ranking.ts`                                 | Weighted linear          | Wired since #112, dark behind `FEATURE_EVIDENCE_RANKING` (default false) |
 | 11  | Recommendations        | `/matches` deterministic match                      | Rules                    | Live              |
 | 12  | Scam detection         | `lib/scam/definitions.ts`                           | Deterministic signals    | Live              |
 | 13  | Personalisation        | Candidate profile                                   | Rules                    | Live              |
