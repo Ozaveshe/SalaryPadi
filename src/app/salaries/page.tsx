@@ -223,9 +223,10 @@ export default async function SalariesPage({
         </h2>
         <p className="text-muted m-0 max-w-2xl text-sm">
           What people doing this work in {countryPack?.name ?? "this market"}{" "}
-          report earning. Published only when at least three similar approved
-          contributions from different people form a cohort; individual figures
-          are never shown.
+          report earning. Published only when enough similar approved
+          contributions from different people at different employers form a
+          cohort — narrower slices need more contributors before anything is
+          shown, and individual figures never are.
         </p>
         {results.length > 0 ? (
           <div className="aggregate-grid">
@@ -364,12 +365,14 @@ export default async function SalariesPage({
         <div className="stack">
           <p className="text-muted m-0 text-sm">
             Local evidence is published only when at least three sufficiently
-            similar approved contributions from distinct accounts form a cohort;
-            individual submissions are never shown and sub-threshold counts are
-            never exposed. Disclosed-pay jobs quote the employer&apos;s own
-            stated figure in its original currency and period. International
-            benchmarks retain their publisher, dataset reference period and
-            normalisation assumptions.
+            similar approved contributions from distinct accounts across more
+            than one employer form a cohort — cells that name an employer need
+            more contributors before anything appears. Individual submissions
+            are never shown and sub-threshold counts are never exposed.
+            Disclosed-pay jobs quote the employer&apos;s own stated figure in
+            its original currency and period. International benchmarks retain
+            their publisher, dataset reference period and normalisation
+            assumptions.
           </p>
           <Link className="text-link" href="/methodology">
             Read the full methodology

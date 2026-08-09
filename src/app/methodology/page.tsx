@@ -40,9 +40,12 @@ export default function MethodologyPage() {
       <h2>Salary publication</h2>
       <p>
         Original currency, pay period and gross/net status are preserved. Public
-        employer-role-country figures require at least three sufficiently
-        similar approved contributions from distinct accounts. Smaller cells are
-        broadened or suppressed; individual salary submissions are never public.
+        role-and-country figures require at least three sufficiently similar
+        approved contributions from distinct accounts across more than one
+        employer. Figures that name an employer require a stricter minimum of
+        ten, because a small cohort at a named employer could identify a person.
+        Smaller or identifying cells are broadened or suppressed; individual
+        salary submissions are never public.
       </p>
       <h2>Confidence</h2>
       <p>

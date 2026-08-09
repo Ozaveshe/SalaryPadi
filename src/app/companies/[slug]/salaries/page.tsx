@@ -63,9 +63,10 @@ export default async function CompanySalariesPage({
               Not enough approved data to publish
             </h3>
             <p>
-              SalaryPadi requires at least three sufficiently similar approved
-              submissions from distinct accounts. Individual values are never
-              shown.
+              Employer-named salary slices publish only above a stricter
+              configured minimum of distinct approved contributors, because a
+              small cohort at a named employer could identify a person.
+              Individual values are never shown.
             </p>
             <p className="text-muted m-0 text-sm">
               Company-level progress is intentionally not shown: a count below

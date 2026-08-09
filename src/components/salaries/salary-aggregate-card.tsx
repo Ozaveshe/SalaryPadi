@@ -122,7 +122,7 @@ export function SalaryAggregateCard({
         <p className="text-muted m-0 text-sm">
           {isOnline
             ? "The source does not publish a comparable percentile range."
-            : "Range withheld until at least five distinct approved contributors are available."}
+            : "Range withheld until the configured minimum of distinct approved contributors is reached."}
         </p>
       )}
       <details className="salary-evidence-details">
