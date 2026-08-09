@@ -15,6 +15,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
+import { TrackView } from "@/components/analytics-events";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { CompanyLogo } from "@/components/companies/company-logo";
 import { JobCard } from "@/components/jobs/job-card";
@@ -259,7 +260,11 @@ export default async function JobDetailPage({
                 name="return_to"
                 value={`/jobs/${job.slug}`}
               />
-              <button className="button button-secondary" type="submit">
+              <button
+                className="button button-secondary"
+                data-event="job_saved"
+                type="submit"
+              >
                 <Heart aria-hidden="true" size={17} />
                 Save job
               </button>
@@ -286,7 +291,11 @@ export default async function JobDetailPage({
             <form action="/api/applications" method="post">
               <input type="hidden" name="job_slug" value={job.slug} />
               <input type="hidden" name="status" value="applied" />
-              <button className="button button-secondary" type="submit">
+              <button
+                className="button button-secondary"
+                data-event="application_created"
+                type="submit"
+              >
                 <Route aria-hidden="true" size={17} />I applied
               </button>
             </form>
@@ -302,6 +311,7 @@ export default async function JobDetailPage({
           The job could not be saved. Try again.
         </div>
       ) : null}
+      <TrackView event="job_view" />
       <JobTrustSummary job={job} nairaEstimate={nairaEstimate} />
       <nav className="decision-path" aria-label="Continue this job decision">
         <div>

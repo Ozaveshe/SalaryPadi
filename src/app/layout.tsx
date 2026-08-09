@@ -3,6 +3,7 @@ import { DM_Sans, Space_Grotesk } from "next/font/google";
 import { cookies, headers } from "next/headers";
 
 import { AnalyticsConsent } from "@/components/analytics-consent";
+import { AnalyticsClickEvents } from "@/components/analytics-events";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { JsonLd } from "@/components/json-ld";
@@ -123,6 +124,7 @@ export default async function RootLayout({
           measurementId={getGoogleAnalyticsId()}
           nonce={nonce}
         />
+        <AnalyticsClickEvents />
       </body>
     </html>
   );

@@ -27,6 +27,41 @@ describe("privacy-safe analytics", () => {
       );
     },
   );
+
+  it("rejects a prohibited property at the trackEvent boundary too", () => {
+    expect(() => trackEvent("job_view", { offer_amount: 1_000_000 })).toThrow(
+      /prohibited/,
+    );
+  });
+});
+
+describe("what actually travels", () => {
+  beforeEach(() => {
+    vi.stubGlobal("window", {
+      location: { pathname: "/jobs/example" },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 204 })),
+    );
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("transmits only the event name and pathname, never the properties", () => {
+    // Even accepted, privacy-safe dimensions stay local: the wire format is
+    // {event_name, path} and nothing else. A regression that started
+    // serialising properties would widen what the server could ever store.
+    trackEvent("job_search", { country_code: "NG", result_count: 12 });
+    const body = vi.mocked(fetch).mock.calls[0]?.[1]?.body;
+    expect(JSON.parse(String(body))).toEqual({
+      event_name: "job_search",
+      path: "/jobs/example",
+    });
+  });
 });
 
 describe("Google Analytics consent handoff", () => {

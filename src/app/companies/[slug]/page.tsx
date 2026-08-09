@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import { TrackView } from "@/components/analytics-events";
 import { CompanyEvidenceDetails } from "@/components/companies/company-evidence-details";
 import { CompanyHeading } from "@/components/companies/company-heading";
 import { CompanyOverview } from "@/components/companies/company-overview";
@@ -193,6 +194,7 @@ export default async function CompanyPage({
           data={aggregateRatingStructuredData}
         />
       ) : null}
+      <TrackView event="company_view" />
       <CompanyHeading company={company} />
       <CompanyOverview
         company={company}

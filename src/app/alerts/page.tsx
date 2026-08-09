@@ -147,7 +147,11 @@ export default async function AlertsPage({
               <option value="weekly">Weekly</option>
             </select>
           </div>
-          <button className="button w-fit" type="submit">
+          <button
+            className="button w-fit"
+            data-event="alert_created"
+            type="submit"
+          >
             Create alert
           </button>
           <p className="field-help m-0">

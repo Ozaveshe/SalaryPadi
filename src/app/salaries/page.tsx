@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cache } from "react";
 
+import { TrackView } from "@/components/analytics-events";
 import { JobCard } from "@/components/jobs/job-card";
 import { SurfaceLinks } from "@/components/product/surface-links";
 import { PageHeading } from "@/components/page-heading";
@@ -146,6 +147,7 @@ export default async function SalariesPage({
 
   return (
     <div className="site-shell stack-lg">
+      {hasSearch ? <TrackView event="salary_search" /> : null}
       <PageHeading
         eyebrow="Salary intelligence"
         title="Compare pay with the evidence attached"

@@ -18,9 +18,11 @@ import { getCandidateProfile } from "@/lib/career/repository";
 import { getReferenceCurrencyRates } from "@/lib/currency/repository";
 import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
+import { TrackView } from "@/components/analytics-events";
 import {
   diversifyJobResults,
   filterAndSortJobs,
+  hasAdvancedJobFilters,
   paginateJobs,
   parseJobSearch,
   serializeJobSearch,
@@ -78,6 +80,13 @@ async function JobResultsSection({
   });
   const diversifiedJobs = diversifyJobResults(filteredJobs, search.sort);
   const result = paginateJobs(diversifiedJobs, search.page);
+  // Coarse engagement counts only: the event name and pathname travel,
+  // never the query or filter values.
+  const searchEvent = search.q
+    ? ("job_search" as const)
+    : hasAdvancedJobFilters(search)
+      ? ("job_filter_applied" as const)
+      : null;
   const categories = [
     ...new Set(
       feed.jobs
@@ -125,6 +134,7 @@ async function JobResultsSection({
 
   return (
     <>
+      {searchEvent ? <TrackView event={searchEvent} /> : null}
       <JobSearchForm search={search} categories={categories} />
       <JobFeedNotice feed={feed} />
       <section
