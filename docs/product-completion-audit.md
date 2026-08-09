@@ -1,0 +1,172 @@
+# Product completion audit — 9 August 2026
+
+Method: read-only inspection of production (`https://salarypadi.com`, Supabase
+`bxelrhklsznmpksgrqep`) plus a six-domain code audit of this repository at
+commit `e829720` on branch `claude/salarypadi-production-grade-75b3af`.
+No production write, deploy, migration, source activation or user contact was
+performed while producing this document.
+
+Verdict vocabulary: **Complete** (works end to end, safe failure states,
+tested), **Partial** (real but with named gaps), **Missing** (no
+implementation reachable by users or operators), **Broken** (implemented and
+misbehaving), **Unverified** (could not be reproduced from repository or
+production evidence).
+
+## Production snapshot (verified 9 Aug 2026, ~01:30 UTC)
+
+| Fact | Value | Evidence |
+| --- | --- | --- |
+| Public inventory | 372 jobs visible on `/jobs` (266 via `api.jobs` + secondary snapshot lane); "partial" honestly shown because the reviewed Himalayas snapshot is too old to publish | live fetch of `/jobs`; `select count(*) from api.jobs` |
+| Database inventory | 1,158 published+open jobs; 751 pending review; 79 expired/closed | `app.jobs` group by status/lifecycle |
+| Published-but-unreachable | 767 jobs belong to deliberately **paused** Workable boards (fail-closed rights — correct); ~44 from active boards fail the country-pack distribution gate (correct); **~78 are zombie jobs** — see Broken list | per-source breakdown with `security.is_public_job_source` |
+| `/api/health` | **503 degraded**: `editorial_topic_candidates` stale (missed its 8 Aug invocation; siblings ran; self-heals at the next daily slot) and `job_supply_ready:false` (`capacity_unproven`: 35/day authorized vs 50/day target — honest, decoupled from HTTP status by design) | live fetch; `private.worker_runs` |
+| Supply | Canonical creations/day since 30 Jul: 19, 14, 5, 6, 43, 17, 17, 22, 9, 0 (Sat), — . Weekend lulls are the established pattern | `app.jobs.created_at` histogram |
+| Route sweep | All public routes 200; auth-gated routes 307 → sign-in (never 503); `/salaries/nigeria` 404 is correct routing (`/salaries/ng/<role>` is the real shape) | curl sweep, 27 routes |
+| Caching | **No public-page caching**: every HTML route serves `Cache-Control: private,no-cache,no-store`; Netlify edge always misses. `/jobs` 2.0 s, `/jobs/nigeria` 2.5 s, `/jobs/remote` 2.6 s, homepage 1.8 s — the ~800 ms cached-page target is not met on list routes | curl header sweep |
+| Job SEO | Greenhouse-sourced pages (`may_index_jobs=true`) correctly gate on description quality; ReliefWeb pages correctly `noindex` with no JobPosting markup (source rights) | live fetches of representative pages |
+| Jargon sweep | No "runtime eligibility"/"None applied"/parser states in public HTML. "not stated" appears only inside legitimate filter-help prose | grep of live HTML |
+
+## Part 1–3 — Public product experience
+
+| Capability | Route/service | Verdict | Evidence and required change |
+| --- | --- | --- | --- |
+| Homepage: find/understand/decide | `src/app/page.tsx` | Partial | Search, eligibility differentiation, salary/tools/contribute entries present. **No `/saved`, `/dashboard`, `/applications`, `/alerts` link in the body; no employer entry in the body** (header-only). Add both. |
+| Homepage restraint | `src/app/page.tsx:199-276` | Complete | Inventory counts sit in a secondary aside after the h1 and search; no provider/parser vocabulary leaks. |
+| One navigation model | `src/lib/product/surfaces.ts` | Partial | Header + mobile drawer read one source of truth (test-locked). **Footer hardcodes a divergent nav** (`site-footer.tsx:6-46`, contradicts the claim at `surfaces.ts:5-8`), ships `/insights` regardless of its flag, and uses a `mailto:` for claims. Workspace and admin navs are separately hardcoded; no employer shell exists. |
+| Error/loading/404 shells | `src/app/{error,loading,not-found}.tsx` | Partial | All boundaries render inside the root layout. **No `global-error.tsx`** — the one state that loses the shell. Root `loading.tsx` is a bare notice where `RouteLoading` exists. |
+| Job cards | `src/components/jobs/job-card.tsx` | Partial | Title/employer/logo/location/arrangement/salary/eligibility badge/last-checked/source name all present; zero internal-label leaks (regression-tested). **Missing: eligibility "why", source type (direct vs intermediary), save control, application state.** `nairaEstimate` silently dropped at 2 of 3 call sites. |
+| Job detail | `src/app/jobs/[slug]/page.tsx` | Partial | Strong: progressive provenance drawer, save/apply/analyse/compare/track/report all present with job context. **Missing: apply-destination classification for the user; salary aggregates fetched (`:143`) but never rendered or linked.** Requirements render as one muted paragraph. Similar jobs never render for DB-backed jobs (single-job feed — `repository.ts:776-779`). |
+| Company page | `src/app/companies/[slug]/*` | Partial | Name/description/industry/verification/jobs/salary/benefits/interview lanes present with honest empty states. **Employer right-of-reply fetched and counted for indexability but never rendered** (`page.tsx:49,75,255`). `websiteUrl` populated, displayed nowhere; no careers-page field; no pay-reliability lane/tab. **Internal null-labels leak on reviews/interviews subroutes** ("Unrated", "Not scored", "Not published") — outside the prohibited-label test net. |
+| Journey context | `src/lib/product/job-context.ts` | Partial | Whitelisted, validated, range-honest, NGN-guarded — good mechanism. Take-home-pay and offer-compare receive context. **Salary-converter and scam-checker do not** — the converter is the documented next hop for USD roles and accepts no `searchParams`. |
+| Mobile | globals.css + e2e | Complete | 360/768/desktop + 320px overflow assertions; sticky apply bar gated to mobile; drawer with no-JS fallback. No mobile filter sheet (filters sit above results) — accepted for now. |
+
+## Parts 4–5 — Inventory operations and lifecycle
+
+| Capability | Route/service | Verdict | Evidence and required change |
+| --- | --- | --- | --- |
+| Ops console | `src/app/admin/*` | Partial | 14 routes; every transition needs admin + AAL2 + reason + optimistic version + audit row. **All resources render one generic 4-column table**: no job detail, no search/filter, `admin_list('jobs')` returns 200 rows by `updated_at`. An operator cannot find a reported job. |
+| Lifecycle states | DB enums + triggers | Partial | Real enforcement: `job_status` × `job_lifecycle_state` with sync triggers, 30-minute absence grace, ≥2 complete-snapshot omissions to close. The 11-state `src/lib/canonical/job-lifecycle.ts` has **zero production importers** — docs claiming service-layer enforcement are false. Jobs are never hard-deleted (status transitions only); receipts purge on per-source retention. |
+| **Zombie jobs** | `api.worker_run_job_lifecycle` | **Broken** | The unconfirmed-window closure (30 days) covers only `direct_employer`/`manual`. **78 production jobs (60 Canonical, 13 Moniepoint, 5 misc) unseen by their boards since ~30 Jul remain published+open**; their receipts/absence counters purged, so snapshot-absence closure can never fire; provenance NULL makes them publicly invisible but internally alive forever. Extend closure to ATS/feed sources on `last_seen_at` age. |
+| Manual intake | `/post-a-job` → moderation | Partial | The only intake lane. No operator intake (URL/structured/bulk — CSV grant machinery exists in DB with no UI). **Submitted salary numbers become a self-citing `job_salary_evidence` row; eligibility recorded as `manually_verified`/0.80 regardless of review.** |
+| Post-a-job defaults | `src/app/post-a-job/page.tsx:215-228` | Broken | `eligibility_scope` select has no placeholder and `nigeria` first — an untouched form silently submits verified-Nigeria-eligible. Same pattern on `visa_sponsorship`, `work_mode`. Require explicit choice. |
+| Source rights | registry + DB policy | Complete | Fail-closed at repository, proxy, worker, RLS; auto-expiry on review lapse with critical alert; pgTAP pins the active estate (3 Greenhouse boards + first-party + Workable set). **Docs stale**: policy matrix says Greenhouse disabled/ReliefWeb disabled; registry lacks per-board adapter keys. |
+| ATS adapters | `src/lib/jobs/ats/` | Partial | 5 providers, hardened destinations, rate limits, failure isolation, parser tests. **No adapter paginates** — a truncated fetch marked complete can feed absence counters (the exact failure `docs/ats-adapters.md:29` names). Salary capture: Ashby only. |
+| Receipt provenance | `20260801000000` columns | Missing | `parser_version`, `rights_classification`, `source_published_at`, `ingestion_status`, `application_destination_kind` have **no writer**. `docs/job-lifecycle.md`'s "1,875 of 1,875" table cannot be produced by this code. |
+| Apply-link validation | `apply-link-check` worker | Partial | SSRF-hardened, scheduled, recorded. **A `broken` link never withdraws the job** (no RLS/provenance gate; quality-gate module unwired); one-hop redirect only; no failure counter; no final-URL recording; no domain-mismatch check. |
+| Duplicates | fingerprint + fuzzy queue | Partial | Conservative and title-alone-safe; receipts preserved behind canonical ids. **The fuzzy review queue is write-only** — no grant, no RPC, no UI; rows accrete unseen. |
+| Employer discovery | `serving/employer-discovery.ts` | Missing | Scoring function with no queue, storage or UI; the real pipeline is scripts + a board registry file. Docs call it "the discovery queue". |
+
+## Part 6 — Search and discovery
+
+| Capability | Verdict | Evidence and required change |
+| --- | --- | --- |
+| Ranking | Partial | Live order: relevance → `nigeriaValueTier` → recency. Evidence ranker wired behind `FEATURE_EVIDENCE_RANKING`, default false, absent from every environment file — dark everywhere. Its adapter hard-codes `applyLinkState:"unchecked"` and `employerVerified:false`; three weight inputs never supplied. |
+| **Eligibility taxonomy** | **Broken** | Five vocabularies coexist. `eligibility.ts:219-227` collapses worldwide/africa scope into `nigeria:"eligible"` → the **"Nigeria explicitly accepted" filter and green "Applicants in Nigeria can apply" badge fire for jobs that only said "work from anywhere"**; the six-state ladder's `global_remote_reviewed` branch and the worldwide badge string are dead code. A named-countries Africa job excluding Nigeria renders a green "open" badge while the ranker scores it `not_eligible`. This is the product's core promise; fix first. |
+| Filters | Partial | Rich set incl. 17 Nigeria-evidence flags. Missing: not-eligible, direct-employer, employer-verified, salary max, industry. |
+| Diversity | Broken (one bug) | Soft penalty exists but **runs after explicit `sort=newest`/`sort=salary`, silently reshuffling them**. The written per-employer cap/deferred-counts/concentration-alert module is unwired; both documented concentration thresholds are currently breached with nothing watching. |
+| Empty/failure states | Complete | A failed read is `Unavailable`, never zero jobs; partial honestly labelled; copy states "not evidence that no suitable jobs exist". Feed-level `stale` state unwired (per-card age decay exists). Minor: degraded + zero filter matches mislabelled as a filter conclusion. |
+
+## Part 8 — Salary intelligence
+
+| Capability | Verdict | Evidence and required change |
+| --- | --- | --- |
+| Evidence lanes | Complete | Two stored lanes with schema-enforced separation; three displayed lanes with explicit never-merged copy; estimates only via `estimateNairaTakeHome`, labelled `(est.)`. |
+| Date semantics | Partial | Table stores distinct dates; **the public view discards `source_published_at`/`reviewed_at` and labels `retrieved_at` as "Calculated"**. No forecast-period semantics exist (no live benchmark source yet — add before the first goes live). |
+| Privacy thresholds | Complete (SQL) / Partial (copy) | `app.privacy_rule_versions` drives workers: 3+2-employers ordinary, **10 for employer-named cells**, shape suppression real. **UI copy still says "at least three" on the employer-named page**; dead TS module contradicts the table with a hard-coded 3. |
+| Salary experience | Partial | Role search, country filter, employer filter, lanes, role pages, capped hub. Missing: seniority facet (view hard-codes `'all'`), monthly display option, pagination past 50. |
+
+## Parts 9–10 — Pay & Offer Workspace, member loop
+
+| Capability | Verdict | Evidence and required change |
+| --- | --- | --- |
+| Offer workflow | Partial | First half real (import → normalise → convert → take-home → benefits → compare, honest no-winner design). **Second half missing: no persistence, no scenarios, no tracker connection, no export.** `value-provenance.ts` implements the entire labelling contract and **has no production importer** — results render unlabelled numbers while `docs/calculation-provenance.md` claims implementation. |
+| Factors | Partial | ~13 of 21. **Equity absent entirely; currency-risk absent** (single point-in-time rate for a USD-offer-to-naira-resident product); no probation/hours/13th-month field. |
+| AfroTools | Partial | Two native tools delegate correctly with consent + provenance. **`/tools` sends users off-site for the exact task the product built** (`job-offer-evaluator` external while `/tools/offer-compare` is absent from the page); counts hardcoded. |
+| Guest state | Missing | Zero client-side persistence; no guest saves/searches/workspace; nothing to migrate. `docs/user-journeys.md:73-74` claim is false; `docs/application-tracker.md:79` is honest. |
+| **Application snapshot** | **Broken (claimed, unwired)** | #106 shipped columns + module + doc claim "Fixed by". **Nothing writes or reads `job_snapshot`**; `get_my_applications` still joins the live job row — a retitled posting rewrites the user's history. Wire `upsert_application` capture + read path + render, with RPC-deploy sequencing. |
+| Tracker states | Partial | 7 of 13 states, consistently enforced; doc honestly names the gap and its contract coupling. |
+| Alerts | Partial | Email lane complete and unusually strict on rights. **Three of five advertised notification kinds are never produced** (`new_match`, `saved_job_aging`, `alert_digest` — toggles for events that cannot occur). No immediate frequency; scheduler ignores `profiles.time_zone`. |
+| WAT correctness | Broken (one site) | `pipeline.ts:52-55` computes deadline days by epoch division — every next-action date and `action_due` notification can be a day off between 00:00–01:00 WAT, the exact failure #123 set out to eliminate; the CI zone-guard regex misses epoch-day arithmetic. |
+
+## Parts 11–13 — Contributions, employer, staff
+
+| Capability | Verdict | Evidence and required change |
+| --- | --- | --- |
+| Contribution flows | Complete | Five structured flows with drafts, PII/document refusal at four layers, auto-queued moderation. |
+| Identity separation | Complete | Account/moderation/public-aggregate identities separated by RLS + view projections; employers have no path to contributor identity (boundary-tested). Retention automation for drafts/abuse-signals absent (constraints only — docs honest). |
+| Moderation | Partial | DB layer complete: nine flag detectors, immutable dual audit trail, mandatory reasons, CAS concurrency. **The UI shows none of it**: one flat table, no flags, no sub-queues, no case detail; benefits/pay-reliability cases render as the literal string "Moderation case"; redaction requires hand-typed JSON. Appeals have no independent-reviewer enforcement (runbook requires it). |
+| **Employer claim** | **Broken (one gate)** | Domain-match evidence is computed, stored, **read by nobody, hidden from the queue** — a gmail claim can be verified, and verification unlocks employer speech. Surface the boolean; refuse verify-on-mismatch without an explicit override. DNS challenge unbuilt (docs honest). |
+| Employer posting | Partial | Approval-gated, fee-cannot-bypass stated, corporate-domain assessed server-side. Silent-nigeria default (above); no preview; no country_code field (every employer job lands country-unattributed); no employer close-job route. |
+| Employer boundaries | Complete | #108/#116 verified: protected fields, refused sales, write-path registry CI-pinned. |
+| Sponsored jobs | Missing | Ranking partition exists and guards an empty set — no column, no writer, no label, while `docs/employer-data-boundaries.md:97` claims "labelled Sponsored". |
+| Employer analytics | Missing | Declared purchasable; nothing implemented (docs honest). |
+| Staff roles | Partial | Three DB roles with real authority; **UI and API admit `admin` only** — moderator/data_quality holders are redirected away from everything. No audit-log reader anywhere (docs claim admins "inspect audit records"). |
+
+## Parts 14–17 — Reliability, SEO, privacy, analytics
+
+| Capability | Verdict | Evidence and required change |
+| --- | --- | --- |
+| Read models | Partial | 27 `api.*` views, explicit column lists, bounded queries throughout. **Remotive + ReliefWeb still fetch at request time on cache miss** (`snapshotKey:null`) from the homepage and every sitemap request. Five-state freshness model is dead code; behaviour is nonetheless correct (failed read ≠ zero jobs, verified in production copy). |
+| Performance | Partial | **Zero ISR, zero public cache headers, netlify.toml is 5 lines**; no performance budget or timing gate anywhere; measured list routes 2.0–2.6 s. `jobs.feed_assembled` timing telemetry exists, log-only. |
+| JobPosting SEO | Complete | Markup gated on rights + real description + publishability; salary only when visible; `directApply:false` truthful; validThrough enforced; thin-content floor tested. |
+| Expired jobs | Partial | Markup + sitemap removal correct. But expired DB jobs 404 with no closed-status tombstone or recirculation (the deadline-notice branch is unreachable for DB jobs), while the outbox sends `URL_DELETED` for URLs Google knows. |
+| Sitemaps | Complete | Six gated child sitemaps + index; product timestamps; degrades to 503 rather than an empty set. |
+| Auth/CSRF/uploads | Complete | Per-request CSP nonce, protected-path proxy with 503-on-auth-outage (not a fake redirect), origin checks on every mutation, bounded bodies, server-named private CV storage with signed 60 s URLs. |
+| Rate limiting | Partial | Two edge rules (plan-capped, documented); analytics has its own DB limiter. Applications/contributions/community/privacy-requests unlimited. |
+| `/api/health` | Partial | Unauthenticated payload names every worker, owner, timestamps and supply canary — contradicts the project's own stated principle (`freshness.ts:165-168`). CI workflows curl it anonymously; gating needs coordinated secrets. |
+| Retention | Missing | No user-controlled retention (90d/1y/manual), no advance warning; export/deletion are human-fulfilled tickets. `docs/data-classification.md` states this honestly. |
+| Analytics | Partial | One catalog, structural privacy (name+path only, HMAC'd IP, consent server-checked). **3 of 16 events fire; `outbound_apply_click` is a DOM attribute nobody reads; the north-star metric is unmeasured and its dimensions unrepresentable in the current wire shape.** |
+| Release gates | Partial | 215 Vitest files (~1,689 cases), 29 pgTAP files (681 assertions), 13 Playwright specs, three scheduled production workflows, deploy-channel CI gate. **Only the visitor journey is deterministically covered** — member/contributor/employer/operations e2e are env-gated off in CI; several specs skip on empty data. #110 prohibited-state suite is real but four of its ten guarantees assert against unwired modules. |
+
+## The unwired layer (cross-cutting)
+
+PRs #103/#104/#106/#110 delivered ~2,200 lines of well-designed, tested,
+documented modules with **zero production importers**. Docs cite them as the
+implementation; the product does not execute them:
+
+`canonical/job-lifecycle.ts` · `canonical/eligibility-evidence.ts` ·
+`serving/quality-gates.ts` · `serving/freshness.ts` ·
+`serving/result-diversity.ts` · `serving/employer-discovery.ts` ·
+`workspace/value-provenance.ts` · `career/application-snapshot.ts` ·
+`contributions/slice-privacy.ts` · `salaries/aggregate.ts` (whose hard-coded
+threshold now contradicts the live SQL policy).
+
+Disposition per module: wire it (snapshot, value-provenance, diversity cap),
+or mark it explicitly as specification-under-test and correct the doc claim.
+Every "Implemented in …" sentence that names one of these files is a false
+completion claim.
+
+## False or outdated premises found in existing docs
+
+| Doc | False claim |
+| --- | --- |
+| `docs/route-map.md` | `/jobs` and company subroutes "Indexed: Yes" (all noindex); "all four tools accept job context" (two do); surface-links claim |
+| `docs/application-tracker.md:11-12` | Snapshot "Fixed by" — unwired |
+| `docs/calculation-provenance.md:9-10` | Provenance labelling "Implemented" — unwired |
+| `docs/freshness-and-fallbacks.md` | Five states "every public read reports one" — unwired; "request path stops at the snapshot" — false for Remotive/ReliefWeb |
+| `docs/job-quality-gates.md:9-10` | Gates "Implemented in quality-gates.ts" — unwired |
+| `docs/job-lifecycle.md` | "Service layer enforces states"; "1,875/1,875 destination kinds" — no writer exists |
+| `docs/ats-adapters.md:9-15` | Lever/Ashby/Workable "Active" — pgTAP pins 3 Greenhouse boards |
+| `docs/JOB_SOURCE_POLICY_MATRIX.md` | Greenhouse "no board allowlisted"; ReliefWeb "Disabled" — both stale |
+| `docs/search-ranking.md` | Postgres full-text + result-diversity module in the pipeline; id tie-break — none current |
+| `docs/eligibility-taxonomy.md:3` | "One vocabulary" — five |
+| `docs/contribution-privacy.md:5` | Threshold table named `api.privacy_thresholds` — it is `app.privacy_rule_versions` |
+| `docs/employer-data-boundaries.md:97` | Placement "labelled Sponsored" — no label exists |
+| `docs/user-journeys.md:73-77` | Guest saves accumulate/migrate; offer opens in compare — neither exists |
+| `docs/inventory-expansion.md:26-30` | "The discovery queue" — a scoring function, no queue |
+| `docs/career-engine-audit.md:24` | Ranking v2 "Not wired" — stale in the opposite direction (wired, dark) |
+| `docs/SEO_CONTENT_OPERATIONS.md` | Pre-dates the shipped sitemap architecture |
+
+## Working notes
+
+- The 1 Aug `LAUNCH_READINESS` NO-GO snapshot is historical: production now
+  has real inventory, active authorized sources, and passing freshness
+  workflows. Its criteria list remains the right frame for a future GO review.
+- `editorial_topic_candidates` missed exactly one platform invocation
+  (8 Aug 04:15 UTC); `worker_start` failures before a run id are structurally
+  unrecordable (documented in `runtime.ts:442-448`). One missed daily slot
+  costs up to ~24 h of `/api/health` 503. A generic missed-slot catch-up via
+  the 10-minute dispatcher is the durable fix; not attempted in this pass.
+- `capacity_unproven` is an operational truth (35/day authorized vs 50/day
+  target), not a defect. Raising it means authorizing more sources through
+  the existing rights pipeline, or presenting evidence for a lower target.
