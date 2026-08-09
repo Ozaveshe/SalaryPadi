@@ -6,13 +6,13 @@ exactly what it extracts.
 
 ## Currently implemented
 
-| Provider        | Rights basis                                               | State (adapter)                                                        |
-| --------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Greenhouse      | Employer's own public board                                | Adapter live; boards active                                            |
-| Lever           | Employer's own public board                                | Adapter live; no active board                                          |
-| Ashby           | Employer's own public board                                | Adapter live; boards registered, activation per policy                 |
-| Workable        | Employer's own public board                                | Adapter live; boards active                                            |
-| SmartRecruiters | Reviewed licence (#93)                                     | Adapter live; activation per policy                                    |
+| Provider        | Rights basis                | State (adapter)                                        |
+| --------------- | --------------------------- | ------------------------------------------------------ |
+| Greenhouse      | Employer's own public board | Adapter live; boards active                            |
+| Lever           | Employer's own public board | Adapter live; no active board                          |
+| Ashby           | Employer's own public board | Adapter live; boards registered, activation per policy |
+| Workable        | Employer's own public board | Adapter live; boards active                            |
+| SmartRecruiters | Reviewed licence (#93)      | Adapter live; activation per policy                    |
 
 An adapter being live says nothing about which boards run: migrations seed
 only the three reviewed Greenhouse boards (pgTAP 90 pins that), and every

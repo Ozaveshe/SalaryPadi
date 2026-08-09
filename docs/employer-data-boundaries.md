@@ -86,14 +86,14 @@ salary benchmarking, branded content.
 Not for sale, with the reason kept next to the rule because each has a
 plausible-sounding commercial argument attached:
 
-| Item                         | Why not                                                               |
-| ---------------------------- | --------------------------------------------------------------------- |
-| Eligibility verification     | Comes from evidence in the posting, not a purchase                    |
-| Verification badge           | Verification is earned by passing a check; the check _is_ the product |
-| Negative-information removal | Valid evidence is not removable at any price                          |
-| Salary-confidence boost      | Confidence is a property of the evidence                              |
-| Review reordering            | Not a commercial surface                                              |
-| Pay-reliability suppression  | The single most harmful thing money could buy here                    |
+| Item                         | Why not                                                                                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Eligibility verification     | Comes from evidence in the posting, not a purchase                                                                                                         |
+| Verification badge           | Verification is earned by passing a check; the check _is_ the product                                                                                      |
+| Negative-information removal | Valid evidence is not removable at any price                                                                                                               |
+| Salary-confidence boost      | Confidence is a property of the evidence                                                                                                                   |
+| Review reordering            | Not a commercial surface                                                                                                                                   |
+| Pay-reliability suppression  | The single most harmful thing money could buy here                                                                                                         |
 | Organic ranking              | Sponsored placement is designed (ranking partition + gates) but unbuilt: no column, writer or label exists yet; organic ranking is not for sale either way |
 
 ## Roles

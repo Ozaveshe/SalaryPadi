@@ -9,27 +9,27 @@ would be building on an unmeasurable claim.
 
 ## Component inventory
 
-| #   | Component              | Implementation                                      | Model?                   | Production usage  |
-| --- | ---------------------- | --------------------------------------------------- | ------------------------ | ----------------- |
-| 1   | Source ingestion       | ATS adapters + policy gates                         | Rules                    | **Live**          |
-| 2   | Employer identity      | `canonical/employer-identity.ts`                    | Rules + token similarity | **Not wired**     |
-| 3   | Job deduplication      | `canonical/job-identity.ts` + DB fuzzy worker       | Rules                    | Partly live       |
-| 4   | Title normalisation    | `normalizeTitle()`                                  | Rules                    | Not wired         |
-| 5   | Location normalisation | `app.job_locations` + classifier                    | Rules                    | Live              |
-| 6   | Remote classification  | `inferRemoteArrangement`                            | Rules                    | Live              |
-| 7   | Eligibility            | `canonical/eligibility-evidence.ts` + DB            | Rules                    | Partly live       |
-| 8   | Salary extraction      | `canonical/salary-evidence.ts`                      | Rules                    | **Not wired**     |
-| 9   | Search retrieval       | Postgres FTS over `search_document`                 | Lexical                  | Live              |
-| 10  | Ranking                | `nigeriaValueTier` then `postedAt`                  | Rules                    | **Live (old)**    |
+| #   | Component              | Implementation                                      | Model?                   | Production usage                                                         |
+| --- | ---------------------- | --------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------ |
+| 1   | Source ingestion       | ATS adapters + policy gates                         | Rules                    | **Live**                                                                 |
+| 2   | Employer identity      | `canonical/employer-identity.ts`                    | Rules + token similarity | **Not wired**                                                            |
+| 3   | Job deduplication      | `canonical/job-identity.ts` + DB fuzzy worker       | Rules                    | Partly live                                                              |
+| 4   | Title normalisation    | `normalizeTitle()`                                  | Rules                    | Not wired                                                                |
+| 5   | Location normalisation | `app.job_locations` + classifier                    | Rules                    | Live                                                                     |
+| 6   | Remote classification  | `inferRemoteArrangement`                            | Rules                    | Live                                                                     |
+| 7   | Eligibility            | `canonical/eligibility-evidence.ts` + DB            | Rules                    | Partly live                                                              |
+| 8   | Salary extraction      | `canonical/salary-evidence.ts`                      | Rules                    | **Not wired**                                                            |
+| 9   | Search retrieval       | Postgres FTS over `search_document`                 | Lexical                  | Live                                                                     |
+| 10  | Ranking                | `nigeriaValueTier` then `postedAt`                  | Rules                    | **Live (old)**                                                           |
 | 10b | Ranking v2             | `search/ranking.ts`                                 | Weighted linear          | Wired since #112, dark behind `FEATURE_EVIDENCE_RANKING` (default false) |
-| 11  | Recommendations        | `/matches` deterministic match                      | Rules                    | Live              |
-| 12  | Scam detection         | `lib/scam/definitions.ts`                           | Deterministic signals    | Live              |
-| 13  | Personalisation        | Candidate profile                                   | Rules                    | Live              |
-| 14  | **LLM usage**          | **None found**                                      | —                        | **None**          |
-| 15  | Human review           | `audit.job_duplicate_candidates`, moderation queues | —                        | Live              |
-| 16  | Evaluation             | **None**                                            | —                        | **None**          |
-| 17  | Versioning             | Receipt `parser_version` / `transformation_version` | —                        | Live, unpopulated |
-| 18  | Monitoring             | `/admin/source-health`, structured logs             | —                        | Live              |
+| 11  | Recommendations        | `/matches` deterministic match                      | Rules                    | Live                                                                     |
+| 12  | Scam detection         | `lib/scam/definitions.ts`                           | Deterministic signals    | Live                                                                     |
+| 13  | Personalisation        | Candidate profile                                   | Rules                    | Live                                                                     |
+| 14  | **LLM usage**          | **None found**                                      | —                        | **None**                                                                 |
+| 15  | Human review           | `audit.job_duplicate_candidates`, moderation queues | —                        | Live                                                                     |
+| 16  | Evaluation             | **None**                                            | —                        | **None**                                                                 |
+| 17  | Versioning             | Receipt `parser_version` / `transformation_version` | —                        | Live, unpopulated                                                        |
+| 18  | Monitoring             | `/admin/source-health`, structured logs             | —                        | Live                                                                     |
 
 **The engine contains no machine-learned models and no LLM calls.** Phase 13
 of the brief (LLM responsibilities) therefore currently governs nothing. That

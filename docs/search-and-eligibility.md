@@ -12,7 +12,7 @@ Two layers, one derivation:
   eligible; an explicit NG exclusion beats everything.
 - The **basis** (`nigeriaEligibilityBasis`: explicit / africa_wide /
   worldwide_reviewed) answers "on what evidence". Every surface that claims
-  *explicit* Nigeria evidence reads the basis: the "Nigeria named by the
+  _explicit_ Nigeria evidence reads the basis: the "Nigeria named by the
   source" filter, the badge copy ("Applicants in Nigeria can apply" vs
   "Open to applicants worldwide" vs "Open to applicants across Africa"),
   and the ranking rungs. `nigeria_open` is the broad union filter and the

@@ -4,13 +4,13 @@ Entry point; deployment mechanics in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## The suites (2026-08-09)
 
-| Suite | Size | Gate |
-| --- | --- | --- |
-| Vitest | ~216 files / ~1,700 cases | CI `quality` job, coverage thresholds 83/71/87/86 |
-| pgTAP | 30 files / ~700 pinned assertions | CI `database` job replays every migration on a clean DB, then runs the suite |
-| Playwright | 13 specs × 3 viewports | CI `e2e` job on a production build, env-less |
-| Scheduled | production-freshness (6-hourly), production-acceptance (daily, commit-matched), two live smokes | GitHub Actions against production |
-| Deploy channel | `verify-deploy-channel.mjs` | refuses a Netlify build whose commit has failing CI |
+| Suite          | Size                                                                                            | Gate                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Vitest         | ~216 files / ~1,700 cases                                                                       | CI `quality` job, coverage thresholds 83/71/87/86                            |
+| pgTAP          | 30 files / ~700 pinned assertions                                                               | CI `database` job replays every migration on a clean DB, then runs the suite |
+| Playwright     | 13 specs × 3 viewports                                                                          | CI `e2e` job on a production build, env-less                                 |
+| Scheduled      | production-freshness (6-hourly), production-acceptance (daily, commit-matched), two live smokes | GitHub Actions against production                                            |
+| Deploy channel | `verify-deploy-channel.mjs`                                                                     | refuses a Netlify build whose commit has failing CI                          |
 
 `npm run quality` = lint + typecheck + vitest + build; note it omits
 `format:check`, e2e and pgTAP, so a green local quality can still fail CI on

@@ -9,7 +9,7 @@ Since 2026-08-09 the shipped surfaces derive that consistency from
 [`src/lib/jobs/eligibility.ts`](../src/lib/jobs/eligibility.ts): the
 `nigeria` axis answers "may an applicant in Nigeria apply", and the basis
 answers "on what evidence" (Nigeria named / Africa-wide / reviewed
-worldwide wording). Filters labelled *explicit*, the badge copy, and the
+worldwide wording). Filters labelled _explicit_, the badge copy, and the
 ranking rungs (`nigeria_explicit` / `africa_explicit` /
 `global_remote_reviewed`) all read the basis, and a consistency test pins
 the card tone against the ranker state.

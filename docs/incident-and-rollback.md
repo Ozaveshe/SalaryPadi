@@ -23,9 +23,9 @@ Entry point; the operative procedures live in
 
 ## Deploy coupling register (keep current)
 
-| Migration | Coupling |
-| --- | --- |
-| `20260809120000_application_snapshot_capture` | Apply WITH the deploy that ships the widened application schema (repo builds after 2026-08-09 probe and fall back, so after-deploy is also safe) |
+| Migration                                                    | Coupling                                                                                                                                                   |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20260809120000_application_snapshot_capture`                | Apply WITH the deploy that ships the widened application schema (repo builds after 2026-08-09 probe and fall back, so after-deploy is also safe)           |
 | `20260809130000_source_absence_closure_and_broken_link_gate` | Standalone; safe before or after deploy. First lifecycle run will close the accumulated zombie cohort — expect a one-time spike in `source_absence_closed` |
-| `20260809140000_company_claim_domain_guard` | Standalone; safe before or after deploy |
-| (precedent) `20260728190000_application_cv_in_list` | The pattern this register exists to record |
+| `20260809140000_company_claim_domain_guard`                  | Standalone; safe before or after deploy                                                                                                                    |
+| (precedent) `20260728190000_application_cv_in_list`          | The pattern this register exists to record                                                                                                                 |
