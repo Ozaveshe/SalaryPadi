@@ -40,7 +40,11 @@ function sourceFiles(directory: string): string[] {
   });
 }
 
-const UTC_REASONING = /timeZone:\s*"UTC"|getUTC(?:FullYear|Month|Date)\(/;
+// Epoch-day division (`Math.floor(ts / MS_PER_DAY)`) is UTC day reasoning in
+// disguise: it derives a calendar day without naming a zone, which is how the
+// deadline drift the WAT migration fixed slipped past the original pattern.
+const UTC_REASONING =
+  /timeZone:\s*"UTC"|getUTC(?:FullYear|Month|Date)\(|Math\.floor\([^\n]*\/\s*(?:MS_PER_DAY|86_?400_?000)/;
 
 describe("the operating clock is used everywhere", () => {
   it("has no unexplained UTC date reasoning left in src", () => {

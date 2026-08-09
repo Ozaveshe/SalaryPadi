@@ -68,17 +68,22 @@ describe("reading a self-set next-action date", () => {
     );
   });
 
-  it("counts the current UTC day as due today, whatever the time of day", () => {
-    for (const dueAt of [
-      "2026-07-28T00:00:00.000Z",
-      "2026-07-28T23:59:59.000Z",
-    ]) {
-      expect(readDeadline(dueAt, NOW)).toEqual({
-        dayOffset: 0,
-        urgency: "today",
-        description: "Due today",
-      });
-    }
+  it("reads urgency on the same West Africa Time calendar the date renders on", () => {
+    // 2026-07-28T00:00Z is 01:00 WAT on the 28th — today.
+    expect(readDeadline("2026-07-28T00:00:00.000Z", NOW)).toEqual({
+      dayOffset: 0,
+      urgency: "today",
+      description: "Due today",
+    });
+    // 2026-07-28T23:59Z is already 00:59 WAT on the 29th. formatDate renders
+    // that instant as 29 Jul, so describing it as "Due today" would
+    // contradict the date printed beside it — the drift the WAT migration
+    // eliminated.
+    expect(readDeadline("2026-07-28T23:59:59.000Z", NOW)).toEqual({
+      dayOffset: 1,
+      urgency: "tomorrow",
+      description: "Due tomorrow",
+    });
   });
 
   it("separates tomorrow from the rest of the week", () => {
@@ -94,11 +99,11 @@ describe("reading a self-set next-action date", () => {
     });
   });
 
-  it("compares whole UTC days, so an offset timestamp is not read a day early", () => {
-    // 2026-07-29T00:30+01:00 is still 2026-07-28 in UTC, the calendar the date
-    // is displayed on.
+  it("reads an offset timestamp on the displayed calendar, not its own offset", () => {
+    // 2026-07-29T00:30+01:00 IS 00:30 WAT on the 29th; formatDate renders it
+    // as 29 Jul, so it reads as tomorrow relative to a 28 Jul WAT `now`.
     expect(readDeadline("2026-07-29T00:30:00.000+01:00", NOW)?.urgency).toBe(
-      "today",
+      "tomorrow",
     );
   });
 

@@ -10,6 +10,8 @@
  * clock cannot test them.
  */
 
+import { zonedDaysBetween } from "@/lib/time/zone";
+
 /** Statuses that represent a live, in-flight process, in funnel order. */
 export const ACTIVE_APPLICATION_STATUSES = [
   "applied",
@@ -47,13 +49,6 @@ export function isStaleApplication(
   return Number.isFinite(updated) && now - updated >= STALE_APPLICATION_MS;
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1_000;
-
-/** Index of the UTC calendar day an instant falls on. */
-function utcDay(timestamp: number): number {
-  return Math.floor(timestamp / MS_PER_DAY);
-}
-
 export type DeadlineUrgency = "overdue" | "today" | "tomorrow" | "upcoming";
 
 export type Deadline = {
@@ -67,10 +62,11 @@ export type Deadline = {
 /**
  * Reads a self-set next-action date as an urgency.
  *
- * The comparison runs on the UTC calendar because that is the calendar the date
- * is displayed on (`formatDate` pins the operating zone). Comparing against a
- * local calendar instead would let a date rendered as today be described as
- * tomorrow.
+ * The comparison runs on the same operating-zone calendar the date is
+ * displayed on (`formatDate` pins West Africa Time). The previous epoch-day
+ * division compared UTC days while claiming the displayed calendar: between
+ * 00:00 and 01:00 WAT a deadline rendered as today was described as
+ * tomorrow — the exact drift the WAT migration set out to eliminate.
  *
  * Returns null for an unparseable date rather than guessing at one: an
  * invented deadline is worse than an absent one.
@@ -82,7 +78,7 @@ export function readDeadline(
   const due = Date.parse(dueAt);
   if (!Number.isFinite(due)) return null;
 
-  const dayOffset = utcDay(due) - utcDay(now);
+  const dayOffset = zonedDaysBetween(new Date(now), new Date(due));
   if (dayOffset < 0) {
     const days = Math.abs(dayOffset);
     return {
