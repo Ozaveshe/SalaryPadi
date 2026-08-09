@@ -140,9 +140,15 @@ export function resolveApplicationDisplay(
       if (liveJob.title.trim() !== snapshot.title) {
         changed.push("The role title has changed since you applied.");
       }
-      const liveSalary = trim(liveJob.salary?.originalText, 300);
-      if (liveSalary !== snapshot.salaryDisplay) {
-        changed.push("The advertised pay has changed since you applied.");
+      // A caller that does not know the live salary passes `salary`
+      // undefined and no comparison runs: noticing a change requires
+      // actually knowing the current value. `salary: null` means the live
+      // posting shows no salary, which is a real, comparable fact.
+      if (liveJob.salary !== undefined) {
+        const liveSalary = trim(liveJob.salary?.originalText, 300);
+        if (liveSalary !== snapshot.salaryDisplay) {
+          changed.push("The advertised pay has changed since you applied.");
+        }
       }
       if (liveJob.company.name.trim() !== snapshot.companyName) {
         changed.push("The employer name has changed since you applied.");

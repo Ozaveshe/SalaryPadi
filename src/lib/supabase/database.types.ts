@@ -1229,6 +1229,8 @@ export type Database = {
           status: string;
           title: string;
           updated_at: string;
+          job_snapshot: Json | null;
+          snapshot_captured_at: string | null;
         }[];
       };
       get_my_cvs: {
@@ -1604,6 +1606,7 @@ export type Database = {
           p_next_action_at?: string;
           p_private_notes?: string;
           p_status: string;
+          p_job_snapshot?: Json | null;
         };
         Returns: string;
       };

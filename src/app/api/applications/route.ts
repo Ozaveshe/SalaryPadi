@@ -8,9 +8,11 @@ import {
   decodeApiRpcResult,
 } from "@/lib/api/rpc-result";
 import { getAuthenticatedApiContext } from "@/lib/auth/api";
+import { buildApplicationSnapshot } from "@/lib/career/application-snapshot";
 import { getAppOrigin } from "@/lib/env";
 import { noStoreJson } from "@/lib/http/json";
 import { getJobBySlug } from "@/lib/jobs/repository";
+import { publicEligibilityStatement } from "@/lib/presentation/public-field";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
 
 const schema = z.object({
@@ -52,27 +54,61 @@ export async function POST(request: Request) {
       { error: "Job is no longer available." },
       { status: 404 },
     );
+  // The job exactly as the applicant saw it, captured with the application.
+  // The tracker renders this record, not the live posting, so a later edit
+  // to the job cannot rewrite the user's own history.
+  const snapshot = job.databaseId
+    ? buildApplicationSnapshot({
+        id: job.databaseId,
+        slug: job.slug,
+        title: job.title,
+        company: job.company,
+        locationDisplay: job.locationDisplay,
+        workMode: job.workMode,
+        employmentType: job.employmentType,
+        salary: job.salary,
+        applicationUrl: job.applicationUrl,
+        eligibility: { summary: publicEligibilityStatement(job) },
+        lastCheckedAt: job.lastCheckedAt,
+      })
+    : null;
   const operation = await attemptApiOperation(
     "applications.create",
     "application_create_failed",
     "Application tracking service is temporarily unavailable.",
-    async () =>
-      job.databaseId
-        ? await context.supabase.schema("api").rpc("upsert_application", {
-            p_job_id: job.databaseId,
-            p_status: parsed.data.status,
-          })
-        : await context.supabase
-            .schema("api")
-            .rpc("record_external_application", {
-              source_key: job.source.id,
-              external_id: job.externalId,
-              job_slug: job.slug,
-              job_title: job.title,
-              company_name: job.company.name,
-              source_url: job.sourceUrl,
-              application_status: parsed.data.status,
-            }),
+    async () => {
+      if (!job.databaseId) {
+        return await context.supabase
+          .schema("api")
+          .rpc("record_external_application", {
+            source_key: job.source.id,
+            external_id: job.externalId,
+            job_slug: job.slug,
+            job_title: job.title,
+            company_name: job.company.name,
+            source_url: job.sourceUrl,
+            application_status: parsed.data.status,
+          });
+      }
+      const withSnapshot = await context.supabase
+        .schema("api")
+        .rpc("upsert_application", {
+          p_job_id: job.databaseId,
+          p_status: parsed.data.status,
+          p_job_snapshot: snapshot,
+        });
+      // Deploy window: until 20260809120000 is applied the five-argument
+      // signature does not exist and PostgREST rejects the unknown argument
+      // (PGRST202). Recording the application without its snapshot beats
+      // losing the application.
+      if (withSnapshot.error?.code === "PGRST202") {
+        return await context.supabase.schema("api").rpc("upsert_application", {
+          p_job_id: job.databaseId,
+          p_status: parsed.data.status,
+        });
+      }
+      return withSnapshot;
+    },
   );
   if (!operation.ok) return operation.response;
   const result = decodeApiRpcResult(

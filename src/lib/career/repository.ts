@@ -88,6 +88,14 @@ const applicationSchema = z
     /** The CV version actually sent, when the owner recorded one. */
     cv_id: z.uuid().nullable(),
     cv_file_name: z.string().min(1).max(260).nullable(),
+    /**
+     * The job as the user saw it when they applied. Optional so a build
+     * deployed ahead of 20260809120000 still parses rows without the
+     * columns; the snapshot's own shape is validated where it is read
+     * (readApplicationSnapshot), not here.
+     */
+    job_snapshot: z.unknown().nullable().optional(),
+    snapshot_captured_at: timestampSchema.nullable().optional(),
   })
   .strict();
 

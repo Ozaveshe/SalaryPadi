@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, security, audit;
-select plan(46);
+select plan(50);
 
 insert into auth.users (
   id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -137,6 +137,32 @@ select is(
   (select count(*)::integer from api.get_my_applications()),
   1,
   'get_my_applications returns only the owner application'
+);
+select ok(
+  api.upsert_application(
+    '40000000-0000-0000-0000-000000000001', 'applied', null, null,
+    '{"title":"Example Engineer","companyName":"Example Co","slug":"example-engineer"}'::jsonb
+  ) is not null,
+  'upsert_application records the job snapshot at application time'
+);
+select is(
+  (select a.job_snapshot->>'title' from api.get_my_applications() a
+   where a.job_snapshot is not null),
+  'Example Engineer',
+  'get_my_applications returns the stored snapshot'
+);
+select lives_ok(
+  $$ select api.upsert_application(
+       '40000000-0000-0000-0000-000000000001', 'interview', null, null,
+       '{"title":"Renamed Role","companyName":"Example Co"}'::jsonb
+     ) $$,
+  'a later status change with a different snapshot is accepted'
+);
+select is(
+  (select a.job_snapshot->>'title' from api.get_my_applications() a
+   where a.job_snapshot is not null),
+  'Example Engineer',
+  'the snapshot is written once and never overwritten by later changes'
 );
 select ok(
   api.create_job_alert('{"q":"engineer","eligibility":"nigeria"}'::jsonb, 'daily') is not null,

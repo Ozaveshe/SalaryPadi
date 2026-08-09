@@ -7,6 +7,10 @@ import { PrivateDataStatus } from "@/components/private-data-status";
 import { SalaryContributionCta } from "@/components/salaries/salary-contribution-cta";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
 import { requireViewer } from "@/lib/auth/dal";
+import {
+  readApplicationSnapshot,
+  resolveApplicationDisplay,
+} from "@/lib/career/application-snapshot";
 import { readUnreadNotificationCount } from "@/lib/career/notifications";
 import { getCandidateCvs } from "@/lib/career/cv/repository";
 import { isStaleApplication } from "@/lib/career/pipeline";
@@ -97,134 +101,164 @@ export default async function ApplicationsPage({
           <PrivateDataStatus state={result.state} />
         ) : applications.length > 0 ? (
           <div className="stack">
-            {applications.map((application) => (
-              <article
-                className="surface surface-pad stack"
-                key={application.id}
-              >
-                <div className="split">
-                  <div>
-                    <h2 className="m-0 text-xl font-bold">
-                      <Link href={`/jobs/${application.job_slug}`}>
-                        {application.title}
-                      </Link>
-                    </h2>
-                    <p className="text-muted m-0 text-sm">
-                      {application.company_name} · updated{" "}
-                      {formatDate(application.updated_at)}
-                    </p>
-                  </div>
-                  <span className="status status-neutral">
-                    {formatEnum(application.status)}
-                  </span>
-                </div>
-                <form
-                  className="application-form"
-                  action="/api/applications/status"
-                  method="post"
+            {applications.map((application) => {
+              // The record renders from the snapshot taken when the person
+              // applied; the live row is used only to notice a change and say
+              // so. Rows recorded before snapshots existed fall back to the
+              // live values, which resolveApplicationDisplay marks as such.
+              const display = resolveApplicationDisplay(
+                readApplicationSnapshot(
+                  application.job_snapshot ?? null,
+                  application.snapshot_captured_at ?? null,
+                ),
+                {
+                  id: application.id,
+                  slug: application.job_slug,
+                  title: application.title,
+                  company: { name: application.company_name },
+                  // The list row carries no live salary; leaving it undefined
+                  // means no salary-change claim is invented.
+                },
+              );
+              return (
+                <article
+                  className="surface surface-pad stack"
+                  key={application.id}
                 >
-                  <input type="hidden" name="id" value={application.id} />
-                  <div className="field">
-                    <label htmlFor={`status-${application.id}`}>Status</label>
-                    <select
-                      className="select"
-                      id={`status-${application.id}`}
-                      name="status"
-                      defaultValue={application.status}
-                    >
-                      {statuses.map((status) => (
-                        <option value={status} key={status}>
-                          {formatEnum(status)}
-                        </option>
+                  <div className="split">
+                    <div>
+                      <h2 className="m-0 text-xl font-bold">
+                        <Link href={`/jobs/${application.job_slug}`}>
+                          {display?.title ?? application.title}
+                        </Link>
+                      </h2>
+                      <p className="text-muted m-0 text-sm">
+                        {display?.companyName ?? application.company_name} ·
+                        updated {formatDate(application.updated_at)}
+                      </p>
+                      {display?.fromSnapshot && display.salaryDisplay ? (
+                        <p className="source-note m-0">
+                          Advertised at {display.salaryDisplay} when you applied
+                        </p>
+                      ) : null}
+                      {display?.changedSinceApplied.map((notice) => (
+                        <p className="field-help m-0" key={notice}>
+                          {notice}
+                        </p>
                       ))}
-                    </select>
+                    </div>
+                    <span className="status status-neutral">
+                      {formatEnum(application.status)}
+                    </span>
                   </div>
-                  <div className="field">
-                    <label htmlFor={`next-${application.id}`}>
-                      Next-action date
-                    </label>
-                    <input
-                      className="input"
-                      id={`next-${application.id}`}
-                      name="next_action_at"
-                      type="date"
-                      defaultValue={application.next_action_at?.slice(0, 10)}
-                    />
-                  </div>
-                  <div className="field application-notes">
-                    <label htmlFor={`notes-${application.id}`}>
-                      Private notes
-                    </label>
-                    <textarea
-                      className="textarea"
-                      id={`notes-${application.id}`}
-                      name="private_notes"
-                      maxLength={2000}
-                      defaultValue={application.private_notes ?? ""}
-                    />
-                  </div>
-                  <button className="button w-fit" type="submit">
-                    Update
-                  </button>
-                </form>
-                {cvs.data.length > 0 ? (
                   <form
-                    action="/api/applications/cv"
-                    className="cluster"
+                    className="application-form"
+                    action="/api/applications/status"
                     method="post"
                   >
                     <input type="hidden" name="id" value={application.id} />
                     <div className="field">
-                      <label htmlFor={`cv-${application.id}`}>
-                        CV you sent
-                      </label>
+                      <label htmlFor={`status-${application.id}`}>Status</label>
                       <select
                         className="select"
-                        defaultValue={application.cv_id ?? ""}
-                        id={`cv-${application.id}`}
-                        name="cv_id"
+                        id={`status-${application.id}`}
+                        name="status"
+                        defaultValue={application.status}
                       >
-                        <option value="">Not recorded</option>
-                        {cvs.data.map((cv) => (
-                          <option key={cv.id} value={cv.id}>
-                            {cv.file_name}
-                            {cv.is_current ? " (current)" : ""}
+                        {statuses.map((status) => (
+                          <option value={status} key={status}>
+                            {formatEnum(status)}
                           </option>
                         ))}
                       </select>
-                      <p className="field-help">
-                        Your own record of which version went out. SalaryPadi
-                        never sends it anywhere.
-                      </p>
                     </div>
-                    <button className="button button-secondary" type="submit">
-                      Save CV
+                    <div className="field">
+                      <label htmlFor={`next-${application.id}`}>
+                        Next-action date
+                      </label>
+                      <input
+                        className="input"
+                        id={`next-${application.id}`}
+                        name="next_action_at"
+                        type="date"
+                        defaultValue={application.next_action_at?.slice(0, 10)}
+                      />
+                    </div>
+                    <div className="field application-notes">
+                      <label htmlFor={`notes-${application.id}`}>
+                        Private notes
+                      </label>
+                      <textarea
+                        className="textarea"
+                        id={`notes-${application.id}`}
+                        name="private_notes"
+                        maxLength={2000}
+                        defaultValue={application.private_notes ?? ""}
+                      />
+                    </div>
+                    <button className="button w-fit" type="submit">
+                      Update
                     </button>
                   </form>
-                ) : null}
-                <form action="/api/applications/remove" method="post">
-                  <input type="hidden" name="id" value={application.id} />
-                  <button className="button button-quiet" type="submit">
-                    Remove record
-                  </button>
-                </form>
-                {application.status === "interview" ||
-                application.status === "offer" ? (
-                  <CompanyEvidenceInvitation
-                    kind={application.status}
-                    company={application.company_name}
-                    role={application.title}
-                  />
-                ) : application.status === "applied" &&
-                  isStaleApplication(application.updated_at) ? (
-                  <CompanyEvidenceInvitation
-                    kind="application"
-                    company={application.company_name}
-                    role={application.title}
-                  />
-                ) : null}
-              </article>
-            ))}
+                  {cvs.data.length > 0 ? (
+                    <form
+                      action="/api/applications/cv"
+                      className="cluster"
+                      method="post"
+                    >
+                      <input type="hidden" name="id" value={application.id} />
+                      <div className="field">
+                        <label htmlFor={`cv-${application.id}`}>
+                          CV you sent
+                        </label>
+                        <select
+                          className="select"
+                          defaultValue={application.cv_id ?? ""}
+                          id={`cv-${application.id}`}
+                          name="cv_id"
+                        >
+                          <option value="">Not recorded</option>
+                          {cvs.data.map((cv) => (
+                            <option key={cv.id} value={cv.id}>
+                              {cv.file_name}
+                              {cv.is_current ? " (current)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="field-help">
+                          Your own record of which version went out. SalaryPadi
+                          never sends it anywhere.
+                        </p>
+                      </div>
+                      <button className="button button-secondary" type="submit">
+                        Save CV
+                      </button>
+                    </form>
+                  ) : null}
+                  <form action="/api/applications/remove" method="post">
+                    <input type="hidden" name="id" value={application.id} />
+                    <button className="button button-quiet" type="submit">
+                      Remove record
+                    </button>
+                  </form>
+                  {application.status === "interview" ||
+                  application.status === "offer" ? (
+                    <CompanyEvidenceInvitation
+                      kind={application.status}
+                      company={application.company_name}
+                      role={application.title}
+                    />
+                  ) : application.status === "applied" &&
+                    isStaleApplication(application.updated_at) ? (
+                    <CompanyEvidenceInvitation
+                      kind="application"
+                      company={application.company_name}
+                      role={application.title}
+                    />
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
         ) : (
           <div className="empty-state">
