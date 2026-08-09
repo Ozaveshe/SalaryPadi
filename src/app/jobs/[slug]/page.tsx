@@ -6,6 +6,7 @@ import {
   ExternalLink,
   Flag,
   Heart,
+  LineChart,
   MessageCircle,
   MessagesSquare,
   Route,
@@ -318,6 +319,18 @@ export default async function JobDetailPage({
             </small>
           </span>
         </Link>
+        {salaryResult.data.length > 0 ? (
+          <Link href={`/companies/${job.company.slug}/salaries`}>
+            <LineChart aria-hidden="true" size={20} />
+            <span>
+              <strong>Compare published pay evidence</strong>
+              <small>
+                Moderated aggregates for {job.company.name}, thresholds
+                enforced.
+              </small>
+            </span>
+          </Link>
+        ) : null}
         <Link href={`/companies/${job.company.slug}`}>
           <Building2 aria-hidden="true" size={20} />
           <span>
@@ -438,6 +451,21 @@ export default async function JobDetailPage({
                 <dt>Employer evidence</dt>
                 <dd>{formatEnum(job.company.verification)}</dd>
               </div>
+              {salaryResult.data.length > 0 ? (
+                <div>
+                  <dt>Salary evidence</dt>
+                  <dd>
+                    {salaryResult.data.length} published aggregate
+                    {salaryResult.data.length === 1 ? "" : "s"} ·{" "}
+                    <Link
+                      className="text-link"
+                      href={`/companies/${job.company.slug}/salaries`}
+                    >
+                      see pay evidence
+                    </Link>
+                  </dd>
+                </div>
+              ) : null}
               {companyReviews.length > 0 ? (
                 <div>
                   <dt>Approved reviews</dt>
@@ -471,10 +499,12 @@ export default async function JobDetailPage({
             reviewsResult.state === "ready" &&
             interviewsResult.state === "ready" &&
             benefitsResult.state === "ready" &&
+            salaryResult.state === "ready" &&
             !companyRating &&
             companyReviews.length === 0 &&
             companyInterviews.length === 0 &&
-            companyBenefits.length === 0 ? (
+            companyBenefits.length === 0 &&
+            salaryResult.data.length === 0 ? (
               <p className="text-muted m-0 text-sm">
                 No approved community aggregate is available yet. SalaryPadi
                 does not infer a rating from the vacancy or employer name.
@@ -502,7 +532,13 @@ export default async function JobDetailPage({
               <Route aria-hidden="true" size={15} />
               Compare an offer
             </Link>
-            <Link className="text-link" href="/tools/job-scam-checker">
+            <Link
+              className="text-link"
+              href={withJobContext(
+                "/tools/job-scam-checker",
+                jobContextFrom(job),
+              )}
+            >
               <Flag aria-hidden="true" size={15} />
               Check warning signs
             </Link>

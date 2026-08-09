@@ -159,6 +159,7 @@ export default async function CompanyPage({
   const reviews = reviewsResult.data;
   const interviews = interviewsResult.data;
   const benefits = benefitsResult.data;
+  const employerResponses = employerResponsesResult.data;
   const salaryAggregates = salaryAggregatesResult.data;
   const citedJobSources = [
     ...new Map(
@@ -255,6 +256,54 @@ export default async function CompanyPage({
           employerResponsesResult,
         ]}
       />
+      {employerResponses.length > 0 ? (
+        <section
+          className="rule-section stack"
+          aria-labelledby="employer-responses-heading"
+        >
+          <h2 className="section-title" id="employer-responses-heading">
+            Employer responses
+          </h2>
+          <p className="field-help m-0">
+            Statements provided by the verified employer, published in the
+            employer&rsquo;s own words. A response never changes independent
+            evidence: ratings, salary records and contributions stay as the
+            community reported them.
+          </p>
+          <div className="stack">
+            {employerResponses.map((response) => (
+              <article className="surface surface-pad stack" key={response.id}>
+                <div className="split">
+                  <span className="status status-neutral">
+                    {response.response_kind === "factual_correction"
+                      ? "Factual correction"
+                      : "Right of reply"}
+                  </span>
+                  <span className="source-note">
+                    Published {formatDate(response.published_at)}
+                    {Date.parse(response.updated_at) >
+                    Date.parse(response.published_at)
+                      ? ` · Updated ${formatDate(response.updated_at)}`
+                      : ""}
+                  </span>
+                </div>
+                <p className="m-0">{response.statement}</p>
+                {response.source_url ? (
+                  <a
+                    className="text-link"
+                    href={response.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                  >
+                    {new URL(response.source_url).hostname}
+                  </a>
+                ) : null}
+                <p className="source-note m-0">{response.provenance_label}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <CompanyEvidenceDetails
         company={company}
         citedJobSources={citedJobSources}
