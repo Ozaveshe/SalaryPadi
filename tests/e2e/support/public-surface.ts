@@ -313,6 +313,15 @@ export async function scanCustomerSurface(page: Page): Promise<SurfaceScan> {
     text: normalize(raw.chunks.join(" ")),
     leaves: raw.leaves.map(normalize),
     rawLeaves: raw.leaves.map((value) => value.replace(/\s+/g, " ").trim()),
+    // Metadata fields are joined with a NON-WHITESPACE sentinel. `normalize`
+    // collapses runs of whitespace into a single space, so a whitespace
+    // separator would let a prohibited phrase match across two unrelated
+    // fields: a meta description ending "...coverage" followed by an
+    // aria-label starting "complete" would be reported as "coverage
+    // complete". "|||" survives normalisation, appears in no prohibited
+    // phrase, and never occurs in customer copy. Keep it printable ASCII --
+    // a raw NUL byte here makes grep and ripgrep classify this whole file as
+    // binary and hide every match in it.
     metadataText: normalize(
       [
         raw.metaDescription ?? "",
@@ -322,12 +331,98 @@ export async function scanCustomerSurface(page: Page): Promise<SurfaceScan> {
         ...raw.ariaLabels,
         ...raw.titleAttributes,
         ...raw.accessibleNames,
-      ].join("   "),
+      ].join(" ||| "),
     ),
     metadata,
     html: raw.html,
     disclosuresOpened,
   };
+}
+
+/* ------------------------- edge bot protection ------------------------- */
+
+/**
+ * Netlify's bot-detection interstitial answers 403 with a JS challenge page in
+ * place of the requested route. To a test client that reads like a dead route:
+ * on 2026-08-03 it turned a challenged run into "Pinned company
+ * /companies/zipline did not return 200", which sent the investigation at the
+ * company page instead of at the edge.
+ *
+ * A challenge means production was NOT verified. It is never evidence that the
+ * customer surface is broken, and it must never be reported as such.
+ */
+const EDGE_CHALLENGE_MARKERS = [
+  "we are verifying your connection",
+  "challenge id",
+  "security by",
+] as const;
+
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/**
+ * Whether `baseURL` points at something outside this machine — i.e. at a
+ * target that can sit behind a CDN and its bot protection. A dev server never
+ * challenges, so guards keyed on this stay inert for local runs.
+ */
+export function isRemoteTarget(baseURL: string | undefined): boolean {
+  if (!baseURL) return false;
+  try {
+    return !LOCAL_HOSTNAMES.has(new URL(baseURL).hostname);
+  } catch {
+    // An unparseable baseURL is a configuration problem the suite will hit on
+    // its first navigation; it is not this guard's job to report it.
+    return false;
+  }
+}
+
+/**
+ * Whether rendered page text is an edge challenge rather than the site.
+ *
+ * Two markers are required, not one: "security by" is ordinary English and
+ * appears in trust and privacy copy, so a single-marker rule would classify
+ * real pages as challenges — and a false positive is the dangerous direction,
+ * because it would excuse a genuine outage as "we were only blocked".
+ *
+ * Kept pure and exported so the decision is unit-tested rather than existing
+ * only as a branch inside a browser helper.
+ */
+export function looksLikeEdgeChallenge(pageText: string): boolean {
+  const text = normalize(pageText);
+  return (
+    EDGE_CHALLENGE_MARKERS.filter((marker) => text.includes(marker)).length >= 2
+  );
+}
+
+/**
+ * The challenge ID when the current page is an edge challenge, `null`
+ * otherwise.
+ */
+export async function detectEdgeChallenge(page: Page): Promise<string | null> {
+  const found = await page.evaluate(() => ({
+    text: document.body?.innerText ?? "",
+    // The ID is rendered in a <code> element by the challenge template.
+    id: document.querySelector("code")?.textContent?.trim() ?? "",
+  }));
+  if (!looksLikeEdgeChallenge(found.text)) return null;
+  return found.id || "unreported";
+}
+
+/**
+ * Fails with the actual condition — challenged, not broken — so a blocked run
+ * is never mistaken for a customer-facing defect.
+ */
+export async function assertNotChallenged(
+  page: Page,
+  route: string,
+): Promise<void> {
+  const challengeId = await detectEdgeChallenge(page);
+  if (challengeId === null) return;
+  throw new Error(
+    `Edge bot protection challenged this run at ${route}, so production was ` +
+      `NOT verified. This is the test client being blocked at the edge, not a ` +
+      `defect on the customer surface — do not treat it as a failed release. ` +
+      `Challenge ID: ${challengeId}.`,
+  );
 }
 
 export interface SurfaceViolation {
@@ -383,6 +478,9 @@ export async function captureRoute(
  */
 export async function visit(page: Page, route: string): Promise<void> {
   await page.goto(route, { waitUntil: "domcontentloaded" });
+  // Before settle(): the challenge page has no shell, so settle() would spend
+  // its timeout waiting for `main` and then report a missing-locator error.
+  await assertNotChallenged(page, route);
   await settle(page);
 }
 
@@ -397,9 +495,27 @@ export async function settle(page: Page): Promise<void> {
   await page.locator("main, .site-shell").first().waitFor({ timeout: 20_000 });
   const loading = page.getByText(/^Loading .*…$/);
   const deadline = Date.now() + 20_000;
-  while (Date.now() < deadline) {
-    if ((await loading.count()) === 0) break;
+  let remaining = await loading.count();
+  while (Date.now() < deadline && remaining > 0) {
     await page.waitForTimeout(250);
+    remaining = await loading.count();
+  }
+  /**
+   * Giving up quietly here used to let every later assertion run against the
+   * loading skeleton, which reports the symptom instead of the cause: on
+   * 2026-08-03 a page that never streamed was reported as `insights is missing
+   * its "scope:" statement`. Content that never arrives is its own failure and
+   * says so.
+   */
+  if (remaining > 0) {
+    const placeholders = (await loading.allInnerTexts())
+      .map((value) => value.trim())
+      .join("; ");
+    throw new Error(
+      `Streamed content never arrived at ${page.url()}: ${remaining} loading ` +
+        `placeholder(s) still present after 20s (${placeholders}). Assertions ` +
+        `after this point would have run against a loading skeleton.`,
+    );
   }
   await page.waitForTimeout(400);
 }
