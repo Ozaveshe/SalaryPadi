@@ -153,7 +153,9 @@ test("insights never shows raw internal source keys", async ({ page }) => {
   const pulse = page.getByRole("heading", { name: "Job market pulse" });
   if ((await pulse.count()) > 0) {
     await expect(
-      page.getByRole("heading", { name: /Market size within/ }),
+      page.getByRole("heading", {
+        name: "How many jobs SalaryPadi is tracking",
+      }),
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Hiring patterns" }),

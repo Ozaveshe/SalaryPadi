@@ -60,7 +60,7 @@ test.describe("public MVP journeys", () => {
     await expect(page.getByLabel("Can apply from")).toHaveValue("nigeria");
   });
 
-  test("opens a real job, exposes its truth card and starts external apply", async ({
+  test("opens a real job, exposes its trust evidence and starts external apply", async ({
     context,
     page,
   }) => {
@@ -69,14 +69,12 @@ test.describe("public MVP journeys", () => {
 
     await expect(firstJob).toBeVisible();
     await firstJob.click();
+    await expect(page.locator(".trust-summary")).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Can I apply?" }),
+      page.getByText("How SalaryPadi verified this information"),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "What is it worth?" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Where did it come from?" }),
+      page.getByRole("heading", { name: "Move from the vacancy to the offer" }),
     ).toBeVisible();
     await expect(page.getByText(/Source and freshness/)).toBeVisible();
 

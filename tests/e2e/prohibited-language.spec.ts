@@ -86,7 +86,11 @@ test.describe("route-level public truth", () => {
 
     // Requirements / Benefits headings only when the section has content.
     for (const heading of ["Requirements", "Benefits"]) {
-      const section = page.getByRole("heading", { name: heading, exact: true });
+      const section = page.getByRole("heading", {
+        name: heading,
+        exact: true,
+        level: 2,
+      });
       if ((await section.count()) > 0) {
         await expect(
           page.locator(`section:has(h2:text-is("${heading}")) p`).first(),

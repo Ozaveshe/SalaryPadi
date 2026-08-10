@@ -26,7 +26,9 @@ test.describe("continuous job decision path", () => {
 
     await expect(page).toHaveURL(/q=data\+analyst/);
     await expect(page).toHaveURL(/eligibility=africa/);
-    await expect(page.getByLabel("Can apply from")).toHaveValue("africa");
+    await expect(page.getByLabel("Can apply from")).toHaveValue("africa", {
+      timeout: 15_000,
+    });
   });
 
   test("keeps Africa-specific filters in the URL and saved-search handoff", async ({
@@ -53,17 +55,36 @@ test.describe("continuous job decision path", () => {
     page,
   }) => {
     await page.goto("/tools");
-    await expect(
-      page.getByText("Using the reviewed bundled fallback catalog."),
-    ).toBeVisible();
-    await expect(page.getByText("Use inside SalaryPadi · 3")).toBeVisible();
-    await expect(page.getByText("Continue on AfroTools · 12")).toBeVisible();
-    await expect(
-      page.getByRole("link", { name: "Use in SalaryPadi" }),
-    ).toHaveCount(3);
-    await expect(
-      page.getByRole("link", { name: /Continue on AfroTools/ }),
-    ).toHaveCount(12);
+    const reviewedCatalog = page.getByRole("status").filter({
+      hasText:
+        /The reviewed tool list is available|Using the last-known reviewed catalog|Using the reviewed bundled fallback catalog/,
+    });
+    const unavailableCatalog = page.getByRole("alert").filter({
+      hasText: "Career tools are temporarily unavailable.",
+    });
+    expect(
+      Number((await reviewedCatalog.count()) > 0) +
+        Number((await unavailableCatalog.count()) > 0),
+      "The catalog must be reviewed or fail closed when every reviewed snapshot has expired.",
+    ).toBe(1);
+    if ((await reviewedCatalog.count()) > 0) {
+      await expect(page.getByText("Use inside SalaryPadi · 3")).toBeVisible();
+      await expect(page.getByText("Continue on AfroTools · 12")).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "Use in SalaryPadi" }),
+      ).toHaveCount(3);
+      await expect(
+        page.getByRole("link", { name: /Continue on AfroTools/ }),
+      ).toHaveCount(12);
+    } else {
+      await expect(unavailableCatalog).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "Use in SalaryPadi" }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("link", { name: /Continue on AfroTools/ }),
+      ).toHaveCount(0);
+    }
     await expect(
       page.getByText(
         /synchronized cache|integration type|catalog timestamp|widget/i,

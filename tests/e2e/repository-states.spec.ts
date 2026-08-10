@@ -34,9 +34,10 @@ test.describe("repository-backed public states", () => {
       empty: page.getByRole("heading", {
         name: "No source-listed companies available",
       }),
-      unavailable: page
-        .getByRole("status")
-        .filter({ hasText: /Company records|Backend connection needed/ }),
+      unavailable: page.getByRole("status").filter({
+        hasText:
+          /Company records could not be loaded|Backend connection needed/,
+      }),
     });
   });
 
@@ -51,12 +52,13 @@ test.describe("repository-backed public states", () => {
     ).toBeVisible();
     await expectOneHonestState({
       data: page.locator(".aggregate-grid"),
-      empty: page.getByRole("heading", {
-        name: "No safe aggregate matches yet",
+      empty: page.getByText("Not enough contributions yet for this search.", {
+        exact: true,
       }),
-      unavailable: page
-        .getByRole("status")
-        .filter({ hasText: /Salary aggregates|Backend connection needed/ }),
+      unavailable: page.getByRole("status").filter({
+        hasText:
+          /Salary aggregates could not be loaded|Backend connection needed/,
+      }),
     });
   });
 
