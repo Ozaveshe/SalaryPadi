@@ -236,7 +236,7 @@ export default async function SalariesPage({
               <SalaryAggregateCard aggregate={aggregate} key={aggregate.id} />
             ))}
           </div>
-        ) : (
+        ) : result.state === "ready" ? (
           <div className="surface surface-pad stack-sm">
             <p className="m-0">
               {!countryAvailable
@@ -255,7 +255,7 @@ export default async function SalariesPage({
               Share your salary anonymously
             </Link>
           </div>
-        )}
+        ) : null}
       </section>
 
       {/* Lane 2 — Jobs with disclosed pay. */}
