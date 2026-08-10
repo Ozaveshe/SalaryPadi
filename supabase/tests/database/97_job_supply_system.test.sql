@@ -390,7 +390,7 @@ on conflict (id) do nothing;
 insert into app.jobs (
   id, company_id, source_id, external_source_id, slug, status, title,
   description_text, employment_type, application_url, source_url,
-  last_seen_at, dedup_fingerprint
+  content_sanitized_at, last_seen_at, dedup_fingerprint
 ) values (
   '97000000-0000-4000-8000-000000000022',
   '97000000-0000-4000-8000-000000000010',
@@ -399,7 +399,7 @@ insert into app.jobs (
   'A role its healthy source stopped showing eight days ago.',
   'full_time', 'https://feed.example.test/apply/unseen',
   'https://feed.example.test/jobs/unseen',
-  clock_timestamp() - interval '8 days', repeat('a', 64)
+  clock_timestamp(), clock_timestamp() - interval '8 days', repeat('a', 64)
 ), (
   '97000000-0000-4000-8000-000000000023',
   '97000000-0000-4000-8000-000000000010',
@@ -408,7 +408,7 @@ insert into app.jobs (
   'A role unseen only because its source stopped importing.',
   'full_time', 'https://feed.example.test/apply/quiet',
   'https://feed.example.test/jobs/quiet',
-  clock_timestamp() - interval '8 days', repeat('b', 64)
+  clock_timestamp(), clock_timestamp() - interval '8 days', repeat('b', 64)
 );
 
 select lives_ok(
