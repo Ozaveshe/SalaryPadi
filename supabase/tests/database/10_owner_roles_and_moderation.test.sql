@@ -79,6 +79,49 @@ insert into app.source_country_rights (
   false, true, 'Source: Test Source', interval '30 days', true, false, false
 );
 
+-- Keep the seeded first-party submission lane current and give it the explicit
+-- Nigeria publication right required by the country-pack guard.
+update app.job_sources
+set terms_reviewed_at = clock_timestamp(),
+    authorization_reviewed_at = clock_timestamp(),
+    policy_review_due_at = clock_timestamp() + interval '30 days'
+where adapter_key = 'salarypadi_employer_submissions';
+
+insert into app.source_country_rights (
+  source_id, country_code, policy_state, permission_basis,
+  evidence_reference, terms_url, reviewed_at, review_due_at,
+  allowed_fields, may_store_full_description, attribution_required,
+  attribution_text, minimum_poll_interval, retention_period,
+  allow_public_display, allow_search_index, allow_google_jobposting
+)
+select source.id, 'NG', 'enabled', source.authorization_basis,
+  source.authorization_evidence_ref, source.terms_url,
+  source.authorization_reviewed_at, source.policy_review_due_at,
+  source.allowed_fields, source.may_store_full_description,
+  source.attribution_required, source.attribution_text,
+  source.minimum_poll_interval, source.raw_retention,
+  true, false, false
+from app.job_sources source
+where source.adapter_key = 'salarypadi_employer_submissions'
+on conflict (source_id, country_code) do update
+set policy_state = excluded.policy_state,
+    permission_basis = excluded.permission_basis,
+    evidence_reference = excluded.evidence_reference,
+    terms_url = excluded.terms_url,
+    reviewed_at = excluded.reviewed_at,
+    review_due_at = excluded.review_due_at,
+    allowed_fields = excluded.allowed_fields,
+    may_store_full_description = excluded.may_store_full_description,
+    attribution_required = excluded.attribution_required,
+    attribution_text = excluded.attribution_text,
+    minimum_poll_interval = excluded.minimum_poll_interval,
+    retention_period = excluded.retention_period,
+    allow_public_display = excluded.allow_public_display,
+    allow_search_index = excluded.allow_search_index,
+    allow_google_jobposting = excluded.allow_google_jobposting,
+    missing_dependencies = '{}'::text[],
+    revoked_at = null;
+
 insert into app.jobs (
   id, company_id, source_id, external_source_id, slug, status, title,
   description_text, employment_type, application_url, source_url,

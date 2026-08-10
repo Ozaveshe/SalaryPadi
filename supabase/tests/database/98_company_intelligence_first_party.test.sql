@@ -155,8 +155,9 @@ select ok(
   'community benefit aggregates remain hidden below five contributors'
 );
 select ok(
-  position('sample_size >= 5' in pg_get_viewdef('api.pay_reliability_aggregates'::regclass, true)) > 0,
-  'pay-reliability aggregates remain hidden below five contributors'
+  position('min_public_contributors' in pg_get_viewdef('api.pay_reliability_aggregates'::regclass, true)) > 0
+  and security.min_public_contributors('pay_reliability_aggregate') = 5,
+  'pay-reliability aggregates use the active five-contributor privacy floor'
 );
 select ok(
   exists (select 1 from information_schema.columns where table_schema = 'api' and table_name = 'salary_aggregates' and column_name = 'verification_mix')

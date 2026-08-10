@@ -31,7 +31,7 @@
     "quality": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
-    "@netlify/blobs": "10.7.9",
+    "@netlify/blobs": "9.1.5",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.2",
     "he": "^1.2.0",
@@ -72,6 +72,7 @@
     "@opentelemetry/resources": "2.9.0",
     "@opentelemetry/sdk-trace-base": "2.9.0",
     "@opentelemetry/sdk-trace-node": "2.9.0",
+    "nanoid": "3.3.18",
     "postcss": "8.5.23",
     "sharp": "^0.35.3"
   }

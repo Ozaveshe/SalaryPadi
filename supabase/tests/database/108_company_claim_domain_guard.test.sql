@@ -50,6 +50,7 @@ reset role;
 create temporary table claim_fixture as
 select id from private.company_claims
 where company_id = 'a8000000-0000-4000-8000-000000000010';
+grant select on claim_fixture to authenticated;
 
 select is(
   (select evidence ->> 'account_domain_matches_official_domain'
