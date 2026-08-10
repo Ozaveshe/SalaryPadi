@@ -371,14 +371,14 @@ insert into app.job_sources (
   policy_review_due_at, raw_retention, last_successful_import_at
 ) values (
   '97000000-0000-4000-8000-000000000020', 'test_absence_feed', 'Absence Feed',
-  'secondary_feed', 'active', 'https://example.test/terms', true,
+  'permitted_api', 'active', 'https://example.test/terms', true,
   'Source: Absence Feed', true, now(), 'absence-feed-v1', 'documented_public_api',
   'test-fixture:job-supply-system', now(), 'enabled', 'secondary_feed',
   array['title', 'description', 'application_url', 'source_url'],
   now() + interval '30 days', interval '30 days', clock_timestamp()
 ), (
   '97000000-0000-4000-8000-000000000021', 'test_quiet_feed', 'Quiet Feed',
-  'secondary_feed', 'paused', 'https://example.test/terms', true,
+  'permitted_api', 'paused', 'https://example.test/terms', true,
   'Source: Quiet Feed', true, now(), 'quiet-feed-v1', 'documented_public_api',
   'test-fixture:job-supply-system', now(), 'enabled', 'secondary_feed',
   array['title', 'description', 'application_url', 'source_url'],
