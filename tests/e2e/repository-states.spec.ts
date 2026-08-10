@@ -51,7 +51,9 @@ test.describe("repository-backed public states", () => {
       }),
     ).toBeVisible();
     await expectOneHonestState({
-      data: page.locator(".aggregate-grid"),
+      data: page.locator(
+        '[aria-labelledby="salary-lane-local"] .aggregate-grid',
+      ),
       empty: page.getByText("Not enough contributions yet for this search.", {
         exact: true,
       }),
