@@ -164,6 +164,7 @@ select is(
   true,
   'an AAL2 data-quality operator can confirm the first canonical job'
 );
+reset role;
 select is(
   (select canonical_job_id from app.jobs
    where id = 'aa000000-0000-4000-8000-000000000021'),
@@ -202,6 +203,7 @@ select is(
   1,
   'the staff decision has an immutable audit event'
 );
+set local role authenticated;
 select throws_ok(
   $$ select api.transition_job_duplicate_candidate(
     'aa000000-0000-4000-8000-000000000030', 1, 'dismiss', 'Changed my mind'
@@ -209,6 +211,7 @@ select throws_ok(
   'P0001', null,
   'a stale operator cannot overwrite the decision'
 );
+reset role;
 select is(
   (select status from audit.job_duplicate_candidates
    where id = 'aa000000-0000-4000-8000-000000000030'),
