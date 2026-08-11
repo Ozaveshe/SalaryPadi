@@ -95,10 +95,10 @@ insert into app.job_eligibility (
   job_id, scope, evidence_text, provenance, confidence, last_verified_at
 )
 values
-  ('ab000000-0000-4000-8000-000000000020', 'country_limited',
-   'Open to applicants in Nigeria.', 'source_explicit', 1, now()),
-  ('ab000000-0000-4000-8000-000000000021', 'country_limited',
-   'Open to applicants in Kenya.', 'source_explicit', 1, now());
+  ('ab000000-0000-4000-8000-000000000020', 'nigeria',
+   'Open to applicants in Nigeria.', 'source_provided', 1, now()),
+  ('ab000000-0000-4000-8000-000000000021', 'named_countries',
+   'Open to applicants in Kenya.', 'source_provided', 1, now());
 
 insert into audit.job_duplicate_candidates (
   id, left_job_id, right_job_id, title_similarity, evidence
