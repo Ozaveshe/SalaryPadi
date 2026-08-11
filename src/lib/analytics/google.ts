@@ -28,6 +28,17 @@ export function isGoogleAnalyticsRouteAllowed(pathname: string): boolean {
   );
 }
 
+export function initializeGoogleAnalyticsQueue(): void {
+  if (typeof window === "undefined") return;
+  window.dataLayer ??= [];
+  // Google tag commands must be queued as the function's `arguments` object.
+  // Plain arrays look similar in devtools but gtag.js does not execute them.
+  window.gtag ??= function gtag() {
+    // eslint-disable-next-line prefer-rest-params -- gtag.js requires Arguments, not an Array.
+    window.dataLayer?.push(arguments);
+  };
+}
+
 export function setGoogleAnalyticsEnabled(
   measurementId: string,
   enabled: boolean,

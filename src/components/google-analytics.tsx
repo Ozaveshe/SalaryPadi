@@ -5,6 +5,7 @@ import { useReportWebVitals } from "next/web-vitals";
 import { useEffect, useRef } from "react";
 
 import {
+  initializeGoogleAnalyticsQueue,
   isGoogleAnalyticsRouteAllowed,
   sendGoogleAnalyticsPageView,
   setGoogleAnalyticsEnabled,
@@ -50,23 +51,24 @@ export function GoogleAnalytics({
   useEffect(() => {
     if (!routeAllowed) return;
 
-    window.dataLayer ??= [];
-    window.gtag ??= (...args: unknown[]) => window.dataLayer?.push(args);
-    window.gtag("consent", "default", {
+    initializeGoogleAnalyticsQueue();
+    const gtag = window.gtag;
+    if (!gtag) return;
+    gtag("consent", "default", {
       analytics_storage: "denied",
       ad_storage: "denied",
       ad_user_data: "denied",
       ad_personalization: "denied",
       wait_for_update: 500,
     });
-    window.gtag("consent", "update", {
+    gtag("consent", "update", {
       analytics_storage: "granted",
       ad_storage: "denied",
       ad_user_data: "denied",
       ad_personalization: "denied",
     });
-    window.gtag("js", new Date());
-    window.gtag("config", measurementId, {
+    gtag("js", new Date());
+    gtag("config", measurementId, {
       send_page_view: false,
       page_location: `${window.location.origin}${window.location.pathname}`,
       allow_google_signals: false,

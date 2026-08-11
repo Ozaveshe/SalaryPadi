@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   clearGoogleAnalyticsCookies,
+  initializeGoogleAnalyticsQueue,
   isGoogleAnalyticsEnabled,
   isGoogleAnalyticsRouteAllowed,
   sendGoogleAnalyticsEvent,
@@ -34,6 +35,21 @@ describe("Google Analytics route boundary", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("queues commands in the arguments-object shape required by gtag.js", () => {
+    vi.stubGlobal("window", {});
+
+    initializeGoogleAnalyticsQueue();
+    window.gtag?.("config", "G-ABC123DEF4", { send_page_view: false });
+
+    const command = window.dataLayer?.[0];
+    expect(Array.isArray(command)).toBe(false);
+    expect(Array.from(command as ArrayLike<unknown>)).toEqual([
+      "config",
+      "G-ABC123DEF4",
+      { send_page_view: false },
+    ]);
   });
 
   it("keeps the event sink closed until the consent-gated loader enables it", () => {
