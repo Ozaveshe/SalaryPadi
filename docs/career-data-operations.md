@@ -15,6 +15,9 @@ in [board discovery scripts](../scripts) and
 - `/admin/source-health` — per-source 14-day runs, rights state, supply
   canary, apply-link failures, open alerts.
 - `/admin/imports` — read-only by design (no blind retry).
+- `/admin/duplicates` — compare fuzzy pairs, keep either canonical job or
+  dismiss the match; confirmation relinks source occurrences and records
+  immutable canonical plus staff audit evidence (AAL2 data-quality/admin).
 - `/admin/company-claims` — claim / verify / reject / revoke; each row states
   whether the claimant's email matches an official domain, and verifying a
   mismatch requires an `override:domain_mismatch` reason
@@ -27,8 +30,8 @@ in [board discovery scripts](../scripts) and
 1. Every admin resource renders one generic 4-column table: no job detail
    view, no search, `admin_list('jobs')` caps at 200 rows by `updated_at` —
    an operator cannot find a reported job.
-2. The fuzzy duplicate queue (`audit.job_duplicate_candidates`) accretes rows
-   with no grant, RPC or UI to review them.
+2. Duplicate comparison is inline rather than a dedicated case-detail route;
+   long job descriptions and field-by-field differences are not yet shown.
 3. No operator job intake (URL / structured form / bulk upload UI); the CSV
    grant machinery exists in the database with no caller.
 4. No employer-matching, eligibility-review or salary-evidence-review queues.

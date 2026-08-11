@@ -107,6 +107,39 @@ describe("admin transition route", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it("sends data-quality duplicate decisions through the reviewed-link RPC", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: true, error: null });
+
+    const response = await POST(
+      request("duplicates", {
+        id: "fa000000-0000-4000-8000-000000000005",
+        action: "keep_first",
+        reason: "The second posting is the same role from a weaker occurrence",
+        expected_version: "1",
+      }),
+      context("duplicates"),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(
+      "https://salarypadi.com/admin/duplicates?updated=true",
+    );
+    expect(mocks.getStaffApiContext).toHaveBeenCalledWith([
+      "data_quality",
+      "admin",
+    ]);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "transition_job_duplicate_candidate",
+      {
+        p_candidate_id: "fa000000-0000-4000-8000-000000000005",
+        p_expected_version: 1,
+        p_action: "keep_first",
+        p_reason:
+          "The second posting is the same role from a weaker occurrence",
+      },
+    );
+  });
+
   it("invalidates the shared source cache after a successful Remotive transition", async () => {
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === "admin_transition") return { data: true, error: null };

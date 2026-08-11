@@ -14,18 +14,18 @@ currency, period or destination.
 
 ## The ten actors and their state
 
-| Actor                              | Works today                                                      | Largest open gap                                                    |
-| ---------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Visitor searching                  | Yes — evidence-first search with honest failure states           | No mobile filter sheet                                              |
-| Candidate checking eligibility     | Yes — basis-aware badges, filters and ranking agree              | Evidence "why" not yet on the card itself                           |
-| Candidate researching employer/pay | Yes — company lanes, salary lanes, employer responses rendered   | Pay-reliability has no public company lane                          |
-| Candidate applying and tracking    | Yes — apply-out, tracker with point-in-time snapshot             | 7 of 13 tracker states; no reminders beyond one date                |
-| Candidate comparing an offer       | Partial — compare works, context carries                         | No persistence, scenarios, equity or currency-risk modelling        |
-| Contributor                        | Yes — five moderated flows, drafts, four-layer PII refusal       | Retention automation for drafts/signals                             |
-| Employer                           | Partial — claim (domain-guarded), post (approval-gated), respond | No preview, no employer close-job, no analytics, sponsored unbuilt  |
-| Career-data associate              | Partial — role-scoped claim and duplicate queues are reachable   | No job detail view, duplicate resolution or operator intake         |
-| Moderator                          | Yes — AAL2 queue, actions and named safety flags are reachable   | No dedicated case-detail view beyond the privacy-safe queue summary |
-| Administrator                      | Partial — source/supply health strong                            | No audit-log reader, no moderation-backlog metric, no flag service  |
+| Actor                              | Works today                                                       | Largest open gap                                                    |
+| ---------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Visitor searching                  | Yes — evidence-first search with honest failure states            | No mobile filter sheet                                              |
+| Candidate checking eligibility     | Yes — basis-aware badges, filters and ranking agree               | Evidence "why" not yet on the card itself                           |
+| Candidate researching employer/pay | Yes — company lanes, salary lanes, employer responses rendered    | Pay-reliability has no public company lane                          |
+| Candidate applying and tracking    | Yes — apply-out, tracker with point-in-time snapshot              | 7 of 13 tracker states; no reminders beyond one date                |
+| Candidate comparing an offer       | Partial — compare works, context carries                          | No persistence, scenarios, equity or currency-risk modelling        |
+| Contributor                        | Yes — five moderated flows, drafts, four-layer PII refusal        | Retention automation for drafts/signals                             |
+| Employer                           | Partial — claim (domain-guarded), post (approval-gated), respond  | No preview, no employer close-job, no analytics, sponsored unbuilt  |
+| Career-data associate              | Partial — role-scoped claim and duplicate decisions are reachable | No dedicated job detail/comparison view or operator intake          |
+| Moderator                          | Yes — AAL2 queue, actions and named safety flags are reachable    | No dedicated case-detail view beyond the privacy-safe queue summary |
+| Administrator                      | Partial — source/supply health strong                             | No audit-log reader, no moderation-backlog metric, no flag service  |
 
 ## Non-negotiables already holding
 
@@ -39,4 +39,4 @@ never render as zero jobs; money buys neither trust nor ranking.
 Deterministic e2e coverage for the member/contributor/employer/operations
 journeys (env-gated off in CI); user-controlled retention; the north-star
 metric's qualifying dimensions; public-page caching to the p95 targets;
-operator detail views and duplicate-resolution workflow.
+operator detail views and field-by-field duplicate comparison.

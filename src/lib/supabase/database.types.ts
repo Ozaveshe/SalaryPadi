@@ -1111,6 +1111,17 @@ export type Database = {
           version: number;
         }[];
       };
+      admin_list_duplicates: {
+        Args: never;
+        Returns: {
+          id: string;
+          secondary: string;
+          status: string;
+          title: string;
+          updated_at: string;
+          version: number;
+        }[];
+      };
       admin_list_imports: {
         Args: never;
         Returns: {
@@ -1573,6 +1584,15 @@ export type Database = {
           p_reason_note?: string;
         };
         Returns: string;
+      };
+      transition_job_duplicate_candidate: {
+        Args: {
+          p_action: string;
+          p_candidate_id: string;
+          p_expected_version: number;
+          p_reason: string;
+        };
+        Returns: boolean;
       };
       update_application_status: {
         Args: {

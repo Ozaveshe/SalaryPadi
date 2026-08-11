@@ -5,8 +5,8 @@ export default function DuplicateCandidatesAdminPage() {
     <AdminResourcePage
       resource="duplicates"
       title="Duplicate candidates"
-      description="Near-duplicate job pairs detected at ingestion, most recent first. Each row names the two roles and their title similarity so an operator can investigate them against the Jobs queue. This queue is view-only: confirming or dismissing a pair, and linking a canonical job, is not yet wired here."
-      actions={[]}
+      description="Near-duplicate job pairs detected at ingestion, most recent first. Compare the named jobs and source evidence, then explicitly keep the first job, keep the second job, or dismiss the match. Confirming preserves both source records while linking every occurrence to the selected canonical job."
+      actions={["keep_first", "keep_second", "dismiss"]}
     />
   );
 }

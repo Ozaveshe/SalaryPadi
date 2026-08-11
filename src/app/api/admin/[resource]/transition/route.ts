@@ -21,6 +21,7 @@ import type { Json } from "@/lib/supabase/database.types";
 
 const resources = new Set<AdminResource>([
   "jobs",
+  "duplicates",
   "imports",
   "sources",
   "companies",
@@ -34,10 +35,7 @@ const resources = new Set<AdminResource>([
 ]);
 const allowedActions: Record<AdminResource, ReadonlySet<string>> = {
   jobs: new Set(["approve", "expire", "remove", "restore"]),
-  // Read-only queue: intentionally absent from `resources` above, so a
-  // transition POST 404s before it reaches here. The empty set keeps the
-  // Record total over AdminResource.
-  duplicates: new Set(),
+  duplicates: new Set(["keep_first", "keep_second", "dismiss"]),
   imports: new Set(),
   sources: new Set(["enable", "disable", "request_review"]),
   companies: new Set(["verify", "request_evidence", "remove"]),
@@ -165,6 +163,22 @@ export async function POST(
     if (!operation.ok) return operation.response;
     transitionSucceeded = decodeApiRpcResult(
       "admin.editorial.transition",
+      "admin_transition_failed",
+      operation.value,
+      acknowledgedTransitionSchema,
+    ).ok;
+  } else if (rawResource === "duplicates") {
+    const operation = await attemptTransition(() =>
+      admin.supabase.schema("api").rpc("transition_job_duplicate_candidate", {
+        p_candidate_id: parsed.data.id,
+        p_expected_version: parsed.data.expected_version,
+        p_action: parsed.data.action,
+        p_reason: parsed.data.reason,
+      }),
+    );
+    if (!operation.ok) return operation.response;
+    transitionSucceeded = decodeApiRpcResult(
+      "admin.duplicates.transition",
       "admin_transition_failed",
       operation.value,
       acknowledgedTransitionSchema,

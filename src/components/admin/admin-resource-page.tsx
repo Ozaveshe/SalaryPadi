@@ -24,6 +24,14 @@ export async function AdminResourcePage({
   await requireStaff(staffRolesForAdminResource(resource));
   const result = await getAdminRowsResult(resource);
   const rows = result.data;
+  const actionLabel = (action: string) => {
+    if (resource !== "duplicates") return formatEnum(action);
+    return {
+      keep_first: "Keep first; link second",
+      keep_second: "Keep second; link first",
+      dismiss: "Not duplicates",
+    }[action];
+  };
   return (
     <div className="stack-lg">
       <PageHeading
@@ -67,7 +75,8 @@ export async function AdminResourcePage({
                   </td>
                   <td>{formatDate(row.updated_at)}</td>
                   <td>
-                    {actions.length > 0 ? (
+                    {actions.length > 0 &&
+                    (resource !== "duplicates" || row.status === "pending") ? (
                       <form
                         className="admin-action"
                         action={`/api/admin/${resource}/transition`}
@@ -94,7 +103,7 @@ export async function AdminResourcePage({
                           <option value="">Choose</option>
                           {actions.map((action) => (
                             <option value={action} key={action}>
-                              {formatEnum(action)}
+                              {actionLabel(action)}
                             </option>
                           ))}
                         </select>
@@ -152,7 +161,11 @@ export async function AdminResourcePage({
                         </button>
                       </form>
                     ) : (
-                      <span className="text-muted text-sm">View only</span>
+                      <span className="text-muted text-sm">
+                        {resource === "duplicates" && row.status !== "pending"
+                          ? "Decision recorded"
+                          : "View only"}
+                      </span>
                     )}
                   </td>
                 </tr>
