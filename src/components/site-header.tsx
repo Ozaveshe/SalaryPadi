@@ -37,9 +37,9 @@ function AccountLinks({ viewer }: { viewer: Viewer }) {
       <Link className="nav-link" href="/account">
         Account
       </Link>
-      {viewer.isAdmin ? (
+      {viewer.staffRoleState === "ready" && viewer.staffRoles.length > 0 ? (
         <Link className="nav-link" href="/admin">
-          Admin
+          Operations
         </Link>
       ) : null}
       <form action="/api/auth/sign-out" method="post">

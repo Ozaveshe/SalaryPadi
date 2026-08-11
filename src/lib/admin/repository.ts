@@ -11,6 +11,7 @@ import {
   type RepositoryResult,
 } from "@/lib/data/repository-result";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { StaffRole } from "@/lib/auth/dal";
 
 export type AdminResource =
   | "jobs"
@@ -25,6 +26,25 @@ export type AdminResource =
   | "users"
   | "calculation_rules"
   | "editorial";
+
+const resourceStaffRoles: Record<AdminResource, readonly StaffRole[]> = {
+  jobs: ["admin"],
+  duplicates: ["data_quality", "admin"],
+  imports: ["admin"],
+  sources: ["admin"],
+  companies: ["admin"],
+  company_claims: ["data_quality", "admin"],
+  employer_responses: ["moderator", "admin"],
+  moderation: ["moderator", "admin"],
+  reports: ["admin"],
+  users: ["admin"],
+  calculation_rules: ["admin"],
+  editorial: ["admin"],
+};
+
+export function staffRolesForAdminResource(resource: AdminResource) {
+  return resourceStaffRoles[resource];
+}
 
 const MAX_ADMIN_ROWS = 200;
 

@@ -24,6 +24,7 @@ function client({
   adminError = null,
   claimsThrows,
   adminThrows,
+  roles,
 }: {
   claims?: Record<string, unknown>;
   claimsError?: unknown;
@@ -31,6 +32,7 @@ function client({
   adminError?: unknown;
   claimsThrows?: Error;
   adminThrows?: Error;
+  roles?: string[];
 }) {
   return {
     auth: {
@@ -43,9 +45,15 @@ function client({
       },
     },
     schema: () => ({
-      rpc: async () => {
+      rpc: async (_name: string, args: { required_role?: string }) => {
         if (adminThrows) throw adminThrows;
-        return { data: admin, error: adminError };
+        return {
+          data:
+            roles && args.required_role
+              ? roles.includes(args.required_role)
+              : admin,
+          error: adminError,
+        };
       },
     }),
   } as never;
@@ -104,6 +112,7 @@ describe("viewer authentication states", () => {
       state: "authenticated",
       id: "user-1",
       email: "user@example.com",
+      staffRoles: [],
       isAdmin: false,
       staffRoleState: "unavailable",
       aal: "aal2",
@@ -114,13 +123,14 @@ describe("viewer authentication states", () => {
     mockedCreateClient.mockResolvedValue(
       client({
         claims: { sub: "admin-1", email: "admin@example.com", aal: "aal2" },
-        admin: true,
+        roles: ["admin"],
       }),
     );
     await expect(getViewer()).resolves.toEqual({
       state: "authenticated",
       id: "admin-1",
       email: "admin@example.com",
+      staffRoles: ["admin"],
       isAdmin: true,
       staffRoleState: "ready",
       aal: "aal2",
@@ -139,6 +149,7 @@ describe("viewer authentication states", () => {
     await expect(getViewer()).resolves.toMatchObject({
       state: "authenticated",
       id: "admin-1",
+      staffRoles: [],
       isAdmin: false,
       staffRoleState: "unavailable",
     });
@@ -169,8 +180,24 @@ describe("viewer authentication states", () => {
       }),
     );
     await expect(requireAdmin()).rejects.toThrow(
-      "Administrator access could not be verified",
+      "Staff access could not be verified",
     );
+  });
+
+  it("returns every independently verified staff role", async () => {
+    mockedCreateClient.mockResolvedValue(
+      client({
+        claims: { sub: "staff-1", email: "staff@example.com", aal: "aal2" },
+        roles: ["data_quality", "moderator"],
+      }),
+    );
+
+    await expect(getViewer()).resolves.toMatchObject({
+      state: "authenticated",
+      staffRoles: ["data_quality", "moderator"],
+      isAdmin: false,
+      staffRoleState: "ready",
+    });
   });
 
   it("maps a thrown auth-client bootstrap failure to unavailable", async () => {
@@ -207,6 +234,7 @@ describe("viewer authentication states", () => {
     await expect(getViewer()).resolves.toMatchObject({
       state: "authenticated",
       id: "user-1",
+      staffRoles: [],
       isAdmin: false,
       staffRoleState: "unavailable",
     });

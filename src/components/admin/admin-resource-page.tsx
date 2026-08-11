@@ -2,9 +2,13 @@ import { Suspense } from "react";
 
 import { AdminTransitionNotice } from "@/components/admin/admin-transition-notice";
 import { PageHeading } from "@/components/page-heading";
-import { requireAdmin } from "@/lib/auth/dal";
+import { requireStaff } from "@/lib/auth/dal";
 import { formatDate, formatEnum } from "@/lib/format";
-import { getAdminRowsResult, type AdminResource } from "@/lib/admin/repository";
+import {
+  getAdminRowsResult,
+  staffRolesForAdminResource,
+  type AdminResource,
+} from "@/lib/admin/repository";
 
 export async function AdminResourcePage({
   resource,
@@ -17,7 +21,7 @@ export async function AdminResourcePage({
   description: string;
   actions: string[];
 }) {
-  await requireAdmin();
+  await requireStaff(staffRolesForAdminResource(resource));
   const result = await getAdminRowsResult(resource);
   const rows = result.data;
   return (

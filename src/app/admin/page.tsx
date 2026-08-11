@@ -1,8 +1,8 @@
 import { PageHeading } from "@/components/page-heading";
-import { requireAdmin } from "@/lib/auth/dal";
+import { requireStaff } from "@/lib/auth/dal";
 
 export default async function AdminOverviewPage() {
-  const viewer = await requireAdmin();
+  const viewer = await requireStaff(["data_quality", "moderator", "admin"]);
 
   return (
     <div className="stack-lg">
@@ -13,7 +13,7 @@ export default async function AdminOverviewPage() {
       />
       <div className="notice" role="status">
         Signed in as <strong>{viewer.email ?? viewer.id}</strong>. Database role
-        membership, not this visible label, authorises admin actions.
+        membership, not this visible label, authorises staff actions.
       </div>
       <section
         className="rule-section stack"

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getViewer } from "@/lib/auth/dal";
+import { getViewer, type StaffRole } from "@/lib/auth/dal";
 import { repositoryIssue } from "@/lib/data/repository-result";
 import { attemptRepositoryOperation } from "@/lib/data/repository-operation";
 import { noStoreJson } from "@/lib/http/json";
@@ -69,22 +69,26 @@ export async function getAuthenticatedApiContext() {
 }
 
 export async function getAdminApiContext() {
+  return getStaffApiContext(["admin"]);
+}
+
+export async function getStaffApiContext(allowedRoles: readonly StaffRole[]) {
   const context = await getAuthenticatedApiContext();
   if (!context.ok) return context;
   if (context.viewer.staffRoleState === "unavailable") {
     return {
       ok: false as const,
       response: noStoreJson(
-        { error: "Administrator access could not be verified." },
+        { error: "Staff access could not be verified." },
         { status: 503 },
       ),
     };
   }
-  if (!context.viewer.isAdmin) {
+  if (!allowedRoles.some((role) => context.viewer.staffRoles.includes(role))) {
     return {
       ok: false as const,
       response: noStoreJson(
-        { error: "Administrator role required." },
+        { error: "A permitted staff role is required." },
         { status: 403 },
       ),
     };

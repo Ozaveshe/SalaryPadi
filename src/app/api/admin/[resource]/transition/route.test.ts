@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getAdminApiContext: vi.fn(),
+  getStaffApiContext: vi.fn(),
   getAppOrigin: vi.fn(),
   rejectCrossOriginRequest: vi.fn(),
   revalidateTag: vi.fn(),
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/cache", () => ({ revalidateTag: mocks.revalidateTag }));
 vi.mock("@/lib/auth/api", () => ({
-  getAdminApiContext: mocks.getAdminApiContext,
+  getStaffApiContext: mocks.getStaffApiContext,
 }));
 vi.mock("@/lib/env", () => ({ getAppOrigin: mocks.getAppOrigin }));
 vi.mock("@/lib/security/origin", () => ({
@@ -61,8 +61,8 @@ beforeEach(() => {
   mocks.rpc.mockReset();
   mocks.schema.mockReset();
   mocks.schema.mockReturnValue({ rpc: mocks.rpc });
-  mocks.getAdminApiContext.mockReset();
-  mocks.getAdminApiContext.mockResolvedValue({
+  mocks.getStaffApiContext.mockReset();
+  mocks.getStaffApiContext.mockResolvedValue({
     ok: true,
     supabase: { schema: mocks.schema },
   });
@@ -83,7 +83,7 @@ describe("admin transition route", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(mocks.getAdminApiContext).not.toHaveBeenCalled();
+      expect(mocks.getStaffApiContext).not.toHaveBeenCalled();
       expect(mocks.rpc).not.toHaveBeenCalled();
     },
   );
@@ -103,7 +103,7 @@ describe("admin transition route", () => {
     await expect(response.json()).resolves.toEqual({
       error: "That admin action is not available.",
     });
-    expect(mocks.getAdminApiContext).not.toHaveBeenCalled();
+    expect(mocks.getStaffApiContext).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
@@ -251,6 +251,38 @@ describe("admin transition route", () => {
     expect(rejected.headers.get("location")).toBe(
       "https://salarypadi.com/admin/moderation?updated=error",
     );
+  });
+
+  it("sends moderator approvals through the dedicated moderation RPC", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: "approved", error: null });
+
+    const response = await POST(
+      request("moderation", {
+        id: "fa000000-0000-4000-8000-000000000004",
+        action: "approve",
+        reason: "Evidence and privacy checks passed",
+        expected_version: "2",
+      }),
+      context("moderation"),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "https://salarypadi.com/admin/moderation?updated=true",
+    );
+    expect(mocks.getStaffApiContext).toHaveBeenCalledWith([
+      "moderator",
+      "admin",
+    ]);
+    expect(mocks.rpc).toHaveBeenCalledWith("transition_moderation", {
+      p_case_id: "fa000000-0000-4000-8000-000000000004",
+      p_expected_version: 2,
+      p_action: "approve",
+      p_reason_code: "approve",
+      p_reason_note: "Evidence and privacy checks passed",
+      p_changed_fields: [],
+      p_public_payload: {},
+      p_linked_case_id: undefined,
+    });
   });
 
   it("marks a completed source transition degraded when cache lookup throws", async () => {

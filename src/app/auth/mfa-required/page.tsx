@@ -12,13 +12,18 @@ export const metadata: Metadata = {
 
 export default async function MfaRequiredPage() {
   const viewer = await requireViewer("/auth/mfa-required");
-  if (!viewer.isAdmin) redirect("/?notice=admin-access-required");
+  if (viewer.staffRoleState === "unavailable") {
+    throw new Error("Staff access could not be verified.");
+  }
+  if (viewer.staffRoles.length === 0) {
+    redirect("/?notice=staff-access-required");
+  }
   if (viewer.aal === "aal2") redirect("/admin");
 
   return (
     <div className="reading-shell stack-lg">
       <PageHeading
-        eyebrow="Admin security"
+        eyebrow="Operations security"
         title="A second factor is required"
         description="SalaryPadi requires an AAL2 session before moderation, role, source or privacy operations. Your current session is signed in but not strongly authenticated."
       />

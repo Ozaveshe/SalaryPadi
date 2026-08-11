@@ -5,8 +5,11 @@ import { readApiForm } from "@/lib/api/form";
 import { attemptApiOperation } from "@/lib/api/operation";
 import { decodeApiRpcResult } from "@/lib/api/rpc-result";
 import { noStoreRedirect } from "@/lib/api/response";
-import { getAdminApiContext } from "@/lib/auth/api";
-import type { AdminResource } from "@/lib/admin/repository";
+import { getStaffApiContext } from "@/lib/auth/api";
+import {
+  staffRolesForAdminResource,
+  type AdminResource,
+} from "@/lib/admin/repository";
 import { getAppOrigin } from "@/lib/env";
 import { noStoreJson } from "@/lib/http/json";
 import {
@@ -135,7 +138,9 @@ export async function POST(
       { status: 400 },
     );
   }
-  const admin = await getAdminApiContext();
+  const admin = await getStaffApiContext(
+    staffRolesForAdminResource(rawResource as AdminResource),
+  );
   if (!admin.ok) return admin.response;
   const attemptTransition = <T>(run: () => PromiseLike<T> | T) =>
     attemptApiOperation(
@@ -219,10 +224,7 @@ export async function POST(
       operation.value,
       acknowledgedTransitionSchema,
     ).ok;
-  } else if (
-    rawResource === "moderation" &&
-    ["claim", "redact", "merge_duplicate"].includes(parsed.data.action)
-  ) {
+  } else if (rawResource === "moderation") {
     let publicPayload: Record<string, unknown> = {};
     if (parsed.data.action === "redact") {
       try {

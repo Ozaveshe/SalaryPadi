@@ -10,6 +10,9 @@ import { attemptRepositoryOperation } from "@/lib/data/repository-operation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { safeRelativePath } from "@/lib/security/urls";
 
+export const staffRoles = ["data_quality", "moderator", "admin"] as const;
+export type StaffRole = (typeof staffRoles)[number];
+
 export type Viewer =
   | { state: "unconfigured" }
   | { state: "unavailable"; code: "claims_unavailable" }
@@ -18,6 +21,7 @@ export type Viewer =
       state: "authenticated";
       id: string;
       email: string | null;
+      staffRoles: StaffRole[];
       isAdmin: boolean;
       staffRoleState: "ready" | "unavailable";
       aal: "aal1" | "aal2";
@@ -75,29 +79,45 @@ export const getViewer = cache(async (): Promise<Viewer> => {
   const email = parsedEmail.success ? parsedEmail.data : null;
 
   const staffAttempt = await attemptRepositoryOperation(() =>
-    supabase.schema("api").rpc("has_staff_role", { required_role: "admin" }),
+    Promise.all(
+      staffRoles.map((role) =>
+        supabase.schema("api").rpc("has_staff_role", { required_role: role }),
+      ),
+    ),
   );
   const staffResult = staffAttempt.ok ? staffAttempt.value : null;
   const staffRoleReady = Boolean(
-    staffResult && !staffResult.error && typeof staffResult.data === "boolean",
+    staffResult &&
+    staffResult.length === staffRoles.length &&
+    staffResult.every(
+      (result) => !result.error && typeof result.data === "boolean",
+    ),
   );
   if (!staffRoleReady) {
-    const staffFailure = !staffAttempt.ok || Boolean(staffResult?.error);
+    const staffFailure =
+      !staffAttempt.ok || Boolean(staffResult?.some((result) => result.error));
     repositoryIssue(
       "auth.staff_role",
       staffFailure ? "query_failed" : "invalid_rows",
       staffFailure
         ? "auth_staff_role_unavailable"
         : "auth_staff_role_invalid_response",
-      staffAttempt.ok ? staffResult?.error : staffAttempt.error,
+      staffAttempt.ok
+        ? staffResult?.find((result) => result.error)?.error
+        : staffAttempt.error,
     );
   }
+
+  const verifiedStaffRoles = staffRoleReady
+    ? staffRoles.filter((_, index) => staffResult?.[index]?.data === true)
+    : [];
 
   return {
     state: "authenticated",
     id: parsedSubject.data,
     email,
-    isAdmin: staffRoleReady && staffResult?.data === true,
+    staffRoles: [...verifiedStaffRoles],
+    isAdmin: verifiedStaffRoles.includes("admin"),
     staffRoleState: staffRoleReady ? "ready" : "unavailable",
     aal: data?.claims?.aal === "aal2" ? "aal2" : "aal1",
   };
@@ -118,11 +138,17 @@ export async function requireViewer(nextPath: string) {
 }
 
 export async function requireAdmin() {
+  return requireStaff(["admin"]);
+}
+
+export async function requireStaff(allowedRoles: readonly StaffRole[]) {
   const viewer = await requireViewer("/admin");
   if (viewer.staffRoleState === "unavailable") {
-    throw new Error("Administrator access could not be verified.");
+    throw new Error("Staff access could not be verified.");
   }
-  if (!viewer.isAdmin) redirect("/?notice=admin-access-required");
+  if (!allowedRoles.some((role) => viewer.staffRoles.includes(role))) {
+    redirect("/?notice=staff-access-required");
+  }
   if (viewer.aal !== "aal2") redirect("/auth/mfa-required");
   return viewer;
 }

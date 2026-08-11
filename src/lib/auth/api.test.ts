@@ -7,7 +7,11 @@ vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(),
 }));
 
-import { getAdminApiContext, getAuthenticatedApiContext } from "@/lib/auth/api";
+import {
+  getAdminApiContext,
+  getAuthenticatedApiContext,
+  getStaffApiContext,
+} from "@/lib/auth/api";
 import { getViewer } from "@/lib/auth/dal";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { unstable_rethrow } from "next/navigation";
@@ -62,6 +66,7 @@ describe("authenticated API context", () => {
       state: "authenticated",
       id: "user-1",
       email: null,
+      staffRoles: [],
       isAdmin: false,
       staffRoleState: "unavailable",
       aal: "aal2",
@@ -80,6 +85,7 @@ describe("authenticated API context", () => {
       state: "authenticated",
       id: "user-1",
       email: null,
+      staffRoles: [],
       isAdmin: false,
       staffRoleState: "ready",
       aal: "aal1",
@@ -95,6 +101,7 @@ describe("authenticated API context", () => {
       state: "authenticated" as const,
       id: "user-1",
       email: null,
+      staffRoles: [],
       isAdmin: false,
       staffRoleState: "ready" as const,
       aal: "aal1" as const,
@@ -116,6 +123,7 @@ describe("authenticated API context", () => {
       state: "authenticated",
       id: "user-1",
       email: null,
+      staffRoles: [],
       isAdmin: false,
       staffRoleState: "ready",
       aal: "aal1",
@@ -135,6 +143,7 @@ describe("authenticated API context", () => {
       state: "authenticated",
       id: "user-1",
       email: null,
+      staffRoles: [],
       isAdmin: false,
       staffRoleState: "ready",
       aal: "aal2",
@@ -150,6 +159,7 @@ describe("authenticated API context", () => {
       state: "authenticated",
       id: "admin-1",
       email: null,
+      staffRoles: ["admin"],
       isAdmin: true,
       staffRoleState: "ready",
       aal: "aal1",
@@ -168,10 +178,29 @@ describe("authenticated API context", () => {
       state: "authenticated",
       id: "admin-1",
       email: "admin@example.com",
+      staffRoles: ["admin"],
       isAdmin: true,
       staffRoleState: "ready",
       aal: "aal2",
     });
     expect((await getAdminApiContext()).ok).toBe(true);
+  });
+
+  it("admits only a role explicitly allowed by the staff operation", async () => {
+    mockedCreateClient.mockResolvedValue({} as never);
+    mockedViewer.mockResolvedValue({
+      state: "authenticated",
+      id: "moderator-1",
+      email: "moderator@example.com",
+      staffRoles: ["moderator"],
+      isAdmin: false,
+      staffRoleState: "ready",
+      aal: "aal2",
+    });
+
+    expect((await getStaffApiContext(["moderator", "admin"])).ok).toBe(true);
+    const denied = await getStaffApiContext(["data_quality", "admin"]);
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) expect(denied.response.status).toBe(403);
   });
 });
