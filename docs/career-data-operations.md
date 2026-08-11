@@ -12,6 +12,10 @@ in [board discovery scripts](../scripts) and
   protected evidence-rich detail view (AAL2 data-quality/admin). Status
   transitions remain AAL2 admin-only and require a reason, optimistic version
   and dual audit trail.
+- `/admin/jobs/intake` — AAL2 data-quality/admin staff can retain a source URL,
+  source statement, normalized job fields and explicit eligibility evidence in
+  a pending moderation case. Intake never publishes directly; only an AAL2
+  admin can approve after reviewing the protected detail.
 - `/admin/sources` — enable / disable / request review; rights auto-expire on
   lapsed review with a critical alert; fail-closed everywhere.
 - `/admin/source-health` — per-source 14-day runs, rights state, supply
@@ -31,9 +35,7 @@ in [board discovery scripts](../scripts) and
 
 ## Known gaps (ranked in the completion audit)
 
-1. No operator job intake (URL / structured form / bulk upload UI); the CSV
-   grant machinery exists in the database with no caller.
+1. No bulk upload UI; the CSV grant machinery exists in the database with no
+   caller. URL-backed structured operator intake now uses the normal moderation
+   queue.
 2. No employer-matching, eligibility-review or salary-evidence-review queues.
-3. Employer-submitted salary evidence cites the submitted numbers as their
-   own source, and eligibility is stamped `manually_verified`/0.80 without a
-   reviewer asserting it.

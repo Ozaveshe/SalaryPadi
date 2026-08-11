@@ -1158,6 +1158,26 @@ export type Database = {
           source_data: Json;
         }[];
       };
+      admin_get_job_intake_detail: {
+        Args: { p_submission_id: string };
+        Returns: {
+          moderation_data: Json;
+          submission_data: Json;
+        }[];
+      };
+      admin_list_job_intake: {
+        Args: { p_limit?: number };
+        Returns: {
+          case_version: number;
+          company_name: string;
+          id: string;
+          moderation_case_id: string;
+          source_url: string;
+          status: string;
+          submitted_at: string;
+          title: string;
+        }[];
+      };
       admin_search_jobs: {
         Args: {
           p_limit?: number;
@@ -1177,6 +1197,10 @@ export type Database = {
           updated_at: string;
           version: number;
         }[];
+      };
+      admin_submit_job_intake: {
+        Args: { p_payload: Json };
+        Returns: string;
       };
       admin_list_moderation: {
         Args: never;

@@ -34,6 +34,11 @@ export default async function JobsAdminPage({
       <Suspense fallback={null}>
         <AdminTransitionNotice />
       </Suspense>
+      <div className="cluster">
+        <Link className="button" href="/admin/jobs/intake">
+          Submit source-backed job
+        </Link>
+      </div>
       <form
         className="surface surface-pad stack"
         action="/admin/jobs"
