@@ -343,16 +343,25 @@ set status = 'active',
     ],
     policy_review_due_at = timestamptz '2027-08-11 00:00:00+00',
     terms_reviewed_at = timestamptz '2026-08-11 00:00:00+00',
-    authorization_basis = 'first_party',
+    required_dependencies = array[
+      'moderated_employer_submission', 'authorization_attestation'
+    ],
+    missing_dependencies = '{}'::text[]
+where adapter_key = 'salarypadi_employer_submissions';
+
+-- Changing the source policy deliberately invalidates its prior authorization
+-- in the policy-change trigger. Record the newly reviewed authorization in a
+-- separate statement so that invalidation cannot overwrite this review.
+update app.job_sources
+set authorization_basis = 'first_party',
     authorization_evidence_ref =
       'repo:docs/JOB_SOURCE_POLICY_MATRIX.md:direct-employer-submissions:reviewed-2026-08-11',
     authorization_reviewed_at = timestamptz '2026-08-11 00:00:00+00',
     authorization_expires_at = null,
     authorization_revoked_at = null,
-    required_dependencies = array[
-      'moderated_employer_submission', 'authorization_attestation'
-    ],
-    missing_dependencies = '{}'::text[]
+    authorization_revoked_by = null,
+    authorization_revocation_reason = null,
+    may_email_jobs = false
 where adapter_key = 'salarypadi_employer_submissions';
 
 -- The direct-salary trigger records the disclosed numbers. Attach the retained
