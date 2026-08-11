@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, security, audit;
-select plan(25);
+select plan(27);
 
 select ok(to_regprocedure('api.admin_submit_job_intake(jsonb)') is not null,
   'operator intake mutation exists');
@@ -97,6 +97,8 @@ select api.admin_submit_job_intake(jsonb_build_object(
   'deadline', '2026-09-01',
   'source_url', 'https://operator-evidence.example.test/jobs/engineer',
   'source_evidence', 'Employer page states the role, location, salary and eligibility.',
+  'authorization_evidence', 'Written employer permission retained in the operations case.',
+  'authorization_attestation', 'on',
   'intake_reason', 'Direct employer role relevant to Nigerian candidates.'
 ));
 
@@ -114,6 +116,12 @@ select is(
   'detail retains the operator source statement'
 );
 select is(
+  (select submission_data ->> 'authorization_evidence'
+   from api.admin_get_job_intake_detail((select id from test_job_intake_ids))),
+  'Written employer permission retained in the operations case.',
+  'detail retains publication authorization evidence'
+);
+select is(
   (select submission_data ->> 'eligibility_evidence'
    from api.admin_get_job_intake_detail((select id from test_job_intake_ids))),
   'The source explicitly accepts applicants in Nigeria.',
@@ -126,6 +134,13 @@ select ok(
 );
 
 reset role;
+select ok(
+  security.job_source_policy_is_runnable((
+    select id from app.job_sources
+    where adapter_key = 'salarypadi_employer_submissions'
+  )),
+  'reviewed first-party submission policy is current and runnable'
+);
 select is(
   (select submission_kind from private.employer_job_submissions
    where id = (select id from test_job_intake_ids)),

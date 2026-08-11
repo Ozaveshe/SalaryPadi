@@ -107,6 +107,32 @@ export default async function OperatorJobIntakePage() {
               />
             </div>
             <div className="field field-span-2">
+              <label htmlFor="authorization_evidence">
+                Documented permission to share and publish
+              </label>
+              <textarea
+                className="textarea"
+                id="authorization_evidence"
+                name="authorization_evidence"
+                minLength={10}
+                maxLength={2_000}
+                required
+              />
+              <p className="field-help">
+                Record the employer contact, agreement or first-party evidence.
+                A publicly reachable page alone is not republication permission.
+              </p>
+            </div>
+            <label className="checkbox-row field-span-2">
+              <input
+                type="checkbox"
+                name="authorization_attestation"
+                required
+              />
+              I confirm SalaryPadi has documented permission to retain and
+              publish these submitted fields.
+            </label>
+            <div className="field field-span-2">
               <label htmlFor="intake_reason">
                 Why this job belongs in SalaryPadi
               </label>

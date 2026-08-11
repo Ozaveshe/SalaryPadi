@@ -8,6 +8,7 @@ alter table private.employer_job_submissions
   add column if not exists submission_kind text not null default 'employer',
   add column if not exists source_url text,
   add column if not exists source_evidence text,
+  add column if not exists authorization_evidence text,
   add column if not exists intake_reason text;
 
 alter table private.employer_job_submissions
@@ -22,6 +23,7 @@ alter table private.employer_job_submissions
     submission_kind <> 'operator' or (
       source_url is not null
       and char_length(source_evidence) between 10 and 2000
+      and char_length(authorization_evidence) between 10 and 2000
       and char_length(intake_reason) between 3 and 500
     )
   );
@@ -60,7 +62,7 @@ begin
          'visa_sponsorship', 'salary_minimum', 'salary_maximum', 'currency',
          'pay_period', 'gross_net', 'description', 'requirements', 'benefits',
          'application_url', 'deadline', 'source_url', 'source_evidence',
-         'intake_reason'
+         'intake_reason', 'authorization_evidence', 'authorization_attestation'
        ])
      ) then
     raise exception using errcode = '22023', message = 'invalid operator intake payload';
@@ -95,6 +97,8 @@ begin
      or (nullif(p_payload ->> 'company_website', '') is not null
        and (p_payload ->> 'company_website') !~* '^https://')
      or char_length(btrim(coalesce(p_payload ->> 'source_evidence', ''))) not between 10 and 2000
+     or char_length(btrim(coalesce(p_payload ->> 'authorization_evidence', ''))) not between 10 and 2000
+     or coalesce(p_payload ->> 'authorization_attestation', '') <> 'on'
      or char_length(btrim(coalesce(p_payload ->> 'intake_reason', ''))) not between 3 and 500
      or char_length(coalesce(p_payload ->> 'included_countries', '')) > 1000
      or char_length(coalesce(p_payload ->> 'excluded_countries', '')) > 1000
@@ -148,7 +152,7 @@ begin
     currency_code, pay_period, gross_net, description_text,
     requirements_text, benefits_text, application_url, deadline,
     authorization_attested, status, submission_kind, source_url,
-    source_evidence, intake_reason
+    source_evidence, authorization_evidence, intake_reason
   ) values (
     (select auth.uid()), v_company_id, btrim(p_payload ->> 'company_name'),
     v_company_website, btrim(p_payload ->> 'title'),
@@ -174,6 +178,7 @@ begin
     nullif(btrim(p_payload ->> 'benefits'), ''), p_payload ->> 'application_url',
     nullif(p_payload ->> 'deadline', '')::date, true, 'pending', 'operator',
     p_payload ->> 'source_url', btrim(p_payload ->> 'source_evidence'),
+    btrim(p_payload ->> 'authorization_evidence'),
     btrim(p_payload ->> 'intake_reason')
   ) returning id into v_id;
 
@@ -251,6 +256,7 @@ begin
     'requirements', submission.requirements_text, 'benefits', submission.benefits_text,
     'application_url', submission.application_url, 'deadline', submission.deadline,
     'source_url', submission.source_url, 'source_evidence', submission.source_evidence,
+    'authorization_evidence', submission.authorization_evidence,
     'intake_reason', submission.intake_reason, 'status', submission.status::text,
     'submitted_at', submission.submitted_at, 'updated_at', submission.updated_at
   ), jsonb_build_object(
@@ -322,6 +328,33 @@ join app.job_sources source on source.id = job.source_id
 where eligibility.job_id = job.id
   and source.adapter_key = 'salarypadi_employer_submissions';
 
+-- The first-party submission lane is authorized per record. Both employer and
+-- operator submissions retain an authorization attestation, enter moderation,
+-- and remain unpublished until approval. A reachable public URL alone is not
+-- an authorization basis.
+update app.job_sources
+set status = 'active',
+    policy_state = 'enabled',
+    authority = 'direct_employer',
+    allowed_fields = array[
+      'title', 'company', 'description', 'application_url', 'location',
+      'source_url', 'work_arrangement', 'eligibility', 'salary', 'deadline',
+      'valid_through', 'employment_type', 'engagement_type'
+    ],
+    policy_review_due_at = timestamptz '2027-08-11 00:00:00+00',
+    terms_reviewed_at = timestamptz '2026-08-11 00:00:00+00',
+    authorization_basis = 'first_party',
+    authorization_evidence_ref =
+      'repo:docs/JOB_SOURCE_POLICY_MATRIX.md:direct-employer-submissions:reviewed-2026-08-11',
+    authorization_reviewed_at = timestamptz '2026-08-11 00:00:00+00',
+    authorization_expires_at = null,
+    authorization_revoked_at = null,
+    required_dependencies = array[
+      'moderated_employer_submission', 'authorization_attestation'
+    ],
+    missing_dependencies = '{}'::text[]
+where adapter_key = 'salarypadi_employer_submissions';
+
 -- The direct-salary trigger records the disclosed numbers. Attach the retained
 -- source reference after that trigger runs so the row is evidence-bearing,
 -- rather than merely repeating the salary as its own citation.
@@ -366,5 +399,11 @@ revoke all on function api.admin_list_job_intake(integer) from public, anon;
 grant execute on function api.admin_list_job_intake(integer) to authenticated;
 revoke all on function api.admin_get_job_intake_detail(uuid) from public, anon;
 grant execute on function api.admin_get_job_intake_detail(uuid) to authenticated;
+revoke all on function security.operator_submission_job_source()
+  from public, anon, authenticated, service_role;
+revoke all on function security.submission_eligibility_provenance()
+  from public, anon, authenticated, service_role;
+revoke all on function security.attach_direct_salary_source_reference()
+  from public, anon, authenticated, service_role;
 
 commit;

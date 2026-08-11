@@ -36,6 +36,9 @@ function validPayload() {
     source_url: "https://example.test/jobs/platform",
     source_evidence:
       "Employer job page with role, location and eligibility wording.",
+    authorization_evidence:
+      "Written employer permission retained in the operations case.",
+    authorization_attestation: "on",
     intake_reason: "Direct employer role relevant to Nigerian candidates.",
   };
 }

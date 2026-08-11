@@ -74,6 +74,9 @@ export default async function OperatorJobIntakeDetailPage({
               <Field label="Source establishes">
                 {detail.submission_data.source_evidence}
               </Field>
+              <Field label="Publication authorization">
+                {detail.submission_data.authorization_evidence}
+              </Field>
               <Field label="Intake reason">
                 {detail.submission_data.intake_reason}
               </Field>

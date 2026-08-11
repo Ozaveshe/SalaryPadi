@@ -91,6 +91,8 @@ export const operatorJobIntakeSchema = z
     ),
     source_url: externalHttpsUrlSchema,
     source_evidence: z.string().trim().min(10).max(2_000),
+    authorization_evidence: z.string().trim().min(10).max(2_000),
+    authorization_attestation: z.literal("on"),
     intake_reason: z.string().trim().min(3).max(500),
   })
   .strict()
@@ -177,6 +179,7 @@ const submissionSchema = z
     deadline: z.string().date().nullable(),
     source_url: z.url().max(2_000),
     source_evidence: z.string().trim().min(10).max(2_000),
+    authorization_evidence: z.string().trim().min(10).max(2_000),
     intake_reason: z.string().trim().min(3).max(500),
     status: z.string().min(1).max(80),
     submitted_at: z.iso.datetime({ offset: true }),
