@@ -15,9 +15,11 @@ in [board discovery scripts](../scripts) and
 - `/admin/source-health` — per-source 14-day runs, rights state, supply
   canary, apply-link failures, open alerts.
 - `/admin/imports` — read-only by design (no blind retry).
-- `/admin/duplicates` — compare fuzzy pairs, keep either canonical job or
-  dismiss the match; confirmation relinks source occurrences and records
-  immutable canonical plus staff audit evidence (AAL2 data-quality/admin).
+- `/admin/duplicates` — open a protected case-detail route, compare full job
+  text and field-by-field source, terms, location, eligibility, salary and
+  freshness evidence, then keep either canonical job or dismiss the match;
+  confirmation relinks source occurrences and records immutable canonical plus
+  staff audit evidence (AAL2 data-quality/admin).
 - `/admin/company-claims` — claim / verify / reject / revoke; each row states
   whether the claimant's email matches an official domain, and verifying a
   mismatch requires an `override:domain_mismatch` reason
@@ -27,16 +29,13 @@ in [board discovery scripts](../scripts) and
 
 ## Known gaps (ranked in the completion audit)
 
-1. Every admin resource renders one generic 4-column table: no job detail
+1. The job admin resource still renders a generic 4-column table: no job detail
    view, no search, `admin_list('jobs')` caps at 200 rows by `updated_at` —
-   an operator cannot find a reported job.
-2. Duplicate comparison is inline rather than a dedicated case-detail route;
-   long job descriptions and field-by-field differences are not yet shown.
-3. No operator job intake (URL / structured form / bulk upload UI); the CSV
+   an operator cannot find a reported job. Duplicate review now has a dedicated
+   evidence-bearing detail route.
+2. No operator job intake (URL / structured form / bulk upload UI); the CSV
    grant machinery exists in the database with no caller.
-4. No employer-matching, eligibility-review or salary-evidence-review queues.
-5. `moderator` and `data_quality` role holders cannot reach any workspace —
-   every route and API gates on `admin`.
-6. Employer-submitted salary evidence cites the submitted numbers as their
+3. No employer-matching, eligibility-review or salary-evidence-review queues.
+4. Employer-submitted salary evidence cites the submitted numbers as their
    own source, and eligibility is stamped `manually_verified`/0.80 without a
    reviewer asserting it.

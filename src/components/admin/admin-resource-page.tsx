@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 
 import { AdminTransitionNotice } from "@/components/admin/admin-transition-notice";
 import { PageHeading } from "@/components/page-heading";
@@ -65,7 +66,15 @@ export async function AdminResourcePage({
               {rows.map((row) => (
                 <tr key={row.id}>
                   <td>
-                    <strong>{row.title}</strong>
+                    <strong>
+                      {resource === "duplicates" ? (
+                        <Link href={`/admin/duplicates/${row.id}`}>
+                          {row.title}
+                        </Link>
+                      ) : (
+                        row.title
+                      )}
+                    </strong>
                     {row.secondary ? <span>{row.secondary}</span> : null}
                   </td>
                   <td>

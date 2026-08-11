@@ -713,6 +713,10 @@ a:hover {
   padding-block: 0.65rem;
 }
 
+.text-prewrap {
+  white-space: pre-wrap;
+}
+
 .data-list dt {
   padding-right: 1rem;
   color: var(--text-muted);
