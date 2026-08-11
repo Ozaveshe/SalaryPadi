@@ -12,7 +12,7 @@ const adminNavigation: ReadonlyArray<
   readonly [string, string, readonly StaffRole[]]
 > = [
   ["Overview", "/admin", ["data_quality", "moderator", "admin"]],
-  ["Jobs", "/admin/jobs", ["admin"]],
+  ["Jobs", "/admin/jobs", ["data_quality", "admin"]],
   ["Duplicates", "/admin/duplicates", ["data_quality", "admin"]],
   ["Imports", "/admin/imports", ["admin"]],
   ["Sources", "/admin/sources", ["admin"]],

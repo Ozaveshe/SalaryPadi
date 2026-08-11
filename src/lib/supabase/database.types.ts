@@ -1144,6 +1144,40 @@ export type Database = {
           version: number;
         }[];
       };
+      admin_get_job_detail: {
+        Args: { p_job_id: string };
+        Returns: {
+          company_data: Json;
+          duplicate_candidate_count: number;
+          eligibility_data: Json | null;
+          job_data: Json;
+          locations_data: Json;
+          open_report_count: number;
+          publication_blockers: Json;
+          report_count: number;
+          source_data: Json;
+        }[];
+      };
+      admin_search_jobs: {
+        Args: {
+          p_limit?: number;
+          p_query?: string;
+          p_status?: string | null;
+        };
+        Returns: {
+          company_name: string;
+          external_source_id: string;
+          id: string;
+          open_report_count: number;
+          slug: string;
+          source_adapter: string;
+          source_name: string;
+          status: string;
+          title: string;
+          updated_at: string;
+          version: number;
+        }[];
+      };
       admin_list_moderation: {
         Args: never;
         Returns: {

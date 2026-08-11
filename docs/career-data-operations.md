@@ -8,8 +8,10 @@ in [board discovery scripts](../scripts) and
 
 ## What the operator can do today
 
-- `/admin/jobs` — approve / expire / remove / restore, with mandatory reason,
-  optimistic version and dual audit trail (AAL2 admin only).
+- `/admin/jobs` — search by job/source/company identifiers and inspect a
+  protected evidence-rich detail view (AAL2 data-quality/admin). Status
+  transitions remain AAL2 admin-only and require a reason, optimistic version
+  and dual audit trail.
 - `/admin/sources` — enable / disable / request review; rights auto-expire on
   lapsed review with a critical alert; fail-closed everywhere.
 - `/admin/source-health` — per-source 14-day runs, rights state, supply
@@ -29,13 +31,9 @@ in [board discovery scripts](../scripts) and
 
 ## Known gaps (ranked in the completion audit)
 
-1. The job admin resource still renders a generic 4-column table: no job detail
-   view, no search, `admin_list('jobs')` caps at 200 rows by `updated_at` —
-   an operator cannot find a reported job. Duplicate review now has a dedicated
-   evidence-bearing detail route.
-2. No operator job intake (URL / structured form / bulk upload UI); the CSV
+1. No operator job intake (URL / structured form / bulk upload UI); the CSV
    grant machinery exists in the database with no caller.
-3. No employer-matching, eligibility-review or salary-evidence-review queues.
-4. Employer-submitted salary evidence cites the submitted numbers as their
+2. No employer-matching, eligibility-review or salary-evidence-review queues.
+3. Employer-submitted salary evidence cites the submitted numbers as their
    own source, and eligibility is stamped `manually_verified`/0.80 without a
    reviewer asserting it.
