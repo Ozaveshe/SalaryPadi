@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, editorial, security;
-select plan(30);
+select plan(31);
 
 select has_table('editorial', 'seo_landing_pages', 'programmatic SEO landing registry exists');
 select has_table('editorial', 'topic_signals', 'editorial signal ledger exists');
@@ -141,6 +141,12 @@ select ok(
   and pg_get_functiondef('api.editorial_prepare_one_draft()'::regprocedure)
     ~ '''refreshed'', true',
   'draft worker refreshes stale deterministic briefs on a bounded cadence'
+);
+select has_trigger(
+  'editorial',
+  'articles',
+  'editorial_articles_sync_data_brief_evidence_pack',
+  'refreshed deterministic briefs keep a snapshot-aligned evidence pack'
 );
 select ok(
   pg_get_functiondef('security.enqueue_google_indexing_job_child_change()'::regprocedure)
