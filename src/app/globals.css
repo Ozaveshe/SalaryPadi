@@ -2811,6 +2811,11 @@ a:hover {
   white-space: nowrap;
 }
 
+.preserve-lines {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .analytics-consent {
   position: fixed;
   right: 1rem;

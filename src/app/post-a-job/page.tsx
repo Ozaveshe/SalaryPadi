@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { EmployerJobPreview } from "@/components/employers/employer-job-preview";
 import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { requireViewer } from "@/lib/auth/dal";
@@ -53,6 +54,7 @@ export default async function PostAJobPage({
         request additional evidence.
       </div>
       <form
+        id="employer-job-submission"
         className="contribution-form"
         action="/api/employer-submissions"
         method="post"
@@ -421,6 +423,7 @@ export default async function PostAJobPage({
           Submit for moderation
         </button>
       </form>
+      <EmployerJobPreview formId="employer-job-submission" />
     </div>
   );
 }
