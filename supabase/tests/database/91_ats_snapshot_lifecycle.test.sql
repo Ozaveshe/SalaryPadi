@@ -69,6 +69,11 @@ insert into app.companies (
     'c1000000-0000-0000-0000-000000000002',
     'ats-automatic-fixture', 'ATS Automatic Fixture',
     'https://automatic.example.test', 'domain_verified', 'published'
+  ),
+  (
+    'c1000000-0000-0000-0000-000000000003',
+    'ats-mixed-country-fixture', 'ATS Mixed Country Fixture',
+    'https://mixed.example.test', 'domain_verified', 'published'
   )
 on conflict (id) do nothing;
 
@@ -100,6 +105,16 @@ insert into app.job_sources (
     'source_url', interval '6 hours', clock_timestamp(),
     'commercial-contract-2026-07-11', null,
     null, null, null
+  ),
+  (
+    'd1000000-0000-0000-0000-000000000003',
+    'ats_lifecycle_mixed', 'ATS Lifecycle Mixed Country', 'employer_ats',
+    'draft', 'https://mixed.example.test',
+    'https://mixed.example.test/terms', true,
+    'Source: ATS Mixed Country Fixture', true, true, true, false, true,
+    'source_url', interval '6 hours', clock_timestamp(),
+    'commercial-contract-2026-07-11', null,
+    null, null, null
   )
 on conflict (id) do nothing;
 
@@ -121,6 +136,13 @@ insert into private.ats_source_configs (
     'c1000000-0000-0000-0000-000000000002',
     'ashby', 'ats_automatic_fixture',
     array['boards.example.test'], array['/automatic'],
+    interval '6 hours', 4, interval '5 minutes', 'automatic', true
+  ),
+  (
+    'd1000000-0000-0000-0000-000000000003',
+    'c1000000-0000-0000-0000-000000000003',
+    'ashby', 'ats_mixed_country_fixture',
+    array['boards.example.test'], array['/mixed'],
     interval '6 hours', 4, interval '5 minutes', 'automatic', true
   )
 on conflict (source_id) do nothing;
@@ -164,7 +186,8 @@ set status = 'active',
     authorization_revocation_reason = null
 where id in (
   'd1000000-0000-0000-0000-000000000001',
-  'd1000000-0000-0000-0000-000000000002'
+  'd1000000-0000-0000-0000-000000000002',
+  'd1000000-0000-0000-0000-000000000003'
 );
 
 insert into private.job_source_dependencies (
@@ -179,6 +202,11 @@ insert into private.job_source_dependencies (
     'd1000000-0000-0000-0000-000000000002',
     'written_employer_permission', 'verified',
     'test-evidence:ats-automatic:2026-07-11', clock_timestamp()
+  ),
+  (
+    'd1000000-0000-0000-0000-000000000003',
+    'written_employer_permission', 'verified',
+    'test-evidence:ats-mixed:2026-07-11', clock_timestamp()
   );
 
 insert into app.source_country_rights (
@@ -198,7 +226,10 @@ select source.id, 'NG', 'enabled', source.authorization_basis,
   source.allow_public_listing, source.may_index_jobs,
   source.may_emit_jobposting_schema, '{}'::text[]
 from app.job_sources source
-where source.id = 'd1000000-0000-0000-0000-000000000002';
+where source.id in (
+  'd1000000-0000-0000-0000-000000000002',
+  'd1000000-0000-0000-0000-000000000003'
+);
 
 create temporary table ats_test_runs (
   name text primary key,
@@ -851,7 +882,7 @@ select lives_ok(
 insert into ats_test_runs (name, run_id)
 select 'automatic-mixed-country', begun.import_run_id
 from api.worker_begin_ats_snapshot(
-  'ats_lifecycle_automatic', now() + interval '3500 milliseconds', 2, 2
+  'ats_lifecycle_mixed', now() + interval '3500 milliseconds', 2, 2
 ) begun
 where begun.should_run;
 
@@ -865,9 +896,9 @@ select lives_ok(
         'dedup_fingerprint', repeat('3', 64),
         'title', 'Nigeria and Kenya Product Engineer',
         'source_url',
-          'https://boards.example.test/automatic/jobs/automatic-ng-ke',
+          'https://boards.example.test/mixed/jobs/automatic-ng-ke',
         'application_url',
-          'https://boards.example.test/automatic/jobs/automatic-ng-ke/apply',
+          'https://boards.example.test/mixed/jobs/automatic-ng-ke/apply',
         'description_text', 'A role explicitly open in Lagos and Nairobi.',
         'employment_type', 'full_time',
         'locations', jsonb_build_array(
@@ -893,9 +924,9 @@ select lives_ok(
         'dedup_fingerprint', repeat('5', 64),
         'title', 'Kenya Product Engineer',
         'source_url',
-          'https://boards.example.test/automatic/jobs/automatic-ke-only',
+          'https://boards.example.test/mixed/jobs/automatic-ke-only',
         'application_url',
-          'https://boards.example.test/automatic/jobs/automatic-ke-only/apply',
+          'https://boards.example.test/mixed/jobs/automatic-ke-only/apply',
         'description_text', 'A role explicitly open only in Nairobi.',
         'employment_type', 'full_time',
         'locations', jsonb_build_array(jsonb_build_object(
@@ -916,7 +947,7 @@ select lives_ok(
 
 select is(
   (select status::text from app.jobs
-   where source_id = 'd1000000-0000-0000-0000-000000000002'
+   where source_id = 'd1000000-0000-0000-0000-000000000003'
      and external_source_id = 'automatic-ng-ke'),
   'published',
   'an inactive candidate market does not suppress explicit Nigeria eligibility'
@@ -925,14 +956,14 @@ select is(
 select ok(
   (select security.job_country_distribution_allowed(job.id, 'public')
    from app.jobs job
-   where job.source_id = 'd1000000-0000-0000-0000-000000000002'
+   where job.source_id = 'd1000000-0000-0000-0000-000000000003'
      and job.external_source_id = 'automatic-ng-ke'),
   'mixed-country publication is backed by the active Nigeria distribution right'
 );
 
 select is(
   (select status::text from app.jobs
-   where source_id = 'd1000000-0000-0000-0000-000000000002'
+   where source_id = 'd1000000-0000-0000-0000-000000000003'
      and external_source_id = 'automatic-ke-only'),
   'pending',
   'a Kenya-only role stays pending while the Kenya pack is inactive'
