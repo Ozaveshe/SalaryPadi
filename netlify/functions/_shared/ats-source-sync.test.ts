@@ -340,7 +340,11 @@ describe("ATS source sync worker", () => {
     setEnvironment("true");
     const events: string[] = [];
     const callRpc = vi.fn(
-      async (name: string, parameters?: Record<string, unknown>) => {
+      async (
+        name: string,
+        parameters?: Record<string, unknown>,
+        options?: { signal?: AbortSignal; timeoutMs?: number },
+      ) => {
         events.push(name);
         if (name === "worker_list_authorized_ats_sources") return [policyRow()];
         if (name === "worker_claim_authorized_ats_source") {
@@ -359,6 +363,7 @@ describe("ATS source sync worker", () => {
           ];
         }
         if (name === "worker_store_ats_snapshot_batch") {
+          expect(options?.timeoutMs).toBe(8_000);
           expect(parameters?.p_records).toEqual([
             expect.objectContaining({
               external_id: "123",

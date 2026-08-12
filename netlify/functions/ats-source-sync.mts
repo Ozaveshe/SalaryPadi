@@ -57,6 +57,11 @@ const MAX_PROVIDER_RECORDS = 400;
 const MAX_BATCH_RECORDS = 200;
 const MAX_BATCH_BYTES = 1024 * 1024;
 const SOURCE_FETCH_TIMEOUT_MS = 8_000;
+// A near-cap batch can legitimately take longer than the shared 4s RPC
+// default: production stored 149 Yassir rows in 6.8s, committed them, then the
+// client timed out and falsely finalized the snapshot as partial. Keep this
+// scoped to batch persistence and below the worker's 20s operation budget.
+const STORE_BATCH_TIMEOUT_MS = 8_000;
 const CLEANUP_TIMEOUT_MS = 3_000;
 
 /**
@@ -518,7 +523,7 @@ export async function runAtsSourceSync(
           "worker_store_ats_snapshot_batch",
           storeBatchResultSchema,
           { p_import_run_id: importRunId, p_records: batch },
-          { signal: execution.signal },
+          { signal: execution.signal, timeoutMs: STORE_BATCH_TIMEOUT_MS },
         );
         assertAtsBatchAcknowledgement(stored, batch.length);
       }
