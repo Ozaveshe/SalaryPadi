@@ -571,7 +571,13 @@ describe("scheduled worker successful runs", () => {
   it("finishes operations maintenance with the RPC summary", async () => {
     stubWorkerEnvironment();
     const fetchMock = installWorkerFetch({
-      rpc: { worker_run_maintenance: { cleaned: 3 } },
+      rpc: {
+        worker_run_maintenance: { cleaned: 3 },
+        worker_run_workspace_retention: {
+          retention_warnings_created: 1,
+          retention_saved_jobs_deleted: 0,
+        },
+      },
     });
 
     await operationsMaintenance(
@@ -581,7 +587,11 @@ describe("scheduled worker successful runs", () => {
 
     expect(finishBody(fetchMock)).toMatchObject({
       p_status: "succeeded",
-      p_summary: { cleaned: 3 },
+      p_summary: {
+        cleaned: 3,
+        retention_warnings_created: 1,
+        retention_saved_jobs_deleted: 0,
+      },
       p_error_code: null,
     });
   });

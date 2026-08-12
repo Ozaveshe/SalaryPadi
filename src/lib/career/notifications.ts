@@ -27,6 +27,7 @@ export const NOTIFICATION_KINDS = [
   "new_match",
   "saved_job_aging",
   "alert_digest",
+  "retention_warning",
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -60,6 +61,11 @@ export const NOTIFICATION_KIND_LABELS: Record<
     label: "Job alert digests",
     description:
       "The daily or weekly digest for the alerts you created. Sources that do not permit email distribution are never included.",
+  },
+  retention_warning: {
+    label: "Workspace retention warnings",
+    description:
+      "A warning before your chosen retention setting deletes eligible saved jobs, application history and job alerts.",
   },
 };
 

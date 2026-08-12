@@ -73,20 +73,20 @@ than two narrowing dimensions is refused regardless of cohort size.
 **Free email cannot claim an employer.** Corporate-domain checking with a
 free-provider blocklist already exists in `src/lib/employers/submission.ts`.
 
-## The real gap: retention is not user-controlled
+## User-controlled workspace retention
 
-Two separate briefs have now asked for configurable retention, and it remains
-unbuilt. The honest position:
+An account owner can choose "keep until I delete", "delete after 90 days" or
+"delete after one year". Timed retention covers only saved jobs, application
+records and their status history, and job alerts. A switch to timed retention
+starts a fresh 30-day grace period. The daily maintenance worker creates an
+in-app warning before the first eligible deletion and deletes only records
+owned by accounts that remain opted in after grace.
 
-- There is no per-workspace retention preference. A user cannot choose
-  "delete after 90 days", "delete after one year" or "keep until I delete".
-- There is no advance deletion warning.
-- Verification-document deletion is policy, not automation.
+The setting deliberately does not cover CV objects, contribution evidence,
+moderation records, account data or public aggregates. Those records remain in
+the reviewed privacy-request flow until each class has a separately tested
+secure-deletion worker. Verification-document deletion is still policy rather
+than automation; document verification therefore remains disabled.
 
-Until that ships, no trust page should claim user-controlled retention. A
-retention promise the system does not keep is worse than an honest
-description of a fixed policy, and this document exists partly so the claim
-and the code can be compared.
-
-Alongside it: an explicit data-access audit log for reads of highly sensitive
-records. Mutations are audited today; reads are not.
+The remaining gap is an explicit data-access audit log for reads of highly
+sensitive records. Mutations are audited today; reads are not.

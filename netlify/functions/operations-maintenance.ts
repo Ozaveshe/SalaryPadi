@@ -15,15 +15,21 @@ const handler = async (
     "operations_maintenance",
     request,
     context,
-    async ({ signal }) =>
-      workerSucceeded(
-        await rpc(
-          "worker_run_maintenance",
-          rpcSummaryResultSchema,
-          {},
-          { signal },
-        ),
-      ),
+    async ({ signal }) => {
+      const maintenance = await rpc(
+        "worker_run_maintenance",
+        rpcSummaryResultSchema,
+        {},
+        { signal },
+      );
+      const retention = await rpc(
+        "worker_run_workspace_retention",
+        rpcSummaryResultSchema,
+        {},
+        { signal },
+      );
+      return workerSucceeded({ ...maintenance, ...retention });
+    },
   );
 
 export default handler;

@@ -1329,6 +1329,16 @@ export type Database = {
           title: string;
         }[];
       };
+      get_my_workspace_retention: {
+        Args: never;
+        Returns: {
+          affected_records: number;
+          grace_until: string | null;
+          next_deletion_at: string | null;
+          policy: string;
+          retention_days: number | null;
+        }[];
+      };
       get_my_notification_email_optouts: {
         Args: never;
         Returns: { kind: string }[];
@@ -1361,6 +1371,10 @@ export type Database = {
       };
       set_my_notification_email_optout: {
         Args: { p_kind: string; p_opted_out: boolean };
+        Returns: boolean;
+      };
+      set_my_workspace_retention: {
+        Args: { p_policy: string };
         Returns: boolean;
       };
       get_my_community_profile: {
@@ -1867,6 +1881,7 @@ export type Database = {
         Returns: string;
       };
       worker_run_maintenance: { Args: never; Returns: Json };
+      worker_run_workspace_retention: { Args: never; Returns: Json };
       worker_start: {
         Args: {
           p_deploy_id?: string;
