@@ -23,9 +23,11 @@ const SECTION_LABEL = [
   "the role entails",
   "role (?:overview|summary|purpose)",
   "job (?:overview|summary|description|purpose)",
+  "job objective",
   "position (?:overview|summary|purpose)",
   "what you['\\u2019]?ll do",
   "what you will do",
+  "what you will be doing",
   "what we['\\u2019]?re looking for",
   "what we are looking for",
   "what we are looking for in you",
@@ -115,8 +117,44 @@ function restoreInlineStructure(description: string): string {
     .replace(/^\n+/, "");
 }
 
-export function toDescriptionBlocks(description: string): DescriptionBlock[] {
-  const lines = restoreInlineStructure(description)
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Repair the two boundaries that can still be recovered from legacy stored
+ * text created before inline HTML spacing was preserved. The rules are narrow:
+ * a bracketed label before a connective, or this role's exact employer name
+ * before a linking verb. They do not guess at arbitrary fused words.
+ */
+function repairStoredInlineBoundaries(
+  description: string,
+  companyName?: string,
+): string {
+  let repaired = description.replace(
+    /([\])])(?=(?:and|or|is|are|was|were|has|have|with|to|for|in|on|at|by)\b)/gi,
+    "$1 ",
+  );
+  const employer = companyName?.trim();
+  if (employer) {
+    repaired = repaired.replace(
+      new RegExp(
+        `\\b(${escapeRegExp(employer)})(?=(?:is|are|was|were|has|have)\\b)`,
+        "gi",
+      ),
+      "$1 ",
+    );
+  }
+  return repaired;
+}
+
+export function toDescriptionBlocks(
+  description: string,
+  options: { companyName?: string } = {},
+): DescriptionBlock[] {
+  const lines = restoreInlineStructure(
+    repairStoredInlineBoundaries(description, options.companyName),
+  )
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);

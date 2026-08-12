@@ -412,6 +412,7 @@ export default async function JobDetailPage({
               Role details
             </h2>
             <JobDescription
+              companyName={job.company.name}
               description={description.text}
               idPrefix="role-details"
               sourceName={job.source.name}
@@ -428,6 +429,7 @@ export default async function JobDetailPage({
                 Requirements
               </h2>
               <JobDescription
+                companyName={job.company.name}
                 description={job.requirements}
                 idPrefix="role-requirements"
               />
@@ -442,6 +444,7 @@ export default async function JobDetailPage({
                 Benefits
               </h2>
               <JobDescription
+                companyName={job.company.name}
                 description={job.benefits}
                 idPrefix="role-benefits"
               />

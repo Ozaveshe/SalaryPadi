@@ -155,6 +155,16 @@ describe("job normalization", () => {
     expect(result).toContain("- Report weekly");
   });
 
+  it("restores a missing word boundary after inline provider markup", () => {
+    const result = htmlToPlainText(
+      "<p><strong>Jumia</strong>is a marketplace supported by <a href='/logistics'>[Jumia Logistics]</a>and <a href='/pay'>[Jumia Pay]</a>.</p>",
+    );
+
+    expect(result).toBe(
+      "Jumia is a marketplace supported by [Jumia Logistics] and [Jumia Pay].",
+    );
+  });
+
   it("leaves angle brackets in prose alone rather than inventing a tag", () => {
     // Decoding before stripping would turn this into markup and delete it.
     expect(htmlToPlainText("<p>Use &lt;name&gt; as the placeholder.</p>")).toBe(
