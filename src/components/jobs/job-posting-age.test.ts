@@ -119,6 +119,32 @@ describe("job card posting-age decay", () => {
 });
 
 describe("job detail posting-age caution", () => {
+  it("labels an unknown apply host without claiming employer ownership", () => {
+    const html = renderToStaticMarkup(
+      createElement(JobTrustSummary, { job: jobPostedDaysAgo(10) }),
+    );
+    expect(html).toContain("Apply destination:");
+    expect(html).toContain("External application page (example.test)");
+    expect(html).toContain("employer ownership is not verified");
+  });
+
+  it("identifies a known employer ATS and known aggregator deterministically", () => {
+    const ats = jobPostedDaysAgo(10);
+    ats.applicationUrl = "https://boards.greenhouse.io/example/jobs/123";
+    const atsHtml = renderToStaticMarkup(
+      createElement(JobTrustSummary, { job: ats }),
+    );
+    expect(atsHtml).toContain("Employer applicant tracking system");
+    expect(atsHtml).toContain("boards.greenhouse.io");
+
+    const aggregator = jobPostedDaysAgo(10);
+    aggregator.applicationUrl = "https://linkedin.com/jobs/view/123";
+    const aggregatorHtml = renderToStaticMarkup(
+      createElement(JobTrustSummary, { job: aggregator }),
+    );
+    expect(aggregatorHtml).toContain("Job aggregator (linkedin.com)");
+  });
+
   it("says nothing about age for a recent role", () => {
     const html = renderToStaticMarkup(
       createElement(JobTrustSummary, { job: jobPostedDaysAgo(10) }),

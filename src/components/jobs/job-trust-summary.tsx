@@ -1,5 +1,9 @@
 import { CircleAlert, ExternalLink, Flag, ShieldCheck } from "lucide-react";
 
+import {
+  classifyDestination,
+  type DestinationClassification,
+} from "@/lib/canonical/application-destination";
 import { formatDate, formatEnum, formatSalaryAmount } from "@/lib/format";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
@@ -19,6 +23,24 @@ function provenanceStatement(job: Job): string {
     return "The eligibility wording comes directly from the source posting.";
   }
   return "The eligibility reading is inferred from the source wording — confirm on the original posting before applying.";
+}
+
+function destinationLabel(destination: DestinationClassification): string {
+  const host = destination.host ? ` (${destination.host})` : "";
+  switch (destination.kind) {
+    case "direct_employer":
+      return `Employer website${host}`;
+    case "employer_ats":
+      return `Employer applicant tracking system${host}`;
+    case "agency":
+      return `Recruitment agency${host}`;
+    case "email":
+      return "Application email";
+    case "aggregator":
+      return `Job aggregator${host}`;
+    case "external_board":
+      return `External application page${host}; employer ownership is not verified`;
+  }
 }
 
 function salaryRange(
@@ -160,6 +182,7 @@ export function JobTrustSummary({
         ? "Not offered per the source"
         : null;
   const evidenceText = job.eligibility.evidenceText.trim() || null;
+  const destination = classifyDestination(job.applicationUrl);
   const remoteEligibilityUncertain = remoteEligibilityUnconfirmed(job);
   const postingAge = jobPostingAge(job);
 
@@ -180,6 +203,10 @@ export function JobTrustSummary({
           <Flag aria-hidden="true" size={14} />
           report a problem
         </a>
+      </p>
+      <p className="trust-summary-line">
+        <ExternalLink aria-hidden="true" size={17} />
+        <strong>Apply destination:</strong> {destinationLabel(destination)}
       </p>
       {postingAge.note ? (
         <p className="truth-caution">
@@ -204,6 +231,10 @@ export function JobTrustSummary({
             {provenanceStatement(job)}
           </p>
           <dl className="data-list">
+            <Fact
+              label="Application destination evidence"
+              value={destination.reason}
+            />
             <Fact
               label="Countries the source names"
               value={includedCountries}
