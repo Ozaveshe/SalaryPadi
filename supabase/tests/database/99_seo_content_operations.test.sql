@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, editorial, security;
-select plan(28);
+select plan(30);
 
 select has_table('editorial', 'seo_landing_pages', 'programmatic SEO landing registry exists');
 select has_table('editorial', 'topic_signals', 'editorial signal ledger exists');
@@ -124,6 +124,23 @@ select ok(
   and pg_get_functiondef('api.editorial_prepare_one_draft()'::regprocedure)
     ~ 'editorial.claims',
   'draft generator requires an evidence pack and records deterministic claims'
+);
+select ok(
+  to_regprocedure('security.render_editorial_data_brief(text,timestamp with time zone,jsonb)') is not null
+  and pg_get_functiondef('security.render_editorial_data_brief(text,timestamp with time zone,jsonb)'::regprocedure)
+    ~ 'active-remote-jobs-nigeria-snapshot'
+  and pg_get_functiondef('security.render_editorial_data_brief(text,timestamp with time zone,jsonb)'::regprocedure)
+    ~ 'active-job-deadline-snapshot',
+  'data briefs use differentiated topic-specific snapshot copy'
+);
+select ok(
+  pg_get_functiondef('api.editorial_prepare_one_draft()'::regprocedure)
+    ~ 'article.status = ''update_required'''
+  and pg_get_functiondef('api.editorial_prepare_one_draft()'::regprocedure)
+    ~ 'interval ''7 days'''
+  and pg_get_functiondef('api.editorial_prepare_one_draft()'::regprocedure)
+    ~ '''refreshed'', true',
+  'draft worker refreshes stale deterministic briefs on a bounded cadence'
 );
 select ok(
   pg_get_functiondef('security.enqueue_google_indexing_job_child_change()'::regprocedure)
