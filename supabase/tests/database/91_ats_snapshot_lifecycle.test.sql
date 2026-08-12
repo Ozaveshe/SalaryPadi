@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(65);
+select plan(70);
 
 select ok(
   to_regprocedure(
@@ -180,6 +180,25 @@ insert into private.job_source_dependencies (
     'written_employer_permission', 'verified',
     'test-evidence:ats-automatic:2026-07-11', clock_timestamp()
   );
+
+insert into app.source_country_rights (
+  source_id, country_code, policy_state, permission_basis,
+  evidence_reference, terms_url, reviewed_at, review_due_at,
+  allowed_fields, may_store_full_description, attribution_required,
+  attribution_text, minimum_poll_interval, retention_period,
+  allow_public_display, allow_search_index, allow_google_jobposting,
+  missing_dependencies
+)
+select source.id, 'NG', 'enabled', source.authorization_basis,
+  source.authorization_evidence_ref, source.terms_url,
+  source.authorization_reviewed_at, source.policy_review_due_at,
+  source.allowed_fields, source.may_store_full_description,
+  source.attribution_required, source.attribution_text,
+  source.minimum_poll_interval, source.raw_retention,
+  source.allow_public_listing, source.may_index_jobs,
+  source.may_emit_jobposting_schema, '{}'::text[]
+from app.job_sources source
+where source.id = 'd1000000-0000-0000-0000-000000000002';
 
 create temporary table ats_test_runs (
   name text primary key,
@@ -827,6 +846,104 @@ select lives_ok(
     true, 0, '[]'::jsonb
   ) $$,
   'initial automatic snapshot finalizes successfully'
+);
+
+insert into ats_test_runs (name, run_id)
+select 'automatic-mixed-country', begun.import_run_id
+from api.worker_begin_ats_snapshot(
+  'ats_lifecycle_automatic', now() + interval '3500 milliseconds', 2, 2
+) begun
+where begun.should_run;
+
+select lives_ok(
+  $$ select api.worker_store_ats_snapshot_batch(
+    (select run_id from ats_test_runs where name = 'automatic-mixed-country'),
+    jsonb_build_array(
+      jsonb_build_object(
+        'external_id', 'automatic-ng-ke',
+        'content_hash', repeat('2', 64),
+        'dedup_fingerprint', repeat('3', 64),
+        'title', 'Nigeria and Kenya Product Engineer',
+        'source_url',
+          'https://boards.example.test/automatic/jobs/automatic-ng-ke',
+        'application_url',
+          'https://boards.example.test/automatic/jobs/automatic-ng-ke/apply',
+        'description_text', 'A role explicitly open in Lagos and Nairobi.',
+        'employment_type', 'full_time',
+        'locations', jsonb_build_array(
+          jsonb_build_object(
+            'country_code', 'NG', 'city', 'Lagos', 'is_primary', true
+          ),
+          jsonb_build_object(
+            'country_code', 'KE', 'city', 'Nairobi', 'is_primary', false
+          )
+        ),
+        'eligibility', jsonb_build_object(
+          'scope', 'named_countries', 'provenance', 'source_provided',
+          'evidence_text', 'The employer lists Lagos and Nairobi.',
+          'countries', jsonb_build_array(
+            jsonb_build_object('country_code', 'NG', 'rule', 'include'),
+            jsonb_build_object('country_code', 'KE', 'rule', 'include')
+          )
+        )
+      ),
+      jsonb_build_object(
+        'external_id', 'automatic-ke-only',
+        'content_hash', repeat('4', 64),
+        'dedup_fingerprint', repeat('5', 64),
+        'title', 'Kenya Product Engineer',
+        'source_url',
+          'https://boards.example.test/automatic/jobs/automatic-ke-only',
+        'application_url',
+          'https://boards.example.test/automatic/jobs/automatic-ke-only/apply',
+        'description_text', 'A role explicitly open only in Nairobi.',
+        'employment_type', 'full_time',
+        'locations', jsonb_build_array(jsonb_build_object(
+          'country_code', 'KE', 'city', 'Nairobi', 'is_primary', true
+        )),
+        'eligibility', jsonb_build_object(
+          'scope', 'named_countries', 'provenance', 'source_provided',
+          'evidence_text', 'The employer lists Nairobi only.',
+          'countries', jsonb_build_array(jsonb_build_object(
+            'country_code', 'KE', 'rule', 'include'
+          ))
+        )
+      )
+    )
+  ) $$,
+  'mixed-country automatic snapshot stores after normalized evidence'
+);
+
+select is(
+  (select status::text from app.jobs
+   where source_id = 'd1000000-0000-0000-0000-000000000002'
+     and external_source_id = 'automatic-ng-ke'),
+  'published',
+  'an inactive candidate market does not suppress explicit Nigeria eligibility'
+);
+
+select ok(
+  (select security.job_country_distribution_allowed(job.id, 'public')
+   from app.jobs job
+   where job.source_id = 'd1000000-0000-0000-0000-000000000002'
+     and job.external_source_id = 'automatic-ng-ke'),
+  'mixed-country publication is backed by the active Nigeria distribution right'
+);
+
+select is(
+  (select status::text from app.jobs
+   where source_id = 'd1000000-0000-0000-0000-000000000002'
+     and external_source_id = 'automatic-ke-only'),
+  'pending',
+  'a Kenya-only role stays pending while the Kenya pack is inactive'
+);
+
+select lives_ok(
+  $$ select api.worker_finalize_ats_snapshot(
+    (select run_id from ats_test_runs where name = 'automatic-mixed-country'),
+    true, 0, '[]'::jsonb
+  ) $$,
+  'mixed-country automatic snapshot finalizes successfully'
 );
 
 insert into ats_test_runs (name, run_id)
