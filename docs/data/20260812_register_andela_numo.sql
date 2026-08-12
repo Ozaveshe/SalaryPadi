@@ -17,6 +17,12 @@
 -- Data-only rows: apply directly to production, never in the migration chain.
 -- Reversible: pause either adapter_key to stop future claims without deleting
 -- its evidence, configuration, receipts, or country-rights record.
+--
+-- POST-IMPORT CONTAINMENT 2026-08-12: Andela is paused after the first worker
+-- run exposed two North-America roles whose generic global-remote wording was
+-- incorrectly widened to worldwide eligibility. Those two records were closed
+-- through api.worker_confirm_job_closed; the Kenya/South Africa record remains
+-- pending. Keep Andela paused until the regional-classifier correction is live.
 
 begin;
 
@@ -145,6 +151,12 @@ set authorization_reviewed_at = clock_timestamp(),
     missing_dependencies = '{}'::text[],
     status = 'active'
 where adapter_key in ('andela_ashby', 'numo_ashby');
+
+-- The first production receipt found a classifier defect after registration.
+-- A replay must preserve containment rather than silently reactivate Andela.
+update app.job_sources
+set status = 'paused', updated_at = clock_timestamp()
+where adapter_key = 'andela_ashby';
 
 insert into app.source_country_rights (
   source_id, country_code, policy_state, permission_basis,
