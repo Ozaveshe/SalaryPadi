@@ -176,10 +176,18 @@ export interface AtsCompleteSnapshot {
   providerRecordCount: number;
   providerReportedTotal: number | null;
   acceptedRecordCount: number;
+  /** Valid provider rows folded into another equivalent provider row. */
+  consolidatedRecordCount: number;
   filteredRecordCount: number;
   invalidRecordCount: number;
   /** True only when the provider returned a successful zero-record snapshot. */
   isEmpty: boolean;
+}
+
+export interface AtsValidatedProviderRecord<TRecord> {
+  /** Zero-based position in the provider response for safe issue reporting. */
+  sourceIndex: number;
+  record: TRecord;
 }
 
 /**
@@ -193,6 +201,15 @@ export interface AtsProviderAdapter<P extends AtsProvider, TPayload, TRecord> {
   buildEndpoint(target: AtsTargetFor<P>): URL;
   records(payload: TPayload): readonly unknown[];
   providerReportedTotal(payload: TPayload): number | null;
+  /**
+   * Some providers repeat one posting for every advertised location. Collapse
+   * only provider-defined equivalents here, after schema validation and before
+   * canonical normalization; conflicting records must remain separate so the
+   * downstream duplicate guard can quarantine the ambiguity.
+   */
+  consolidateRecords?(
+    records: readonly AtsValidatedProviderRecord<TRecord>[],
+  ): readonly AtsValidatedProviderRecord<TRecord>[];
   normalizeRecord(
     record: TRecord,
     source: AtsAuthorizedSource<P>,

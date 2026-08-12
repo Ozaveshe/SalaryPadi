@@ -13,6 +13,7 @@ import {
   buildWorkableEndpoint,
   fetchAtsSourceRecords,
 } from "./index";
+import { normalizeAtsImportRecords } from "../ats-import";
 
 const requestedAt = new Date("2026-07-10T12:00:00.000Z");
 
@@ -413,6 +414,7 @@ describe("employer-authorized ATS adapter", () => {
       providerRecordCount: 2,
       providerReportedTotal: 2,
       acceptedRecordCount: 1,
+      consolidatedRecordCount: 0,
       filteredRecordCount: 1,
       invalidRecordCount: 0,
       isEmpty: false,
@@ -629,6 +631,99 @@ describe("employer-authorized ATS adapter", () => {
       location: "Lagos, Nigeria",
       workplaceType: "remote",
     });
+  });
+
+  it("consolidates Workable location variants before eligibility normalization", async () => {
+    const source = workableSource();
+    const result = await fetchAtsSourceRecords(source, {
+      fetch: fixedFetch(
+        jsonResponse({
+          name: "Example Employer",
+          jobs: [
+            workableJob({
+              telecommuting: true,
+              country: "United States",
+              city: "New York",
+              locations: [
+                {
+                  country: "United States",
+                  countryCode: "US",
+                  city: "New York",
+                  region: "New York",
+                },
+              ],
+            }),
+            workableJob({
+              telecommuting: true,
+              country: "Nigeria",
+              city: "Lagos",
+              locations: [
+                {
+                  country: "Nigeria",
+                  countryCode: "NG",
+                  city: "Lagos",
+                  region: "Lagos",
+                },
+              ],
+            }),
+          ],
+        }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    expect(result.snapshot).toMatchObject({
+      providerRecordCount: 2,
+      acceptedRecordCount: 1,
+      consolidatedRecordCount: 1,
+      invalidRecordCount: 0,
+    });
+    expect(result.records).toHaveLength(1);
+    expect(result.records[0]?.location).toBe(
+      "New York, New York, United States; Lagos, Lagos, Nigeria",
+    );
+
+    const normalized = normalizeAtsImportRecords(result.records, {
+      sourceKey: source.key,
+      employerName: source.employerName,
+      mayStoreFullDescription: false,
+    });
+    expect(normalized.quarantinedCount).toBe(0);
+    expect(normalized.jobs).toHaveLength(1);
+    expect(normalized.jobs[0]?.eligibility).toMatchObject({
+      scope: "named_countries",
+      countries: expect.arrayContaining([
+        { country_code: "US", rule: "include" },
+        { country_code: "NG", rule: "include" },
+      ]),
+    });
+  });
+
+  it("keeps conflicting Workable shortcode variants for quarantine", async () => {
+    const source = workableSource();
+    const result = await fetchAtsSourceRecords(source, {
+      fetch: fixedFetch(
+        jsonResponse({
+          name: "Example Employer",
+          jobs: [
+            workableJob(),
+            workableJob({ title: "Different employer-published title" }),
+          ],
+        }),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    expect(result.records).toHaveLength(2);
+    const normalized = normalizeAtsImportRecords(result.records, {
+      sourceKey: source.key,
+      employerName: source.employerName,
+      mayStoreFullDescription: false,
+    });
+    expect(normalized.jobs).toHaveLength(1);
+    expect(normalized.quarantineCodes).toEqual({ duplicate_external_id: 1 });
   });
 
   it("keeps the description the details endpoint returns", async () => {
@@ -871,6 +966,7 @@ describe("employer-authorized ATS adapter", () => {
       providerRecordCount: 0,
       providerReportedTotal: 0,
       acceptedRecordCount: 0,
+      consolidatedRecordCount: 0,
       filteredRecordCount: 0,
       invalidRecordCount: 0,
       isEmpty: true,

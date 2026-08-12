@@ -23,6 +23,7 @@ import type {
   AtsProviderAdapter,
   AtsSourceConfig,
   AtsSourceRecord,
+  AtsValidatedProviderRecord,
 } from "./types";
 
 /** A hard ceiling; callers may only choose a smaller per-source limit. */
@@ -293,6 +294,7 @@ async function fetchWithAdapter<P extends AtsProvider, TPayload, TRecord>(
   const records: AtsSourceRecord[] = [];
   const invalidRecords: AtsInvalidRecordSummary[] = [];
   let filteredRecordCount = 0;
+  const validatedRecords: AtsValidatedProviderRecord<TRecord>[] = [];
 
   for (const [index, rawRecord] of providerRecords.entries()) {
     const parsedRecord = adapter.recordSchema.safeParse(rawRecord);
@@ -305,17 +307,21 @@ async function fetchWithAdapter<P extends AtsProvider, TPayload, TRecord>(
       continue;
     }
 
+    validatedRecords.push({ sourceIndex: index, record: parsedRecord.data });
+  }
+
+  const recordsToNormalize =
+    adapter.consolidateRecords?.(validatedRecords) ?? validatedRecords;
+  const consolidatedRecordCount =
+    validatedRecords.length - recordsToNormalize.length;
+  for (const { sourceIndex, record } of recordsToNormalize) {
     try {
-      const normalized = adapter.normalizeRecord(
-        parsedRecord.data,
-        source,
-        checkedAt,
-      );
+      const normalized = adapter.normalizeRecord(record, source, checkedAt);
       if (normalized) records.push(normalized);
       else filteredRecordCount += 1;
     } catch {
       invalidRecords.push({
-        index,
+        index: sourceIndex,
         stage: "normalization",
         issuePaths: [],
       });
@@ -330,6 +336,7 @@ async function fetchWithAdapter<P extends AtsProvider, TPayload, TRecord>(
       providerRecordCount: providerRecords.length,
       providerReportedTotal: adapter.providerReportedTotal(parsed.data),
       acceptedRecordCount: records.length,
+      consolidatedRecordCount,
       filteredRecordCount,
       invalidRecordCount: invalidRecords.length,
       isEmpty: providerRecords.length === 0,

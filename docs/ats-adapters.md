@@ -23,6 +23,15 @@ Owner decision 2026-07-21: an employer's own public ATS board is a valid
 basis for display, with guardrails — attribution, employer apply URL as the
 only destination, instant revocation.
 
+### Workable location variants
+
+Workable's widget can emit one row per posting-location pair. The adapter
+consolidates those rows only when every non-location employer fact is
+identical, then evaluates eligibility from the complete location set.
+Conflicting rows keep their duplicate external ID and are quarantined. Fetch
+receipts expose `consolidatedRecordCount`, so every provider row remains
+reconcilable with accepted, filtered and invalid counts.
+
 ## The contract every adapter must define
 
 Adding a provider means answering all twelve of these in code, not

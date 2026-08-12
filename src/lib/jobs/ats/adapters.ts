@@ -34,6 +34,7 @@ import type {
   AtsProviderAdapter,
   AtsSalaryEvidence,
   AtsSourceRecord,
+  AtsValidatedProviderRecord,
 } from "./types";
 
 const PROVIDER_DESTINATION_HOSTS = {
@@ -299,14 +300,115 @@ function ashbySalaryEvidence(job: AshbyJob): AtsSalaryEvidence | null {
   };
 }
 
+type WorkableLocation = NonNullable<WorkableJob["locations"]>[number];
+
+function workableLocations(job: WorkableJob): WorkableLocation[] {
+  if (job.locations?.length) return job.locations;
+
+  const location = {
+    country: job.country,
+    city: job.city,
+    region: job.state,
+  } satisfies WorkableLocation;
+  return Object.values(location).some((value) => optionalText(value))
+    ? [location]
+    : [];
+}
+
+function workableLocationKey(location: WorkableLocation): string {
+  return [
+    location.city,
+    location.region,
+    location.country,
+    location.countryCode,
+  ]
+    .map((value) => optionalText(value)?.toLocaleLowerCase("en-US") ?? "")
+    .join("|");
+}
+
+function workablePostingIdentity(job: WorkableJob): string {
+  return JSON.stringify({
+    title: job.title,
+    shortcode: job.shortcode,
+    description: job.description ?? null,
+    employmentType: job.employment_type ?? null,
+    telecommuting: job.telecommuting ?? null,
+    department: job.department ?? null,
+    url: job.url,
+    applicationUrl: job.application_url,
+    publishedOn: job.published_on ?? null,
+  });
+}
+
+/**
+ * Workable's widget emits one row per posting-location pair. Treating those
+ * rows as duplicate jobs made whichever location happened to appear first the
+ * sole eligibility evidence and quarantined every remaining location. Merge
+ * only rows whose non-location employer facts are identical; any conflict is
+ * retained for the generic duplicate guard to quarantine.
+ */
+function consolidateWorkableRecords(
+  records: readonly AtsValidatedProviderRecord<WorkableJob>[],
+): AtsValidatedProviderRecord<WorkableJob>[] {
+  const consolidated: AtsValidatedProviderRecord<WorkableJob>[] = [];
+  const primaryByShortcode = new Map<string, number>();
+
+  for (const entry of records) {
+    const primaryIndex = primaryByShortcode.get(entry.record.shortcode);
+    if (primaryIndex === undefined) {
+      primaryByShortcode.set(entry.record.shortcode, consolidated.length);
+      consolidated.push({
+        ...entry,
+        record: {
+          ...entry.record,
+          locations: workableLocations(entry.record),
+        },
+      });
+      continue;
+    }
+
+    const primary = consolidated[primaryIndex]!;
+    if (
+      workablePostingIdentity(primary.record) !==
+      workablePostingIdentity(entry.record)
+    ) {
+      consolidated.push(entry);
+      continue;
+    }
+
+    const locations = [
+      ...workableLocations(primary.record),
+      ...workableLocations(entry.record),
+    ];
+    const seen = new Set<string>();
+    consolidated[primaryIndex] = {
+      ...primary,
+      record: {
+        ...primary.record,
+        locations: locations.filter((location) => {
+          const key = workableLocationKey(location);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        }),
+      },
+    };
+  }
+
+  return consolidated;
+}
+
 function workableLocation(job: WorkableJob): string | null {
-  const primary = job.locations?.[0];
-  const parts = [
-    optionalText(primary?.city) ?? optionalText(job.city),
-    optionalText(primary?.region) ?? optionalText(job.state),
-    optionalText(primary?.country) ?? optionalText(job.country),
-  ].filter((value): value is string => Boolean(value));
-  return parts.length > 0 ? parts.join(", ") : null;
+  const locations = workableLocations(job)
+    .map((location) =>
+      [location.city, location.region, location.country]
+        .map(optionalText)
+        .filter((value): value is string => Boolean(value))
+        .join(", "),
+    )
+    .filter(Boolean);
+  const uniqueLocations = [...new Set(locations)];
+  return uniqueLocations.length > 0 ? uniqueLocations.join("; ") : null;
 }
 
 function workableRecord(
@@ -385,6 +487,7 @@ export const workableAdapter: AtsProviderAdapter<
   buildEndpoint: buildWorkableEndpoint,
   records: (payload) => payload.jobs,
   providerReportedTotal: () => null,
+  consolidateRecords: consolidateWorkableRecords,
   normalizeRecord: workableRecord,
 };
 
