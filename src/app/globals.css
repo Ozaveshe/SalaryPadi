@@ -1489,6 +1489,13 @@ a:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.job-eligibility-basis {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
 .tag-list {
   display: flex;
   flex-wrap: wrap;

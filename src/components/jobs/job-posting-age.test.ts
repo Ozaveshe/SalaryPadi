@@ -30,7 +30,8 @@ function jobPostedDaysAgo(days: number): Job {
       workAuthorization: null,
       visaSponsorship: "unclear",
       relocationSupport: "unclear",
-      evidenceText: "",
+      evidenceText:
+        "The employer source explicitly lists Nigeria among the accepted hiring locations.",
       provenance: "source_provided",
       lastVerifiedAt: new Date(Date.now() - DAY_MS).toISOString(),
     },
@@ -64,6 +65,33 @@ function cardMarkup(days: number) {
 }
 
 describe("job card posting-age decay", () => {
+  it("shows the evidence behind eligibility and identifies the source relationship", () => {
+    const html = cardMarkup(10);
+    expect(html).toContain("Why this eligibility label:");
+    expect(html).toContain(
+      "The employer source explicitly lists Nigeria among the accepted hiring locations.",
+    );
+    expect(html).toContain("Reviewed job source");
+    expect(html).not.toContain("permitted_api");
+  });
+
+  it("labels a direct employer source without claiming every source is direct", () => {
+    const direct = jobPostedDaysAgo(10);
+    direct.source.type = "employer";
+    const html = renderToStaticMarkup(createElement(JobCard, { job: direct }));
+    expect(html).toContain("Direct employer source");
+    expect(html).not.toContain("Reviewed partner source");
+  });
+
+  it("bounds long eligibility evidence on a result card", () => {
+    const verbose = jobPostedDaysAgo(10);
+    verbose.eligibility.evidenceText = `Nigeria is explicitly named ${"evidence ".repeat(50)}`;
+    const html = renderToStaticMarkup(createElement(JobCard, { job: verbose }));
+    expect(html).toContain("Nigeria is explicitly named");
+    expect(html).toContain("…");
+    expect(html).not.toContain("evidence ".repeat(30));
+  });
+
   it("leaves a recent role undecorated", () => {
     const html = cardMarkup(10);
     expect(html).toContain('data-posting-age="current"');

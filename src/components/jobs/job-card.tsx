@@ -21,6 +21,22 @@ import {
   publicLocation,
 } from "@/lib/presentation/public-field";
 
+const SOURCE_TYPE_LABELS: Record<Job["source"]["type"], string> = {
+  employer: "Direct employer source",
+  partner: "Reviewed partner source",
+  permitted_api: "Reviewed job source",
+  manual: "SalaryPadi-reviewed source",
+};
+
+function eligibilityBasis(job: Job): string | null {
+  const evidence = job.eligibility.evidenceText.replace(/\s+/g, " ").trim();
+  if (!evidence) return null;
+  if (evidence.length <= 220) return evidence;
+  const candidate = evidence.slice(0, 217);
+  const boundary = candidate.lastIndexOf(" ");
+  return `${candidate.slice(0, boundary > 160 ? boundary : 217)}…`;
+}
+
 export function JobCard({
   job,
   match,
@@ -42,6 +58,7 @@ export function JobCard({
 }) {
   const evidence = getJobEvidenceLabels(job).slice(0, 5);
   const eligibilityStatement = publicEligibilityStatement(job);
+  const eligibilityEvidence = eligibilityBasis(job);
   const location = publicLocation(job);
   const workMode = publicEnum(job.workMode);
   const employmentType = publicEnum(job.employmentType);
@@ -142,8 +159,16 @@ export function JobCard({
             ))}
           </ul>
         ) : null}
+        {eligibilityStatement && eligibilityEvidence ? (
+          <p className="job-eligibility-basis">
+            <strong>Why this eligibility label:</strong> {eligibilityEvidence}
+          </p>
+        ) : null}
         <div className="job-card-footer">
           <div className="job-source-badges" aria-label="Source and freshness">
+            <span className="status status-neutral">
+              {SOURCE_TYPE_LABELS[job.source.type]}
+            </span>
             <a
               className="status status-neutral"
               href={job.sourceUrl}
