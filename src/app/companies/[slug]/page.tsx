@@ -8,6 +8,7 @@ import { TrackView } from "@/components/analytics-events";
 import { CompanyEvidenceDetails } from "@/components/companies/company-evidence-details";
 import { CompanyHeading } from "@/components/companies/company-heading";
 import { CompanyOverview } from "@/components/companies/company-overview";
+import { PayReliabilityCard } from "@/components/companies/pay-reliability-card";
 import { JsonLd } from "@/components/json-ld";
 import {
   CombinedRepositoryNotice,
@@ -15,6 +16,7 @@ import {
 } from "@/components/repository-notice";
 import {
   getCompanyBenefitsResult,
+  getCompanyPayReliabilityResult,
   getCompanyRatingMinimumSampleResult,
   getCompanyRatingResult,
   getCompanyResult,
@@ -38,6 +40,7 @@ const getCompanyPageData = cache(async (slug: string) => {
     reviewsResult,
     interviewsResult,
     benefitsResult,
+    payReliabilityResult,
     employerResponsesResult,
     salaryAggregatesResult,
   ] = await Promise.all([
@@ -47,6 +50,7 @@ const getCompanyPageData = cache(async (slug: string) => {
     getCompanyReviewsResult(slug),
     getInterviewExperiencesResult(slug),
     getCompanyBenefitsResult(slug),
+    getCompanyPayReliabilityResult(slug),
     getEmployerResponsesResult(slug),
     searchSalaryAggregatesResult({ company: slug }),
   ]);
@@ -57,6 +61,7 @@ const getCompanyPageData = cache(async (slug: string) => {
     reviewsResult,
     interviewsResult,
     benefitsResult,
+    payReliabilityResult,
     employerResponsesResult,
     salaryAggregatesResult,
   };
@@ -73,6 +78,7 @@ function hasPublishedCommunityEvidence(
     data.benefitsResult.data.some(
       (benefit) => benefit.source_kind === "community_reported",
     ) ||
+    data.payReliabilityResult.data.length > 0 ||
     data.employerResponsesResult.data.length > 0
   );
 }
@@ -144,6 +150,7 @@ export default async function CompanyPage({
     reviewsResult,
     interviewsResult,
     benefitsResult,
+    payReliabilityResult,
     employerResponsesResult,
     salaryAggregatesResult,
   } = await getCompanyPageData(slug);
@@ -160,6 +167,7 @@ export default async function CompanyPage({
   const reviews = reviewsResult.data;
   const interviews = interviewsResult.data;
   const benefits = benefitsResult.data;
+  const payReliability = payReliabilityResult.data;
   const employerResponses = employerResponsesResult.data;
   const salaryAggregates = salaryAggregatesResult.data;
   const citedJobSources = [
@@ -254,10 +262,33 @@ export default async function CompanyPage({
           reviewsResult,
           interviewsResult,
           benefitsResult,
+          payReliabilityResult,
           salaryAggregatesResult,
           employerResponsesResult,
         ]}
       />
+      {payReliability.length > 0 ? (
+        <section
+          className="rule-section stack"
+          aria-labelledby="pay-reliability-heading"
+        >
+          <div className="stack-sm">
+            <h2 className="section-title" id="pay-reliability-heading">
+              Pay reliability
+            </h2>
+            <p className="field-help m-0">
+              Published only when the privacy threshold is met. This is a
+              dominant cohort pattern, not a promise about any one payroll or
+              employee.
+            </p>
+          </div>
+          <div className="card-grid">
+            {payReliability.map((aggregate) => (
+              <PayReliabilityCard aggregate={aggregate} key={aggregate.id} />
+            ))}
+          </div>
+        </section>
+      ) : null}
       {employerResponses.length > 0 ? (
         <section
           className="rule-section stack"

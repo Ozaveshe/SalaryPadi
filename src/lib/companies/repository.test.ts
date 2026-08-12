@@ -12,6 +12,7 @@ vi.mock("@/lib/jobs/repository", () => ({
 import {
   getCompaniesResult,
   getCompanyBenefitsResult,
+  getCompanyPayReliabilityResult,
   getCompanyRatingMinimumSampleResult,
   getCompanyRatingResult,
   getCompanyResult,
@@ -183,6 +184,19 @@ const validBenefit = {
   sample_size: 5,
   confidence_label: "medium",
   last_verified_at: "2026-07-11T00:00:00.000Z",
+};
+
+const validPayReliability = {
+  id: "747c92c7-9c88-48d1-bf00-836d0eb8390b",
+  company_slug: "acme",
+  country_code: "NG",
+  sample_size: 7,
+  dominant_pattern: "usually_on_time",
+  source_month_from: "2026-01-01",
+  source_month_to: "2026-06-01",
+  verification_mix: { corporate_email: 4, document: 3 },
+  confidence_label: "medium",
+  computed_at: "2026-07-11T00:00:00.000Z",
 };
 
 describe("companies repository", () => {
@@ -378,7 +392,8 @@ describe("companies repository", () => {
       .mockResolvedValueOnce(clientReturning([validReview]))
       .mockResolvedValueOnce(clientReturning([validInterview]))
       .mockResolvedValueOnce(clientReturning([validRating]))
-      .mockResolvedValueOnce(clientReturning([validBenefit]));
+      .mockResolvedValueOnce(clientReturning([validBenefit]))
+      .mockResolvedValueOnce(clientReturning([validPayReliability]));
 
     expect((await getCompanyReviewsResult("acme")).data).toEqual([validReview]);
     expect((await getInterviewExperiencesResult("acme")).data).toEqual([
@@ -387,6 +402,9 @@ describe("companies repository", () => {
     expect((await getCompanyRatingResult("acme")).data).toEqual(validRating);
     expect((await getCompanyBenefitsResult("acme")).data).toEqual([
       validBenefit,
+    ]);
+    expect((await getCompanyPayReliabilityResult("acme")).data).toEqual([
+      validPayReliability,
     ]);
   });
 

@@ -7,6 +7,7 @@ import {
   companyRatingThresholdSchema,
   employerResponseSchema,
   interviewSchema,
+  payReliabilityAggregateSchema,
   ratingSchema,
   reviewSchema,
 } from "@/lib/companies/contracts";
@@ -27,6 +28,7 @@ type CompanyIntelligenceTable =
   | "interview_experiences"
   | "company_ratings"
   | "company_benefits"
+  | "pay_reliability_aggregates"
   | "employer_responses";
 
 async function readCompanyRowsResult<T>(
@@ -295,6 +297,19 @@ export async function getCompanyBenefitsResult(slug: string) {
 
 export async function getCompanyBenefits(slug: string) {
   return (await getCompanyBenefitsResult(slug)).data;
+}
+
+export async function getCompanyPayReliabilityResult(slug: string) {
+  return readCompanyRowsResult(
+    "pay_reliability_aggregates",
+    slug,
+    payReliabilityAggregateSchema,
+    { maximumRows: 60, rejectOverflow: true },
+  );
+}
+
+export async function getCompanyPayReliability(slug: string) {
+  return (await getCompanyPayReliabilityResult(slug)).data;
 }
 
 export async function getEmployerResponsesResult(slug: string) {

@@ -351,6 +351,38 @@ export const employerResponseSchema = z
     }
   });
 
+export const payReliabilityAggregateSchema = z
+  .object({
+    id: z.string().uuid(),
+    company_slug: slugSchema,
+    country_code: countryCodeSchema,
+    sample_size: z.coerce.number().int().min(5),
+    dominant_pattern: z.enum([
+      "always_on_time",
+      "usually_on_time",
+      "sometimes_late",
+      "often_late",
+    ]),
+    source_month_from: z.iso.date(),
+    source_month_to: z.iso.date(),
+    verification_mix: z.record(
+      z.string(),
+      z.coerce.number().int().nonnegative(),
+    ),
+    confidence_label: z.enum(["low", "medium", "high"]),
+    computed_at: timestampSchema,
+  })
+  .superRefine((aggregate, context) => {
+    if (aggregate.source_month_to < aggregate.source_month_from) {
+      context.addIssue({
+        code: "custom",
+        path: ["source_month_to"],
+        message:
+          "Pay reliability evidence end month cannot precede its start month.",
+      });
+    }
+  });
+
 export const companyRatingThresholdSchema = z.object({
   metric: z.literal("company_overall_rating"),
   min_distinct_contributors: z.coerce.number().int().min(5),
@@ -376,3 +408,6 @@ export type InterviewExperience = z.infer<typeof interviewSchema>;
 export type CompanyRating = z.infer<typeof ratingSchema>;
 export type CompanyBenefit = z.infer<typeof benefitSchema>;
 export type EmployerResponse = z.infer<typeof employerResponseSchema>;
+export type PayReliabilityAggregate = z.infer<
+  typeof payReliabilityAggregateSchema
+>;

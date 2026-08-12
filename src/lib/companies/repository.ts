@@ -6,6 +6,7 @@ export type {
   CompanyReview,
   EmployerResponse,
   InterviewExperience,
+  PayReliabilityAggregate,
 } from "@/lib/companies/contracts";
 export {
   getCompanies,
@@ -18,6 +19,8 @@ export {
   getCompanyBenefits,
   getCompanyBenefitsResult,
   getCompanyRating,
+  getCompanyPayReliability,
+  getCompanyPayReliabilityResult,
   getCompanyRatingMinimumSampleResult,
   getCompanyRatingResult,
   getCompanyReviews,

@@ -18,7 +18,7 @@ currency, period or destination.
 | ---------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | Visitor searching                  | Yes — evidence-first search with honest failure states                                    | No mobile filter sheet                                                    |
 | Candidate checking eligibility     | Yes — basis-aware badges, filters and ranking agree                                       | Evidence basis is bounded on cards; deeper comparison remains detail-only |
-| Candidate researching employer/pay | Yes — company lanes, salary lanes, employer responses rendered                            | Pay-reliability has no public company lane                                |
+| Candidate researching employer/pay | Yes — company, salary, employer-response and privacy-gated pay-reliability lanes          | Cross-company pay comparison remains salary-only                          |
 | Candidate applying and tracking    | Yes — apply-out, tracker with point-in-time snapshot                                      | 7 of 13 tracker states; no reminders beyond one date                      |
 | Candidate comparing an offer       | Partial — compare works, context carries                                                  | No persistence, scenarios, equity or currency-risk modelling              |
 | Contributor                        | Yes — five moderated flows, drafts, four-layer PII refusal                                | Retention automation for drafts/signals                                   |

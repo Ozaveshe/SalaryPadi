@@ -7,6 +7,7 @@ import {
   employerResponseSchema,
   ratingSchema,
   reviewSchema,
+  payReliabilityAggregateSchema,
 } from "./contracts";
 
 describe("company intelligence public contracts", () => {
@@ -158,6 +159,34 @@ describe("company intelligence public contracts", () => {
         country_code: "NG",
         source_month_from: "2026-06-01",
         source_month_to: "2026-05-01",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects under-threshold or inverted pay reliability cohorts", () => {
+    const aggregate = {
+      id: "7d74e9e5-c76b-469f-90e0-2d45bc89fd2e",
+      company_slug: "acme",
+      country_code: "NG",
+      sample_size: 5,
+      dominant_pattern: "usually_on_time",
+      source_month_from: "2026-01-01",
+      source_month_to: "2026-06-01",
+      verification_mix: { corporate_email: 5 },
+      confidence_label: "medium",
+      computed_at: "2026-07-14T00:00:00Z",
+    };
+    expect(payReliabilityAggregateSchema.safeParse(aggregate).success).toBe(
+      true,
+    );
+    expect(
+      payReliabilityAggregateSchema.safeParse({ ...aggregate, sample_size: 4 })
+        .success,
+    ).toBe(false);
+    expect(
+      payReliabilityAggregateSchema.safeParse({
+        ...aggregate,
+        source_month_from: "2026-07-01",
       }).success,
     ).toBe(false);
   });
