@@ -42,4 +42,17 @@ describe("publicJobDescription", () => {
       "Reviewed Feed lists this Product Designer opportunity at Example Ltd. The reviewed source does not provide description text that SalaryPadi can republish, so open the original listing for responsibilities, requirements and application instructions.",
     );
   });
+
+  it("replaces the attributed-source placeholder with useful context", () => {
+    const job = {
+      description: "Open the attributed source listing for full details.",
+      title: "Programme Officer",
+      company: { name: "Example NGO" },
+      source: { name: "ReliefWeb" },
+    } as Job;
+
+    expect(publicJobDescription(job)).toContain(
+      "ReliefWeb lists this Programme Officer opportunity at Example NGO.",
+    );
+  });
 });

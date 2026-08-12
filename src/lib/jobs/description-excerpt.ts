@@ -1,6 +1,8 @@
 import type { Job } from "./types";
 
 const DEFAULT_EXCERPT_LENGTH = 280;
+const ATTRIBUTED_SOURCE_PLACEHOLDER =
+  "Open the attributed source listing for full details.";
 
 /**
  * Returns republishable role copy for every public job.
@@ -12,7 +14,7 @@ const DEFAULT_EXCERPT_LENGTH = 280;
  */
 export function publicJobDescription(job: Job): string {
   const stored = job.description.replace(/\s+/g, " ").trim();
-  if (stored) return stored;
+  if (stored && stored !== ATTRIBUTED_SOURCE_PLACEHOLDER) return stored;
 
   return `${job.source.name} lists this ${job.title} opportunity at ${job.company.name}. The reviewed source does not provide description text that SalaryPadi can republish, so open the original listing for responsibilities, requirements and application instructions.`;
 }
