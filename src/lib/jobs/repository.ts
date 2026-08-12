@@ -1,10 +1,15 @@
 import "server-only";
 
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
 import { getServerEnvironment } from "@/lib/env";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  createPublicSupabaseClient,
+  createServerSupabaseClient,
+  type SalaryPadiSupabaseClient,
+} from "@/lib/supabase/server";
 
 import { buildJobFingerprintLookupKeys } from "./fingerprint";
 import {
@@ -68,9 +73,7 @@ export {
   getDatabaseRelatedJobsResult,
 } from "./repository-database";
 
-type ServerSupabaseClient = NonNullable<
-  Awaited<ReturnType<typeof createServerSupabaseClient>>
->;
+type ServerSupabaseClient = SalaryPadiSupabaseClient;
 
 /**
  * A snapshot stays publishable for its full reviewed refresh interval plus a
@@ -319,6 +322,7 @@ interface SecondarySourceDescriptor {
 async function getSecondarySourceFeed(
   descriptor: SecondarySourceDescriptor,
   suppliedClient?: ServerSupabaseClient | null,
+  suppliedClientFailed = false,
 ): Promise<SourceFeed> {
   const { key, reviewed, messages } = descriptor;
   const attemptedAt = new Date().toISOString();
@@ -349,6 +353,14 @@ async function getSecondarySourceFeed(
       code: `${key}_environment_disabled`,
       message: descriptor.environment.message,
     };
+  }
+
+  if (suppliedClientFailed) {
+    return sourceRegistryUnavailable(
+      key,
+      attemptedAt,
+      "source_registry_client_failed",
+    );
   }
 
   let supabase: ServerSupabaseClient | null;
@@ -690,26 +702,46 @@ const reliefWebSourceDescriptor: SecondarySourceDescriptor = {
 
 export async function getReliefWebJobFeed(
   suppliedClient?: ServerSupabaseClient | null,
+  suppliedClientFailed = false,
 ): Promise<SourceFeed> {
-  return getSecondarySourceFeed(reliefWebSourceDescriptor, suppliedClient);
+  return getSecondarySourceFeed(
+    reliefWebSourceDescriptor,
+    suppliedClient,
+    suppliedClientFailed,
+  );
 }
 
 export async function getRemotiveJobFeed(
   suppliedClient?: ServerSupabaseClient | null,
+  suppliedClientFailed = false,
 ): Promise<SourceFeed> {
-  return getSecondarySourceFeed(remotiveSourceDescriptor, suppliedClient);
+  return getSecondarySourceFeed(
+    remotiveSourceDescriptor,
+    suppliedClient,
+    suppliedClientFailed,
+  );
 }
 
 export async function getJobicyJobFeed(
   suppliedClient?: ServerSupabaseClient | null,
+  suppliedClientFailed = false,
 ): Promise<SourceFeed> {
-  return getSecondarySourceFeed(jobicySourceDescriptor, suppliedClient);
+  return getSecondarySourceFeed(
+    jobicySourceDescriptor,
+    suppliedClient,
+    suppliedClientFailed,
+  );
 }
 
 export async function getHimalayasJobFeed(
   suppliedClient?: ServerSupabaseClient | null,
+  suppliedClientFailed = false,
 ): Promise<SourceFeed> {
-  return getSecondarySourceFeed(himalayasSourceDescriptor, suppliedClient);
+  return getSecondarySourceFeed(
+    himalayasSourceDescriptor,
+    suppliedClient,
+    suppliedClientFailed,
+  );
 }
 
 /**
@@ -722,15 +754,18 @@ export async function getHimalayasJobFeed(
  * companies page had already worked around this with its own local cache().
  * Memoising at the source means every caller shares one assembly.
  */
-export const getLiveJobFeed = cache(async (): Promise<JobFeedResult> => {
-  // Resolve the client once and hand the same one to every source. On failure
-  // pass `undefined` so each source resolves (and reports) independently,
-  // exactly as it did when each built its own.
-  let shared: ServerSupabaseClient | null | undefined;
+async function assemblePublicJobFeed(): Promise<JobFeedResult> {
+  // Public policy is deliberately read with the anonymous key. This keeps a
+  // visitor's session out of the shared cache and proves the registry remains
+  // readable through the same RLS boundary as an anonymous page request.
+  let shared: ServerSupabaseClient | null;
+  let sharedClientFailed = false;
   try {
-    shared = await getRequestSupabaseClient();
-  } catch {
-    shared = undefined;
+    shared = await createPublicSupabaseClient();
+  } catch (reason) {
+    unstable_rethrow(reason);
+    shared = null;
+    sharedClientFailed = true;
   }
   const attemptedAt = new Date().toISOString();
   const startedAt = performance.now();
@@ -744,10 +779,10 @@ export const getLiveJobFeed = cache(async (): Promise<JobFeedResult> => {
   };
 
   const [himalayas, jobicy, remotive, reliefweb, database] = await Promise.all([
-    timed("himalayas", getHimalayasJobFeed(shared)),
-    timed("jobicy", getJobicyJobFeed(shared)),
-    timed("remotive", getRemotiveJobFeed(shared)),
-    timed("reliefweb", getReliefWebJobFeed(shared)),
+    timed("himalayas", getHimalayasJobFeed(shared, sharedClientFailed)),
+    timed("jobicy", getJobicyJobFeed(shared, sharedClientFailed)),
+    timed("remotive", getRemotiveJobFeed(shared, sharedClientFailed)),
+    timed("reliefweb", getReliefWebJobFeed(shared, sharedClientFailed)),
     timed("database", getDatabaseJobFeed()),
   ]);
 
@@ -766,7 +801,23 @@ export const getLiveJobFeed = cache(async (): Promise<JobFeedResult> => {
     );
   }
   return combineJobSources([himalayas, jobicy, remotive, reliefweb, database]);
-});
+}
+
+/**
+ * One minute is short enough for employer lifecycle changes to become visible
+ * promptly and long enough to remove five policy/snapshot/database round trips
+ * from every public render. HTML itself stays dynamic: the root layout owns a
+ * per-request CSP nonce and session-aware navigation that must never be shared.
+ */
+const getSharedLiveJobFeed = unstable_cache(
+  assemblePublicJobFeed,
+  ["public-job-feed-v1"],
+  { revalidate: 60, tags: ["public-job-feed"] },
+);
+
+export const getLiveJobFeed = cache(
+  async (): Promise<JobFeedResult> => await getSharedLiveJobFeed(),
+);
 
 /**
  * Memoised per request: every job detail page resolves the same slug twice,

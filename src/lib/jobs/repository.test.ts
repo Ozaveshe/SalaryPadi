@@ -19,12 +19,16 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/cache", () => ({
+  unstable_cache: <T extends (...args: never[]) => unknown>(work: T) => work,
+}));
 vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 vi.mock("@/lib/env", () => ({
   getServerEnvironment: mocks.environment,
   getSupabasePublicConfig: mocks.publicConfig,
 }));
 vi.mock("@/lib/supabase/server", () => ({
+  createPublicSupabaseClient: mocks.createClient,
   createServerSupabaseClient: mocks.createClient,
 }));
 vi.mock("./remotive-adapter", async (importOriginal) => {

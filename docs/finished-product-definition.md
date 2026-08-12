@@ -37,7 +37,9 @@ never render as zero jobs; money buys neither trust nor ranking.
 ## Acceptance criteria not yet met
 
 Deterministic e2e coverage for the member/contributor/employer/operations
-journeys (env-gated off in CI); the north-star metric's qualifying dimensions;
-and public-page caching to the p95 targets. User-controlled workspace
-retention, source-backed operator intake, searchable protected job detail and
+journeys (env-gated off in CI) and the north-star metric's qualifying
+dimensions. Public job data is cached for one minute without caching the
+session-aware HTML or its per-request CSP nonce; the production p95 still has
+to be remeasured after deployment. User-controlled workspace retention,
+source-backed operator intake, searchable protected job detail and
 duplicate-candidate field-by-field comparison are now implemented.
