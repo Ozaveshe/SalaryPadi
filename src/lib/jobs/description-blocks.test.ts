@@ -75,6 +75,48 @@ describe("job description blocks", () => {
     ]);
   });
 
+  it("restores known inline sections from a flattened provider description", () => {
+    expect(
+      toDescriptionBlocks(
+        "We serve customers. Responsibilities: Lead delivery Requirements: Five years experience Benefits: Health cover",
+      ),
+    ).toEqual([
+      { kind: "paragraph", text: "We serve customers." },
+      { kind: "heading", text: "Responsibilities" },
+      { kind: "paragraph", text: "Lead delivery" },
+      { kind: "heading", text: "Requirements" },
+      { kind: "paragraph", text: "Five years experience" },
+      { kind: "heading", text: "Benefits" },
+      { kind: "paragraph", text: "Health cover" },
+    ]);
+  });
+
+  it("does not promote ordinary short phrases without structural evidence", () => {
+    expect(
+      toDescriptionBlocks("We build products\nMore detail follows")[0],
+    ).toEqual({ kind: "paragraph", text: "We build products" });
+  });
+
+  it("recognises provider headings with a curly apostrophe", () => {
+    expect(toDescriptionBlocks("What you’ll do\nBuild useful tools")).toEqual([
+      { kind: "heading", text: "What you’ll do" },
+      { kind: "paragraph", text: "Build useful tools" },
+    ]);
+  });
+
+  it.each([
+    "What we are looking for in you",
+    "What we offer colleagues",
+    "How you'll help us achieve it",
+    "Nice-to-have skills",
+    "Application Deadline",
+    "Working at GiveDirectly",
+  ])("recognises a frequent provider section label: %s", (label) => {
+    expect(
+      toDescriptionBlocks(`${label}\nThe source text follows.`)[0],
+    ).toEqual({ kind: "heading", text: label });
+  });
+
   it("treats a short unpunctuated line between lists as the label it is", () => {
     // "Benefits" sitting between two bullet lists is a section label, not a
     // one-word paragraph. This is the case the heading rule exists for.

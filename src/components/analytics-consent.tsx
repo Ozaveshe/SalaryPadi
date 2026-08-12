@@ -111,11 +111,9 @@ export function AnalyticsConsent({
         <div>
           <strong id="analytics-consent-title">Optional analytics</strong>
           <p>
-            Help improve SalaryPadi with aggregate feature counts and Google
-            Analytics on public pages. Google receives coarse page visits,
-            browser/device context and performance metrics only after you allow
-            it. Private routes, salary values, searches, notes, email addresses
-            and free text are excluded. Read the{" "}
+            Allow anonymous public-page visits and performance counts. Salary
+            values, searches, notes, account details and private workspace
+            activity are never sent. Read the{" "}
             <Link href="/privacy">privacy notice</Link>.
           </p>
         </div>
@@ -126,7 +124,7 @@ export function AnalyticsConsent({
             onClick={() => void choose(true)}
             type="button"
           >
-            Allow optional analytics
+            Allow analytics
           </button>
           <button
             className="button button-quiet"
