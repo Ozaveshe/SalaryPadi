@@ -138,7 +138,7 @@ test("keeps audited public surface shells responsive", async ({ page }) => {
   }
 });
 
-test("uses a dismissible mobile filter sheet without duplicating controls", async ({
+test("expands mobile filters in flow without duplicating controls", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -154,11 +154,12 @@ test("uses a dismissible mobile filter sheet without duplicating controls", asyn
   await expect(sheet).toHaveAttribute("open", "");
   await expect
     .poll(() => sheet.evaluate((element) => getComputedStyle(element).position))
-    .toBe("fixed");
+    .toBe("static");
   await expect(page.getByLabel("Work mode")).toHaveCount(1);
   await expect
     .poll(() => page.evaluate(() => getComputedStyle(document.body).overflow))
-    .toBe("hidden");
+    .not.toBe("hidden");
+  await expectNoHorizontalOverflow(page);
 
   await page.keyboard.press("Escape");
   await expect(sheet).not.toHaveAttribute("open", "");
@@ -166,6 +167,8 @@ test("uses a dismissible mobile filter sheet without duplicating controls", asyn
 
   await trigger.click();
   await page.mouse.click(12, 12);
+  await expect(sheet).toHaveAttribute("open", "");
+  await trigger.click();
   await expect(sheet).not.toHaveAttribute("open", "");
 });
 
