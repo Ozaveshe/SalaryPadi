@@ -53,6 +53,10 @@ export const greenhousePayloadSchema = z
 const leverCategoriesSchema = z
   .object({
     location: z.string().trim().max(500).optional(),
+    allLocations: z
+      .array(z.string().trim().min(1).max(500))
+      .max(100)
+      .optional(),
     commitment: z.string().trim().max(100).optional(),
     team: z.string().trim().max(300).optional(),
     department: z.string().trim().max(300).optional(),

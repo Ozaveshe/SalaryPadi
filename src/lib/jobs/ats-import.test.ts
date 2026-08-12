@@ -108,6 +108,32 @@ describe("ATS import normalization", () => {
     });
   });
 
+  it("keeps Nigeria eligibility when Lever declares multiple African locations", () => {
+    const result = normalizeAtsImportRecords(
+      [
+        record({
+          provider: "lever",
+          location: "Cairo, Egypt; Lagos, Nigeria; Nairobi, Kenya",
+          workplaceType: "Hybrid",
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(result.jobs).toHaveLength(1);
+    expect(result.jobs[0]).toMatchObject({
+      work_arrangement: "hybrid",
+      eligibility: {
+        scope: "named_countries",
+        countries: expect.arrayContaining([
+          { country_code: "EG", rule: "include" },
+          { country_code: "KE", rule: "include" },
+          { country_code: "NG", rule: "include" },
+        ]),
+      },
+    });
+  });
+
   it("does not treat an unknown city as African eligibility", () => {
     const result = normalizeAtsImportRecords(
       [
