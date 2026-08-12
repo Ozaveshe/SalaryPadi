@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(29);
+select plan(31);
 
 select ok(
   to_regprocedure(
@@ -19,7 +19,8 @@ select ok(
   and to_regprocedure('api.admin_list_moderation()') is not null
   and to_regprocedure('api.admin_list_reports()') is not null
   and to_regprocedure('api.admin_list_users()') is not null
-  and to_regprocedure('api.admin_list_calculation_rules()') is not null,
+  and to_regprocedure('api.admin_list_calculation_rules()') is not null
+  and to_regprocedure('api.admin_get_moderation_backlog()') is not null,
   'all admin list RPCs used by the application exist'
 );
 
@@ -327,6 +328,30 @@ select lives_ok(
     union all select * from api.admin_list_calculation_rules()
   $$,
   'all remaining admin list RPCs return the shared row contract'
+);
+
+select lives_ok(
+  $$ select api.admin_get_moderation_backlog() $$,
+  'an AAL2 administrator can read privacy-safe moderation backlog evidence'
+);
+
+select ok(
+  (
+    with backlog as (
+      select api.admin_get_moderation_backlog() as value
+    )
+    select
+      ((value ->> 'active_count')::integer =
+        (value ->> 'open_count')::integer +
+        (value ->> 'in_review_count')::integer +
+        (value ->> 'escalated_count')::integer)
+      and (value ? 'unassigned_count')
+      and (value ? 'priority_one_count')
+      and (value ? 'older_than_24h_count')
+      and (value ? 'oldest_opened_at')
+    from backlog
+  ),
+  'moderation backlog exposes a consistent state breakdown and ageing evidence'
 );
 
 select * from finish();

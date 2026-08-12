@@ -1096,6 +1096,10 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      admin_get_moderation_backlog: {
+        Args: never;
+        Returns: Json;
+      };
       admin_list_calculation_rules: {
         Args: never;
         Returns: {

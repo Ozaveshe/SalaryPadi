@@ -16,11 +16,13 @@ export async function AdminResourcePage({
   title,
   description,
   actions,
+  summary,
 }: {
   resource: AdminResource;
   title: string;
   description: string;
   actions: string[];
+  summary?: React.ReactNode;
 }) {
   await requireStaff(staffRolesForAdminResource(resource));
   const result = await getAdminRowsResult(resource);
@@ -43,6 +45,7 @@ export async function AdminResourcePage({
       <Suspense fallback={null}>
         <AdminTransitionNotice />
       </Suspense>
+      {summary}
       {result.state !== "ready" ? (
         <div className="notice notice-warning" role="status">
           <strong>Administration queue evidence is {result.state}.</strong>{" "}
