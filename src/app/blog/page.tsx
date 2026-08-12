@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { JsonLd } from "@/components/json-ld";
-import { PageHeading } from "@/components/page-heading";
+import { EditorialCover } from "@/components/media/brand-art";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { getPublishedEditorialResult } from "@/lib/editorial/repository";
 import { getAppOrigin } from "@/lib/env";
 import { formatDate } from "@/lib/format";
 import { buildBreadcrumbStructuredData } from "@/lib/seo/structured-data";
+
+import styles from "./blog.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +50,18 @@ export default async function BlogPage() {
   const briefs = result.data.filter(
     (article) => article.article_kind === "data_brief",
   );
+  const ordered = [...result.data].sort(
+    (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
+  );
+  const featured = ordered[0] ?? null;
+  const remainingBriefs = featured
+    ? briefs.filter(({ id }) => id !== featured.id)
+    : briefs;
   const origin = getAppOrigin();
   const url = new URL("/blog", origin).toString();
 
   return (
-    <div className="site-shell stack-lg">
+    <div className={`site-shell ${styles.page}`}>
       <JsonLd
         nonce={requestHeaders.get("x-nonce")}
         data={buildBreadcrumbStructuredData([
@@ -72,92 +82,181 @@ export default async function BlogPage() {
             name: "SalaryPadi",
             url: origin,
           },
+          blogPost: ordered.map((article) => ({
+            "@type": "BlogPosting",
+            headline: article.title,
+            description: article.description,
+            datePublished: article.published_at,
+            dateModified: article.updated_at,
+            url: new URL(articlePath(article), origin).toString(),
+          })),
         }}
       />
-      <PageHeading
-        eyebrow="SalaryPadi blog"
-        title="Clear career guidance, with the evidence shown"
-        description="Use practical guides to evaluate jobs and offers, then check our data briefs for what currently verified SalaryPadi records can—and cannot—say about the market."
-      />
-      <div className="cluster">
-        <Link className="button" href="/feed.xml">
-          Follow the RSS feed
-        </Link>
-        <Link className="button button-secondary" href="/methodology">
-          How SalaryPadi verifies claims
-        </Link>
-      </div>
-      <RepositoryNotice result={result} resource="Published blog articles" />
 
-      <section className="stack" aria-labelledby="guides-heading">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Practical guides</p>
-            <h2 className="section-title" id="guides-heading">
-              Make the next decision with less guesswork
-            </h2>
-          </div>
-        </div>
-        {guides.length > 0 ? (
-          <div className="card-grid">
-            {guides.map((article) => (
-              <article className="surface surface-pad stack" key={article.id}>
-                <p className="eyebrow">Guide</p>
-                <h3 className="section-title">
-                  <Link href={articlePath(article)}>{article.title}</Link>
-                </h3>
-                <p>{article.description}</p>
-                <p className="text-muted text-sm">
-                  Updated {formatDate(article.updated_at)}
-                </p>
-              </article>
-            ))}
-          </div>
-        ) : result.state === "ready" ? (
-          <div className="empty-state">
-            <h3>No guide has passed editorial review yet</h3>
-            <p>Draft volume never substitutes for verified, useful guidance.</p>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="stack" aria-labelledby="briefs-heading">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Data briefs</p>
-            <h2 className="section-title" id="briefs-heading">
-              What verified jobs show right now
-            </h2>
-          </div>
-          <Link className="text-link" href="/insights">
-            Open the live job-market pulse
+      <header className={styles.masthead}>
+        <div className={styles.issueLine}>
+          <span>SalaryPadi Editorial</span>
+          <Link className={styles.railLink} href="/feed.xml">
+            Follow via RSS →
           </Link>
         </div>
-        {briefs.length > 0 ? (
-          <div className="card-grid">
-            {briefs.map((article) => (
-              <article className="surface surface-pad stack" key={article.id}>
-                <p className="eyebrow">Reproducible data brief</p>
-                <h3 className="section-title">
-                  <Link href={articlePath(article)}>{article.title}</Link>
-                </h3>
-                <p>{article.description}</p>
-                <p className="text-muted text-sm">
-                  Published {formatDate(article.published_at)}
-                </p>
-              </article>
-            ))}
-          </div>
-        ) : result.state === "ready" ? (
-          <div className="empty-state">
-            <h3>No current data brief is published</h3>
-            <p>
-              Stale or unsupported numbers stay out of the blog until their
-              source snapshot and checks pass again.
+        <h1 className={styles.title}>Work, pay and proof.</h1>
+        <p className={styles.deck}>
+          Practical career reporting for Nigerians and Africans. Every market
+          number is dated; every job claim keeps its source and limitations.
+        </p>
+      </header>
+
+      {result.state === "ready" ? null : (
+        <div className={styles.notice}>
+          <RepositoryNotice
+            result={result}
+            resource="Published blog articles"
+          />
+        </div>
+      )}
+
+      {featured ? (
+        <section className={styles.featured} aria-labelledby="lead-story">
+          <EditorialCover slug={featured.slug} />
+          <div className={styles.featuredCopy}>
+            <p className={styles.kicker}>
+              {featured.article_kind === "data_brief"
+                ? "Latest data brief"
+                : "Editor’s guide"}
             </p>
+            <h2 className={styles.featuredTitle} id="lead-story">
+              <Link href={articlePath(featured)}>{featured.title}</Link>
+            </h2>
+            <p className={styles.summary}>{featured.description}</p>
+            <div className={styles.storyMeta}>
+              <span>Published {formatDate(featured.published_at)}</span>
+              <span>Updated {formatDate(featured.updated_at)}</span>
+            </div>
+            <Link className={styles.railLink} href={articlePath(featured)}>
+              Read the full story →
+            </Link>
           </div>
-        ) : null}
+        </section>
+      ) : null}
+
+      <StoryRail
+        title="Practical guides"
+        id="guides-heading"
+        link={{ href: "/jobs", label: "Browse verified jobs →" }}
+        articles={guides}
+        empty={
+          result.state === "ready"
+            ? "No guide has passed editorial review yet."
+            : undefined
+        }
+      />
+      {remainingBriefs.length > 0 ? (
+        <StoryRail
+          title="The data desk"
+          id="briefs-heading"
+          link={{ href: "/insights", label: "Open market pulse →" }}
+          articles={remainingBriefs}
+        />
+      ) : null}
+
+      <section className={styles.rail} aria-labelledby="topics-heading">
+        <div className={styles.railHeader}>
+          <h2 className={styles.railTitle} id="topics-heading">
+            Explore by question
+          </h2>
+        </div>
+        <div className={styles.topicIndex}>
+          <Topic href="/jobs/remote" title="Which remote jobs can I apply for?">
+            See active roles with country-eligibility and source evidence kept
+            visible.
+          </Topic>
+          <Topic href="/salaries" title="What does the pay evidence show?">
+            Review privacy-safe salary evidence without turning estimates into
+            facts.
+          </Topic>
+          <Topic
+            href="/tools/job-scam-checker"
+            title="Does this job look trustworthy?"
+          >
+            Check warning signs before sharing documents, money or personal
+            information.
+          </Topic>
+          <Topic href="/methodology" title="How are claims verified?">
+            Read the publication, freshness and unknown-state rules behind
+            SalaryPadi.
+          </Topic>
+        </div>
       </section>
+    </div>
+  );
+}
+
+function StoryRail({
+  title,
+  id,
+  link,
+  articles,
+  empty,
+}: {
+  title: string;
+  id: string;
+  link: { href: string; label: string };
+  articles: Awaited<ReturnType<typeof getPublishedEditorialResult>>["data"];
+  empty?: string;
+}) {
+  return (
+    <section className={styles.rail} aria-labelledby={id}>
+      <div className={styles.railHeader}>
+        <h2 className={styles.railTitle} id={id}>
+          {title}
+        </h2>
+        <Link className={styles.railLink} href={link.href}>
+          {link.label}
+        </Link>
+      </div>
+      {articles.length ? (
+        <div className={styles.storyGrid}>
+          {articles.map((article) => (
+            <article className={styles.story} key={article.id}>
+              <p className={styles.kicker}>
+                {article.article_kind === "data_brief"
+                  ? "Reproducible snapshot"
+                  : "Practical guide"}
+              </p>
+              <h3 className={styles.storyTitle}>
+                <Link href={articlePath(article)}>{article.title}</Link>
+              </h3>
+              <p className={styles.summary}>{article.description}</p>
+              <p className={styles.storyMeta}>
+                Published {formatDate(article.published_at)}
+              </p>
+            </article>
+          ))}
+        </div>
+      ) : empty ? (
+        <div className="empty-state">
+          <h3>{empty}</h3>
+          <p>Draft volume never substitutes for verified, useful guidance.</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function Topic({
+  href,
+  title,
+  children,
+}: {
+  href: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={styles.topic}>
+      <Link href={href}>{title}</Link>
+      <p>{children}</p>
     </div>
   );
 }

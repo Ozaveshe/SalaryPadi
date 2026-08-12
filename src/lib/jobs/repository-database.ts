@@ -14,6 +14,7 @@ import { discardResponseBody } from "@/lib/http/body";
 import { readBoundedJson } from "@/lib/http/json";
 
 import { decodeDatabaseJobRow } from "./database";
+import { JOB_POSTING_WITHDRAWAL_DAYS } from "./posting-age";
 import { sourceUnavailable, type SourceFeed } from "./repository-contracts";
 import type { Job } from "./types";
 
@@ -40,8 +41,6 @@ const DATABASE_JOB_SELECT_COLUMNS = [
   "external_source_id",
   "title",
   "description_text",
-  "requirements_text",
-  "benefits_text",
   "work_arrangement",
   "employment_type",
   "engagement_type",
@@ -88,7 +87,6 @@ const DATABASE_JOB_SELECT_COLUMNS = [
   "locations",
   "eligibility_countries",
   "skills",
-  "risk_indicators",
 ].join(",");
 
 function uniqueJobsById(jobs: Job[]) {
@@ -121,6 +119,15 @@ export async function getDatabaseJobFeed(): Promise<SourceFeed> {
 
   const endpoint = new URL("/rest/v1/jobs", configuration.url);
   endpoint.searchParams.set("select", DATABASE_JOB_SELECT_COLUMNS);
+  // Do not transfer records the shared publication gate will immediately
+  // withdraw. This materially shrinks the canonical feed and keeps Supabase
+  // cold starts within the request budget without weakening freshness.
+  endpoint.searchParams.set(
+    "posted_at",
+    `gte.${new Date(
+      Date.now() - JOB_POSTING_WITHDRAWAL_DAYS * 24 * 60 * 60 * 1_000,
+    ).toISOString()}`,
+  );
   endpoint.searchParams.set("order", "posted_at.desc");
   endpoint.searchParams.set("limit", String(MAX_DATABASE_FEED_JOBS + 1));
   let response: Response;
@@ -135,7 +142,7 @@ export async function getDatabaseJobFeed(): Promise<SourceFeed> {
       next: { revalidate: 60, tags: ["public-job-feed"] },
       credentials: "omit",
       redirect: "error",
-      signal: AbortSignal.timeout(6_000),
+      signal: AbortSignal.timeout(8_000),
     });
   } catch {
     return sourceUnavailable(
@@ -304,7 +311,7 @@ async function readDatabaseJobLookupResult({
       next: { revalidate: 60, tags: ["public-job-feed"] },
       credentials: "omit",
       redirect: "error",
-      signal: AbortSignal.timeout(6_000),
+      signal: AbortSignal.timeout(8_000),
     });
   } catch (reason) {
     return repositoryFailure(

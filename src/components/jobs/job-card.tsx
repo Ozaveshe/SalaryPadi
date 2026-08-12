@@ -9,6 +9,7 @@ import Link from "next/link";
 import { CompanyLogo } from "@/components/companies/company-logo";
 import { MatchBadge } from "@/components/jobs/match-badge";
 import { formatDate } from "@/lib/format";
+import { jobDescriptionExcerpt } from "@/lib/jobs/description-excerpt";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
@@ -64,6 +65,7 @@ export function JobCard({
   const employmentType = publicEnum(job.employmentType);
   const seniority = publicEnum(job.experienceLevel);
   const postingAge = jobPostingAge(job);
+  const description = jobDescriptionExcerpt(job.description);
 
   return (
     <article
@@ -149,6 +151,7 @@ export function JobCard({
             </span>
           ) : null}
         </div>
+        <p className="job-card-description">{description}</p>
         {evidence.length > 0 ? (
           <ul
             className="tag-list evidence-tag-list"

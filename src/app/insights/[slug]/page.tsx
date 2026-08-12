@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { JsonLd } from "@/components/json-ld";
+import { EditorialMarkdown } from "@/components/editorial/editorial-markdown";
 import { EditorialCover } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { RepositoryNotice } from "@/components/repository-notice";
@@ -92,11 +93,7 @@ export default async function InsightPage({
         description={article.description}
       />
       <EditorialCover slug={article.slug} />
-      <div className="rule-section stack">
-        {article.body_markdown.split(/\n\s*\n/).map((paragraph) => (
-          <p key={paragraph}>{paragraph}</p>
-        ))}
-      </div>
+      <EditorialMarkdown markdown={article.body_markdown} />
       <nav className="cluster" aria-label="Related SalaryPadi resources">
         {article.internal_link_targets
           .filter((target) => target.startsWith("/"))

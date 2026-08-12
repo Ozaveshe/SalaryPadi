@@ -103,7 +103,9 @@ export function JobsSplit({
         </ul>
         {selected ? (
           <aside className="jobs-preview-column" ref={previewColumn}>
-            {selected.preview}
+            <div className="job-preview-swap" key={selected.slug}>
+              {selected.preview}
+            </div>
           </aside>
         ) : null}
       </div>

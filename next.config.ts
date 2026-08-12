@@ -18,6 +18,10 @@ const buildIdentity = {
 };
 
 const nextConfig: NextConfig = {
+  // Release verification may run beside a local dev server. A caller can use
+  // an isolated generated directory so the two webpack caches never corrupt
+  // each other; normal development and Netlify builds keep Next's default.
+  distDir: process.env.SALARYPADI_NEXT_DIST_DIR ?? ".next",
   env: buildIdentity,
   poweredByHeader: false,
   reactStrictMode: true,

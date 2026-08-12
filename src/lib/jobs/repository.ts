@@ -99,6 +99,11 @@ const SOURCE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1_000;
  * complete list nobody waited for.
  */
 const REQUEST_SOURCE_BUDGET_MS = 2_500;
+// The reviewed database projection is the canonical source and can take a few
+// seconds to stream during Supabase cold starts. Give it enough room to return
+// rather than degrading the entire page while faster optional feeds remain
+// independently capped below.
+const DATABASE_REQUEST_SOURCE_BUDGET_MS = 8_000;
 
 /** Only log an assembly that a person would actually notice waiting for. */
 const SLOW_FEED_LOG_THRESHOLD_MS = 750;
@@ -113,6 +118,10 @@ function withRequestBudget(
   attemptedAt: string,
   work: Promise<SourceFeed>,
 ): Promise<SourceFeed> {
+  const budgetMs =
+    key === "database"
+      ? DATABASE_REQUEST_SOURCE_BUDGET_MS
+      : REQUEST_SOURCE_BUDGET_MS;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const budget = new Promise<SourceFeed>((resolve) => {
     timer = setTimeout(
@@ -125,7 +134,7 @@ function withRequestBudget(
             "This source did not answer quickly enough to be included on this page.",
           ),
         ),
-      REQUEST_SOURCE_BUDGET_MS,
+      budgetMs,
     );
   });
   return Promise.race([work, budget]).finally(() => clearTimeout(timer));
@@ -798,7 +807,10 @@ async function assemblePublicJobFeed(): Promise<JobFeedResult> {
       JSON.stringify({
         event: "jobs.feed_assembled",
         total_ms: totalMs,
-        budget_ms: REQUEST_SOURCE_BUDGET_MS,
+        budget_ms: {
+          default: REQUEST_SOURCE_BUDGET_MS,
+          database: DATABASE_REQUEST_SOURCE_BUDGET_MS,
+        },
         source_ms: durations,
       }),
     );

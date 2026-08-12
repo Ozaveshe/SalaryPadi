@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Viewer } from "@/lib/auth/dal";
 import { Brand } from "@/components/brand";
 import { MobileNavigation } from "@/components/mobile-navigation";
+import { NavigationPending } from "@/components/navigation-pending";
 import { primaryNavigation } from "@/lib/product/surfaces";
 
 /*
@@ -28,6 +29,7 @@ function AccountLinks({ viewer }: { viewer: Viewer }) {
     return (
       <Link className="nav-link header-sign-in" href="/auth/sign-in">
         Sign in
+        <NavigationPending />
       </Link>
     );
   }
@@ -36,10 +38,12 @@ function AccountLinks({ viewer }: { viewer: Viewer }) {
     <>
       <Link className="nav-link" href="/account">
         Account
+        <NavigationPending />
       </Link>
       {viewer.staffRoleState === "ready" && viewer.staffRoles.length > 0 ? (
         <Link className="nav-link" href="/admin">
           Operations
+          <NavigationPending />
         </Link>
       ) : null}
       <form action="/api/auth/sign-out" method="post">
@@ -62,6 +66,7 @@ export function SiteHeader({ viewer }: { viewer: Viewer }) {
             {navigation.map((item) => (
               <Link className="nav-link" href={item.href} key={item.href}>
                 {item.label}
+                <NavigationPending />
               </Link>
             ))}
           </div>
@@ -69,16 +74,19 @@ export function SiteHeader({ viewer }: { viewer: Viewer }) {
             <AccountLinks viewer={viewer} />
             <Link className="button header-employer-cta" href="/post-a-job">
               Post a job
+              <NavigationPending />
             </Link>
           </div>
         </nav>
         <Link className="mobile-employer-cta" href="/post-a-job">
           Post job
+          <NavigationPending />
         </Link>
         <MobileNavigation>
           {navigation.map((item) => (
             <Link className="nav-link" href={item.href} key={item.href}>
               {item.label}
+              <NavigationPending />
             </Link>
           ))}
           <div className="mobile-nav-account">

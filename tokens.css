@@ -1,0 +1,11 @@
+:root {
+  --blog-paper: oklch(97% 0.008 96);
+  --blog-paper-deep: oklch(93% 0.018 94);
+  --blog-ink: oklch(20% 0.025 255);
+  --blog-muted: oklch(45% 0.025 255);
+  --blog-rule: oklch(82% 0.018 250);
+  --blog-accent: oklch(48% 0.13 165);
+  --blog-focus: oklch(56% 0.16 85);
+  --blog-measure: 68ch;
+  --blog-gutter: clamp(1rem, 3vw, 2.5rem);
+}

@@ -737,6 +737,9 @@ describe("job feed source orchestration", () => {
     );
     const databaseUrl = new URL(String(vi.mocked(fetch).mock.calls[0]?.[0]));
     expect(databaseUrl.searchParams.get("limit")).toBe("501");
+    expect(databaseUrl.searchParams.get("posted_at")).toBe(
+      "gte.2025-07-10T13:10:00.000Z",
+    );
     expect(warning).toHaveBeenCalledWith(
       expect.stringContaining('"code":"database_jobs_capacity_exceeded"'),
     );

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CompanyLogo } from "@/components/companies/company-logo";
 import { JobQuickFacts } from "@/components/jobs/job-trust-summary";
 import { formatDate } from "@/lib/format";
+import { jobDescriptionExcerpt } from "@/lib/jobs/description-excerpt";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
@@ -13,15 +14,6 @@ import {
   publicEligibilityStatement,
   remoteEligibilityUnconfirmed,
 } from "@/lib/presentation/public-field";
-
-const EXCERPT_LENGTH = 700;
-
-function descriptionExcerpt(description: string): string {
-  const text = description.trim();
-  if (text.length <= EXCERPT_LENGTH) return text;
-  const cut = text.slice(0, EXCERPT_LENGTH);
-  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), EXCERPT_LENGTH - 40))}…`;
-}
 
 /**
  * Desktop quick-view pane for the two-column jobs route. Everything shown
@@ -44,7 +36,7 @@ export function JobPreviewPanel({
   const statement = publicEligibilityStatement(job);
   const postingAge = jobPostingAge(job);
   const evidence = getJobEvidenceLabels(job).slice(0, 6);
-  const excerpt = descriptionExcerpt(job.description);
+  const excerpt = jobDescriptionExcerpt(job.description, 700);
 
   return (
     <section

@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import Form from "next/form";
 
+import { AutoSubmitSelect } from "@/components/auto-submit-select";
 import { JobCard } from "@/components/jobs/job-card";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { JobPreviewPanel } from "@/components/jobs/job-preview-panel";
@@ -150,7 +152,7 @@ async function JobResultsSection({
             <span className="results-count">{resultCountLabel}</span>
           </div>
           <div className="cluster result-actions">
-            <form action="/jobs" method="get">
+            <Form action="/jobs" replace scroll={false}>
               {[...serializedSearch.entries()]
                 .filter(([key]) => key !== "sort")
                 .map(([key, value]) => (
@@ -159,20 +161,18 @@ async function JobResultsSection({
               <label className="visually-hidden" htmlFor="result-sort">
                 Sort results
               </label>
-              <select
+              <AutoSubmitSelect
                 className="select select-compact"
                 id="result-sort"
                 name="sort"
                 defaultValue={search.sort}
+                pendingLabel="Sortingâ€¦"
               >
                 <option value="relevance">Most relevant</option>
                 <option value="newest">Newest posted</option>
                 <option value="salary">Highest disclosed salary</option>
-              </select>
-              <button className="button button-quiet" type="submit">
-                Sort
-              </button>
-            </form>
+              </AutoSubmitSelect>
+            </Form>
             <Link
               className="button button-secondary"
               href={`/alerts?${serializedSearch.toString()}`}

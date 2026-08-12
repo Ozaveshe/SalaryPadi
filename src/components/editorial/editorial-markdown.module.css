@@ -1,0 +1,47 @@
+.prose {
+  display: grid;
+  gap: 1.1rem;
+  max-width: var(--blog-measure);
+  color: var(--blog-ink);
+  font-size: clamp(1rem, 0.96rem + 0.2vw, 1.125rem);
+  line-height: 1.72;
+}
+
+.prose h2,
+.prose h3 {
+  overflow-wrap: anywhere;
+  margin: 1.5rem 0 0;
+  color: var(--blog-ink);
+  font-family: var(--font-display-loaded), "Space Grotesk", sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.18;
+}
+
+.prose h2 {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--blog-rule);
+  font-size: clamp(1.55rem, 1.35rem + 0.8vw, 2.15rem);
+}
+
+.prose h3 {
+  font-size: clamp(1.25rem, 1.15rem + 0.4vw, 1.55rem);
+}
+
+.prose p,
+.prose ul,
+.prose ol {
+  max-width: 65ch;
+  margin: 0;
+}
+
+.prose ul,
+.prose ol {
+  display: grid;
+  gap: 0.55rem;
+  padding-inline-start: 1.4rem;
+}
+
+.prose strong {
+  font-weight: 700;
+}

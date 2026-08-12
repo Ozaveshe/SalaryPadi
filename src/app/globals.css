@@ -1,4 +1,7 @@
+/* Hallmark · pre-emit critique: P5 H4 E5 S5 R5 V4 */
+
 @import "tailwindcss";
+@import "../../tokens.css";
 
 :root {
   /*
@@ -137,12 +140,14 @@
 }
 
 html {
+  overflow-x: clip;
   background: var(--surface-page);
   color: var(--text-primary);
   scroll-behavior: smooth;
 }
 
 body {
+  overflow-x: clip;
   min-width: 20rem;
   min-height: 100vh;
   margin: 0;
@@ -295,6 +300,7 @@ a:hover {
   display: inline-flex;
   min-height: 2.75rem;
   align-items: center;
+  gap: 0.4rem;
   border-radius: var(--radius-small);
   padding: 0.45rem 0.65rem;
   color: var(--text-secondary);
@@ -381,6 +387,29 @@ a:hover {
   top: 0.35rem;
 }
 
+.mobile-nav-icon,
+.mobile-nav-icon::before,
+.mobile-nav-icon::after {
+  transition:
+    top 180ms ease,
+    transform 180ms ease,
+    opacity 120ms ease;
+}
+
+.mobile-nav-trigger[aria-expanded="true"] .mobile-nav-icon {
+  background: transparent;
+}
+
+.mobile-nav-trigger[aria-expanded="true"] .mobile-nav-icon::before {
+  top: 0;
+  transform: rotate(45deg);
+}
+
+.mobile-nav-trigger[aria-expanded="true"] .mobile-nav-icon::after {
+  top: 0;
+  transform: rotate(-45deg);
+}
+
 .mobile-nav-fallback summary::-webkit-details-marker {
   display: none;
 }
@@ -394,6 +423,8 @@ a:hover {
   background: var(--surface-default);
   padding: 0.75rem max(1rem, calc((100vw - var(--content-wide)) / 2)) 1rem;
   box-shadow: var(--shadow-medium);
+  transform-origin: top;
+  animation: navigation-panel-in 180ms ease-out both;
 }
 
 .mobile-nav-panel .nav-link {
@@ -418,6 +449,44 @@ a:hover {
   flex: 1;
   min-height: calc(100svh - 4rem);
   padding-block: 2rem 4.5rem;
+}
+
+/* Fixed-size, delayed route feedback: prefetched links stay visually quiet. */
+.navigation-pending {
+  width: 0.42rem;
+  height: 0.42rem;
+  flex: none;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  visibility: hidden;
+  opacity: 0;
+}
+
+.navigation-pending[data-pending="true"] {
+  visibility: visible;
+  animation:
+    navigation-hint-in 160ms 100ms ease-out forwards,
+    navigation-hint-spin 700ms 100ms linear infinite;
+}
+
+@keyframes navigation-hint-in {
+  to {
+    opacity: 0.65;
+  }
+}
+
+@keyframes navigation-hint-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes navigation-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.45rem) scaleY(0.98);
+  }
 }
 
 .site-footer {
@@ -932,6 +1001,14 @@ a:hover {
   height: 0.85rem;
   border-radius: 999px;
   background: var(--surface-subtle);
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgb(255 255 255 / 68%) 46%,
+    transparent 72%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
 }
 
 .route-skeleton-line-short {
@@ -946,6 +1023,12 @@ a:hover {
   width: min(82%, 34rem);
   height: 1.65rem;
   background: var(--surface-brand-soft);
+}
+
+@keyframes skeleton-shimmer {
+  to {
+    background-position-x: -220%;
+  }
 }
 
 .community-composer > summary {
@@ -1171,6 +1254,17 @@ a:hover {
 .advanced-filters[open] > summary {
   border-bottom: 1px solid var(--border-default);
   background: var(--surface-brand-soft);
+}
+
+.advanced-filters[open] .advanced-filters-body {
+  animation: disclosure-in 180ms ease-out both;
+}
+
+@keyframes disclosure-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
 }
 
 .filter-grid,
@@ -1450,6 +1544,17 @@ a:hover {
   overscroll-behavior: contain;
 }
 
+.job-preview-swap {
+  animation: preview-swap-in 180ms ease-out both;
+}
+
+@keyframes preview-swap-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.5rem);
+  }
+}
+
 /*
  * Identity stays pinned while a long excerpt scrolls, and the apply actions
  * stay reachable without scrolling back — the panel is a scrolling column, so
@@ -1598,6 +1703,17 @@ a:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+}
+
+.auto-submit-status {
+  min-width: 7.6rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.auto-submit-status[data-pending="true"] {
+  color: var(--interactive-primary);
 }
 
 .select-compact {
@@ -2511,6 +2627,21 @@ a:hover {
   gap: 1rem;
 }
 
+.tool-result-region {
+  scroll-margin-top: 6rem;
+}
+
+.tool-result-region[data-has-result="true"] > * {
+  animation: tool-result-in 240ms ease-out both;
+}
+
+@keyframes tool-result-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.6rem);
+  }
+}
+
 .section-intro {
   display: grid;
   max-width: 48rem;
@@ -2888,6 +3019,7 @@ a:hover {
   border-radius: var(--radius-medium);
   background: var(--surface-default);
   box-shadow: var(--shadow-medium);
+  animation: consent-in 220ms ease-out both;
 }
 
 .analytics-consent p {
@@ -2921,6 +3053,13 @@ a:hover {
 .analytics-consent-manage:focus-visible {
   color: var(--text-primary);
   border-color: var(--border-strong);
+}
+
+@keyframes consent-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
 }
 
 @media (max-width: 30rem) {
@@ -3463,8 +3602,17 @@ a:hover {
 }
 
 .job-badges,
-.job-facts {
+.job-facts,
+.job-card-description {
   grid-column: 1;
+}
+
+.job-card-description {
+  max-width: 70ch;
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.94rem;
+  line-height: 1.55;
 }
 
 .job-facts {

@@ -1,0 +1,23 @@
+{
+  "project": "SalaryPadi",
+  "surface": "/blog",
+  "mode": "existing-project",
+  "audience": "Nigeria-first jobseekers",
+  "primary_use": "Read useful reporting, then discover relevant jobs and tools",
+  "tone": "authoritative editorial",
+  "existing_system": {
+    "framework": "Next.js App Router",
+    "body_face": "DM Sans",
+    "display_face": "Space Grotesk",
+    "palette": "SalaryPadi ink, paper and teal tokens",
+    "spacing": "4px-derived scale",
+    "motion": "restrained CSS transitions"
+  },
+  "implementation": {
+    "macrostructure": "ecosystem-index",
+    "genre": "editorial",
+    "theme": "newsprint",
+    "navigation": "existing product chrome",
+    "footer": "existing product chrome"
+  }
+}

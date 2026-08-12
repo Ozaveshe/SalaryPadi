@@ -65,8 +65,8 @@ const databaseJobSchema = z
     external_source_id: z.string().trim().min(1).max(300),
     title: z.string().trim().min(2).max(300),
     description_text: z.string().min(20).max(100_000),
-    requirements_text: z.string().max(100_000).nullable(),
-    benefits_text: z.string().max(100_000).nullable(),
+    requirements_text: z.string().max(100_000).nullable().default(null),
+    benefits_text: z.string().max(100_000).nullable().default(null),
     work_arrangement: z.enum(["remote", "hybrid", "onsite", "unspecified"]),
     employment_type: z.enum([
       "full_time",
@@ -167,7 +167,7 @@ const databaseJobSchema = z
     locations: z.array(locationSchema).max(50),
     eligibility_countries: z.array(eligibilityCountrySchema).max(100),
     skills: z.array(z.string().trim().min(1).max(160)).max(100),
-    risk_indicators: z.array(riskSchema).max(100),
+    risk_indicators: z.array(riskSchema).max(100).default([]),
   })
   .superRefine((row, context) => {
     if (
