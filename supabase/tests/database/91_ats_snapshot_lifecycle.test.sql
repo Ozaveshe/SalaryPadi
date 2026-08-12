@@ -846,9 +846,9 @@ select is(
 select is(
   (select count(*)::integer from app.jobs
    where source_id = 'd1000000-0000-0000-0000-000000000002'
-     and status = 'published'),
+     and status = 'pending'),
   2,
-  'automatic mode publishes only under verified company invariant'
+  'automatic mode keeps country-unclear records pending'
 );
 
 select ok(
@@ -1073,8 +1073,8 @@ select is(
   (select status::text from app.jobs
    where source_id = 'd1000000-0000-0000-0000-000000000002'
      and external_source_id = 'automatic-2'),
-  'published',
-  'partial snapshot never closes an unseen published job'
+  'pending',
+  'partial snapshot never closes or promotes an unseen pending job'
 );
 
 select is(
