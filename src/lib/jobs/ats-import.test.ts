@@ -159,6 +159,39 @@ describe("ATS import normalization", () => {
     expect(result.filterCodes).toEqual({ geography_restricted: 2 });
   });
 
+  it("accepts an Africa-wide workplace without accepting a European one", () => {
+    const result = normalizeAtsImportRecords(
+      [
+        record({
+          externalId: "west-africa",
+          location: "Africa",
+          workplaceType: null,
+          descriptionHtml:
+            "<p>Serve as the cybersecurity officer for West Africa.</p>",
+        }),
+        record({
+          externalId: "europe",
+          location: "Europe",
+          workplaceType: null,
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(result.jobs).toHaveLength(1);
+    expect(result.jobs[0]).toMatchObject({
+      external_id: "west-africa",
+      work_arrangement: "unspecified",
+      eligibility: {
+        scope: "africa",
+        evidence_text: "Africa",
+        countries: [],
+      },
+      locations: [],
+    });
+    expect(result.filterCodes).toEqual({ geography_restricted: 1 });
+  });
+
   it("reads home-based and office-based wording as remote and onsite", () => {
     const result = normalizeAtsImportRecords(
       [

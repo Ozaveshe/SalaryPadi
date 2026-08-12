@@ -111,9 +111,11 @@ function hasDisqualifyingWorkAuthorization(
 
 /**
  * Onsite, hybrid, and unspecified-arrangement roles are publishable when the
- * source's stated location resolves to a named African country: the workplace
- * itself is the eligibility evidence. Roles whose location cannot be resolved
- * to an African country stay filtered rather than guessed at.
+ * source's stated location resolves to Africa or to a named African country:
+ * the workplace itself is the eligibility evidence. Roles whose location
+ * cannot be resolved to African geography stay filtered rather than guessed
+ * at. Callers pass bounded candidate-location evidence, so employer-market
+ * boilerplate cannot widen this decision.
  */
 export function evaluateLocalPublication(input: {
   evidenceText: string;
@@ -127,6 +129,13 @@ export function evaluateLocalPublication(input: {
     return {
       eligible: true,
       reason: "nigeria",
+      evidenceText: input.evidenceText,
+    };
+  }
+  if (classification.eligibility.scope === "africa") {
+    return {
+      eligible: true,
+      reason: "africa",
       evidenceText: input.evidenceText,
     };
   }
