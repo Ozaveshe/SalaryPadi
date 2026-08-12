@@ -159,18 +159,21 @@ describe("prohibited public labels regression", () => {
     expect(html).toContain("How SalaryPadi verified this information");
   });
 
-  it("omits the badge row entirely when there is no badge to show", () => {
-    // The uncertain fixture has no match, no eligibility statement and no
-    // disclosed salary. An empty container labelled "Role summary" is a label
-    // for nothing: axe reports the aria-label as prohibited on a div with no
-    // role, and a screen reader announces a summary with nothing in it.
+  it("shows unresolved readiness checks without exposing internal labels", () => {
+    // The uncertain fixture now has evidence checks to resolve. The summary
+    // row therefore has real user-facing content instead of being an empty
+    // labelled container.
     const html = renderToStaticMarkup(
       createElement(JobCard, { job: uncertainJob() }),
     );
 
-    expect(html).not.toContain('aria-label="Role summary"');
+    expect(html).toContain('aria-label="Role summary"');
+    expect(html).toContain("2 checks before applying");
+    for (const label of PROHIBITED_PUBLIC_LABELS) {
+      expect(html).not.toContain(label);
+    }
 
-    // It comes back as soon as there is something to put in it.
+    // Existing public eligibility evidence continues to share the same row.
     const withBadge = renderToStaticMarkup(
       createElement(JobCard, {
         job: {

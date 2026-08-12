@@ -14,6 +14,7 @@ import {
   jobDescriptionExcerpt,
   publicJobDescriptionView,
 } from "@/lib/jobs/description-excerpt";
+import { buildJobDecisionPlan } from "@/lib/jobs/decision-plan";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
@@ -88,6 +89,7 @@ export function JobCard({
   const employmentType = publicEnum(job.employmentType);
   const seniority = publicEnum(job.experienceLevel);
   const postingAge = jobPostingAge(job);
+  const decisionPlan = buildJobDecisionPlan(job);
   const description = jobDescriptionExcerpt(publicJobDescriptionView(job).text);
 
   return (
@@ -123,7 +125,10 @@ export function JobCard({
           div with no role, and a screen reader announces a summary that has
           nothing to summarise.
         */}
-        {match || eligibilityStatement || job.salary ? (
+        {match ||
+        eligibilityStatement ||
+        job.salary ||
+        decisionPlan.unresolvedCount > 0 ? (
           <div className="job-badges" aria-label="Role summary">
             {match ? <MatchBadge result={match} /> : null}
             {eligibilityStatement ? (
@@ -135,6 +140,13 @@ export function JobCard({
             ) : null}
             {job.salary ? (
               <span className="status status-success">Salary disclosed</span>
+            ) : null}
+            {decisionPlan.unresolvedCount > 0 ? (
+              <span className="status status-warning">
+                {decisionPlan.unresolvedCount}{" "}
+                {decisionPlan.unresolvedCount === 1 ? "check" : "checks"} before
+                applying
+              </span>
             ) : null}
           </div>
         ) : null}
