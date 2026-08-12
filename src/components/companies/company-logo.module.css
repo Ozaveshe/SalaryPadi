@@ -19,6 +19,36 @@
   user-select: none;
 }
 
+.paletteForestSoft {
+  background: var(--forest-100);
+  color: var(--forest-800);
+}
+
+.paletteCoralSoft {
+  background: var(--coral-100);
+  color: var(--coral-700);
+}
+
+.paletteGoldSoft {
+  background: var(--gold-100);
+  color: var(--gold-700);
+}
+
+.paletteForestDeep {
+  background: var(--forest-800);
+  color: var(--forest-50);
+}
+
+.paletteSand {
+  background: var(--sand-200);
+  color: var(--ink-700);
+}
+
+.paletteForestStrong {
+  background: var(--forest-700);
+  color: var(--white);
+}
+
 .size40.fallback {
   font-size: 0.85rem;
 }

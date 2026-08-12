@@ -13,12 +13,12 @@ import styles from "./company-logo.module.css";
  */
 
 const MONOGRAM_PALETTE = [
-  { background: "var(--forest-100)", color: "var(--forest-800)" },
-  { background: "var(--coral-100)", color: "var(--coral-700)" },
-  { background: "var(--gold-100)", color: "var(--gold-700)" },
-  { background: "var(--forest-800)", color: "var(--forest-50)" },
-  { background: "var(--sand-200)", color: "var(--ink-700)" },
-  { background: "var(--forest-700)", color: "var(--white)" },
+  styles.paletteForestSoft,
+  styles.paletteCoralSoft,
+  styles.paletteGoldSoft,
+  styles.paletteForestDeep,
+  styles.paletteSand,
+  styles.paletteForestStrong,
 ] as const;
 
 export function companyInitials(name: string): string {
@@ -56,12 +56,10 @@ export function CompanyLogo({
   const sizeClass =
     size === 40 ? styles.size40 : size === 72 ? styles.size72 : styles.size56;
   if (!logoPath) {
-    const palette = monogramPalette(name);
     return (
       <span
         aria-hidden="true"
-        className={`${styles.fallback} ${sizeClass}`}
-        style={{ background: palette.background, color: palette.color }}
+        className={`${styles.fallback} ${sizeClass} ${monogramPalette(name)}`}
       >
         {companyInitials(name)}
       </span>
