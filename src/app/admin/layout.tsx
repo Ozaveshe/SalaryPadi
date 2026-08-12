@@ -24,6 +24,7 @@ const adminNavigation: ReadonlyArray<
   ["Moderation", "/admin/moderation", ["moderator", "admin"]],
   ["Reports", "/admin/reports", ["admin"]],
   ["Users", "/admin/users", ["admin"]],
+  ["Audit log", "/admin/audit-log", ["admin"]],
   ["Calculation rules", "/admin/calculation-rules", ["admin"]],
   ["Editorial", "/admin/editorial", ["admin"]],
 ] as const;

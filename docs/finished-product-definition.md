@@ -25,7 +25,7 @@ currency, period or destination.
 | Employer                           | Partial — claim, preview/post, track/close own listings, respond                          | No employer analytics; sponsored products remain intentionally unbuilt    |
 | Career-data associate              | Yes — source-backed intake, searchable job evidence and duplicate decisions are reachable | No bulk intake UI                                                         |
 | Moderator                          | Yes — AAL2 queue, actions and named safety flags are reachable                            | No dedicated case-detail view beyond the privacy-safe queue summary       |
-| Administrator                      | Partial — source/supply health strong                                                     | No audit-log reader, no moderation-backlog metric, no flag service        |
+| Administrator                      | Partial — source/supply health plus an AAL2 audit reader                                  | No moderation-backlog metric or flag service                              |
 
 ## Non-negotiables already holding
 
