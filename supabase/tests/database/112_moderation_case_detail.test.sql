@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, security, audit;
-select plan(8);
+select plan(9);
 
 select ok(
   to_regprocedure('api.admin_get_moderation_case(uuid)') is not null,
