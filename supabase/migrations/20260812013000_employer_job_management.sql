@@ -61,7 +61,7 @@ begin
   update app.jobs
   set status = 'expired', lifecycle_state = 'closed',
       lifecycle_reason = 'employer_confirmed_closed',
-      closed_at = clock_timestamp(), updated_at = clock_timestamp()
+      updated_at = clock_timestamp()
   where id = v_job.id;
   update private.employer_job_submissions set status = 'removed'
   where id = v_submission.id;
