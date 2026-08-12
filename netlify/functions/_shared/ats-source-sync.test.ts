@@ -983,6 +983,63 @@ describe("ATS source sync worker", () => {
     });
   });
 
+  it("keeps a productive mixed run healthy while exposing the failed source", async () => {
+    setEnvironment("true");
+    let fetches = 0;
+    const callRpc = vi.fn(
+      async (
+        name: string,
+        parameters?: Record<string, unknown>,
+      ): Promise<unknown> => {
+        if (name === "worker_list_authorized_ats_sources") {
+          return [policyRow(), policyRow({ adapter_key: "second_workable" })];
+        }
+        if (name === "worker_claim_authorized_ats_source") {
+          return claimedPolicy({ adapter_key: parameters?.p_adapter_key });
+        }
+        if (name === "worker_begin_ats_snapshot") {
+          return [
+            {
+              import_run_id: "30000000-0000-4000-8000-000000000001",
+              should_run: true,
+            },
+          ];
+        }
+        if (name === "worker_store_ats_snapshot_batch") return storeAck();
+        if (name === "worker_finalize_ats_snapshot") return finalizeAck();
+        if (name === "worker_record_source_import") return null;
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+    );
+
+    await expect(
+      runAtsSourceSync(
+        {
+          signal: new AbortController().signal,
+          remainingMs: () => 20_000,
+        },
+        {
+          rpc: callRpc,
+          fetchSource: vi.fn(async () => {
+            fetches += 1;
+            if (fetches === 1) return fetched();
+            throw new DOMException("slow board", "TimeoutError");
+          }),
+          now: () => now,
+          randomUuid: () => "40000000-0000-4000-8000-000000000001",
+        },
+      ),
+    ).resolves.toMatchObject({
+      status: "succeeded",
+      summary: {
+        claimed_sources: 2,
+        completed_sources: 1,
+        failed_sources: 1,
+        failure_codes: ["ats_source_deadline_exceeded"],
+      },
+    });
+  });
+
   it("raises the claim reserve to what a source has actually cost", async () => {
     /*
      * A flat reserve is a guess about every board at once. Here the first

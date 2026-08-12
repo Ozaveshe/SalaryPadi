@@ -651,9 +651,26 @@ export async function runAtsSourceSync(
    *
    * A source that offered records and had every one rejected is the opposite:
    * nothing was importable, which points at the adapter or the board rather
-   * than at a few bad rows. That still fails, as does a source that threw.
+   * than at a few bad rows. The lane fails when every claimed source ends in
+   * that state or throws; mixed runs preserve each source failure below.
    */
-  if (failedSources > 0 || quarantinedSources > 0) {
+  const productiveSources =
+    completedSources + partialSources + duplicateSources;
+  /*
+   * Worker health describes the acquisition lane, not the availability of
+   * every individual board. A mixed run can import hundreds of valid records
+   * while one provider times out. The failed board already has durable source
+   * import evidence and remains visible in this summary; failing the whole
+   * worker would discard the truthful distinction and page operations for a
+   * lane that made progress.
+   *
+   * Fail closed when no claimed source produced a usable or duplicate
+   * snapshot. That is a lane-wide failure and must still degrade health.
+   */
+  if (
+    (failedSources > 0 || quarantinedSources > 0) &&
+    productiveSources === 0
+  ) {
     throw new OperationalError("ats_source_sync_incomplete", summary);
   }
   /*
@@ -662,10 +679,7 @@ export async function runAtsSourceSync(
    * budget bought nothing, which would mean the very first source overran and
    * something is wrong with the reserve rather than with the schedule.
    */
-  if (
-    interruptedSources > 0 &&
-    completedSources + partialSources + duplicateSources === 0
-  ) {
+  if (interruptedSources > 0 && productiveSources === 0) {
     throw new OperationalError("ats_source_sync_interrupted", summary);
   }
   /*
