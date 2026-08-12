@@ -63,7 +63,10 @@ import { openSupplyAdapter } from "./supply/adapters";
 import { AdapterPolicyError } from "./supply/policy";
 import type { Job, JobFeedResult } from "./types";
 
-export { getDatabaseJobBySlugResult } from "./repository-database";
+export {
+  getDatabaseJobBySlugResult,
+  getDatabaseRelatedJobsResult,
+} from "./repository-database";
 
 type ServerSupabaseClient = NonNullable<
   Awaited<ReturnType<typeof createServerSupabaseClient>>

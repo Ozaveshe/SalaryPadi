@@ -49,7 +49,10 @@ import { getReferenceCurrencyRates } from "@/lib/currency/repository";
 import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
 import { jobDeadlineNotice } from "@/lib/jobs/deadline";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
-import { getJobBySlug } from "@/lib/jobs/repository";
+import {
+  getDatabaseRelatedJobsResult,
+  getJobBySlug,
+} from "@/lib/jobs/repository";
 import { searchSalaryAggregatesResult } from "@/lib/salaries/repository";
 import { buildWhatsAppShareUrl } from "@/lib/share/whatsapp";
 import {
@@ -137,6 +140,7 @@ export default async function JobDetailPage({
     benefitsResult,
     salaryResult,
     currencyRates,
+    relatedDatabaseResult,
   ] = await Promise.all([
     getCompanyRatingResult(job.company.slug),
     getCompanyReviewsResult(job.company.slug),
@@ -144,6 +148,9 @@ export default async function JobDetailPage({
     getCompanyBenefitsResult(job.company.slug),
     searchSalaryAggregatesResult({ company: job.company.slug }),
     getReferenceCurrencyRates(),
+    job.category
+      ? getDatabaseRelatedJobsResult(job.category)
+      : Promise.resolve(null),
   ]);
   const nairaEstimate = estimateNairaTakeHome(job.salary, currencyRates);
   const postingAge = jobPostingAge(job);
@@ -158,10 +165,14 @@ export default async function JobDetailPage({
   const whatsappUrl = buildWhatsAppShareUrl(
     `${job.title} at ${job.company.name} — check eligibility and source on SalaryPadi: ${canonicalUrl}`,
   );
-  const similar = feed.jobs
+  const similar = [...feed.jobs, ...(relatedDatabaseResult?.data ?? [])]
     .filter(
       (candidate) =>
         candidate.id !== job.id && candidate.category === job.category,
+    )
+    .filter(
+      (candidate, index, candidates) =>
+        candidates.findIndex((item) => item.id === candidate.id) === index,
     )
     .slice(0, 3);
 

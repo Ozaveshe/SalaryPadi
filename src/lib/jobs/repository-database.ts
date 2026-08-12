@@ -24,6 +24,7 @@ const PUBLIC_JOB_IDENTIFIER_PATTERN = /^[a-z0-9][a-z0-9_-]{0,199}$/i;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FINGERPRINT_PATTERN = /^[0-9a-f]{64}$/;
+const ROLE_FAMILY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,79}$/i;
 
 /**
  * Exactly the columns `decodeDatabaseJobRow` reads.
@@ -254,11 +255,13 @@ export async function getDatabaseJobFeed(): Promise<SourceFeed> {
 }
 
 type DatabaseJobLookup = {
-  column: "slug" | "dedup_fingerprint";
+  column: "slug" | "dedup_fingerprint" | "role_family";
   value: string;
   operator?: "eq" | "in";
   includeId: boolean;
   limit: number;
+  operation?: string;
+  order?: string;
 };
 
 async function readDatabaseJobLookupResult({
@@ -267,8 +270,9 @@ async function readDatabaseJobLookupResult({
   operator = "eq",
   includeId,
   limit,
+  operation = "jobs.public_detail",
+  order,
 }: DatabaseJobLookup): Promise<RepositoryResult<Job[]>> {
-  const operation = "jobs.public_detail";
   const configuration = getSupabasePublicConfig();
   if (!configuration) {
     return repositoryFailure(
@@ -286,6 +290,7 @@ async function readDatabaseJobLookupResult({
     endpoint.searchParams.set(column, `${operator}.${value}`);
   }
   endpoint.searchParams.set("limit", `${limit}`);
+  if (order) endpoint.searchParams.set("order", order);
 
   let response: Response;
   try {
@@ -411,6 +416,18 @@ export async function getDatabaseJobsByFingerprintResult(
     operator: "in",
     includeId: false,
     limit: 10,
+  });
+}
+
+export async function getDatabaseRelatedJobsResult(roleFamily: string) {
+  if (!ROLE_FAMILY_PATTERN.test(roleFamily)) return repositoryReady([]);
+  return readDatabaseJobLookupResult({
+    column: "role_family",
+    value: roleFamily,
+    includeId: false,
+    limit: 6,
+    operation: "jobs.related",
+    order: "posted_at.desc",
   });
 }
 

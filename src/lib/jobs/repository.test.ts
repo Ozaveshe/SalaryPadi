@@ -57,6 +57,7 @@ vi.mock("./secondary-feed-store", async (importOriginal) => {
 
 import {
   getDatabaseJobBySlugResult,
+  getDatabaseRelatedJobsResult,
   getHimalayasJobFeed,
   getJobicyJobFeed,
   getJobBySlug,
@@ -930,6 +931,29 @@ describe("job feed source orchestration", () => {
     expect(lookupUrl.searchParams.get("or")).toBe(
       `(slug.eq.${employer.id},id.eq.${employer.id})`,
     );
+  });
+
+  it("loads a bounded newest-first related role-family set", async () => {
+    const related = { ...remotiveJob(), category: "software-engineering" };
+    databaseRows = [related];
+
+    await expect(
+      getDatabaseRelatedJobsResult("software-engineering"),
+    ).resolves.toMatchObject({ state: "ready", data: [related] });
+
+    const lookupUrl = new URL(String(vi.mocked(fetch).mock.calls[0]?.[0]));
+    expect(lookupUrl.searchParams.get("role_family")).toBe(
+      "eq.software-engineering",
+    );
+    expect(lookupUrl.searchParams.get("order")).toBe("posted_at.desc");
+    expect(lookupUrl.searchParams.get("limit")).toBe("6");
+  });
+
+  it("rejects an unsafe related role family without a request", async () => {
+    await expect(
+      getDatabaseRelatedJobsResult("software.eq.anything"),
+    ).resolves.toEqual({ state: "ready", data: [], issues: [] });
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 
   it("preserves a degraded state for duplicate direct job rows", async () => {
