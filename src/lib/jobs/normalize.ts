@@ -167,7 +167,16 @@ function stripOnce(html: string): string {
     .replace(/<li\b[^>]*>/gi, "\n- ")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(?:p|div|li|h[1-6]|section|article|tr)>/gi, "\n")
-    .replace(/<\/(?:ul|ol)>/gi, "\n\n");
+    .replace(/<\/(?:ul|ol)>/gi, "\n\n")
+    // Providers sometimes omit the literal space after an inline element,
+    // even though the surrounding copy clearly continues with another word:
+    // `<strong>Jumia</strong>is` and `<a>[Logistics]</a>and`. Once tags are
+    // stripped that boundary is otherwise unrecoverable. Punctuation remains
+    // attached because it is not a word character.
+    .replace(
+      /<\/(?:a|span|strong|b|em|i|u|small|sup|sub|code)>(?=[\p{L}\p{N}\[])/giu,
+      "$& ",
+    );
   const fragments: string[] = [];
 
   sanitizeHtml(withBreaks, {

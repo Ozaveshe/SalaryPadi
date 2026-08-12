@@ -104,6 +104,23 @@ describe("job description blocks", () => {
     ]);
   });
 
+  it("repairs legacy inline boundaries and recognises observed provider sections", () => {
+    expect(
+      toDescriptionBlocks(
+        "Job Objective\nJumiais a marketplace supported by [Jumia Logistics]and Jumia Pay.\nWhat you will be doing\n- Grow the category",
+        { companyName: "Jumia" },
+      ),
+    ).toEqual([
+      { kind: "heading", text: "Job Objective" },
+      {
+        kind: "paragraph",
+        text: "Jumia is a marketplace supported by [Jumia Logistics] and Jumia Pay.",
+      },
+      { kind: "heading", text: "What you will be doing" },
+      { kind: "list", items: ["Grow the category"] },
+    ]);
+  });
+
   it.each([
     "What we are looking for in you",
     "What we offer colleagues",

@@ -2,6 +2,7 @@ import { CircleAlert, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 import { CompanyLogo } from "@/components/companies/company-logo";
+import { JobDecisionReadiness } from "@/components/jobs/job-decision-readiness";
 import { JobQuickFacts } from "@/components/jobs/job-trust-summary";
 import { formatDate } from "@/lib/format";
 import {
@@ -113,6 +114,7 @@ export function JobPreviewPanel({
             ))}
           </ul>
         ) : null}
+        <JobDecisionReadiness job={job} variant="compact" />
         {excerpt ? <p className="job-preview-excerpt">{excerpt}</p> : null}
       </div>
 

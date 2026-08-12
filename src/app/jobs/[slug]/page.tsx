@@ -19,6 +19,7 @@ import { TrackView } from "@/components/analytics-events";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { CompanyLogo } from "@/components/companies/company-logo";
 import { JobCard } from "@/components/jobs/job-card";
+import { JobDecisionReadiness } from "@/components/jobs/job-decision-readiness";
 import { JobDescription } from "@/components/jobs/job-description";
 import { publicJobDescriptionView } from "@/lib/jobs/description-excerpt";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
@@ -344,6 +345,7 @@ export default async function JobDetailPage({
       <TrackView event="job_view" />
       {reported === "true" ? <TrackView event="content_reported" /> : null}
       <JobTrustSummary job={job} nairaEstimate={nairaEstimate} />
+      <JobDecisionReadiness job={job} />
       <nav className="decision-path" aria-label="Continue this job decision">
         <div>
           <p className="eyebrow">Continue your decision</p>
@@ -410,6 +412,7 @@ export default async function JobDetailPage({
               Role details
             </h2>
             <JobDescription
+              companyName={job.company.name}
               description={description.text}
               idPrefix="role-details"
               sourceName={job.source.name}
@@ -426,6 +429,7 @@ export default async function JobDetailPage({
                 Requirements
               </h2>
               <JobDescription
+                companyName={job.company.name}
                 description={job.requirements}
                 idPrefix="role-requirements"
               />
@@ -440,6 +444,7 @@ export default async function JobDetailPage({
                 Benefits
               </h2>
               <JobDescription
+                companyName={job.company.name}
                 description={job.benefits}
                 idPrefix="role-benefits"
               />

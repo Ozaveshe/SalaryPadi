@@ -21,18 +21,20 @@ function headingId(prefix: string, text: string, index: number) {
  */
 export function JobDescription({
   description,
+  companyName,
   idPrefix = "job-description",
   sourceOnly = false,
   sourceName,
   sourceUrl,
 }: {
   description: string;
+  companyName?: string;
   idPrefix?: string;
   sourceOnly?: boolean;
   sourceName?: string;
   sourceUrl?: string;
 }) {
-  const blocks = toDescriptionBlocks(description);
+  const blocks = toDescriptionBlocks(description, { companyName });
   if (blocks.length === 0) return null;
 
   const headings = blocks
