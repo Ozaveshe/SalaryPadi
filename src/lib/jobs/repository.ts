@@ -761,7 +761,10 @@ async function assemblePublicJobFeed(): Promise<JobFeedResult> {
   let shared: ServerSupabaseClient | null;
   let sharedClientFailed = false;
   try {
-    shared = await createPublicSupabaseClient();
+    shared = await createPublicSupabaseClient({
+      revalidate: 60,
+      tags: ["public-job-feed"],
+    });
   } catch (reason) {
     unstable_rethrow(reason);
     shared = null;

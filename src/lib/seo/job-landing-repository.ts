@@ -106,7 +106,7 @@ export const getJobLandingMetricsResult = cache(
           Authorization: `Bearer ${configuration.publishableKey}`,
         },
         body: JSON.stringify({ p_landing_key: key }),
-        cache: "no-store",
+        next: { revalidate: 60, tags: ["public-job-landing-metrics"] },
         credentials: "omit",
         redirect: "error",
         signal: AbortSignal.timeout(4_000),

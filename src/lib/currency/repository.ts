@@ -2,7 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createPublicSupabaseClient } from "@/lib/supabase/server";
 import type { ReferenceCurrencyRate } from "@/lib/currency/types";
 import { attemptRepositoryOperation } from "@/lib/data/repository-operation";
 import {
@@ -87,7 +87,10 @@ const referenceRateRowsSchema = z
 
 export async function getReferenceCurrencyRatesResult() {
   const clientAttempt = await attemptRepositoryOperation(() =>
-    createServerSupabaseClient(),
+    createPublicSupabaseClient({
+      revalidate: 3_600,
+      tags: ["public-currency-rates"],
+    }),
   );
   if (!clientAttempt.ok) {
     return repositoryFailure(

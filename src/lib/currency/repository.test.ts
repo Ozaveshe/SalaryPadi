@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({
-  createServerSupabaseClient: vi.fn(),
+  createPublicSupabaseClient: vi.fn(),
 }));
 
 import { getReferenceCurrencyRatesResult } from "@/lib/currency/repository";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createPublicSupabaseClient } from "@/lib/supabase/server";
 import { unstable_rethrow } from "next/navigation";
 
-const mockedCreateClient = vi.mocked(createServerSupabaseClient);
+const mockedCreateClient = vi.mocked(createPublicSupabaseClient);
 
 function clientReturning(data: unknown, error: unknown = null) {
   const result = Promise.resolve({ data, error });
@@ -58,6 +58,10 @@ describe("currency repository", () => {
     const result = await getReferenceCurrencyRatesResult();
     expect(result.state).toBe("ready");
     expect(result.data).toEqual([validRate]);
+    expect(mockedCreateClient).toHaveBeenCalledWith({
+      revalidate: 3_600,
+      tags: ["public-currency-rates"],
+    });
   });
 
   it("does not drop malformed rates into a false empty result", async () => {
