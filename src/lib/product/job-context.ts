@@ -94,6 +94,32 @@ export function jobContextFrom(job: Job): JobContext {
   };
 }
 
+export interface ApplicationOfferContextSource {
+  slug: string;
+  title: string;
+  companyName: string;
+  companySlug: string | null;
+}
+
+/**
+ * Carry a tracked application into Offer Compare without treating the salary
+ * text captured from the vacancy as the offer the candidate actually received.
+ * The written offer remains the source of truth for every money field.
+ */
+export function jobContextFromApplication(
+  application: ApplicationOfferContextSource,
+): JobContext {
+  return {
+    slug: application.slug,
+    title: application.title,
+    company: application.companyName,
+    companySlug: application.companySlug,
+    amount: null,
+    currency: null,
+    period: null,
+  };
+}
+
 /** Serialize context onto a destination path. Empty fields are omitted. */
 export function withJobContext(path: string, context: JobContext): string {
   const params = new URLSearchParams();

@@ -16,6 +16,10 @@ import { getCandidateCvs } from "@/lib/career/cv/repository";
 import { isStaleApplication } from "@/lib/career/pipeline";
 import { getApplications } from "@/lib/career/repository";
 import { formatDate, formatEnum } from "@/lib/format";
+import {
+  jobContextFromApplication,
+  withJobContext,
+} from "@/lib/product/job-context";
 import { sliceSearchParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
@@ -243,11 +247,43 @@ export default async function ApplicationsPage({
                   </form>
                   {application.status === "interview" ||
                   application.status === "offer" ? (
-                    <CompanyEvidenceInvitation
-                      kind={application.status}
-                      company={application.company_name}
-                      role={application.title}
-                    />
+                    <div className="stack">
+                      {application.status === "offer" ? (
+                        <div className="notice stack">
+                          <div>
+                            <h3 className="m-0 text-base font-bold">
+                              Review the written offer
+                            </h3>
+                            <p className="field-help m-0">
+                              Compare the offer you received with another
+                              option. SalaryPadi leaves pay blank because the
+                              advertised salary may not match the written offer.
+                            </p>
+                          </div>
+                          <Link
+                            className="button button-secondary w-fit"
+                            href={withJobContext(
+                              "/tools/offer-compare",
+                              jobContextFromApplication({
+                                slug: application.job_slug,
+                                title: display?.title ?? application.title,
+                                companyName:
+                                  display?.companyName ??
+                                  application.company_name,
+                                companySlug: display?.companySlug ?? null,
+                              }),
+                            )}
+                          >
+                            Compare this offer
+                          </Link>
+                        </div>
+                      ) : null}
+                      <CompanyEvidenceInvitation
+                        kind={application.status}
+                        company={application.company_name}
+                        role={application.title}
+                      />
+                    </div>
                   ) : application.status === "applied" &&
                     isStaleApplication(application.updated_at) ? (
                     <CompanyEvidenceInvitation

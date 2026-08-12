@@ -75,6 +75,14 @@ surface. `api.my_applications` is scoped to the authenticated user, and no
 part of an application — status, notes, snapshot or offer figures — is
 exposed publicly or sent to marketing analytics.
 
+## Offer handoff
+
+An application marked `offer` links directly to Offer Compare with the saved
+role and employer context. The handoff deliberately carries no amount,
+currency or pay period: `salaryDisplay` is the vacancy's historical display
+text, not proof of the written offer. The candidate enters the actual offer
+terms before any comparison runs.
+
 ## Still to build
 
 - The status enum is `saved | applied | assessment | interview | offer |

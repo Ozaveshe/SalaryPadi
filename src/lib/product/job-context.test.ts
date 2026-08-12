@@ -6,6 +6,7 @@ import {
   contextIsNairaPaye,
   contextPeriodFitsCalculator,
   jobContextFrom,
+  jobContextFromApplication,
   readJobContext,
   withJobContext,
 } from "./job-context";
@@ -67,6 +68,24 @@ describe("job context handoff", () => {
       withJobContext("/tools/take-home-pay", context).split("?")[1],
     );
     expect(params.has("amount")).toBe(false);
+  });
+
+  it("carries an application to Offer Compare without inventing offer money", () => {
+    const context = jobContextFromApplication({
+      slug: "senior-analyst-abc123",
+      title: "Senior Analyst",
+      companyName: "Moniepoint",
+      companySlug: "moniepoint",
+    });
+    const params = new URLSearchParams(
+      withJobContext("/tools/offer-compare", context).split("?")[1],
+    );
+
+    expect(params.get("role")).toBe("Senior Analyst");
+    expect(params.get("employer")).toBe("Moniepoint");
+    expect(params.has("amount")).toBe(false);
+    expect(params.has("currency")).toBe(false);
+    expect(params.has("period")).toBe(false);
   });
 
   it("carries an hourly period for Offer Compare but bars it from the calculators", () => {
