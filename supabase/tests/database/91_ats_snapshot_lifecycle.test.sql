@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(72);
+select plan(75);
 
 select ok(
   to_regprocedure(
@@ -975,6 +975,73 @@ select lives_ok(
     true, 0, '[]'::jsonb
   ) $$,
   'mixed-country automatic snapshot finalizes successfully'
+);
+
+update app.jobs
+set posted_at = now() - interval '366 days'
+where source_id = 'd1000000-0000-0000-0000-000000000003'
+  and external_source_id = 'automatic-ng-ke';
+
+insert into ats_test_runs (name, run_id)
+select 'automatic-aged-replay', begun.import_run_id
+from api.worker_begin_ats_snapshot(
+  'ats_lifecycle_mixed', now() + interval '3650 milliseconds', 1, 1
+) begun
+where begun.should_run;
+
+select is(
+  (
+    api.worker_store_ats_snapshot_batch(
+      (select run_id from ats_test_runs where name = 'automatic-aged-replay'),
+      jsonb_build_array(jsonb_build_object(
+        'external_id', 'automatic-ng-ke',
+        'content_hash', repeat('2', 64),
+        'dedup_fingerprint', repeat('3', 64),
+        'title', 'Nigeria and Kenya Product Engineer',
+        'source_url',
+          'https://boards.example.test/mixed/jobs/automatic-ng-ke',
+        'application_url',
+          'https://boards.example.test/mixed/jobs/automatic-ng-ke/apply',
+        'description_text', 'A role explicitly open in Lagos and Nairobi.',
+        'employment_type', 'full_time',
+        'posted_at', (now() - interval '366 days')::text,
+        'locations', jsonb_build_array(
+          jsonb_build_object(
+            'country_code', 'NG', 'city', 'Lagos', 'is_primary', true
+          ),
+          jsonb_build_object(
+            'country_code', 'KE', 'city', 'Nairobi', 'is_primary', false
+          )
+        ),
+        'eligibility', jsonb_build_object(
+          'scope', 'named_countries', 'provenance', 'source_provided',
+          'evidence_text', 'The employer lists Lagos and Nairobi.',
+          'countries', jsonb_build_array(
+            jsonb_build_object('country_code', 'NG', 'rule', 'include'),
+            jsonb_build_object('country_code', 'KE', 'rule', 'include')
+          )
+        )
+      ))
+    ) ->> 'unchanged_count'
+  )::integer,
+  1,
+  'country-eligible automatic replay holds a posting older than one year'
+);
+
+select is(
+  (select status::text from app.jobs
+   where source_id = 'd1000000-0000-0000-0000-000000000003'
+     and external_source_id = 'automatic-ng-ke'),
+  'pending',
+  'automatic country publication never overrides the age withdrawal bound'
+);
+
+select lives_ok(
+  $$ select api.worker_finalize_ats_snapshot(
+    (select run_id from ats_test_runs where name = 'automatic-aged-replay'),
+    true, 0, '[]'::jsonb
+  ) $$,
+  'aged automatic replay finalizes successfully'
 );
 
 update app.jobs
