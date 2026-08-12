@@ -450,6 +450,34 @@ describe("employer-authorized ATS adapter", () => {
     });
   });
 
+  it("preserves every declared Lever location as eligibility evidence", async () => {
+    const result = await fetchAtsSourceRecords(leverSource(), {
+      fetch: fixedFetch(
+        jsonResponse([
+          leverJob({
+            categories: {
+              location: "Cairo, Egypt",
+              allLocations: [
+                "Cairo, Egypt",
+                "Lagos, Nigeria",
+                "Nairobi, Kenya",
+              ],
+              commitment: "Full-time",
+              team: "Platform",
+              department: "Engineering",
+            },
+          }),
+        ]),
+      ),
+      signal: signal(),
+      requestedAt,
+    });
+
+    expect(result.records[0]?.location).toBe(
+      "Cairo, Egypt; Lagos, Nigeria; Nairobi, Kenya",
+    );
+  });
+
   it.each(["onsite", "on-site"])(
     "canonicalizes Lever workplaceType %s",
     async (workplaceType) => {

@@ -816,6 +816,28 @@ async function assemblePublicJobFeed(): Promise<JobFeedResult> {
   return combineJobSources([himalayas, jobicy, remotive, reliefweb, database]);
 }
 
+class CanonicalFeedUnavailableError extends Error {
+  constructor(readonly feed: JobFeedResult) {
+    super("canonical_job_feed_unavailable");
+    this.name = "CanonicalFeedUnavailableError";
+  }
+}
+
+/**
+ * A failed canonical read must not become the shared answer for the next
+ * minute. Throwing from cache generation lets Next retain the last healthy
+ * value during revalidation; the caller below still returns this run's honest
+ * degraded result when no healthy cache exists yet.
+ */
+async function assembleCacheablePublicJobFeed(): Promise<JobFeedResult> {
+  const feed = await assemblePublicJobFeed();
+  const database = feed.sources.find((source) => source.key === "database");
+  if (!database || database.state === "unavailable") {
+    throw new CanonicalFeedUnavailableError(feed);
+  }
+  return feed;
+}
+
 /**
  * One minute is short enough for employer lifecycle changes to become visible
  * promptly and long enough to remove five policy/snapshot/database round trips
@@ -823,14 +845,20 @@ async function assemblePublicJobFeed(): Promise<JobFeedResult> {
  * per-request CSP nonce and session-aware navigation that must never be shared.
  */
 const getSharedLiveJobFeed = unstable_cache(
-  assemblePublicJobFeed,
-  ["public-job-feed-v1"],
+  assembleCacheablePublicJobFeed,
+  ["public-job-feed-v2"],
   { revalidate: 60, tags: ["public-job-feed"] },
 );
 
-export const getLiveJobFeed = cache(
-  async (): Promise<JobFeedResult> => await getSharedLiveJobFeed(),
-);
+export const getLiveJobFeed = cache(async (): Promise<JobFeedResult> => {
+  try {
+    return await getSharedLiveJobFeed();
+  } catch (reason) {
+    unstable_rethrow(reason);
+    if (reason instanceof CanonicalFeedUnavailableError) return reason.feed;
+    throw reason;
+  }
+});
 
 /**
  * Memoised per request: every job detail page resolves the same slug twice,

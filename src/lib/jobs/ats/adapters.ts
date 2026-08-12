@@ -169,6 +169,18 @@ function leverWorkplaceType(
   return workplaceType ?? null;
 }
 
+function leverLocationEvidence(job: LeverJob): string | null {
+  const locations = [
+    ...(job.categories.allLocations ?? []),
+    ...(job.categories.location ? [job.categories.location] : []),
+  ];
+  const distinctLocations = [...new Set(locations.map((value) => value.trim()))]
+    .filter(Boolean)
+    .slice(0, 100);
+
+  return optionalText(distinctLocations.join("; "));
+}
+
 function leverRecord(
   job: LeverJob,
   source: AtsAuthorizedSource<"lever">,
@@ -185,7 +197,7 @@ function leverRecord(
     employerName: source.employerName,
     externalId: job.id,
     title: job.text,
-    location: optionalText(job.categories.location),
+    location: leverLocationEvidence(job),
     workplaceType: leverWorkplaceType(job.workplaceType),
     employmentType: optionalText(job.categories.commitment),
     department: optionalText(job.categories.department),
