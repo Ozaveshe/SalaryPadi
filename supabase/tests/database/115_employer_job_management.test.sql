@@ -31,6 +31,15 @@ insert into app.jobs (
   'employee', 'https://employer.example/apply', 'https://employer.example/apply',
   repeat('b', 64), clock_timestamp()
 from app.job_sources source where source.adapter_key = 'salarypadi_employer_submissions';
+insert into app.job_locations (job_id, country_code, city, is_primary) values
+('b5000000-0000-4000-8000-000000000020', 'NG', 'Lagos', true);
+insert into app.job_eligibility (
+  job_id, scope, evidence_text, provenance, confidence, last_verified_at
+) values (
+  'b5000000-0000-4000-8000-000000000020', 'nigeria', 'Open to Nigeria.',
+  'manually_verified', 0.8, clock_timestamp()
+);
+select security.refresh_job_public_provenance('b5000000-0000-4000-8000-000000000020');
 select set_config('request.jwt.claims', jsonb_build_object('sub', 'b5000000-0000-4000-8000-000000000002', 'role', 'authenticated', 'aal', 'aal1', 'is_anonymous', false)::text, true);
 set local role authenticated;
 select is(has_function_privilege('authenticated', 'security.close_own_employer_job(uuid,text)', 'EXECUTE'), false, 'authenticated cannot call the internal closure function directly');
