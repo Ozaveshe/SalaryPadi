@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "htmlRoutes": [
     { "path": "/", "canonicalPath": "/", "robots": "index" },
+    { "path": "/blog", "canonicalPath": "/blog", "robots": "index" },
     { "path": "/jobs", "canonicalPath": "/jobs", "robots": "noindex" },
     {
       "path": "/jobs/remote",

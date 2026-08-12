@@ -9,6 +9,7 @@ const { groups } = vi.hoisted((): { groups: SitemapGroups } => ({
     salaries: [],
     tools: [{ url: "https://salarypadi.com/tools" }],
     guides: [
+      { url: "https://salarypadi.com/blog" },
       { url: "https://salarypadi.com/guides/remote-jobs-open-to-nigerians" },
     ],
     insights: [
@@ -46,6 +47,7 @@ describe("editorial SEO surfaces", () => {
     if (!rules) throw new Error("robots rules are missing");
     expect(rules.allow).toContain("/guides/");
     expect(rules.allow).toContain("/insights/");
+    expect(rules.allow).toContain("/blog/");
     expect(result.sitemap).toBe("https://salarypadi.com/sitemap.xml");
     expect(rules.disallow).not.toContain("/jobs/");
     expect(rules.disallow).toContain("/account");

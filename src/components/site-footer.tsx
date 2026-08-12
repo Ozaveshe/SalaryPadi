@@ -2,7 +2,6 @@ import { currentZonedYear } from "@/lib/time/zone";
 import Link from "next/link";
 
 import { Brand } from "@/components/brand";
-import { getFeatureFlags } from "@/lib/env";
 import { PRODUCT_SURFACES } from "@/lib/product/surfaces";
 
 /**
@@ -38,9 +37,7 @@ export function SiteFooter() {
     ...PRODUCT_SURFACES.map(
       (surface) => [surface.label, surface.href] as const,
     ),
-    ...(getFeatureFlags().insights
-      ? ([["Insights", "/insights"]] as const)
-      : []),
+    ["Blog", "/blog"],
   ];
   const footerGroups = [
     { label: "Explore", links: exploreLinks },

@@ -75,6 +75,12 @@ const coreAndGuideRoutes = [
     changeFrequency: "monthly",
     priority: 0.5,
   },
+  {
+    path: "/blog",
+    lastModified: "2026-08-12T00:00:00.000Z",
+    changeFrequency: "weekly",
+    priority: 0.8,
+  },
 ] as const;
 
 const toolRoutes = [

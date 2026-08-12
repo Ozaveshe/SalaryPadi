@@ -125,7 +125,7 @@ async function readPublishedEditorialRowsResult(slug?: string) {
         Authorization: `Bearer ${configuration.publishableKey}`,
       },
       body: "{}",
-      cache: "no-store",
+      next: { revalidate: 300, tags: ["published-editorial"] },
       credentials: "omit",
       redirect: "error",
       signal: AbortSignal.timeout(4_000),

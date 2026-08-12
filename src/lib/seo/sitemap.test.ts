@@ -237,6 +237,7 @@ describe("dynamic sitemap generation", () => {
     ).toHaveLength(1);
     expect(result.map((entry) => entry.url)).toEqual(
       expect.arrayContaining([
+        "https://salarypadi.com/blog",
         "https://salarypadi.com/salaries",
         "https://salarypadi.com/companies",
         "https://salarypadi.com/companies/padi-labs",
