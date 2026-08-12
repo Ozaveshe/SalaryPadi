@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { CORNERSTONE_DRAFTS } from "@/lib/editorial/cornerstone-drafts";
+import { SEO_STARTER_ARTICLES } from "@/lib/editorial/seo-starter-articles";
 import { JOB_LANDING_DEFINITIONS } from "@/lib/seo/job-landing-pages";
 import { SITEMAP_KINDS } from "@/lib/seo/sitemap";
 
@@ -38,7 +39,9 @@ describe("machine-readable SEO audit", () => {
     expect(audit.localImplementation.cornerstoneDraftCount).toBe(
       CORNERSTONE_DRAFTS.length,
     );
-    expect(audit.localImplementation.cornerstonePublishedCount).toBe(0);
+    expect(audit.localImplementation.cornerstonePublishedCount).toBe(
+      SEO_STARTER_ARTICLES.length,
+    );
   });
 });
 

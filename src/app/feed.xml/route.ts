@@ -1,5 +1,6 @@
 import { getPublishedEditorialResult } from "@/lib/editorial/repository";
 import { getAppOrigin } from "@/lib/env";
+import { editorialPath } from "@/lib/editorial/presentation";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +18,7 @@ export async function GET() {
   const result = await getPublishedEditorialResult();
   const items = result.data
     .map((article) => {
-      const path =
-        article.slug === "remote-jobs-open-to-nigerians"
-          ? `/guides/${article.slug}`
-          : `/insights/${article.slug}`;
+      const path = editorialPath(article);
       const url = `${origin}${path}`;
       return `<item><title>${escapeXml(article.title)}</title><link>${escapeXml(url)}</link><guid isPermaLink="true">${escapeXml(url)}</guid><description>${escapeXml(article.description)}</description><pubDate>${new Date(article.published_at).toUTCString()}</pubDate></item>`;
     })

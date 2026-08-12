@@ -9,6 +9,7 @@ import {
   getPublishedEditorial,
   getPublishedEditorialResult,
   REMOTE_JOBS_GUIDE,
+  SEO_STARTER_GUIDES,
 } from "@/lib/editorial/repository";
 import { getSupabasePublicConfig } from "@/lib/env";
 
@@ -36,18 +37,20 @@ describe("editorial repository", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("marks the built-in guide as an unconfigured fallback", async () => {
+  it("keeps built-in guides available when the editorial backend is unconfigured", async () => {
     mockedConfig.mockReturnValue(null);
     const result = await getPublishedEditorialResult();
     expect(result.state).toBe("unconfigured");
-    expect(result.data).toEqual([REMOTE_JOBS_GUIDE]);
+    expect(result.data).toHaveLength(11);
+    expect(result.data).toContainEqual(REMOTE_JOBS_GUIDE);
+    expect(result.data).toEqual(expect.arrayContaining(SEO_STARTER_GUIDES));
     await expect(
       getPublishedArticleResult("missing-brief"),
     ).resolves.toMatchObject({ state: "unconfigured", data: null });
     await expect(
       getPublishedArticleResult(REMOTE_JOBS_GUIDE.slug),
     ).resolves.toMatchObject({
-      state: "unconfigured",
+      state: "ready",
       data: REMOTE_JOBS_GUIDE,
     });
   });
@@ -57,7 +60,7 @@ describe("editorial repository", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     const result = await getPublishedEditorialResult();
     expect(result.state).toBe("degraded");
-    expect(result.data).toEqual([REMOTE_JOBS_GUIDE]);
+    expect(result.data).toHaveLength(11);
     expect(result.issues[0]?.code).toBe("editorial_request_failed");
   });
 
@@ -100,7 +103,7 @@ describe("editorial repository", () => {
     const result = await getPublishedEditorialResult();
 
     expect(result.state).toBe("degraded");
-    expect(result.data).toEqual([REMOTE_JOBS_GUIDE]);
+    expect(result.data).toHaveLength(11);
     expect(result.issues[0]?.code).toBe("editorial_invalid_rows");
   });
 
@@ -120,7 +123,7 @@ describe("editorial repository", () => {
 
     await expect(getPublishedEditorialResult()).resolves.toMatchObject({
       state: "degraded",
-      data: [REMOTE_JOBS_GUIDE],
+      data: expect.arrayContaining([REMOTE_JOBS_GUIDE]),
       issues: [{ code: "editorial_invalid_rows" }],
     });
   });
@@ -144,7 +147,7 @@ describe("editorial repository", () => {
 
     await expect(getPublishedEditorialResult()).resolves.toMatchObject({
       state: "degraded",
-      data: [REMOTE_JOBS_GUIDE],
+      data: expect.arrayContaining([REMOTE_JOBS_GUIDE]),
       issues: [{ code: "editorial_invalid_rows" }],
     });
   });
@@ -165,7 +168,7 @@ describe("editorial repository", () => {
 
     await expect(getPublishedEditorialResult()).resolves.toMatchObject({
       state: "degraded",
-      data: [REMOTE_JOBS_GUIDE],
+      data: expect.arrayContaining([REMOTE_JOBS_GUIDE]),
       issues: [{ code: "editorial_invalid_rows" }],
     });
   });
@@ -191,7 +194,29 @@ describe("editorial repository", () => {
     const lookupUrl = new URL(String(fetchMock.mock.calls[1]?.[0]));
     expect(lookupUrl.searchParams.get("slug")).toBe(`eq.${validBrief.slug}`);
     expect(lookupUrl.searchParams.get("limit")).toBe("1");
-    await expect(getPublishedEditorial()).resolves.toHaveLength(2);
+    await expect(getPublishedEditorial()).resolves.toHaveLength(12);
+  });
+
+  it("resolves every built-in starter guide without depending on an upstream row", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        async () =>
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+
+    for (const guide of SEO_STARTER_GUIDES) {
+      await expect(
+        getPublishedArticleResult(guide.slug),
+      ).resolves.toMatchObject({
+        state: "ready",
+        data: guide,
+      });
+    }
   });
 
   it("returns a ready null for a missing filtered article", async () => {

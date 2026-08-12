@@ -151,7 +151,7 @@
 }
 .notice {
   padding: 1rem;
-  border-inline-start: 3px solid var(--blog-accent);
+  border-block: 1px solid var(--blog-rule);
   background: var(--blog-paper-deep);
 }
 @media (min-width: 48rem) {

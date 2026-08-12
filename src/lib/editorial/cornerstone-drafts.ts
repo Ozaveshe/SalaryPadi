@@ -9,7 +9,7 @@ export interface CornerstoneDraft {
   bodyMarkdown: string;
 }
 
-export const CORNERSTONE_DRAFTS: readonly CornerstoneDraft[] = [
+const LEGACY_CORNERSTONE_DRAFTS: readonly CornerstoneDraft[] = [
   {
     slug: "remote-job-eligibility-for-nigerians",
     title: "How to tell whether a remote job is open to Nigerians",
@@ -336,3 +336,20 @@ Published methodology must match the tested lifecycle code and the production ru
 [METHODOLOGY AND SOURCE-POLICY REVIEW REQUIRED before publication.]`,
   },
 ] as const;
+
+const PUBLISHED_STARTER_SLUGS = new Set([
+  "remote-job-eligibility-for-nigerians",
+  "job-scam-warning-signs-nigeria",
+  "understand-take-home-pay-nigeria",
+  "compare-two-job-offers",
+  "salary-negotiation-with-evidence",
+  "graduate-trainee-internship-and-nysc-jobs",
+  "hnd-versus-bsc-job-requirements",
+  "contractor-versus-employee-offers",
+  "visa-sponsorship-evidence-for-nigerians",
+  "interview-preparation-with-company-evidence",
+]);
+
+export const CORNERSTONE_DRAFTS = LEGACY_CORNERSTONE_DRAFTS.filter(
+  (draft) => !PUBLISHED_STARTER_SLUGS.has(draft.slug),
+);

@@ -15,6 +15,8 @@ import { discardResponseBody } from "@/lib/http/body";
 import { readBoundedJson } from "@/lib/http/json";
 import { safeRelativePath } from "@/lib/security/urls";
 
+import { SEO_STARTER_ARTICLES } from "./seo-starter-articles";
+
 const editorialTimestamp = z.string().datetime({ offset: true });
 const internalEditorialLinkSchema = z
   .string()
@@ -44,6 +46,29 @@ const editorialArticleSchema = z
       .refine((targets) => new Set(targets).size === targets.length, {
         message: "Editorial links must be unique.",
       }),
+    review_due_at: editorialTimestamp.optional(),
+    sources: z
+      .array(
+        z
+          .object({
+            name: z.string().trim().min(2).max(240),
+            url: z
+              .string()
+              .min(1)
+              .max(1_000)
+              .refine(
+                (value) =>
+                  value.startsWith("https://") ||
+                  safeRelativePath(value, "") === value,
+                { message: "Editorial sources must use HTTPS or local paths." },
+              ),
+            retrieved_at: editorialTimestamp,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(12)
+      .optional(),
   })
   .strict()
   .superRefine((article, context) => {
@@ -78,11 +103,19 @@ export const REMOTE_JOBS_GUIDE: EditorialArticle = {
   ],
 };
 
+export const SEO_STARTER_GUIDES = editorialArticleSchema
+  .array()
+  .length(10)
+  .parse(SEO_STARTER_ARTICLES);
+
 const EDITORIAL_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function mergeBuiltInGuide(articles: EditorialArticle[]) {
   const bySlug = new Map(
-    [REMOTE_JOBS_GUIDE, ...articles].map((article) => [article.slug, article]),
+    [REMOTE_JOBS_GUIDE, ...SEO_STARTER_GUIDES, ...articles].map((article) => [
+      article.slug,
+      article,
+    ]),
   );
   return [...bySlug.values()].sort(
     (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
@@ -213,6 +246,13 @@ export async function getPublishedEditorial(): Promise<EditorialArticle[]> {
 }
 
 export async function getPublishedArticleResult(slug: string) {
+  const builtInArticle = [REMOTE_JOBS_GUIDE, ...SEO_STARTER_GUIDES].find(
+    (article) => article.slug === slug,
+  );
+  if (builtInArticle) {
+    return repositoryReady(builtInArticle);
+  }
+
   return mapRepositoryResult(
     await readPublishedEditorialRowsResult(slug),
     (articles) =>

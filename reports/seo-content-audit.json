@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "auditedAt": "2026-07-13T23:37:27.399Z",
+  "auditedAt": "2026-08-12T21:20:00.000Z",
   "productionOrigin": "https://salarypadi.com",
   "deploymentPerformed": false,
   "productionObserved": {
@@ -160,25 +160,30 @@
       "minimumInternalLinks": 2
     },
     "googleIntegrationsDefault": "disabled",
-    "cornerstoneDraftCount": 12,
-    "cornerstonePublishedCount": 0,
+    "cornerstoneDraftCount": 2,
+    "cornerstonePublishedCount": 10,
     "failureMode": "noindex_follow_and_exclude_from_sitemaps"
   },
   "validation": {
     "unitAndIntegration": {
       "command": "npm test",
-      "testFilesPassed": 112,
-      "testsPassed": 828
+      "testFilesPassed": 232,
+      "testsPassed": 2285
     },
     "renderedCrawl": {
       "command": "npx playwright test tests/e2e/seo-crawl.spec.ts --project=desktop-chromium",
-      "testsPassed": 21
+      "testsPassed": 22
     },
     "lint": "pass",
     "typecheck": "pass",
     "productionBuild": {
       "result": "pass",
-      "requiredOverride": "NEXT_PUBLIC_APP_URL=https://salarypadi.test"
+      "runtime": "Node 22.18.0",
+      "builder": "Next.js 16.2.11 webpack",
+      "requiredOverrides": [
+        "NEXT_PUBLIC_APP_URL=https://salarypadi.test",
+        "SALARYPADI_NEXT_DIST_DIR=.next-seo-verify"
+      ]
     },
     "postgresParser": "migration_and_pgtap_syntax_accepted",
     "databasePgtapExecution": "not_run_docker_unavailable"

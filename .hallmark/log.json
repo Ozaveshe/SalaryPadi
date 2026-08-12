@@ -7,5 +7,14 @@
     "theme": "newsprint",
     "enrichment": "existing EditorialCover brand art",
     "notes": "A real publication index using only published guides and evidence-backed data briefs."
+  },
+  {
+    "date": "2026-08-13",
+    "surface": "site-wide UI, /blog and /guides",
+    "macrostructure": "product shell with editorial reading system",
+    "genre": "modern minimal product and editorial",
+    "theme": "neutral paper surfaces with semantic violet actions",
+    "enrichment": "source-backed guide metadata, citations and related-resource routes",
+    "notes": "Removed decorative accent rails, gradients and viewport overlays; launched ten sourced guides with distinct metadata and stable built-in rendering."
   }
 ]

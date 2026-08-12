@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { EditorialArticle } from "@/lib/editorial/repository";
 
-import { buildEditorialBriefMetadata } from "./editorial-metadata";
+import {
+  buildEditorialBriefMetadata,
+  buildEditorialGuideMetadata,
+} from "./editorial-metadata";
 
 const brief: EditorialArticle = {
   id: "57cb1fcb-e724-4ab7-8df2-a8c95f0dc03e",
@@ -70,6 +73,31 @@ describe("editorial brief metadata", () => {
       buildEditorialBriefMetadata({
         state: "ready",
         data: { ...brief, article_kind: "cornerstone" },
+        issues: [],
+      }),
+    ).toEqual({});
+  });
+
+  it("builds canonical guide metadata for a published cornerstone", () => {
+    expect(
+      buildEditorialGuideMetadata({
+        state: "ready",
+        data: { ...brief, article_kind: "cornerstone" },
+        issues: [],
+      }),
+    ).toMatchObject({
+      title: brief.title,
+      alternates: { canonical: `/guides/${brief.slug}` },
+      robots: { index: true, follow: true },
+      openGraph: { type: "article" },
+    });
+  });
+
+  it("does not publish a data brief through a guide route", () => {
+    expect(
+      buildEditorialGuideMetadata({
+        state: "ready",
+        data: brief,
         issues: [],
       }),
     ).toEqual({});

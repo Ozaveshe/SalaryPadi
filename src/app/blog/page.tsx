@@ -7,6 +7,7 @@ import { JsonLd } from "@/components/json-ld";
 import { EditorialCover } from "@/components/media/brand-art";
 import { RepositoryNotice } from "@/components/repository-notice";
 import { getPublishedEditorialResult } from "@/lib/editorial/repository";
+import { editorialPath } from "@/lib/editorial/presentation";
 import { getAppOrigin } from "@/lib/env";
 import { formatDate } from "@/lib/format";
 import { buildBreadcrumbStructuredData } from "@/lib/seo/structured-data";
@@ -28,16 +29,13 @@ export const metadata: Metadata = {
     type: "website",
     url: "/blog",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "SalaryPadi career guides and job market insights",
+    description:
+      "Practical career guidance and reproducible job-market briefs, with sources, dates and limitations shown.",
+  },
 };
-
-function articlePath(article: {
-  article_kind: "cornerstone" | "data_brief";
-  slug: string;
-}) {
-  return article.article_kind === "cornerstone"
-    ? `/guides/${article.slug}`
-    : `/insights/${article.slug}`;
-}
 
 export default async function BlogPage() {
   const [result, requestHeaders] = await Promise.all([
@@ -54,6 +52,9 @@ export default async function BlogPage() {
     (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
   );
   const featured = ordered[0] ?? null;
+  const remainingGuides = featured
+    ? guides.filter(({ id }) => id !== featured.id)
+    : guides;
   const remainingBriefs = featured
     ? briefs.filter(({ id }) => id !== featured.id)
     : briefs;
@@ -88,7 +89,7 @@ export default async function BlogPage() {
             description: article.description,
             datePublished: article.published_at,
             dateModified: article.updated_at,
-            url: new URL(articlePath(article), origin).toString(),
+            url: new URL(editorialPath(article), origin).toString(),
           })),
         }}
       />
@@ -126,14 +127,14 @@ export default async function BlogPage() {
                 : "Editor’s guide"}
             </p>
             <h2 className={styles.featuredTitle} id="lead-story">
-              <Link href={articlePath(featured)}>{featured.title}</Link>
+              <Link href={editorialPath(featured)}>{featured.title}</Link>
             </h2>
             <p className={styles.summary}>{featured.description}</p>
             <div className={styles.storyMeta}>
               <span>Published {formatDate(featured.published_at)}</span>
               <span>Updated {formatDate(featured.updated_at)}</span>
             </div>
-            <Link className={styles.railLink} href={articlePath(featured)}>
+            <Link className={styles.railLink} href={editorialPath(featured)}>
               Read the full story →
             </Link>
           </div>
@@ -144,7 +145,7 @@ export default async function BlogPage() {
         title="Practical guides"
         id="guides-heading"
         link={{ href: "/jobs", label: "Browse verified jobs →" }}
-        articles={guides}
+        articles={remainingGuides}
         empty={
           result.state === "ready"
             ? "No guide has passed editorial review yet."
@@ -225,7 +226,7 @@ function StoryRail({
                   : "Practical guide"}
               </p>
               <h3 className={styles.storyTitle}>
-                <Link href={articlePath(article)}>{article.title}</Link>
+                <Link href={editorialPath(article)}>{article.title}</Link>
               </h3>
               <p className={styles.summary}>{article.description}</p>
               <p className={styles.storyMeta}>

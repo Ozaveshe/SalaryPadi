@@ -1,0 +1,120 @@
+/* Hallmark | genre: editorial | macrostructure: long-document | theme: modern-minimal | enrichment: tier-a | nav: existing | footer: existing | contrast: pass | slop: pass | mobile: pass */
+.article {
+  display: grid;
+  gap: clamp(2rem, 5vw, 3.75rem);
+  padding-block: clamp(1rem, 3vw, 3rem) 2rem;
+}
+
+.header {
+  display: grid;
+  gap: 1rem;
+  padding-block-end: clamp(1.5rem, 3vw, 2.5rem);
+  border-bottom: 1px solid var(--blog-rule);
+}
+
+.backLink {
+  width: fit-content;
+  color: var(--blog-accent);
+  font-weight: 700;
+  text-underline-offset: 0.25em;
+}
+
+.header h1 {
+  max-width: 18ch;
+  margin: 0;
+  color: var(--blog-ink);
+  font-family: var(--font-display-loaded), "Space Grotesk", sans-serif;
+  font-size: clamp(2.25rem, 7vw, 4.75rem);
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.deck {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--blog-muted);
+  font-size: clamp(1.05rem, 1rem + 0.35vw, 1.28rem);
+  line-height: 1.6;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 1rem 2rem;
+  max-width: 44rem;
+  margin: 0.5rem 0 0;
+}
+
+.meta div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.meta dt {
+  color: var(--blog-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.meta dd {
+  margin: 0;
+  color: var(--blog-ink);
+  font-weight: 650;
+}
+
+.sources,
+.related {
+  display: grid;
+  gap: 1rem;
+  padding-block-start: 1.5rem;
+  border-top: 1px solid var(--blog-rule);
+}
+
+.sources h2,
+.related h2 {
+  margin: 0;
+  color: var(--blog-ink);
+  font-family: var(--font-display-loaded), "Space Grotesk", sans-serif;
+  font-size: clamp(1.35rem, 1.2rem + 0.6vw, 1.8rem);
+  letter-spacing: -0.025em;
+}
+
+.sources p,
+.sources ol {
+  max-width: 65ch;
+  margin: 0;
+  color: var(--blog-muted);
+  line-height: 1.65;
+}
+
+.sources ol {
+  display: grid;
+  gap: 0.75rem;
+  padding-inline-start: 1.3rem;
+}
+
+.sources a,
+.related a {
+  color: var(--blog-accent);
+  font-weight: 650;
+  text-underline-offset: 0.23em;
+}
+
+.sources span {
+  color: var(--blog-muted);
+  font-size: 0.85rem;
+}
+
+.related div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1.25rem;
+}
+
+@media (max-width: 32rem) {
+  .meta {
+    grid-template-columns: 1fr;
+  }
+}

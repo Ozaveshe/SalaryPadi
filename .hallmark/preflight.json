@@ -1,22 +1,22 @@
 {
   "project": "SalaryPadi",
-  "surface": "/blog",
+  "surface": "site-wide UI, /blog and /guides",
   "mode": "existing-project",
   "audience": "Nigeria-first jobseekers",
-  "primary_use": "Read useful reporting, then discover relevant jobs and tools",
-  "tone": "authoritative editorial",
+  "primary_use": "Discover jobs without obstructive overlays, then use sourced career guidance to make safer decisions",
+  "tone": "calm, evidence-led and modern",
   "existing_system": {
     "framework": "Next.js App Router",
     "body_face": "DM Sans",
     "display_face": "Space Grotesk",
-    "palette": "SalaryPadi ink, paper and teal tokens",
+    "palette": "SalaryPadi ink, paper and violet action tokens",
     "spacing": "4px-derived scale",
     "motion": "restrained CSS transitions"
   },
   "implementation": {
-    "macrostructure": "ecosystem-index",
-    "genre": "editorial",
-    "theme": "newsprint",
+    "macrostructure": "product shell with editorial reading system",
+    "genre": "modern minimal product and editorial",
+    "theme": "neutral paper surfaces with semantic violet actions",
     "navigation": "existing product chrome",
     "footer": "existing product chrome"
   }

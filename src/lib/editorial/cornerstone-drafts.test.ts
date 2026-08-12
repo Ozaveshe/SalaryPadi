@@ -3,11 +3,9 @@ import { describe, expect, it } from "vitest";
 import { CORNERSTONE_DRAFTS } from "./cornerstone-drafts";
 
 describe("unpublished cornerstone drafts", () => {
-  it("keeps exactly twelve substantial, approval-gated drafts outside public routes", () => {
-    expect(CORNERSTONE_DRAFTS).toHaveLength(12);
-    expect(new Set(CORNERSTONE_DRAFTS.map((draft) => draft.slug)).size).toBe(
-      12,
-    );
+  it("keeps the two remaining substantial, approval-gated drafts outside public routes", () => {
+    expect(CORNERSTONE_DRAFTS).toHaveLength(2);
+    expect(new Set(CORNERSTONE_DRAFTS.map((draft) => draft.slug)).size).toBe(2);
     for (const draft of CORNERSTONE_DRAFTS) {
       expect(draft.status).toBe("draft");
       expect(draft.humanApprovalRequired).toBe(true);
@@ -26,20 +24,7 @@ describe("unpublished cornerstone drafts", () => {
     const corpus = CORNERSTONE_DRAFTS.map(
       (draft) => `${draft.title} ${draft.description}`,
     ).join(" ");
-    for (const phrase of [
-      "remote job",
-      "scam",
-      "take-home pay",
-      "compare two job offers",
-      "negotiate salary",
-      "NYSC",
-      "HND versus BSc",
-      "contractor versus employee",
-      "visa-sponsorship",
-      "interview",
-      "company intelligence",
-      "job freshness",
-    ]) {
+    for (const phrase of ["company intelligence", "job freshness"]) {
       expect(corpus.toLowerCase()).toContain(phrase.toLowerCase());
     }
   });
