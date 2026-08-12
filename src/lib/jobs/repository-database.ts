@@ -308,7 +308,10 @@ async function readDatabaseJobLookupResult({
         apikey: configuration.publishableKey,
         Authorization: `Bearer ${configuration.publishableKey}`,
       },
-      next: { revalidate: 60, tags: ["public-job-feed"] },
+      // Detail lookups must reflect publication and withdrawal immediately.
+      // Caching a missing slug can otherwise leave a newly-published job's
+      // canonical page unavailable after it already appears in the catalog.
+      cache: "no-store",
       credentials: "omit",
       redirect: "error",
       signal: AbortSignal.timeout(8_000),

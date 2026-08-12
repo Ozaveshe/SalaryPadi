@@ -997,6 +997,9 @@ describe("job feed source orchestration", () => {
     expect(lookupUrl.searchParams.get("or")).toBe(
       `(slug.eq.${employer.id},id.eq.${employer.id})`,
     );
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]).toMatchObject({
+      cache: "no-store",
+    });
   });
 
   it("loads a bounded newest-first related role-family set", async () => {

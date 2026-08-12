@@ -64,6 +64,11 @@ import {
 import { buildSocialImageMetadata } from "@/lib/seo/open-graph";
 import { buildBreadcrumbStructuredData } from "@/lib/seo/structured-data";
 
+// A slug can become public or be withdrawn between requests. Persisting the
+// first render would turn an early not-found result into a stale canonical
+// page even after the public database row changes.
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({
   params,
 }: {
