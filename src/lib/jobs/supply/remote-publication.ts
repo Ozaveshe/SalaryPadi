@@ -1,4 +1,5 @@
 import {
+  expandAfricanCityLocationEvidence,
   classifyEligibilityEvidence,
   isAfricanCountryCode,
 } from "../eligibility";
@@ -46,9 +47,10 @@ export function remoteEligibilityEvidence(
   location: string | null,
   description: string,
 ) {
-  const evidence = [location?.trim(), ...boundedSentences(description)].filter(
-    (value): value is string => Boolean(value),
-  );
+  const evidence = [
+    expandAfricanCityLocationEvidence(location),
+    ...boundedSentences(description),
+  ].filter((value): value is string => Boolean(value));
   return evidence.join(". ").slice(0, 2_000) || "Not stated by the source";
 }
 
