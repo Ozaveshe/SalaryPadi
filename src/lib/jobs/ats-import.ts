@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
-import { classifyEligibilityEvidence } from "./eligibility";
+import {
+  africanCityCountryCode,
+  classifyEligibilityEvidence,
+} from "./eligibility";
 import { buildJobFingerprint } from "./fingerprint";
 import { htmlToPlainText, slugify } from "./normalize";
 import {
@@ -140,10 +143,11 @@ function mapLocations(
       .filter(Boolean) ?? [];
   const possibleCity =
     countryCodes.length === 1 &&
-    segments.length > 1 &&
+    segments.length > 0 &&
     !/\b(?:remote|hybrid|onsite|on-site)\b/i.test(segments[0]!) &&
-    classifyEligibilityEvidence(segments[0], checkedAt).includedCountryCodes
-      .length === 0
+    (classifyEligibilityEvidence(segments[0], checkedAt).includedCountryCodes
+      .length === 0 ||
+      africanCityCountryCode(segments[0]) === countryCodes[0])
       ? segments[0]!.slice(0, 160)
       : null;
 

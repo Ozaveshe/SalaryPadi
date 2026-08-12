@@ -62,6 +62,67 @@ describe("ATS import normalization", () => {
     expect(first.jobs[0]?.dedup_fingerprint).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it("does not widen a North America role from generic global-remote wording", () => {
+    const result = normalizeAtsImportRecords(
+      [
+        record({
+          location: "North America",
+          descriptionHtml: "<p>Support leaders across global remote teams.</p>",
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(result.jobs).toHaveLength(0);
+    expect(result.filteredCount).toBe(1);
+    expect(result.filterCodes).toEqual({ geography_restricted: 1 });
+  });
+
+  it("resolves an exact African ATS city without fuzzy description inference", () => {
+    const result = normalizeAtsImportRecords(
+      [
+        record({
+          location: "Lagos",
+          workplaceType: "OnSite",
+          descriptionHtml: "<p>Work from our office.</p>",
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(result.jobs).toHaveLength(1);
+    expect(result.jobs[0]).toMatchObject({
+      work_arrangement: "onsite",
+      eligibility: {
+        scope: "nigeria",
+        evidence_text: "Lagos, Nigeria",
+        countries: [{ country_code: "NG", rule: "include" }],
+      },
+      locations: [
+        {
+          country_code: "NG",
+          city: "Lagos",
+          is_primary: true,
+        },
+      ],
+    });
+  });
+
+  it("does not treat an unknown city as African eligibility", () => {
+    const result = normalizeAtsImportRecords(
+      [
+        record({
+          location: "Springfield",
+          workplaceType: "OnSite",
+        }),
+      ],
+      noDescriptionPolicy,
+    );
+
+    expect(result.jobs).toHaveLength(0);
+    expect(result.filterCodes).toEqual({ geography_restricted: 1 });
+  });
+
   it("stores only sanitized plain text when the reviewed policy permits it", () => {
     const result = normalizeAtsImportRecords([record()], {
       ...noDescriptionPolicy,

@@ -131,6 +131,33 @@ const countryByCode = new Map(
   countries.map((country) => [country.code, country]),
 );
 
+// ATS boards sometimes publish only a city in their structured location.
+// Keep this deliberately small and limited to unambiguous African hiring hubs;
+// do not attempt fuzzy geocoding or infer from arbitrary description text.
+const africanCityCountryCodes = new Map<string, string>([
+  ["abidjan", "CI"],
+  ["accra", "GH"],
+  ["addis ababa", "ET"],
+  ["cairo", "EG"],
+  ["cape town", "ZA"],
+  ["casablanca", "MA"],
+  ["dakar", "SN"],
+  ["dar es salaam", "TZ"],
+  ["durban", "ZA"],
+  ["gaborone", "BW"],
+  ["harare", "ZW"],
+  ["johannesburg", "ZA"],
+  ["kampala", "UG"],
+  ["kigali", "RW"],
+  ["lagos", "NG"],
+  ["luanda", "AO"],
+  ["lusaka", "ZM"],
+  ["maputo", "MZ"],
+  ["nairobi", "KE"],
+  ["tunis", "TN"],
+  ["windhoek", "NA"],
+]);
+
 function normalizedWords(value: string) {
   return value
     .normalize("NFKD")
@@ -139,6 +166,23 @@ function normalizedWords(value: string) {
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function africanCityCountryCode(
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null;
+  return africanCityCountryCodes.get(normalizedWords(value)) ?? null;
+}
+
+export function expandAfricanCityLocationEvidence(
+  value: string | null | undefined,
+): string | null {
+  if (!value?.trim()) return null;
+  const countryCode = africanCityCountryCode(value);
+  return countryCode
+    ? `${value.trim()}, ${countryNameFromCode(countryCode)}`
+    : value.trim();
 }
 
 const countryAliases = countries
@@ -291,6 +335,10 @@ export function classifyEligibilityEvidence(
   const hasEmea = emeaPattern.test(references.residual);
   const withoutEmea = references.residual.replace(emeaPattern, " ");
   const hasAfricaRegion = /\bafrica\b/.test(withoutEmea);
+  const hasRestrictedRegion =
+    /\b(?:latam|apac|europe|americas|north america|south america|asia|middle east)\b/.test(
+      normalized,
+    );
   // The standalone form stays an exact match so incidental wording such as
   // "customers worldwide" cannot widen scope; the prefixed form covers the
   // common ATS location format "Home based - Worldwide" / "Remote - Worldwide".
@@ -322,16 +370,14 @@ export function classifyEligibilityEvidence(
 
   let scope: RemoteEligibilityScope;
   if (broadRegionSignal && namedForeignOnly) scope = "unclear";
-  else if (worldwide) scope = "worldwide";
   else if (hasAfricaRegion) scope = "africa";
+  else if (hasEmea) scope = "emea";
+  else if (worldwide && hasRestrictedRegion) scope = "restricted_region";
+  else if (worldwide) scope = "worldwide";
   else if (includedCodes.size === 1 && includedCodes.has("NG"))
     scope = "nigeria";
   else if (includedCodes.size > 0) scope = "named_countries";
-  else if (hasEmea) scope = "emea";
-  else if (
-    excludedCodes.size > 0 ||
-    /\b(?:latam|apac|europe|americas|asia|middle east)\b/.test(normalized)
-  ) {
+  else if (excludedCodes.size > 0 || hasRestrictedRegion) {
     scope = "restricted_region";
   } else {
     scope = "unclear";
