@@ -1218,8 +1218,67 @@ a:hover {
   font-size: 0.88rem;
 }
 
-.advanced-filters > .cluster {
+.advanced-filters-body > .cluster {
   padding: 0 1rem 1rem;
+}
+
+@media (max-width: 47.9rem) {
+  body:has(.advanced-filters[open]) {
+    overflow: hidden;
+  }
+
+  .advanced-filters:not([open]) > summary::after {
+    content: " · opens as a sheet";
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .advanced-filters[open] {
+    position: fixed;
+    z-index: 100;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    border: 0;
+    background: rgb(15 23 42 / 62%);
+    padding-top: max(3rem, env(safe-area-inset-top));
+  }
+
+  .advanced-filters[open] > summary {
+    flex: 0 0 auto;
+    margin: 0;
+    border: 1px solid var(--border-default);
+    border-bottom: 0;
+    border-radius: var(--radius-large) var(--radius-large) 0 0;
+    background: var(--surface-default);
+    box-shadow: 0 -1rem 2.5rem rgb(15 23 42 / 18%);
+    padding: 1rem;
+  }
+
+  .advanced-filters[open] > summary::after {
+    content: "Close";
+    float: right;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+  }
+
+  .advanced-filters-body {
+    max-height: calc(88dvh - 3.25rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-inline: 1px solid var(--border-default);
+    background: var(--surface-default);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .advanced-filters-body > .cluster {
+    position: sticky;
+    bottom: 0;
+    border-top: 1px solid var(--border-default);
+    background: var(--surface-default);
+    padding-top: 0.75rem;
+  }
 }
 
 .job-list {

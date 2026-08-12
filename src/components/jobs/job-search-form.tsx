@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ResponsiveAdvancedFilters } from "@/components/jobs/responsive-advanced-filters";
 import { hasAdvancedJobFilters, type JobSearch } from "@/lib/jobs/search";
 
 export function JobSearchForm({
@@ -63,15 +64,7 @@ export function JobSearchForm({
           Search jobs
         </button>
       </div>
-      {/*
-        Open when the search is already narrowed by one of these controls,
-        so active filters are never hiding behind a collapsed summary.
-      */}
-      <details
-        className="advanced-filters"
-        open={hasAdvancedJobFilters(search)}
-      >
-        <summary>More filters</summary>
+      <ResponsiveAdvancedFilters active={hasAdvancedJobFilters(search)}>
         <div className="filter-grid">
           <div className="field">
             <label htmlFor="company">Company</label>
@@ -312,7 +305,7 @@ export function JobSearchForm({
             Clear all
           </Link>
         </div>
-      </details>
+      </ResponsiveAdvancedFilters>
     </form>
   );
 }

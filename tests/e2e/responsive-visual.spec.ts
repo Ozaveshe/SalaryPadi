@@ -138,6 +138,37 @@ test("keeps audited public surface shells responsive", async ({ page }) => {
   }
 });
 
+test("uses a dismissible mobile filter sheet without duplicating controls", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop-chromium",
+    "The explicit mobile interaction pass only needs one browser project.",
+  );
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/jobs");
+
+  const sheet = page.locator("details.advanced-filters");
+  const trigger = page.getByText("More filters", { exact: true });
+  await trigger.click();
+  await expect(sheet).toHaveAttribute("open", "");
+  await expect
+    .poll(() => sheet.evaluate((element) => getComputedStyle(element).position))
+    .toBe("fixed");
+  await expect(page.getByLabel("Work mode")).toHaveCount(1);
+  await expect
+    .poll(() => page.evaluate(() => getComputedStyle(document.body).overflow))
+    .toBe("hidden");
+
+  await page.keyboard.press("Escape");
+  await expect(sheet).not.toHaveAttribute("open", "");
+  await expect(trigger).toBeFocused();
+
+  await trigger.click();
+  await page.mouse.click(12, 12);
+  await expect(sheet).not.toHaveAttribute("open", "");
+});
+
 test("captures the public decision path at each configured viewport", async ({
   page,
 }, testInfo) => {
