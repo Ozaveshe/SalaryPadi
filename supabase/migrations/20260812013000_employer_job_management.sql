@@ -80,7 +80,7 @@ $$;
 create or replace function api.close_my_employer_job(
   p_submission_id uuid, p_reason text
 )
-returns boolean language sql security invoker set search_path = ''
+returns boolean language sql security definer set search_path = ''
 as $$ select security.close_own_employer_job(p_submission_id, p_reason) $$;
 
 revoke all on function security.close_own_employer_job(uuid, text) from public, anon, authenticated;

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(8);
+select plan(10);
 insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
 ('b5000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'owner@employer.example', '{}'::jsonb, '{}'::jsonb, now(), now()),
 ('b5000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'other@employer.example', '{}'::jsonb, '{}'::jsonb, now(), now()) on conflict (id) do nothing;
@@ -33,6 +33,8 @@ insert into app.jobs (
 from app.job_sources source where source.adapter_key = 'salarypadi_employer_submissions';
 select set_config('request.jwt.claims', jsonb_build_object('sub', 'b5000000-0000-4000-8000-000000000002', 'role', 'authenticated', 'aal', 'aal1', 'is_anonymous', false)::text, true);
 set local role authenticated;
+select is(has_function_privilege('authenticated', 'security.close_own_employer_job(uuid,text)', 'EXECUTE'), false, 'authenticated cannot call the internal closure function directly');
+select is(has_function_privilege('authenticated', 'api.close_my_employer_job(uuid,text)', 'EXECUTE'), true, 'authenticated can call the owner-checked API wrapper');
 select is((select count(*) from api.my_employer_job_submissions), 0::bigint, 'another account cannot see the owner submission');
 select is(api.close_my_employer_job('b5000000-0000-4000-8000-000000000010', 'The position has been filled.'), false, 'another account cannot close the owner listing');
 select set_config('request.jwt.claims', jsonb_build_object('sub', 'b5000000-0000-4000-8000-000000000001', 'role', 'authenticated', 'aal', 'aal1', 'is_anonymous', false)::text, true);
