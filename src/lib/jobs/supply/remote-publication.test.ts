@@ -1,12 +1,40 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  evaluateLocalPublication,
   evaluateRemotePublication,
   inferRemoteArrangement,
   remoteEligibilityEvidence,
 } from "./remote-publication";
 
 const verifiedAt = "2026-07-14T00:00:00.000Z";
+
+describe("local job publication policy", () => {
+  it.each([
+    ["Africa", "africa"],
+    ["Lagos, Nigeria", "nigeria"],
+    ["Nairobi, Kenya", "named_african_country"],
+  ] as const)(
+    "accepts explicit African workplace evidence: %s",
+    (evidence, reason) => {
+      expect(
+        evaluateLocalPublication({ evidenceText: evidence, verifiedAt }),
+      ).toMatchObject({
+        eligible: true,
+        reason,
+      });
+    },
+  );
+
+  it.each(["Europe", "Remote", "Not stated by the source"])(
+    "rejects non-African or unproven workplace evidence: %s",
+    (evidence) => {
+      expect(
+        evaluateLocalPublication({ evidenceText: evidence, verifiedAt }),
+      ).toMatchObject({ eligible: false, reason: "geography_restricted" });
+    },
+  );
+});
 
 describe("remote job publication policy", () => {
   it.each([
