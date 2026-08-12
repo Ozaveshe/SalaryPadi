@@ -339,6 +339,18 @@ const PROVIDERS = [
     location: (j) => j.location ?? "",
     updated: (j) => j.publishedAt ?? "",
   },
+  {
+    name: "smartrecruiters",
+    url: (t) =>
+      `https://api.smartrecruiters.com/v1/companies/${t}/postings?limit=100`,
+    jobs: (b) => b?.content ?? [],
+    location: (j) =>
+      j.location?.fullLocation ??
+      [j.location?.city, j.location?.region, j.location?.country]
+        .filter(Boolean)
+        .join(", "),
+    updated: (j) => j.releasedDate ?? "",
+  },
 ];
 
 const NIGERIA =

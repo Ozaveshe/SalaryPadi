@@ -6,7 +6,7 @@ import { JobQuickFacts } from "@/components/jobs/job-trust-summary";
 import { formatDate } from "@/lib/format";
 import {
   jobDescriptionExcerpt,
-  publicJobDescription,
+  publicJobDescriptionView,
 } from "@/lib/jobs/description-excerpt";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
@@ -39,7 +39,8 @@ export function JobPreviewPanel({
   const statement = publicEligibilityStatement(job);
   const postingAge = jobPostingAge(job);
   const evidence = getJobEvidenceLabels(job).slice(0, 6);
-  const excerpt = jobDescriptionExcerpt(publicJobDescription(job), 700);
+  const description = publicJobDescriptionView(job);
+  const excerpt = jobDescriptionExcerpt(description.text, 700);
 
   return (
     <section
@@ -79,6 +80,9 @@ export function JobPreviewPanel({
             ) : null}
             {postingAge.label ? (
               <span className="status status-warning">{postingAge.label}</span>
+            ) : null}
+            {description.kind === "source_only" ? (
+              <span className="status">Description on source</span>
             ) : null}
           </div>
         ) : null}

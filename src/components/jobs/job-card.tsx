@@ -12,7 +12,7 @@ import { MatchBadge } from "@/components/jobs/match-badge";
 import { formatDate } from "@/lib/format";
 import {
   jobDescriptionExcerpt,
-  publicJobDescription,
+  publicJobDescriptionView,
 } from "@/lib/jobs/description-excerpt";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
@@ -88,7 +88,7 @@ export function JobCard({
   const employmentType = publicEnum(job.employmentType);
   const seniority = publicEnum(job.experienceLevel);
   const postingAge = jobPostingAge(job);
-  const description = jobDescriptionExcerpt(publicJobDescription(job));
+  const description = jobDescriptionExcerpt(publicJobDescriptionView(job).text);
 
   return (
     <article

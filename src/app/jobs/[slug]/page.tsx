@@ -20,7 +20,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { CompanyLogo } from "@/components/companies/company-logo";
 import { JobCard } from "@/components/jobs/job-card";
 import { JobDescription } from "@/components/jobs/job-description";
-import { publicJobDescription } from "@/lib/jobs/description-excerpt";
+import { publicJobDescriptionView } from "@/lib/jobs/description-excerpt";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import {
   JobQuickFacts,
@@ -164,6 +164,7 @@ export default async function JobDetailPage({
   const nairaEstimate = estimateNairaTakeHome(job.salary, currencyRates);
   const postingAge = jobPostingAge(job);
   const deadline = jobDeadlineNotice(job.validThrough, new Date());
+  const description = publicJobDescriptionView(job);
   const companyRating = ratingResult.data;
   const companyReviews = reviewsResult.data;
   const companyInterviews = interviewsResult.data;
@@ -408,7 +409,13 @@ export default async function JobDetailPage({
             <h2 className="section-title" id="description-heading">
               Role details
             </h2>
-            <JobDescription description={publicJobDescription(job)} />
+            <JobDescription
+              description={description.text}
+              idPrefix="role-details"
+              sourceName={job.source.name}
+              sourceOnly={description.kind === "source_only"}
+              sourceUrl={job.sourceUrl}
+            />
           </section>
           {job.requirements ? (
             <section
@@ -418,7 +425,10 @@ export default async function JobDetailPage({
               <h2 className="section-title" id="requirements-heading">
                 Requirements
               </h2>
-              <p className="text-muted">{job.requirements}</p>
+              <JobDescription
+                description={job.requirements}
+                idPrefix="role-requirements"
+              />
             </section>
           ) : null}
           {job.benefits ? (
@@ -429,7 +439,10 @@ export default async function JobDetailPage({
               <h2 className="section-title" id="benefits-heading">
                 Benefits
               </h2>
-              <p className="text-muted">{job.benefits}</p>
+              <JobDescription
+                description={job.benefits}
+                idPrefix="role-benefits"
+              />
             </section>
           ) : null}
         </div>

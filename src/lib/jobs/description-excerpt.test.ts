@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   jobDescriptionExcerpt,
   publicJobDescription,
+  publicJobDescriptionView,
 } from "./description-excerpt";
 import type { Job } from "./types";
 
@@ -30,6 +31,15 @@ describe("publicJobDescription", () => {
     ).toBe("Real role details.");
   });
 
+  it("preserves the line structure the renderer uses", () => {
+    expect(
+      publicJobDescription({
+        description:
+          "  About the role  \r\n\r\n  - Build useful products  \r\n  - Work with teams  ",
+      } as Job),
+    ).toBe("About the role\n\n- Build useful products\n- Work with teams");
+  });
+
   it("explains when a reviewed source cannot supply republishable copy", () => {
     const job = {
       description: "",
@@ -39,7 +49,7 @@ describe("publicJobDescription", () => {
     } as Job;
 
     expect(publicJobDescription(job)).toBe(
-      "Reviewed Feed lists this Product Designer opportunity at Example Ltd. The reviewed source does not provide description text that SalaryPadi can republish, so open the original listing for responsibilities, requirements and application instructions.",
+      "Reviewed Feed lists this Product Designer opportunity at Example Ltd. Its full role description is available on the original listing and is not republished by SalaryPadi.",
     );
   });
 
@@ -53,6 +63,21 @@ describe("publicJobDescription", () => {
 
     expect(publicJobDescription(job)).toContain(
       "ReliefWeb lists this Programme Officer opportunity at Example NGO.",
+    );
+  });
+
+  it("recognises the current metadata-only placeholder and source policy", () => {
+    const job = {
+      description:
+        "This listing is available as source metadata only. SalaryPadi does not store the provider's full job description; use the application link to review the original posting.",
+      title: "Relationship Manager",
+      company: { name: "Access Bank" },
+      source: { name: "Access Bank careers", canStoreFullDescription: false },
+    } as Job;
+
+    expect(publicJobDescriptionView(job).kind).toBe("source_only");
+    expect(publicJobDescriptionView(job).text).not.toContain(
+      "source metadata only",
     );
   });
 });

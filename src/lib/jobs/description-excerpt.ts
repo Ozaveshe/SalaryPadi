@@ -3,6 +3,50 @@ import type { Job } from "./types";
 const DEFAULT_EXCERPT_LENGTH = 280;
 const ATTRIBUTED_SOURCE_PLACEHOLDER =
   "Open the attributed source listing for full details.";
+const METADATA_ONLY_PLACEHOLDER =
+  "This listing is available as source metadata only. SalaryPadi does not store the provider's full job description; use the application link to review the original posting.";
+
+const NON_REPUBLISHABLE_DESCRIPTIONS = new Set([
+  ATTRIBUTED_SOURCE_PLACEHOLDER,
+  METADATA_ONLY_PLACEHOLDER,
+]);
+
+export type PublicJobDescription = {
+  kind: "stored" | "source_only";
+  text: string;
+};
+
+/**
+ * Normalises transport whitespace without destroying document structure.
+ * Imported line breaks carry the headings, paragraphs and list items the
+ * public renderer needs; collapsing `\s+` here previously erased them all.
+ */
+function normaliseDescriptionLayout(value: string): string {
+  return value
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[\t\f\v ]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function publicJobDescriptionView(job: Job): PublicJobDescription {
+  const stored = normaliseDescriptionLayout(job.description);
+  const sourceDisallowsFullCopy = job.source?.canStoreFullDescription === false;
+  if (
+    stored &&
+    !sourceDisallowsFullCopy &&
+    !NON_REPUBLISHABLE_DESCRIPTIONS.has(stored)
+  ) {
+    return { kind: "stored", text: stored };
+  }
+
+  return {
+    kind: "source_only",
+    text: `${job.source.name} lists this ${job.title} opportunity at ${job.company.name}. Its full role description is available on the original listing and is not republished by SalaryPadi.`,
+  };
+}
 
 /**
  * Returns republishable role copy for every public job.
@@ -13,10 +57,7 @@ const ATTRIBUTED_SOURCE_PLACEHOLDER =
  * responsibilities.
  */
 export function publicJobDescription(job: Job): string {
-  const stored = job.description.replace(/\s+/g, " ").trim();
-  if (stored && stored !== ATTRIBUTED_SOURCE_PLACEHOLDER) return stored;
-
-  return `${job.source.name} lists this ${job.title} opportunity at ${job.company.name}. The reviewed source does not provide description text that SalaryPadi can republish, so open the original listing for responsibilities, requirements and application instructions.`;
+  return publicJobDescriptionView(job).text;
 }
 
 /** Builds a compact excerpt from the real stored description. */
