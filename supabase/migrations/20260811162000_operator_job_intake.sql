@@ -424,7 +424,7 @@ begin
       'maximum', new.salary_max, 'period', new.pay_period,
       'gross_net', new.gross_net
     ))::text
-    where evidence.job_id = new.id and evidence.occurrence_id is null;
+    where evidence.job_id = new.id;
   end if;
   return new;
 end;
@@ -445,7 +445,7 @@ set source_text = jsonb_strip_nulls(jsonb_build_object(
 ))::text
 from app.jobs job
 join app.job_sources source on source.id = job.source_id
-where evidence.job_id = job.id and evidence.occurrence_id is null
+where evidence.job_id = job.id
   and source.source_type in ('direct_employer', 'manual');
 
 revoke all on function api.admin_submit_job_intake(jsonb) from public, anon;

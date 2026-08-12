@@ -228,12 +228,14 @@ select ok(
   'source-provided eligibility does not invent an independent verifier'
 );
 select ok(
-  (select evidence.source_text::jsonb ->> 'evidence_ref' =
-      'https://operator-evidence.example.test/jobs/engineer'
-   from app.job_salary_evidence evidence
-   join app.jobs job on job.id = evidence.job_id
-   where job.external_source_id = (select id::text from test_job_intake_ids)
-     and evidence.occurrence_id is null),
+  exists (
+    select 1
+    from app.job_salary_evidence evidence
+    join app.jobs job on job.id = evidence.job_id
+    where job.external_source_id = (select id::text from test_job_intake_ids)
+      and evidence.source_text::jsonb ->> 'evidence_ref' =
+        'https://operator-evidence.example.test/jobs/engineer'
+  ),
   'salary evidence cites the retained source instead of only repeating numbers'
 );
 select is(
