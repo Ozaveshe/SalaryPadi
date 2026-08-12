@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(70);
+select plan(72);
 
 select ok(
   to_regprocedure(
@@ -846,9 +846,9 @@ select is(
 select is(
   (select count(*)::integer from app.jobs
    where source_id = 'd1000000-0000-0000-0000-000000000002'
-     and status = 'published'),
+     and status = 'pending'),
   2,
-  'automatic mode publishes only under verified company invariant'
+  'automatic mode keeps country-unclear records pending'
 );
 
 select ok(
@@ -977,6 +977,58 @@ select lives_ok(
   'mixed-country automatic snapshot finalizes successfully'
 );
 
+update app.jobs
+set status = 'published'
+where source_id = 'd1000000-0000-0000-0000-000000000003'
+  and external_source_id = 'automatic-ke-only';
+
+insert into ats_test_runs (name, run_id)
+select 'automatic-mixed-replay', begun.import_run_id
+from api.worker_begin_ats_snapshot(
+  'ats_lifecycle_mixed', now() + interval '3750 milliseconds', 1, 1
+) begun
+where begun.should_run;
+
+select is(
+  (
+    api.worker_store_ats_snapshot_batch(
+      (select run_id from ats_test_runs where name = 'automatic-mixed-replay'),
+      jsonb_build_array(jsonb_build_object(
+        'external_id', 'automatic-ke-only',
+        'content_hash', repeat('4', 64),
+        'dedup_fingerprint', repeat('5', 64),
+        'title', 'Kenya Product Engineer',
+        'source_url',
+          'https://boards.example.test/mixed/jobs/automatic-ke-only',
+        'application_url',
+          'https://boards.example.test/mixed/jobs/automatic-ke-only/apply',
+        'description_text', 'A role explicitly open only in Nairobi.',
+        'employment_type', 'full_time',
+        'locations', jsonb_build_array(jsonb_build_object(
+          'country_code', 'KE', 'city', 'Nairobi', 'is_primary', true
+        )),
+        'eligibility', jsonb_build_object(
+          'scope', 'named_countries', 'provenance', 'source_provided',
+          'evidence_text', 'The employer lists Nairobi only.',
+          'countries', jsonb_build_array(jsonb_build_object(
+            'country_code', 'KE', 'rule', 'include'
+          ))
+        )
+      ))
+    ) ->> 'unchanged_count'
+  )::integer,
+  1,
+  'automatic replay demotes a previously published candidate-only role'
+);
+
+select lives_ok(
+  $$ select api.worker_finalize_ats_snapshot(
+    (select run_id from ats_test_runs where name = 'automatic-mixed-replay'),
+    true, 0, '[]'::jsonb
+  ) $$,
+  'candidate-only automatic replay finalizes successfully'
+);
+
 insert into ats_test_runs (name, run_id)
 select 'automatic-partial', begun.import_run_id
 from api.worker_begin_ats_snapshot(
@@ -1021,8 +1073,8 @@ select is(
   (select status::text from app.jobs
    where source_id = 'd1000000-0000-0000-0000-000000000002'
      and external_source_id = 'automatic-2'),
-  'published',
-  'partial snapshot never closes an unseen published job'
+  'pending',
+  'partial snapshot never closes or promotes an unseen pending job'
 );
 
 select is(
