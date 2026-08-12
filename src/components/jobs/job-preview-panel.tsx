@@ -4,7 +4,10 @@ import Link from "next/link";
 import { CompanyLogo } from "@/components/companies/company-logo";
 import { JobQuickFacts } from "@/components/jobs/job-trust-summary";
 import { formatDate } from "@/lib/format";
-import { jobDescriptionExcerpt } from "@/lib/jobs/description-excerpt";
+import {
+  jobDescriptionExcerpt,
+  publicJobDescription,
+} from "@/lib/jobs/description-excerpt";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
@@ -36,7 +39,7 @@ export function JobPreviewPanel({
   const statement = publicEligibilityStatement(job);
   const postingAge = jobPostingAge(job);
   const evidence = getJobEvidenceLabels(job).slice(0, 6);
-  const excerpt = jobDescriptionExcerpt(job.description, 700);
+  const excerpt = jobDescriptionExcerpt(publicJobDescription(job), 700);
 
   return (
     <section

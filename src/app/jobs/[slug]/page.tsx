@@ -20,6 +20,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { CompanyLogo } from "@/components/companies/company-logo";
 import { JobCard } from "@/components/jobs/job-card";
 import { JobDescription } from "@/components/jobs/job-description";
+import { publicJobDescription } from "@/lib/jobs/description-excerpt";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import {
   JobQuickFacts,
@@ -407,7 +408,7 @@ export default async function JobDetailPage({
             <h2 className="section-title" id="description-heading">
               Role details
             </h2>
-            <JobDescription description={job.description} />
+            <JobDescription description={publicJobDescription(job)} />
           </section>
           {job.requirements ? (
             <section

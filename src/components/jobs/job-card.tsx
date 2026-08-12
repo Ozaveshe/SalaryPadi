@@ -9,7 +9,10 @@ import Link from "next/link";
 import { CompanyLogo } from "@/components/companies/company-logo";
 import { MatchBadge } from "@/components/jobs/match-badge";
 import { formatDate } from "@/lib/format";
-import { jobDescriptionExcerpt } from "@/lib/jobs/description-excerpt";
+import {
+  jobDescriptionExcerpt,
+  publicJobDescription,
+} from "@/lib/jobs/description-excerpt";
 import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
@@ -65,7 +68,7 @@ export function JobCard({
   const employmentType = publicEnum(job.employmentType);
   const seniority = publicEnum(job.experienceLevel);
   const postingAge = jobPostingAge(job);
-  const description = jobDescriptionExcerpt(job.description);
+  const description = jobDescriptionExcerpt(publicJobDescription(job));
 
   return (
     <article
