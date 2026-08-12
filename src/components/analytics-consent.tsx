@@ -111,9 +111,8 @@ export function AnalyticsConsent({
         <div>
           <strong id="analytics-consent-title">Optional analytics</strong>
           <p>
-            Allow anonymous public-page visits and performance counts. Salary
-            values, searches, notes, account details and private workspace
-            activity are never sent. Read the{" "}
+            Allow anonymous visit and performance counts? Salary values and
+            private workspace activity are never sent. Read the{" "}
             <Link href="/privacy">privacy notice</Link>.
           </p>
         </div>
