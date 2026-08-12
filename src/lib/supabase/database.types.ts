@@ -675,6 +675,7 @@ export type Database = {
           id: string | null;
           pay_period:
             "hourly" | "daily" | "weekly" | "monthly" | "annual" | null;
+          public_job_slug: string | null;
           salary_max: number | null;
           salary_min: number | null;
           status:
@@ -722,6 +723,7 @@ export type Database = {
           id?: string | null;
           pay_period?:
             "hourly" | "daily" | "weekly" | "monthly" | "annual" | null;
+          public_job_slug?: string | null;
           salary_max?: number | null;
           salary_min?: number | null;
           status?:
@@ -769,6 +771,7 @@ export type Database = {
           id?: string | null;
           pay_period?:
             "hourly" | "daily" | "weekly" | "monthly" | "annual" | null;
+          public_job_slug?: string | null;
           salary_max?: number | null;
           salary_min?: number | null;
           status?:
@@ -1079,6 +1082,10 @@ export type Database = {
       };
     };
     Functions: {
+      close_my_employer_job: {
+        Args: { p_reason: string; p_submission_id: string };
+        Returns: boolean;
+      };
       admin_audit_events: {
         Args: { p_limit?: number };
         Returns: unknown[];

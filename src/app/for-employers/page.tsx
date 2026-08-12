@@ -25,6 +25,13 @@ export default function ForEmployersPage() {
         description="A claim or reply request starts a human review. Neither route creates a verification badge automatically, and community evidence is never removed merely because an employer disagrees with it."
       />
       <BrandArt className="page-art" id="for-employers" />
+      <div className="notice">
+        Already submitted a vacancy?{" "}
+        <Link className="text-link" href="/employer/jobs">
+          Track or close your employer listings
+        </Link>
+        .
+      </div>
       <div className="employer-path-grid">
         <article className="surface surface-pad stack">
           <BriefcaseBusiness aria-hidden="true" size={24} />

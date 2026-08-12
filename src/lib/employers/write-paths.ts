@@ -14,8 +14,9 @@
  *      any table in `app`, `api` or `private`. Every employer write goes
  *      through a security-definer RPC. Pinned by pgTAP so a convenience grant
  *      cannot reintroduce direct writes.
- *   2. Every employer write below lands in a moderation queue, not on a
- *      public record.
+ *   2. Content writes land in moderation before publication. A listing owner
+ *      may also make the one safe direct lifecycle change: close their own
+ *      approved role. That can only remove public content, never publish it.
  *
  * This registry adds the third: a new employer-reachable route fails CI until
  * somebody says which boundary fields it writes.
@@ -39,6 +40,11 @@ export interface EmployerWritePath {
  * employer-facing route on disk, so adding one without classifying it fails.
  */
 export const EMPLOYER_WRITE_PATHS: Record<string, EmployerWritePath> = {
+  "src/app/api/employer/jobs/close/route.ts": {
+    fields: [],
+    writes:
+      "Closes the owner's approved first-party listing. Removes public content and edits no company evidence.",
+  },
   "src/app/api/employer-submissions/route.ts": {
     fields: [],
     writes:

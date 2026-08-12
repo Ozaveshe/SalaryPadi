@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { BrandArt } from "@/components/media/brand-art";
@@ -28,6 +29,11 @@ export default async function PostAJobPage({
         description="Every submission starts pending. A fee can never bypass moderation, and sponsorship never changes ratings or trust decisions."
       />
       <BrandArt className="page-art" id="post-a-job" />
+      <p className="m-0">
+        <Link className="text-link" href="/employer/jobs">
+          View your existing submissions
+        </Link>
+      </p>
       {submitted === "true" ? (
         <div className="notice" role="status">
           <strong>Submitted for moderation.</strong> The vacancy is not public
