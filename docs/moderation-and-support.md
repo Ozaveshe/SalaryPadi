@@ -15,15 +15,17 @@ before/after hashes into two append-only stores
 (`private.moderation_actions`, `audit.event_log`), with compare-and-set
 versioning. Escalated approvals and restores require `admin` specifically.
 
-## The UI layer (the gap)
+## The UI layer
 
-`/admin/moderation` renders one flat table that shows **none** of the flag
-signals, has no sub-queues, no case detail view (redaction means hand-typed
-JSON), and labels benefits/pay-reliability cases with the bare string
-"Moderation case". Appeals have no independent-reviewer enforcement despite
-the runbook requiring one, and no backlog-age metric exists though the
-runbook's daily routine depends on it. Only `admin` role holders can reach
-the queue at all.
+`/admin/moderation` exposes privacy-safe flag kinds, actionable contribution
+labels and measured backlog age/counts to `moderator` and `admin` roles after
+AAL2. Each row opens a protected case detail with the private source record,
+flag taxonomy and immutable action history, so a moderator can inspect the
+material before entering a redacted public payload or another decision.
+
+Raw detector details and user identities are not returned by the detail RPC.
+Appeals still need independent-reviewer enforcement despite the runbook
+requiring it, and the queue still needs configurable sub-queues.
 
 ## Support
 

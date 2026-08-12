@@ -74,6 +74,10 @@ export async function AdminResourcePage({
                         <Link href={`/admin/duplicates/${row.id}`}>
                           {row.title}
                         </Link>
+                      ) : resource === "moderation" ? (
+                        <Link href={`/admin/moderation/${row.id}`}>
+                          {row.title}
+                        </Link>
                       ) : (
                         row.title
                       )}
