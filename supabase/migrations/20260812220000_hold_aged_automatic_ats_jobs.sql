@@ -47,7 +47,8 @@ begin
         and job.lifecycle_state <> 'closed'
         and job.canonical_job_id is null
         and not job.is_fixture
-        and job.posted_at >= statement_timestamp() - interval '365 days'
+        and coalesce(job.posted_at, job.last_checked_at) >=
+          statement_timestamp() - interval '365 days'
         and (
           job.valid_through is null
           or job.valid_through > statement_timestamp()
