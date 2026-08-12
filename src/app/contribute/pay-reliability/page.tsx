@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { TrackView } from "@/components/analytics-events";
 import { ContributionShell } from "@/components/contributions/contribution-shell";
 import { DraftControls } from "@/components/contributions/draft-controls";
 import { requireViewer } from "@/lib/auth/dal";
@@ -16,6 +17,7 @@ export default async function PayReliabilityContributionPage() {
       title="Share pay reliability evidence"
       description="Use coarse timing bands from your own experience. SalaryPadi never publishes a single report or a precise claim from a small cohort."
     >
+      <TrackView event="contribution_started" />
       <form
         id="pay-reliability-contribution-form"
         className="contribution-form"

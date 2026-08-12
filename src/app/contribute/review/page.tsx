@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { TrackView } from "@/components/analytics-events";
 import { ContributionShell } from "@/components/contributions/contribution-shell";
 import { DraftControls } from "@/components/contributions/draft-controls";
 import { requireViewer } from "@/lib/auth/dal";
@@ -28,6 +29,7 @@ export default async function ReviewContributionPage() {
       title="Share a workplace review"
       description="Focus on your own experience and workplace conditions. Do not name ordinary managers, coworkers or other private people."
     >
+      <TrackView event="contribution_started" />
       <form
         id="review-contribution-form"
         className="contribution-form"

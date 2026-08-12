@@ -24,7 +24,7 @@ currency, period or destination.
 | Contributor                        | Yes — five moderated flows, drafts, four-layer PII refusal                                | Retention automation for drafts/signals                                   |
 | Employer                           | Partial — claim, preview/post, track/close own listings, respond                          | No employer analytics; sponsored products remain intentionally unbuilt    |
 | Career-data associate              | Yes — source-backed intake, searchable job evidence and duplicate decisions are reachable | No bulk intake UI                                                         |
-| Moderator                          | Yes — AAL2 queue, actions and named safety flags are reachable                            | No dedicated case-detail view beyond the privacy-safe queue summary       |
+| Moderator                          | Yes — AAL2 queue, case detail, actions, history and named safety flags are reachable      | No configurable sub-queues or independent-reviewer appeal enforcement     |
 | Administrator                      | Partial — source/supply health, AAL2 audit reader and moderation-backlog evidence         | No flag service                                                           |
 
 ## Non-negotiables already holding

@@ -7,9 +7,12 @@ export function CommunityStatus({
 }) {
   if (reported === "true")
     return (
-      <div className="notice" role="status">
-        Report received. A moderator can now review this item.
-      </div>
+      <>
+        <TrackView event="content_reported" />
+        <div className="notice" role="status">
+          Report received. A moderator can now review this item.
+        </div>
+      </>
     );
   if (reported === "error")
     return (
@@ -44,3 +47,4 @@ export function CommunityStatus({
     );
   return null;
 }
+import { TrackView } from "@/components/analytics-events";

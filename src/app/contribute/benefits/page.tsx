@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { TrackView } from "@/components/analytics-events";
 import { ContributionShell } from "@/components/contributions/contribution-shell";
 import { DraftControls } from "@/components/contributions/draft-controls";
 import { requireViewer } from "@/lib/auth/dal";
@@ -26,6 +27,7 @@ export default async function BenefitsContributionPage() {
       title="Share workplace benefits"
       description="Report only benefits you personally received or were formally offered. Public benefit evidence appears only after an independent privacy cohort is reached."
     >
+      <TrackView event="contribution_started" />
       <form
         id="benefits-contribution-form"
         className="contribution-form"

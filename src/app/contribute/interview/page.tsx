@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { TrackView } from "@/components/analytics-events";
 import { ContributionShell } from "@/components/contributions/contribution-shell";
 import { DraftControls } from "@/components/contributions/draft-controls";
 import { requireViewer } from "@/lib/auth/dal";
@@ -24,6 +25,7 @@ export default async function InterviewContributionPage({
       title="Share an interview experience"
       description="Describe the process, duration and question themes without sharing confidential material or exact proprietary test answers."
     >
+      <TrackView event="contribution_started" />
       <form
         id="interview-contribution-form"
         className="contribution-form"

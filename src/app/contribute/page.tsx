@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { TrackView } from "@/components/analytics-events";
 import { PageHeading } from "@/components/page-heading";
 import { getAppOrigin } from "@/lib/env";
 import { buildWhatsAppShareUrl } from "@/lib/share/whatsapp";
@@ -65,6 +66,9 @@ export default async function ContributePage({
   );
   return (
     <div className="site-shell stack-lg">
+      {status === "submitted" ? (
+        <TrackView event="contribution_submitted" />
+      ) : null}
       <PageHeading
         eyebrow="First-party community data"
         title="Help the next person see more clearly"

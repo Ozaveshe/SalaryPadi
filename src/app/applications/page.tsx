@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { TrackView } from "@/components/analytics-events";
 import { BrandArt } from "@/components/media/brand-art";
 import { CompanyEvidenceInvitation } from "@/components/companies/company-evidence-invitation";
 import { PrivateDataStatus } from "@/components/private-data-status";
@@ -49,6 +50,7 @@ export default async function ApplicationsPage({
   const salaryCompany = sliceSearchParam(input.salary_company, 180);
   const salaryRole = sliceSearchParam(input.salary_role, 160);
   const cvAttached = sliceSearchParam(input.cv_attached, 10);
+  const updated = sliceSearchParam(input.updated, 10);
   const [result, cvs] = await Promise.all([
     getApplications(),
     getCandidateCvs(),
@@ -67,6 +69,18 @@ export default async function ApplicationsPage({
           </Link>
         }
       >
+        {updated === "true" ? (
+          <TrackView event="application_status_changed" />
+        ) : null}
+        {updated === "true" ? (
+          <div className="notice" role="status">
+            Application status updated.
+          </div>
+        ) : updated === "error" ? (
+          <div className="notice notice-danger" role="alert">
+            The application status could not be updated. Try again.
+          </div>
+        ) : null}
         {removed === "true" ? (
           <div className="notice" role="status">
             Application record removed.

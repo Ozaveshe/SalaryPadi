@@ -20,8 +20,12 @@ alone.
 - `job_view`, `company_view`, `job_search`, `job_filter_applied`,
   `salary_search` via `TrackView` rendered by the owning pages.
 
-Still unwired: `application_status_changed`, `contribution_started`,
-`contribution_submitted`, `content_reported`.
+The remaining catalog events now fire at bounded milestones:
+`application_status_changed` after the update RPC succeeds,
+`contribution_started` when a protected contribution form opens,
+`contribution_submitted` after the submission RPC succeeds, and
+`content_reported` after a report is accepted. Failed redirects do not count
+as successful mutations.
 
 ## The north-star gap
 

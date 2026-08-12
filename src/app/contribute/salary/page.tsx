@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { TrackView } from "@/components/analytics-events";
 import { ContributionShell } from "@/components/contributions/contribution-shell";
 import { DraftControls } from "@/components/contributions/draft-controls";
 import { requireViewer } from "@/lib/auth/dal";
@@ -45,6 +46,7 @@ export default async function SalaryContributionPage({
       title="Share salary evidence"
       description="Preserve the original amount, currency and pay period. SalaryPadi calculates equivalents later without replacing what you reported."
     >
+      <TrackView event="contribution_started" />
       <form
         id="salary-contribution-form"
         className="contribution-form"

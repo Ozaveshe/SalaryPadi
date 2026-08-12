@@ -113,11 +113,19 @@ export default async function JobDetailPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ saved?: string | string[] }>;
+  searchParams: Promise<{
+    saved?: string | string[];
+    reported?: string | string[];
+  }>;
 }) {
   const { slug } = await params;
-  const savedInput = (await searchParams).saved;
+  const input = await searchParams;
+  const savedInput = input.saved;
   const saved = Array.isArray(savedInput) ? savedInput[0] : savedInput;
+  const reportedInput = input.reported;
+  const reported = Array.isArray(reportedInput)
+    ? reportedInput[0]
+    : reportedInput;
   const { feed, job } = await getJobBySlug(slug);
   if (!job && feed.state === "live") notFound();
   if (!job) {
@@ -322,7 +330,17 @@ export default async function JobDetailPage({
           The job could not be saved. Try again.
         </div>
       ) : null}
+      {reported === "true" ? (
+        <div className="notice" role="status">
+          Report received. A moderator can now review this job.
+        </div>
+      ) : reported === "error" ? (
+        <div className="notice notice-danger" role="alert">
+          The report could not be saved. Please try again.
+        </div>
+      ) : null}
       <TrackView event="job_view" />
+      {reported === "true" ? <TrackView event="content_reported" /> : null}
       <JobTrustSummary job={job} nairaEstimate={nairaEstimate} />
       <nav className="decision-path" aria-label="Continue this job decision">
         <div>
