@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   fetchRemotiveJobs: vi.fn(),
   fetchJobicyJobs: vi.fn(),
   fetchHimalayasJobs: vi.fn(),
+  fetchReliefWebJobs: vi.fn(),
   decodeDatabaseJobRow: vi.fn(),
   openSupplyAdapter: vi.fn(),
   readSecondaryFeedSnapshot: vi.fn(),
@@ -43,6 +44,10 @@ vi.mock("./himalayas-adapter", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./himalayas-adapter")>();
   return { ...actual, fetchHimalayasJobs: mocks.fetchHimalayasJobs };
 });
+vi.mock("./reliefweb-adapter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./reliefweb-adapter")>();
+  return { ...actual, fetchReliefWebJobs: mocks.fetchReliefWebJobs };
+});
 vi.mock("./database", () => ({
   decodeDatabaseJobRow: mocks.decodeDatabaseJobRow,
 }));
@@ -67,6 +72,7 @@ import {
   getJobBySlug,
   getLiveJobFeed,
   getRemotiveJobFeed,
+  getReliefWebJobFeed,
 } from "./repository";
 import { unstable_rethrow } from "next/navigation";
 
@@ -91,6 +97,7 @@ type ClientOptions = {
   policy?: Record<string, unknown> | null;
   jobicyPolicy?: Record<string, unknown> | null;
   himalayasPolicy?: Record<string, unknown> | null;
+  reliefwebPolicy?: Record<string, unknown> | null;
   policyError?: boolean;
   policyThrows?: boolean;
 };
@@ -147,6 +154,20 @@ function client({
     required_destination_kind: "source_url",
     refresh_interval_seconds: 86_400,
   },
+  reliefwebPolicy = {
+    adapter_key: "reliefweb",
+    source_type: "permitted_api",
+    terms_url: "https://apidoc.reliefweb.int/",
+    terms_reviewed_at: "2026-07-14T00:00:00+00:00",
+    terms_version: "reliefweb-api-terms-reviewed-2026-07-14",
+    attribution_required: true,
+    may_store_full_description: false,
+    may_index_jobs: false,
+    may_emit_jobposting_schema: false,
+    allow_public_listing: true,
+    required_destination_kind: "source_url",
+    refresh_interval_seconds: 21_600,
+  },
 }: ClientOptions = {}) {
   return {
     schema: () => ({
@@ -162,7 +183,12 @@ function client({
                   policyReadCount += 1;
                   policyReadKeys = adapterKeys;
                   if (policyThrows) throw new Error("policy transport failed");
-                  const rows = [policy, jobicyPolicy, himalayasPolicy].filter(
+                  const rows = [
+                    policy,
+                    jobicyPolicy,
+                    himalayasPolicy,
+                    reliefwebPolicy,
+                  ].filter(
                     (row): row is Record<string, unknown> =>
                       row !== null &&
                       adapterKeys.includes(String(row.adapter_key)),
@@ -193,6 +219,8 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-07-10T13:10:00.000Z"));
   mocks.environment.mockReturnValue({
     REMOTIVE_SOURCE_ENABLED: true,
+    RELIEFWEB_SOURCE_ENABLED: true,
+    RELIEFWEB_APP_NAME: "salarypadi-test",
     JOB_SOURCE_SYNC_TOKEN: "test-source-sync-token-0000000000000000",
     NEXT_PUBLIC_APP_URL: "https://salarypadi.com",
     NODE_ENV: "production",
@@ -221,6 +249,7 @@ beforeEach(() => {
   mocks.fetchRemotiveJobs.mockReset();
   mocks.fetchJobicyJobs.mockReset();
   mocks.fetchHimalayasJobs.mockReset();
+  mocks.fetchReliefWebJobs.mockReset();
   mocks.openSupplyAdapter.mockReset();
   mocks.openSupplyAdapter.mockReturnValue({
     policy: { adapterKey: "remotive" },
@@ -244,6 +273,7 @@ beforeEach(() => {
     partial: false,
     successfulRequestCount: 3,
   });
+  mocks.fetchReliefWebJobs.mockResolvedValue({ jobs: [], checkedAt });
   mocks.readSecondaryFeedSnapshot.mockReset();
   mocks.readSecondaryFeedSnapshot.mockResolvedValue({ state: "missing" });
 });
@@ -337,6 +367,35 @@ describe("job feed source orchestration", () => {
 
     expect(result).toMatchObject({ key: "jobicy", state: "live", count: 1 });
     expect(mocks.fetchJobicyJobs).not.toHaveBeenCalled();
+  });
+
+  it("serves ReliefWeb only from a worker snapshot during page rendering", async () => {
+    const { createAlertCatalog } = await import("./alert-catalog");
+    mocks.readSecondaryFeedSnapshot.mockResolvedValue({
+      state: "ready",
+      catalog: createAlertCatalog([remotiveJob()], checkedAt),
+    });
+
+    const result = await getReliefWebJobFeed(client() as never);
+
+    expect(result).toMatchObject({
+      key: "reliefweb",
+      state: "live",
+      count: 1,
+    });
+    expect(mocks.fetchReliefWebJobs).not.toHaveBeenCalled();
+  });
+
+  it("does not fetch ReliefWeb on a page when its snapshot is missing", async () => {
+    const result = await getReliefWebJobFeed(client() as never);
+
+    expect(result).toMatchObject({
+      key: "reliefweb",
+      state: "unavailable",
+      code: "reliefweb_awaiting_refresh",
+      jobs: [],
+    });
+    expect(mocks.fetchReliefWebJobs).not.toHaveBeenCalled();
   });
 
   it("keeps a Himalayas snapshot publishable across its full daily cache window", async () => {

@@ -12,12 +12,12 @@ import type { Job } from "@/lib/jobs/types";
  * fetches each provider within its reviewed polling budget and persists the
  * redacted alert-catalog projection here; request-time rendering reads the
  * snapshot instead of calling the provider. The projection already strips
- * descriptions, requirements and benefits, which is exactly what the Jobicy
- * and Himalayas storage policies require.
+ * descriptions, requirements and benefits, which is exactly what the Jobicy,
+ * Himalayas and ReliefWeb storage policies require.
  */
 export const SECONDARY_FEED_STORE = "salarypadi-secondary-feed-catalog";
 
-export type SecondaryFeedKey = "jobicy" | "himalayas";
+export type SecondaryFeedKey = "jobicy" | "himalayas" | "reliefweb";
 
 export type SecondaryFeedSnapshotResult =
   | { state: "ready"; catalog: AlertCatalog }

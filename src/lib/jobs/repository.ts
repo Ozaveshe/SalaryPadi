@@ -146,10 +146,9 @@ function sourceMaxAgeMs(refreshIntervalSeconds: number): number {
 
 /**
  * Serve a worker-written snapshot when one is fresh, so page rendering never
- * waits on the provider. Returns null when no publishable snapshot exists;
- * the caller then falls back to the bounded request-time fetch. This runs
- * only after the application registry and live operator policy have both
- * authorized the source, so a snapshot can never bypass the policy gates.
+ * waits on the provider. This runs only after the application registry and
+ * live operator policy have both authorized the source, so a snapshot can
+ * never bypass the policy gates.
  */
 async function readFreshSecondaryFeed(
   key: SecondaryFeedKey,
@@ -661,10 +660,9 @@ const himalayasSourceDescriptor: SecondarySourceDescriptor = {
 };
 
 /**
- * ReliefWeb ships dark: the registry entry is disabled pending the approved
- * appname, the environment kill switch defaults off, and no database policy
- * row exists. All three must independently open before a request is made,
- * and the adapter itself refuses to run without the appname credential.
+ * ReliefWeb is acquired only by the scheduled secondary-feed worker. Its
+ * registry entry, environment switch and live policy must all independently
+ * remain open before a worker-written redacted snapshot can be published.
  */
 const reliefWebSourceDescriptor: SecondarySourceDescriptor = {
   key: "reliefweb",
@@ -678,7 +676,7 @@ const reliefWebSourceDescriptor: SecondarySourceDescriptor = {
     isEnabled: () => getServerEnvironment().RELIEFWEB_SOURCE_ENABLED,
     message: "The reviewed ReliefWeb source is disabled in this environment.",
   },
-  snapshotKey: null,
+  snapshotKey: "reliefweb",
   messages: {
     registryDisabled:
       "The reviewed ReliefWeb source is disabled by the application source-policy registry.",

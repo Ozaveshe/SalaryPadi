@@ -92,6 +92,7 @@ export function JobsSplit({
         <ul className="job-list">
           {entries.map((entry) => (
             <li
+              aria-current={entry.slug === selected?.slug ? "true" : undefined}
               className="job-list-item"
               data-selected={entry.slug === selected?.slug ? "true" : undefined}
               key={entry.slug}

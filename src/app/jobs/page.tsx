@@ -31,6 +31,7 @@ export default async function JobsPage({
     <JobsExperience
       input={input}
       chrome={signedIn ? "workspace" : "public"}
+      signedIn={signedIn}
       unreadNotifications={
         signedIn ? await readUnreadNotificationCount() : null
       }

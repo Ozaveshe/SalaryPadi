@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { fetchHimalayasJobs } from "../../src/lib/jobs/himalayas-adapter";
 import { fetchJobicyJobs } from "../../src/lib/jobs/jobicy-adapter";
+import { fetchReliefWebJobs } from "../../src/lib/jobs/reliefweb-adapter";
 import {
   readSecondaryFeedSnapshot,
   storeSecondaryFeedSnapshot,
@@ -18,6 +19,10 @@ import {
   JOBICY_REQUIRED_DESTINATION_KIND,
   JOBICY_SOURCE_POLICY,
   JOBICY_TERMS_VERSION,
+  RELIEFWEB_ADAPTER_KEY,
+  RELIEFWEB_REQUIRED_DESTINATION_KIND,
+  RELIEFWEB_SOURCE_POLICY,
+  RELIEFWEB_TERMS_VERSION,
 } from "../../src/lib/jobs/source-policy";
 import { openSupplyAdapter } from "../../src/lib/jobs/supply/adapters";
 import { AdapterPolicyError } from "../../src/lib/jobs/supply/policy";
@@ -25,6 +30,8 @@ import type { Job } from "../../src/lib/jobs/types";
 
 import {
   OperationalError,
+  getRuntimeBoolean,
+  getOptionalRuntimeEnvironment,
   rpc,
   runTrackedWorker,
   type WorkerExecution,
@@ -33,7 +40,7 @@ import {
 } from "./_shared/runtime";
 
 /**
- * Fetches the secondary public feeds (Jobicy, Himalayas) on a schedule and
+ * Fetches the secondary public feeds (Jobicy, Himalayas and ReliefWeb) on a schedule and
  * persists the redacted alert-catalog projection, so request-time rendering
  * reads a snapshot instead of calling the provider. The existing snapshot's
  * own checkedAt is the polling ledger: a source is fetched only when its
@@ -88,11 +95,15 @@ type FeedFetchResult = { jobs: Job[]; checkedAt: string };
 type SecondarySource = {
   key: SecondaryFeedKey;
   adapterKey: string;
-  reviewedPolicy: typeof JOBICY_SOURCE_POLICY | typeof HIMALAYAS_SOURCE_POLICY;
+  reviewedPolicy:
+    | typeof JOBICY_SOURCE_POLICY
+    | typeof HIMALAYAS_SOURCE_POLICY
+    | typeof RELIEFWEB_SOURCE_POLICY;
   termsVersion: string;
   requiredDestinationKind: string;
   minimumPollMs: number;
   fetchJobs: (signal: AbortSignal | undefined) => Promise<FeedFetchResult>;
+  environmentEnabled?: () => boolean;
 };
 
 const SECONDARY_SOURCES: SecondarySource[] = [
@@ -115,6 +126,21 @@ const SECONDARY_SOURCES: SecondarySource[] = [
     minimumPollMs: HIMALAYAS_SOURCE_POLICY.refreshIntervalSeconds * 1_000,
     fetchJobs: (signal) =>
       fetchHimalayasJobs({ signal: signal ?? AbortSignal.timeout(12_000) }),
+  },
+  {
+    key: "reliefweb",
+    adapterKey: RELIEFWEB_ADAPTER_KEY,
+    reviewedPolicy: RELIEFWEB_SOURCE_POLICY,
+    termsVersion: RELIEFWEB_TERMS_VERSION,
+    requiredDestinationKind: RELIEFWEB_REQUIRED_DESTINATION_KIND,
+    minimumPollMs: RELIEFWEB_SOURCE_POLICY.refreshIntervalSeconds * 1_000,
+    environmentEnabled: () =>
+      getRuntimeBoolean("RELIEFWEB_SOURCE_ENABLED", false),
+    fetchJobs: (signal) =>
+      fetchReliefWebJobs({
+        appName: getOptionalRuntimeEnvironment("RELIEFWEB_APP_NAME"),
+        signal: signal ?? AbortSignal.timeout(12_000),
+      }),
   },
 ];
 
@@ -174,6 +200,14 @@ async function syncSource(
         ? `${source.key}_${reason.code}`
         : `${source.key}_policy_invalid`;
     return { source: source.key, outcome: "skipped", code };
+  }
+
+  if (source.environmentEnabled && !source.environmentEnabled()) {
+    return {
+      source: source.key,
+      outcome: "skipped",
+      code: `${source.key}_environment_disabled`,
+    };
   }
 
   let rows: z.infer<typeof sourcePolicySchema>;

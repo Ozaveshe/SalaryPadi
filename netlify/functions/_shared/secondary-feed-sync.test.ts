@@ -83,9 +83,22 @@ const himalayasPolicy = {
   refresh_interval_seconds: 86_400,
 };
 
+const reliefwebPolicy = {
+  ...jobicyPolicy,
+  source_id: "d949b1aa-93e3-46a0-b4fd-4e17bec0f37b",
+  adapter_key: "reliefweb",
+  source_name: "ReliefWeb jobs API",
+  homepage_url: "https://reliefweb.int/jobs",
+  terms_url: "https://apidoc.reliefweb.int/",
+  terms_version: "reliefweb-api-terms-reviewed-2026-07-14",
+  attribution_text:
+    "Source: ReliefWeb and the named information partner; preserve the returned ReliefWeb URL",
+};
+
 const policiesByAdapter: Record<string, unknown[]> = {
   jobicy: [jobicyPolicy],
   himalayas: [himalayasPolicy],
+  reliefweb: [reliefwebPolicy],
 };
 
 function execution(): WorkerExecution {
@@ -109,6 +122,16 @@ function feedJob(checkedAt: string) {
 const missing: SecondaryFeedSnapshotResult = { state: "missing" };
 
 beforeEach(() => {
+  vi.stubGlobal("Netlify", {
+    context: { deploy: { context: "production" } },
+    env: {
+      get: (name: string) =>
+        ({
+          RELIEFWEB_SOURCE_ENABLED: "true",
+          RELIEFWEB_APP_NAME: "salarypadi-test",
+        })[name],
+    },
+  });
   mocks.openSupplyAdapter.mockReset();
   mocks.openSupplyAdapter.mockImplementation((key: string) => ({
     policy: { adapterKey: key },
@@ -121,7 +144,7 @@ afterEach(() => {
 });
 
 describe("secondary feed sync worker", () => {
-  it("fetches and stores both sources when no snapshot exists", async () => {
+  it("fetches and stores all secondary sources when no snapshot exists", async () => {
     const checkedAt = new Date().toISOString();
     const storeSnapshot = vi.fn(async (_source, jobs: unknown[]) =>
       Array.isArray(jobs) ? jobs.length : 0,
@@ -134,13 +157,14 @@ describe("secondary feed sync worker", () => {
     });
 
     expect(result.summary).toMatchObject({
-      stored_count: 2,
+      stored_count: 3,
       failed_count: 0,
     });
-    expect(storeSnapshot).toHaveBeenCalledTimes(2);
+    expect(storeSnapshot).toHaveBeenCalledTimes(3);
     expect(storeSnapshot.mock.calls.map((call) => call[0])).toEqual([
       "jobicy",
       "himalayas",
+      "reliefweb",
     ]);
   });
 
@@ -174,7 +198,7 @@ describe("secondary feed sync worker", () => {
     // either — nothing is fetched, nothing overwritten.
     expect(result.summary).toMatchObject({
       stored_count: 0,
-      skipped_count: 2,
+      skipped_count: 3,
       failed_count: 0,
     });
     expect(fetchJobs).not.toHaveBeenCalled();
@@ -194,21 +218,25 @@ describe("secondary feed sync worker", () => {
 
     const result = await runSecondaryFeedSync(execution(), {
       rpc: policyRpc(),
-      readSnapshot: async () => ({
+      readSnapshot: async (source) => ({
         state: "ready",
-        catalog: { schemaVersion: 1, checkedAt: agedCheckedAt, jobs: [] },
+        catalog: {
+          schemaVersion: 1,
+          checkedAt: source === "jobicy" ? agedCheckedAt : freshCheckedAt,
+          jobs: [],
+        },
       }),
       storeSnapshot: vi.fn(async () => 1) as never,
       fetchJobs,
       now: () => now,
     });
 
-    // Jobicy is due at 7h; Himalayas (24h) is not.
+    // Only Jobicy is due; the other two snapshots are current.
     expect(fetchJobs).toHaveBeenCalledTimes(1);
     expect(fetchJobs.mock.calls[0]![0]).toBe("jobicy");
     expect(result.summary).toMatchObject({
       stored_count: 1,
-      skipped_count: 1,
+      skipped_count: 2,
     });
   });
 
@@ -226,9 +254,9 @@ describe("secondary feed sync worker", () => {
           : { jobs: [feedJob(checkedAt)], checkedAt },
     });
 
-    expect(storeSnapshot).toHaveBeenCalledTimes(1);
+    expect(storeSnapshot).toHaveBeenCalledTimes(2);
     expect(result.summary).toMatchObject({
-      stored_count: 1,
+      stored_count: 2,
       failed_count: 1,
     });
   });
@@ -244,7 +272,7 @@ describe("secondary feed sync worker", () => {
     const rpc = vi.fn(async (_name, parameters?: Record<string, unknown>) =>
       parameters?.p_adapter_key === "jobicy"
         ? [{ ...jobicyPolicy, unexpected_new_column: "surprise" }]
-        : [himalayasPolicy],
+        : (policiesByAdapter[String(parameters?.p_adapter_key)] ?? []),
     );
 
     const result = await runSecondaryFeedSync(execution(), {
@@ -261,7 +289,7 @@ describe("secondary feed sync worker", () => {
     });
   });
 
-  it("accepts the complete production policy row for both sources", async () => {
+  it("accepts the complete production policy row for every source", async () => {
     // Regression: the fixture used to omit six columns the RPC really returns,
     // so `.strict()` rejected every live row and secondary_feed_sync failed on
     // every scheduled run while the unit tests stayed green.
@@ -278,6 +306,7 @@ describe("secondary feed sync worker", () => {
     expect(result.summary).toMatchObject({
       jobicy_outcome: "stored",
       himalayas_outcome: "stored",
+      reliefweb_outcome: "stored",
       failed_count: 0,
     });
   });
@@ -288,7 +317,7 @@ describe("secondary feed sync worker", () => {
     const rpc = vi.fn(async (_name, parameters?: Record<string, unknown>) =>
       parameters?.p_adapter_key === "jobicy"
         ? [{ ...jobicyPolicy, may_index_jobs: true }]
-        : [himalayasPolicy],
+        : (policiesByAdapter[String(parameters?.p_adapter_key)] ?? []),
     );
 
     const result = await runSecondaryFeedSync(execution(), {
@@ -305,7 +334,7 @@ describe("secondary feed sync worker", () => {
     });
     expect(
       (storeSnapshot.mock.calls as unknown[][]).map((call) => call[0]),
-    ).toEqual(["himalayas"]);
+    ).toEqual(["himalayas", "reliefweb"]);
   });
 
   it("skips a source the application registry has disabled", async () => {

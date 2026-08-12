@@ -12,11 +12,15 @@ import { Pagination } from "@/components/jobs/pagination";
 import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
-import { getFeatureFlags } from "@/lib/env";
+import { getAppOrigin, getFeatureFlags } from "@/lib/env";
 import { getViewer } from "@/lib/auth/dal";
 import { readCvSkills } from "@/lib/career/cv/draft";
 import { getCurrentCandidateCv } from "@/lib/career/cv/repository";
-import { getCandidateProfile } from "@/lib/career/repository";
+import {
+  getApplications,
+  getCandidateProfile,
+  getSavedJobs,
+} from "@/lib/career/repository";
 import { getReferenceCurrencyRates } from "@/lib/currency/repository";
 import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
@@ -32,6 +36,7 @@ import {
 import { toCandidateProfile, toJobFacts } from "@/lib/match/adapt";
 import { scoreJobMatch } from "@/lib/match/score";
 import type { CandidateProfile } from "@/lib/match/types";
+import { buildWhatsAppShareUrl } from "@/lib/share/whatsapp";
 
 /**
  * The viewer's own attested profile, or null for anyone who is signed out, has
@@ -68,15 +73,27 @@ async function readMatchProfile(): Promise<CandidateProfile | null> {
 async function JobResultsSection({
   input,
   search,
+  signedIn,
 }: {
   input: Record<string, string | string[] | undefined>;
   search: ReturnType<typeof parseJobSearch>;
+  signedIn: boolean;
 }) {
-  const [feed, matchProfile, currencyRates] = await Promise.all([
-    getLiveJobFeed(),
-    readMatchProfile(),
-    getReferenceCurrencyRates(),
-  ]);
+  const [feed, matchProfile, currencyRates, savedResult, applicationsResult] =
+    await Promise.all([
+      getLiveJobFeed(),
+      readMatchProfile(),
+      getReferenceCurrencyRates(),
+      signedIn ? getSavedJobs() : null,
+      signedIn ? getApplications() : null,
+    ]);
+  const savedSlugs = new Set(savedResult?.data.map((job) => job.job_slug));
+  const applicationBySlug = new Map(
+    applicationsResult?.data.map((application) => [
+      application.job_slug,
+      application.status,
+    ]),
+  );
   const filteredJobs = filterAndSortJobs(feed.jobs, search, new Date(), {
     evidenceRanking: getFeatureFlags().evidenceRanking,
   });
@@ -97,6 +114,11 @@ async function JobResultsSection({
     ),
   ].toSorted();
   const serializedSearch = serializeJobSearch(search);
+  const serializedQuery = serializedSearch.toString();
+  const returnTo = serializedQuery ? `/jobs?${serializedQuery}` : "/jobs";
+  const shareSearchUrl = buildWhatsAppShareUrl(
+    `Browse this source-attributed SalaryPadi job search: ${new URL(returnTo, getAppOrigin()).toString()}`,
+  );
   const selectedInput = Array.isArray(input.selected)
     ? input.selected[0]
     : input.selected;
@@ -122,6 +144,10 @@ async function JobResultsSection({
           }
           nairaEstimate={nairaEstimate}
           quickViewable
+          signedIn={signedIn}
+          saved={savedSlugs.has(job.slug)}
+          applicationStatus={applicationBySlug.get(job.slug)}
+          returnTo={returnTo}
         />
       ),
       preview: <JobPreviewPanel job={job} nairaEstimate={nairaEstimate} />,
@@ -179,6 +205,14 @@ async function JobResultsSection({
             >
               Save this search
             </Link>
+            <a
+              className="button button-quiet"
+              href={shareSearchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Share search
+            </a>
           </div>
         </div>
         {result.items.length > 0 ? (
@@ -242,6 +276,7 @@ export function JobsExperience({
   description = "Search source-attributed roles, then check country eligibility, compensation evidence and freshness before you leave to apply.",
   forcedFilters,
   chrome = "public",
+  signedIn = false,
   unreadNotifications = null,
 }: {
   input: Record<string, string | string[] | undefined>;
@@ -254,6 +289,8 @@ export function JobsExperience({
    * page with no way back to their own records.
    */
   chrome?: "public" | "workspace";
+  /** Whether private save and application state can be shown in the list. */
+  signedIn?: boolean;
   /** Badge count for the workspace frame; ignored on the public one. */
   unreadNotifications?: number | null;
 }) {
@@ -292,7 +329,7 @@ export function JobsExperience({
         ))}
       </nav>
       <Suspense fallback={<JobResultsFallback />}>
-        <JobResultsSection input={input} search={search} />
+        <JobResultsSection input={input} search={search} signedIn={signedIn} />
       </Suspense>
     </>
   );

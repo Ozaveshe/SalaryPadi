@@ -66,6 +66,16 @@ describe("secondary feed snapshot store", () => {
     }
   });
 
+  it("uses an independent ReliefWeb snapshot key", async () => {
+    const job = normalizeRemotiveJob(sourceJob, checkedAt);
+    await storeSecondaryFeedSnapshot("reliefweb", [job], checkedAt);
+
+    expect(mocks.setJSON).toHaveBeenCalledWith(
+      "reliefweb",
+      expect.objectContaining({ checkedAt }),
+    );
+  });
+
   it("reports a missing snapshot distinctly", async () => {
     mocks.get.mockResolvedValue(null);
     await expect(readSecondaryFeedSnapshot("jobicy")).resolves.toEqual({

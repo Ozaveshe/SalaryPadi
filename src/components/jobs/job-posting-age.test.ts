@@ -65,6 +65,42 @@ function cardMarkup(days: number) {
 }
 
 describe("job card posting-age decay", () => {
+  it("keeps result rows compact while preserving source evidence", () => {
+    const html = renderToStaticMarkup(
+      createElement(JobCard, {
+        job: jobPostedDaysAgo(10),
+        quickViewable: true,
+      }),
+    );
+    expect(html).toContain('data-density="compact"');
+    expect(html).toContain("Source: Test Source");
+    expect(html).not.toContain("job-card-description");
+    expect(html).not.toContain("Why this eligibility label:");
+  });
+
+  it("shows private save and application state without duplicating actions", () => {
+    const savedHtml = renderToStaticMarkup(
+      createElement(JobCard, {
+        job: jobPostedDaysAgo(10),
+        quickViewable: true,
+        signedIn: true,
+        saved: true,
+        applicationStatus: "interview",
+      }),
+    );
+    expect(savedHtml).toContain("Saved");
+    expect(savedHtml).toContain("Application: interview");
+    expect(savedHtml).not.toContain('action="/api/saved"');
+
+    const unsignedHtml = renderToStaticMarkup(
+      createElement(JobCard, {
+        job: jobPostedDaysAgo(10),
+        quickViewable: true,
+      }),
+    );
+    expect(unsignedHtml).toContain("Sign in to save");
+  });
+
   it("shows the evidence behind eligibility and identifies the source relationship", () => {
     const html = cardMarkup(10);
     expect(html).toContain("Why this eligibility label:");

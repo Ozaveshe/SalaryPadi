@@ -1,4 +1,5 @@
-/* Hallmark · pre-emit critique: P5 H4 E5 S5 R5 V4 */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 */
+/* Hallmark · macrostructure: compact-record-index · theme: modern-minimal · contrast: pass (40–41) · slop: pass (emitted job-index scope) · honest: pass (46) · chrome: inherited · tokens: pass (48) · responsive: pass (34, 49, 50–57) · icons: pass (30) */
 
 @import "tailwindcss";
 @import "../../tokens.css";
@@ -1539,9 +1540,9 @@ a:hover {
   border: 1px solid var(--border-default);
   border-radius: var(--radius-medium);
   background: var(--surface-default);
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  max-height: none;
+  overflow: visible;
+  overscroll-behavior: auto;
 }
 
 .job-preview-swap {
@@ -1562,9 +1563,6 @@ a:hover {
  */
 .job-preview-header {
   display: grid;
-  position: sticky;
-  top: 0;
-  z-index: 1;
   gap: 0.6rem;
   border-bottom: 1px solid var(--border-default);
   background: var(--surface-default);
@@ -1584,8 +1582,6 @@ a:hover {
 
 .job-preview-footer {
   display: grid;
-  position: sticky;
-  bottom: 0;
   gap: 0.5rem;
   border-top: 1px solid var(--border-default);
   background: var(--surface-default);
@@ -3570,12 +3566,20 @@ a:hover {
   transition: background-color 140ms ease;
 }
 
+.job-card[data-density="compact"] {
+  padding-block: 1rem;
+}
+
 /* Two columns: the role, then where it came from. */
 .job-card-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 13rem);
   align-items: start;
   gap: 0.35rem 2rem;
+}
+
+.job-card[data-density="compact"] .job-card-main {
+  gap: 0.3rem 1.5rem;
 }
 
 .job-card-title {
@@ -3689,9 +3693,45 @@ a:hover {
   margin-top: 0.35rem;
 }
 
+.job-card-actions {
+  align-items: center;
+}
+
+.job-card-actions form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.job-card-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.job-card-save:active {
+  color: var(--interactive-primary-hover);
+}
+
+.job-card-save:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.job-card-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
 @media (hover: hover) {
   .job-list-item:hover .job-card {
-    background: var(--surface-brand-soft);
+    background: var(--surface-subtle);
   }
 }
 
@@ -3710,17 +3750,15 @@ a:hover {
   }
 }
 
-/* Selection: the row is claimed by weight and ground, with no rail or stripe. */
+/* Selection uses the primary ink, while gold remains reserved for actions. */
 @container (min-width: 58rem) {
   .job-list-item[data-selected="true"] .job-card {
-    background: var(--surface-brand-soft);
+    background: var(--surface-default);
+    box-shadow: inset 3px 0 var(--interactive-primary);
   }
 
   .job-list-item[data-selected="true"] .job-title {
-    text-decoration: underline;
-    text-decoration-color: var(--interactive-primary);
-    text-underline-offset: 0.28em;
-    text-decoration-thickness: 2px;
+    color: var(--interactive-primary);
   }
 }
 
