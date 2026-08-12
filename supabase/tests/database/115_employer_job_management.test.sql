@@ -23,12 +23,13 @@ insert into private.employer_job_submissions (
 insert into app.jobs (
   id, company_id, source_id, external_source_id, slug, status, title,
   description_text, work_arrangement, employment_type, engagement_type,
-  application_url, source_url, dedup_fingerprint
+  application_url, source_url, dedup_fingerprint, content_sanitized_at
 ) select 'b5000000-0000-4000-8000-000000000020',
   'b5000000-0000-4000-8000-000000000030', source.id,
   'b5000000-0000-4000-8000-000000000010', 'closing-test-engineer', 'published',
   'Closing Test Engineer', repeat('Description ', 10), 'remote', 'full_time',
-  'employee', 'https://employer.example/apply', 'https://employer.example/apply', repeat('b', 64)
+  'employee', 'https://employer.example/apply', 'https://employer.example/apply',
+  repeat('b', 64), clock_timestamp()
 from app.job_sources source where source.adapter_key = 'salarypadi_employer_submissions';
 select set_config('request.jwt.claims', jsonb_build_object('sub', 'b5000000-0000-4000-8000-000000000002', 'role', 'authenticated', 'aal', 'aal1', 'is_anonymous', false)::text, true);
 set local role authenticated;
