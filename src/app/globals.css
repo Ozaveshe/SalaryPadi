@@ -1485,17 +1485,6 @@ a:hover {
   opacity: 0.78;
 }
 
-/*
- * The company logo fades with the rest, but the title and company links do
- * not: fading a container of links takes them below the AA contrast floor,
- * and an aged listing still has to be readable and operable. The decay is
- * carried by the faded facts row, the warning badge and the stale border.
- */
-.job-card[data-posting-age="aging"] .job-card-title > :first-child,
-.job-card[data-posting-age="stale"] .job-card-title > :first-child {
-  opacity: 0.7;
-}
-
 /* An aged posting is signalled by its own warning badge and its faded facts
    row, not by a coloured rail down the side of the card. */
 .job-card[data-posting-age="stale"] {
