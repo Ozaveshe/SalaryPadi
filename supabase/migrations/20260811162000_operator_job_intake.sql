@@ -370,6 +370,46 @@ update app.job_sources
 set status = 'active'
 where adapter_key = 'salarypadi_employer_submissions';
 
+-- The submission channel is currently launched for Nigeria. Refresh that
+-- country ledger from the reviewed global policy; other countries remain
+-- fail-closed until an explicit country right is added.
+insert into app.source_country_rights (
+  source_id, country_code, policy_state, permission_basis,
+  evidence_reference, terms_url, reviewed_at, review_due_at, allowed_fields,
+  may_store_full_description, attribution_required, attribution_text,
+  minimum_poll_interval, retention_period, allow_public_display,
+  allow_search_index, allow_google_jobposting, missing_dependencies, revoked_at
+)
+select source.id, 'NG', 'enabled'::app.source_policy_state,
+  source.authorization_basis, source.authorization_evidence_ref,
+  source.terms_url, source.authorization_reviewed_at,
+  source.policy_review_due_at, source.allowed_fields,
+  source.may_store_full_description, source.attribution_required,
+  source.attribution_text, source.minimum_poll_interval,
+  source.raw_retention, source.allow_public_listing,
+  source.may_index_jobs, source.may_emit_jobposting_schema,
+  source.missing_dependencies, null
+from app.job_sources source
+where source.adapter_key = 'salarypadi_employer_submissions'
+on conflict (source_id, country_code) do update
+set policy_state = excluded.policy_state,
+    permission_basis = excluded.permission_basis,
+    evidence_reference = excluded.evidence_reference,
+    terms_url = excluded.terms_url,
+    reviewed_at = excluded.reviewed_at,
+    review_due_at = excluded.review_due_at,
+    allowed_fields = excluded.allowed_fields,
+    may_store_full_description = excluded.may_store_full_description,
+    attribution_required = excluded.attribution_required,
+    attribution_text = excluded.attribution_text,
+    minimum_poll_interval = excluded.minimum_poll_interval,
+    retention_period = excluded.retention_period,
+    allow_public_display = excluded.allow_public_display,
+    allow_search_index = excluded.allow_search_index,
+    allow_google_jobposting = excluded.allow_google_jobposting,
+    missing_dependencies = excluded.missing_dependencies,
+    revoked_at = null;
+
 -- The direct-salary trigger records the disclosed numbers. Attach the retained
 -- source reference after that trigger runs so the row is evidence-bearing,
 -- rather than merely repeating the salary as its own citation.

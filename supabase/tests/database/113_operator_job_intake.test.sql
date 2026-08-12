@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, security, audit;
-select plan(27);
+select plan(28);
 
 select ok(to_regprocedure('api.admin_submit_job_intake(jsonb)') is not null,
   'operator intake mutation exists');
@@ -140,6 +140,20 @@ select ok(
     where adapter_key = 'salarypadi_employer_submissions'
   )),
   'reviewed first-party submission policy is current and runnable'
+);
+select ok(
+  exists (
+    select 1
+    from app.source_country_rights rights
+    join app.job_sources source on source.id = rights.source_id
+    where source.adapter_key = 'salarypadi_employer_submissions'
+      and rights.country_code = 'NG'
+      and rights.policy_state = 'enabled'
+      and rights.allow_public_display
+      and rights.review_due_at > statement_timestamp()
+      and rights.revoked_at is null
+  ),
+  'Nigeria publication rights are current for the first-party intake lane'
 );
 select is(
   (select submission_kind from private.employer_job_submissions
