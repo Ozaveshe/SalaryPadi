@@ -58,6 +58,8 @@ describe("Next proxy boundary", () => {
       "/saved",
       "/applications",
       "/alerts",
+      "/matches",
+      "/notifications",
       "/admin/source-health",
       "/post-a-job",
       "/contribute/salary",

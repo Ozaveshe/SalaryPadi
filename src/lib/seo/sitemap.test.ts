@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CompanySummary } from "@/lib/companies/repository";
+import { SEO_GROWTH_ARTICLES } from "@/lib/editorial/seo-growth-articles";
 import type { Job } from "@/lib/jobs/types";
 import type { PublicSalaryAggregate } from "@/lib/salaries/repository";
 
@@ -139,6 +140,39 @@ function aggregate(
 }
 
 describe("dynamic sitemap generation", () => {
+  it("includes every prepared growth guide exactly once", () => {
+    const result = buildSitemapEntries({
+      origin: "https://salarypadi.com",
+      editorial: SEO_GROWTH_ARTICLES.map((article) => ({
+        ...article,
+        internal_link_targets: [...article.internal_link_targets],
+        sources: article.sources.map((source) => ({ ...source })),
+      })),
+      jobFeed: {
+        jobs: [],
+        state: "unavailable",
+        checkedAt: "2026-08-13T00:00:00.000Z",
+        sources: [],
+      },
+      salaryAggregates: { state: "unavailable", data: [], issues: [] },
+      companies: { state: "unavailable", data: [], issues: [] },
+      companyEvidence: [],
+    });
+    const urls = result.map(({ url }) => url);
+
+    for (const article of SEO_GROWTH_ARTICLES) {
+      const expectedUrl = `https://salarypadi.com/guides/${article.slug}`;
+      expect(
+        urls.filter((url) => url === expectedUrl),
+        article.slug,
+      ).toEqual([expectedUrl]);
+      expect(result.find(({ url }) => url === expectedUrl)).toMatchObject({
+        lastModified: article.updated_at,
+        changeFrequency: "monthly",
+      });
+    }
+  });
+
   it("discovers only policy-permitted jobs and evidence-backed salary/company pages", () => {
     const employerJob = job({
       slug: "platform-engineer-padi",

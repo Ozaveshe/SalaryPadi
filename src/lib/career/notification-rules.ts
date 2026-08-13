@@ -31,13 +31,15 @@ const MAX_PER_SYNC = 12;
 export function deriveNotifications(
   summary: DashboardSummary,
 ): PendingNotification[] {
-  // A degraded read reports zero of everything. Notifying from it would tell
-  // someone nothing is due when the truth is that it could not be read.
-  if (summary.state !== "ready") return [];
+  // Only the application section supports these notifications. A different
+  // section may fail without erasing a successfully read date, while a failed
+  // application read carries no data and therefore cannot generate a claim.
+  const applications = summary.applications.data;
+  if (!applications) return [];
 
   const pending: PendingNotification[] = [];
 
-  for (const action of summary.upcomingActions) {
+  for (const action of applications.upcomingActions) {
     const overdue = action.urgency === "overdue";
     pending.push({
       kind: "action_due",
@@ -54,7 +56,7 @@ export function deriveNotifications(
     });
   }
 
-  for (const application of summary.activeApplications) {
+  for (const application of applications.active) {
     if (!application.stalled) continue;
     pending.push({
       kind: "application_stalled",

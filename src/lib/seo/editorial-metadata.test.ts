@@ -87,10 +87,60 @@ describe("editorial brief metadata", () => {
       }),
     ).toMatchObject({
       title: brief.title,
+      authors: [{ name: brief.author_name }],
+      creator: brief.author_name,
+      publisher: "SalaryPadi",
       alternates: { canonical: `/guides/${brief.slug}` },
       robots: { index: true, follow: true },
-      openGraph: { type: "article" },
+      openGraph: {
+        type: "article",
+        url: `/guides/${brief.slug}`,
+      },
     });
+  });
+
+  it("removes a review-overdue guide from search while retaining its route", () => {
+    expect(
+      buildEditorialGuideMetadata({
+        state: "ready",
+        data: {
+          ...brief,
+          article_kind: "cornerstone",
+          review_due_at: "2026-01-01T00:00:00.000Z",
+        },
+        issues: [],
+      }),
+    ).toMatchObject({
+      alternates: { canonical: `/guides/${brief.slug}` },
+      robots: { index: false, follow: true },
+    });
+  });
+
+  it("holds future publication or update dates out of search", () => {
+    expect(
+      buildEditorialGuideMetadata({
+        state: "ready",
+        data: {
+          ...brief,
+          article_kind: "cornerstone",
+          published_at: "2099-01-01T00:00:00.000Z",
+          updated_at: "2099-01-01T00:00:00.000Z",
+        },
+        issues: [],
+      }),
+    ).toMatchObject({ robots: { index: false, follow: true } });
+
+    expect(
+      buildEditorialGuideMetadata({
+        state: "ready",
+        data: {
+          ...brief,
+          article_kind: "cornerstone",
+          updated_at: "2099-01-01T00:00:00.000Z",
+        },
+        issues: [],
+      }),
+    ).toMatchObject({ robots: { index: false, follow: true } });
   });
 
   it("does not publish a data brief through a guide route", () => {

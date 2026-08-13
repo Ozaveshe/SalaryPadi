@@ -9,8 +9,15 @@ import {
   getPublishedEditorial,
   getPublishedEditorialResult,
   REMOTE_JOBS_GUIDE,
+  SEO_GROWTH_GUIDES,
   SEO_STARTER_GUIDES,
 } from "@/lib/editorial/repository";
+import {
+  getEditorialScheduleState,
+  isEditorialDiscoverable,
+  isEditorialPublished,
+  isEditorialReviewOverdue,
+} from "@/lib/editorial/review";
 import { getSupabasePublicConfig } from "@/lib/env";
 
 const mockedConfig = vi.mocked(getSupabasePublicConfig);
@@ -41,9 +48,10 @@ describe("editorial repository", () => {
     mockedConfig.mockReturnValue(null);
     const result = await getPublishedEditorialResult();
     expect(result.state).toBe("unconfigured");
-    expect(result.data).toHaveLength(11);
+    expect(result.data).toHaveLength(21);
     expect(result.data).toContainEqual(REMOTE_JOBS_GUIDE);
     expect(result.data).toEqual(expect.arrayContaining(SEO_STARTER_GUIDES));
+    expect(result.data).toEqual(expect.arrayContaining(SEO_GROWTH_GUIDES));
     await expect(
       getPublishedArticleResult("missing-brief"),
     ).resolves.toMatchObject({ state: "unconfigured", data: null });
@@ -60,7 +68,7 @@ describe("editorial repository", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     const result = await getPublishedEditorialResult();
     expect(result.state).toBe("degraded");
-    expect(result.data).toHaveLength(11);
+    expect(result.data).toHaveLength(21);
     expect(result.issues[0]?.code).toBe("editorial_request_failed");
   });
 
@@ -103,7 +111,7 @@ describe("editorial repository", () => {
     const result = await getPublishedEditorialResult();
 
     expect(result.state).toBe("degraded");
-    expect(result.data).toHaveLength(11);
+    expect(result.data).toHaveLength(21);
     expect(result.issues[0]?.code).toBe("editorial_invalid_rows");
   });
 
@@ -194,7 +202,7 @@ describe("editorial repository", () => {
     const lookupUrl = new URL(String(fetchMock.mock.calls[1]?.[0]));
     expect(lookupUrl.searchParams.get("slug")).toBe(`eq.${validBrief.slug}`);
     expect(lookupUrl.searchParams.get("limit")).toBe("1");
-    await expect(getPublishedEditorial()).resolves.toHaveLength(12);
+    await expect(getPublishedEditorial()).resolves.toHaveLength(22);
   });
 
   it("resolves every built-in starter guide without depending on an upstream row", async () => {
@@ -217,6 +225,99 @@ describe("editorial repository", () => {
         data: guide,
       });
     }
+  });
+
+  it("resolves every built-in growth guide without depending on an upstream row", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        async () =>
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+
+    for (const guide of SEO_GROWTH_GUIDES) {
+      await expect(
+        getPublishedArticleResult(guide.slug),
+      ).resolves.toMatchObject({
+        state: "ready",
+        data: guide,
+      });
+    }
+  });
+
+  it("keeps built-in guide precedence consistent in listings", async () => {
+    const growthGuide = SEO_GROWTH_GUIDES[0];
+    if (!growthGuide) throw new Error("Growth guide fixture is missing");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json([
+          {
+            ...growthGuide,
+            id: "4aa5d60c-f0cc-4130-8506-8d21446f1857",
+            title: "Conflicting database title",
+          },
+        ]),
+      ),
+    );
+
+    const result = await getPublishedEditorialResult();
+
+    expect(result.data.filter(({ slug }) => slug === growthGuide.slug)).toEqual(
+      [growthGuide],
+    );
+  });
+
+  it("withdraws review-overdue articles from discovery lists", async () => {
+    expect(
+      isEditorialReviewOverdue(
+        {
+          ...validBrief,
+          review_due_at: "2026-08-12T00:00:00.000Z",
+        },
+        new Date("2026-08-13T00:00:00.000Z"),
+      ),
+    ).toBe(true);
+    expect(
+      isEditorialReviewOverdue(
+        {
+          ...validBrief,
+          review_due_at: "2026-08-14T00:00:00.000Z",
+        },
+        new Date("2026-08-13T00:00:00.000Z"),
+      ),
+    ).toBe(false);
+  });
+
+  it("holds future editorial dates out of search discovery", () => {
+    const futureArticle = {
+      ...validBrief,
+      published_at: "2026-08-14T00:00:00.000Z",
+      updated_at: "2026-08-14T00:00:00.000Z",
+    };
+    const now = new Date("2026-08-13T00:00:00.000Z");
+
+    expect(getEditorialScheduleState(futureArticle, now)).toEqual({
+      publicationPending: true,
+      updatePending: true,
+    });
+    expect(isEditorialPublished(futureArticle, now)).toBe(false);
+    expect(isEditorialDiscoverable(futureArticle, now)).toBe(false);
+
+    const futureUpdate = {
+      ...validBrief,
+      updated_at: "2026-08-14T00:00:00.000Z",
+    };
+    expect(getEditorialScheduleState(futureUpdate, now)).toEqual({
+      publicationPending: false,
+      updatePending: true,
+    });
+    expect(isEditorialPublished(futureUpdate, now)).toBe(false);
+    expect(isEditorialDiscoverable(futureUpdate, now)).toBe(false);
   });
 
   it("returns a ready null for a missing filtered article", async () => {

@@ -32,13 +32,19 @@ describe("workspace shell", () => {
     for (const href of [
       "/dashboard",
       "/jobs",
+      "/matches",
+      "/tools",
       "/saved",
       "/applications",
       "/alerts",
+      "/notifications",
       "/account/candidate-profile",
       "/account",
     ]) {
       expect(markup).toContain(`href="${href}"`);
+    }
+    for (const group of ["Start", "Decide", "Track", "Account"]) {
+      expect(markup).toContain(`>${group}</p>`);
     }
   });
 

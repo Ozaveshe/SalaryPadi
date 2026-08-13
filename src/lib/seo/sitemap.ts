@@ -77,7 +77,7 @@ const coreAndGuideRoutes = [
   },
   {
     path: "/blog",
-    lastModified: "2026-08-12T00:00:00.000Z",
+    lastModified: "2026-08-13T00:00:00.000Z",
     changeFrequency: "weekly",
     priority: 0.8,
   },

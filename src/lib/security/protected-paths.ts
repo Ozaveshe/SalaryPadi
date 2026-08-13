@@ -16,6 +16,8 @@ export const PROTECTED_PAGE_PREFIXES = [
   "/saved",
   "/applications",
   "/alerts",
+  "/matches",
+  "/notifications",
   "/admin",
   "/post-a-job",
   "/contribute/salary",

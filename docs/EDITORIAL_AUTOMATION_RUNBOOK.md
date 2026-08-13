@@ -42,6 +42,25 @@ briefs. Cornerstones remain review-gated. The four briefs cover active remote
 jobs, source freshness, Nigeria eligibility evidence and deadline coverage. No
 candidate contains a fake statistic, salary, employer claim or automatic year.
 
+## Repository-backed guide boundary
+
+The public runtime also merges 21 built-in guides with database-published
+articles. Twenty of those built-ins are two source-backed ten-guide batches;
+the remaining built-in is the evergreen remote-jobs guide. The August growth
+batch covers CVs, cover letters, application management, interviews, offer
+acceptance and career changes. Each growth guide is validated for at least 600
+words, three sources, four internal links and a future review date.
+
+Built-in guides do not pass through `editorial.articles`, claim approvals or
+the scheduled link-audit state machine. A source or claim problem must therefore
+be handled through a repository change and deployment. Do not describe the
+database automation as having approved or published these files.
+
+The runtime fails closed on a built-in guide whose `review_due_at` has passed:
+it is removed from blog, RSS and sitemap discovery, and its direct route becomes
+`noindex,follow` with a visible overdue-review warning until a reviewed
+repository update changes the evidence and date.
+
 ## Monitoring and failure response
 
 - `/api/health` reports every editorial worker and the automation gate.

@@ -122,105 +122,129 @@ export function ScamChecker() {
             </p>
           </div>
         </fieldset>
-        <fieldset>
-          <legend>Employer and links</legend>
-          <div className="form-grid">
-            <div className="field">
-              <label htmlFor="employer_name">Employer name</label>
-              <input
-                className="input"
-                id="employer_name"
-                name="employer_name"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="recruiter_email">Recruiter email</label>
-              <input
-                className="input"
-                id="recruiter_email"
-                name="recruiter_email"
-                type="email"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="official_domain">Official employer domain</label>
-              <input
-                className="input"
-                id="official_domain"
-                name="official_domain"
-                placeholder="example.com"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="application_url">Application URL</label>
-              <input
-                className="input"
-                id="application_url"
-                name="application_url"
-                type="url"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="interview_channel">Interview channel</label>
-              <select
-                className="select"
-                id="interview_channel"
-                name="interview_channel"
-              >
-                <option value="unknown">Unknown</option>
-                <option value="video_or_phone">Video or phone</option>
-                <option value="in_person">In person</option>
-                <option value="messaging_only">Messaging only</option>
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="fee_purpose">Fee purpose (if requested)</label>
-              <select className="select" id="fee_purpose" name="fee_purpose">
-                <option value="application">Application</option>
-                <option value="training">Training</option>
-                <option value="equipment">Equipment</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
+        <details className="contribution-details">
+          <summary>Add details for a stronger check (optional)</summary>
+          <p className="field-help">
+            Add only what you know. These answers can reveal warning signs that
+            are not present in the pasted text.
+          </p>
+          <div className="stack">
+            <fieldset>
+              <legend>Employer and links</legend>
+              <div className="form-grid">
+                <div className="field">
+                  <label htmlFor="employer_name">Employer name</label>
+                  <input
+                    className="input"
+                    id="employer_name"
+                    name="employer_name"
+                    autoComplete="organization"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="recruiter_email">Recruiter email</label>
+                  <input
+                    className="input"
+                    id="recruiter_email"
+                    name="recruiter_email"
+                    type="email"
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="official_domain">
+                    Official employer domain
+                  </label>
+                  <input
+                    className="input"
+                    id="official_domain"
+                    name="official_domain"
+                    placeholder="example.com"
+                    autoComplete="url"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="application_url">Application URL</label>
+                  <input
+                    className="input"
+                    id="application_url"
+                    name="application_url"
+                    type="url"
+                    autoComplete="url"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="interview_channel">Interview channel</label>
+                  <select
+                    className="select"
+                    id="interview_channel"
+                    name="interview_channel"
+                  >
+                    <option value="unknown">Unknown</option>
+                    <option value="video_or_phone">Video or phone</option>
+                    <option value="in_person">In person</option>
+                    <option value="messaging_only">Messaging only</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="fee_purpose">
+                    Fee purpose (if requested)
+                  </label>
+                  <select
+                    className="select"
+                    id="fee_purpose"
+                    name="fee_purpose"
+                  >
+                    <option value="application">Application</option>
+                    <option value="training">Training</option>
+                    <option value="equipment">Equipment</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>What happened?</legend>
+              <div className="checkbox-grid">
+                {[
+                  ["fee_requested", "A payment or fee was requested"],
+                  [
+                    "unrealistic_compensation",
+                    "I believe the pay is unrealistic",
+                  ],
+                  ["employer_unclear", "The employer identity is unclear"],
+                  [
+                    "instant_offer",
+                    "An offer came without an interview or assessment",
+                  ],
+                  [
+                    "banking_requested",
+                    "Banking credentials or security information were requested",
+                  ],
+                  [
+                    "identity_requested",
+                    "Unnecessary identity documents were requested early",
+                  ],
+                  [
+                    "crypto_requested",
+                    "Cryptocurrency or a wallet action was requested",
+                  ],
+                  ["urgency", "The recruiter used pressure or unusual urgency"],
+                  ["domain_misspelled", "A domain appears misspelled"],
+                  [
+                    "link_unrelated",
+                    "The application link seems unrelated to the employer",
+                  ],
+                ].map(([name, label]) => (
+                  <label className="checkbox" key={name}>
+                    <input type="checkbox" name={name} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
           </div>
-        </fieldset>
-        <fieldset>
-          <legend>What happened?</legend>
-          <div className="checkbox-grid">
-            {[
-              ["fee_requested", "A payment or fee was requested"],
-              ["unrealistic_compensation", "I believe the pay is unrealistic"],
-              ["employer_unclear", "The employer identity is unclear"],
-              [
-                "instant_offer",
-                "An offer came without an interview or assessment",
-              ],
-              [
-                "banking_requested",
-                "Banking credentials or security information were requested",
-              ],
-              [
-                "identity_requested",
-                "Unnecessary identity documents were requested early",
-              ],
-              [
-                "crypto_requested",
-                "Cryptocurrency or a wallet action was requested",
-              ],
-              ["urgency", "The recruiter used pressure or unusual urgency"],
-              ["domain_misspelled", "A domain appears misspelled"],
-              [
-                "link_unrelated",
-                "The application link seems unrelated to the employer",
-              ],
-            ].map(([name, label]) => (
-              <label className="checkbox" key={name}>
-                <input type="checkbox" name={name} />
-                {label}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        </details>
         <label className="checkbox provider-consent">
           <input type="checkbox" name="processing_acknowledgement" required />I
           understand the entered vacancy text and answers are processed for this

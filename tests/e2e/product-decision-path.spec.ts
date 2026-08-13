@@ -45,13 +45,20 @@ test.describe("continuous job decision path", () => {
     await expect(page).toHaveURL(/hndAccepted=on/);
     await expect(page).toHaveURL(/hmo=on/);
     await expect(page).toHaveURL(/fxPolicy=on/);
-    await page.getByRole("link", { name: "Save this search" }).click();
-    await expect(page).toHaveURL(/\/auth\/sign-in\?next=/);
+    const saveSearch = page.getByRole("link", { name: "Save this search" });
+    await expect(saveSearch).toHaveAttribute(
+      "href",
+      /\/alerts\?.*hndAccepted=true.*hmo=true.*fxPolicy=true/,
+    );
+    await Promise.all([
+      page.waitForURL(/\/auth\/sign-in\?next=/, { timeout: 20_000 }),
+      saveSearch.click(),
+    ]);
     expect(decodeURIComponent(page.url())).toContain("hndAccepted=true");
     expect(decodeURIComponent(page.url())).toContain("fxPolicy=true");
   });
 
-  test("separates in-product tool experiences from external destinations", async ({
+  test("organizes career moments with truthful local and external handoffs", async ({
     page,
   }) => {
     await page.goto("/tools");
@@ -67,22 +74,53 @@ test.describe("continuous job decision path", () => {
         Number((await unavailableCatalog.count()) > 0),
       "The catalog must be reviewed or fail closed when every reviewed snapshot has expired.",
     ).toBe(1);
+
+    const handoffs = page.getByRole("region", {
+      name: "Know where the next step happens",
+    });
+    const localDisclosures = page
+      .locator(".status")
+      .filter({ hasText: /^Runs in SalaryPadi$/ });
+    const externalDisclosures = page
+      .locator(".status")
+      .filter({ hasText: /^Opens AfroTools$/ });
+    const localCount = await localDisclosures.count();
+    const externalCount = await externalDisclosures.count();
+
+    await expect(handoffs).toContainText(`Runs in SalaryPadi · ${localCount}`);
+    await expect(handoffs).toContainText(`Opens AfroTools · ${externalCount}`);
+    expect(localCount).toBeGreaterThanOrEqual(1);
+
     if ((await reviewedCatalog.count()) > 0) {
-      await expect(page.getByText("Use inside SalaryPadi · 3")).toBeVisible();
-      await expect(page.getByText("Continue on AfroTools · 12")).toBeVisible();
+      expect(externalCount).toBeGreaterThan(0);
       await expect(
         page.getByRole("link", { name: "Use in SalaryPadi" }),
-      ).toHaveCount(3);
-      await expect(
-        page.getByRole("link", { name: /Continue on AfroTools/ }),
-      ).toHaveCount(12);
+      ).toHaveCount(localCount - 1);
+      const externalLinks = page.getByRole("link", {
+        name: /Open on AfroTools/,
+      });
+      await expect(externalLinks).toHaveCount(externalCount);
+      for (const link of await externalLinks.all()) {
+        await expect(link).toHaveAttribute("target", "_blank");
+        await expect(link).toHaveAttribute("rel", /nofollow/);
+      }
+      for (const moment of [
+        "Prepare and check the opportunity",
+        "Work out what the money means",
+        "Compare and negotiate the offer",
+        "Plan beyond this role",
+      ]) {
+        await expect(page.getByRole("heading", { name: moment })).toBeVisible();
+      }
     } else {
       await expect(unavailableCatalog).toBeVisible();
+      expect(localCount).toBe(5);
+      expect(externalCount).toBe(0);
       await expect(
         page.getByRole("link", { name: "Use in SalaryPadi" }),
-      ).toHaveCount(0);
+      ).toHaveCount(4);
       await expect(
-        page.getByRole("link", { name: /Continue on AfroTools/ }),
+        page.getByRole("link", { name: /Open on AfroTools/ }),
       ).toHaveCount(0);
     }
     await expect(
@@ -94,6 +132,57 @@ test.describe("continuous job decision path", () => {
       page.getByRole("link", { name: "Check warning signs" }),
     ).toHaveAttribute("href", "/tools/job-scam-checker");
   });
+
+  for (const journey of [
+    {
+      path: "/tools/take-home-pay",
+      links: [
+        ["Compare the full offer", "/tools/offer-compare"],
+        ["Check salary evidence", "/salaries"],
+        ["Update your tracker", "/applications"],
+      ],
+    },
+    {
+      path: "/tools/salary-converter",
+      links: [
+        ["Compare two offers", "/tools/offer-compare"],
+        ["Estimate Nigeria take-home", "/tools/take-home-pay"],
+        ["Check salary evidence", "/salaries"],
+      ],
+    },
+    {
+      path: "/tools/offer-compare",
+      links: [
+        ["Record what happens next", "/applications"],
+        ["Check salary evidence", "/salaries"],
+        ["Contribute salary evidence", "/contribute/salary"],
+      ],
+    },
+    {
+      path: "/tools/job-scam-checker",
+      links: [
+        ["Search source-attributed roles", "/jobs"],
+        ["Review the safety process", "/trust-and-safety"],
+        ["Check employer evidence", "/companies"],
+      ],
+    },
+  ] as const) {
+    test(`connects ${journey.path} to useful next decisions`, async ({
+      page,
+    }) => {
+      await page.goto(journey.path);
+      const nextSteps = page.getByRole("region", {
+        name: "Continue the decision",
+      });
+      await expect(nextSteps).toBeVisible();
+      for (const [name, href] of journey.links) {
+        await expect(nextSteps.getByRole("link", { name })).toHaveAttribute(
+          "href",
+          href,
+        );
+      }
+    });
+  }
 
   test("keeps contribution and employer paths discoverable while demoting empty community areas", async ({
     page,

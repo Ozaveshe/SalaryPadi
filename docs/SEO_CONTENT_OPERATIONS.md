@@ -1,6 +1,6 @@
 # SalaryPadi SEO and content operations
 
-Last audited: 14 July 2026
+Last audited: 13 August 2026
 
 Production host: `https://salarypadi.com`
 
@@ -10,7 +10,7 @@ Deployment status: local implementation only; no migration, deployment, publicat
 
 SalaryPadi now has a fail-closed SEO boundary driven by canonical product data and source rights. A URL can render for users while remaining absent from search: rendering, freshness, source authorization, indexability, `JobPosting` eligibility, sitemap inclusion, and Google Indexing API notification are separate decisions.
 
-The system does not generate role/location pages from arbitrary path segments. It has an explicit landing-page registry and exact database gates. The twelve cornerstone articles are source files with `status: draft` and `humanApprovalRequired: true`; none is public or queued for automatic publication.
+The system does not generate role/location pages from arbitrary path segments. It has an explicit landing-page registry and exact database gates. Public editorial is a hybrid repository: 21 built-in guides (the evergreen remote-jobs guide plus two batches of ten source-backed guides) are merged with database articles that have passed the editorial publication contract. Two methodology cornerstones remain database-workflow drafts. The newest ten-guide batch is local only; it has not been deployed or submitted for indexing in this run.
 
 ## Production evidence before this change
 
@@ -180,24 +180,13 @@ Netlify cron is UTC; the configured equivalents below are West Africa Time (UTC+
 
 Configured cron is not execution proof. Production run-ledger rows must show each task's last successful run before operations calls it healthy.
 
-## Cornerstone drafts
+## Repository-backed cornerstone guides
 
-The private source registry contains these unpublished drafts:
+The public repository contains two ten-guide batches. The first covers remote-job eligibility, scams, take-home pay, offer comparison, salary negotiation, graduate and NYSC work, HND versus BSc requirements, contractor versus employee offers, visa sponsorship and interview preparation. The August growth batch covers CV writing, CV tailoring, cover letters, application tracking, application follow-up, interview introductions, STAR answers, end-of-interview questions, offer acceptance and career changes.
 
-1. remote-job eligibility for Nigerians;
-2. job-scam warning signs;
-3. take-home pay;
-4. offer comparison;
-5. salary negotiation;
-6. graduate and NYSC jobs;
-7. HND versus BSc requirements;
-8. contractor versus employee;
-9. visa sponsorship;
-10. interview preparation;
-11. company-intelligence methodology; and
-12. job-freshness methodology.
+Every August growth guide has at least 600 words, three named sources, four deliberate internal links, a review-due date and unique metadata. Runtime schema validation, repository tests, feed tests and sitemap tests prevent malformed guides or missing discovery routes from being treated as published. Future-dated articles remain `noindex` and outside blog, RSS and sitemap discovery; a direct URL is visibly labelled as a scheduled preview. When a review date passes, the guide remains visibly available with an overdue warning but becomes `noindex` and is removed from the blog, RSS and sitemap discovery lists. These built-ins do not create database approval, claim or link-audit records, so source review and correction remain a repository release responsibility.
 
-Every draft has evidence requirements, internal links, explicit review markers, and no published route. The registry is validated for unique slugs, minimum useful length, and mandatory human approval.
+The private database-workflow registry still contains two unpublished drafts: company-intelligence methodology and job-freshness methodology. They remain subject to the evidence, approval and preflight contract above.
 
 ## Performance and Core Web Vitals
 
@@ -219,4 +208,4 @@ These are lab results, not Chrome UX Report field Core Web Vitals. No field data
 - To stop editorial automation, set `EDITORIAL_AUTOMATION_ENABLED=false`; existing drafts and evidence remain private.
 - If sitemap data fails, the system emits only entries it can prove; it does not substitute fixtures.
 
-Machine-readable evidence is in `reports/seo-content-audit.json`, structured-data checks in `reports/structured-data-validation.json`, and route fixtures in `tests/fixtures/crawl/seo-routes.json`.
+The earlier production and platform audit remains in `reports/seo-content-audit.json`. The local-only August guide receipt is separate in `reports/editorial-growth-batch-2026-08-13.json`; it does not claim deployment, browser proof or indexation. Structured-data checks are in `reports/structured-data-validation.json`, and route fixtures are in `tests/fixtures/crawl/seo-routes.json`.

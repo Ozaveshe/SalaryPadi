@@ -29,8 +29,9 @@ export const REMOTIVE_TERMS_VERSION =
   "remotive-terms-conflict-reviewed-2026-07-14" as const;
 
 /**
- * Jobicy explicitly documents its public feed for integration into websites
- * and wider distribution. SalaryPadi keeps only minimal metadata, links every
+ * Re-reviewed 2026-08-13. Jobicy's current public API page explicitly permits
+ * job boards, websites, newsletters and other useful integrations without a
+ * separate agreement. SalaryPadi keeps only minimal metadata, links every
  * role back to Jobicy, does not index or emit JobPosting markup for these
  * records, and polls no more frequently than every six hours.
  */
@@ -39,7 +40,7 @@ export const JOBICY_SOURCE_POLICY: JobSourcePolicy = {
   name: "Jobicy",
   type: "permitted_api",
   termsUrl: "https://jobicy.com/jobs-rss-feed",
-  termsReviewedAt: "2026-07-14",
+  termsReviewedAt: "2026-08-13",
   attributionRequired: 'Show "Source: Jobicy" and link to the returned URL.',
   canStoreFullDescription: false,
   canIndex: false,
@@ -53,20 +54,22 @@ export const JOBICY_ADAPTER_KEY = "jobicy" as const;
 export const JOBICY_REQUIRED_DESTINATION_KIND = "source_url" as const;
 export const JOBICY_CACHE_TAG = "salarypadi-job-source-jobicy" as const;
 export const JOBICY_TERMS_VERSION =
-  "jobicy-public-feed-reviewed-2026-07-14" as const;
+  "jobicy-public-api-reviewed-2026-08-13" as const;
 
 /**
- * Himalayas explicitly permits its public API to backfill other job boards.
- * SalaryPadi retains only bounded metadata and excerpts, visibly links back to
- * Himalayas, refreshes daily, and excludes these jobs from search engines,
- * Google JobPosting markup, email distribution, and downstream syndication.
+ * Re-reviewed 2026-08-13. Himalayas continues to explicitly permit its public
+ * API to backfill other job boards, requires visible source attribution, and
+ * forbids downstream submission to third-party job platforms. SalaryPadi
+ * retains only bounded metadata and excerpts, visibly links back to Himalayas,
+ * refreshes daily, and excludes these jobs from search engines, Google
+ * JobPosting markup, email distribution, and downstream syndication.
  */
 export const HIMALAYAS_SOURCE_POLICY: JobSourcePolicy = {
   id: "himalayas-public-api",
   name: "Himalayas",
   type: "permitted_api",
   termsUrl: "https://himalayas.app/api",
-  termsReviewedAt: "2026-07-15",
+  termsReviewedAt: "2026-08-13",
   attributionRequired:
     'Show "Source: Himalayas" and link to the returned Himalayas URL.',
   canStoreFullDescription: false,
@@ -79,11 +82,11 @@ export const HIMALAYAS_SOURCE_POLICY: JobSourcePolicy = {
 
 /**
  * ReliefWeb's API is documented and free but its content carries the original
- * information partners' rights, and API access above trial volume requires a
- * pre-approved appname. SalaryPadi's application is submitted and pending;
- * until it is granted this policy stays behind the disabled registry entry,
- * the environment kill switch, and the absent database policy row. Metadata
- * only, always attributed to ReliefWeb and the named partner.
+ * information partners' rights, and API access requires a pre-approved
+ * appname. SalaryPadi's application was approved on 2026-07-26; the credential
+ * remains server-only and every fetch still requires the current database
+ * policy plus the environment kill switch. Metadata only, always attributed
+ * to ReliefWeb and the named partner.
  */
 export const RELIEFWEB_SOURCE_POLICY: JobSourcePolicy = {
   id: "reliefweb-jobs-api",
@@ -125,4 +128,4 @@ export const HIMALAYAS_ADAPTER_KEY = "himalayas" as const;
 export const HIMALAYAS_REQUIRED_DESTINATION_KIND = "source_url" as const;
 export const HIMALAYAS_CACHE_TAG = "salarypadi-job-source-himalayas" as const;
 export const HIMALAYAS_TERMS_VERSION =
-  "himalayas-public-api-reviewed-2026-07-15" as const;
+  "himalayas-public-api-reviewed-2026-08-13" as const;

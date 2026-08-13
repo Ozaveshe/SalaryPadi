@@ -5,6 +5,7 @@ import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { JobContextBanner } from "@/components/product/job-context-banner";
 import { TakeHomeCalculator } from "@/components/tools/take-home-calculator";
+import { ToolDecisionPath } from "@/components/tools/tool-decision-path";
 import {
   contextIsNairaPaye,
   contextPeriodFitsCalculator,
@@ -81,6 +82,7 @@ export default async function TakeHomePayPage({
         }
         defaultPeriod={context?.period === "annual" ? "annual" : undefined}
       />
+      <ToolDecisionPath current="take-home" context={context} />
     </div>
   );
 }

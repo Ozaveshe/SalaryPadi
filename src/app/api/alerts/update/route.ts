@@ -10,7 +10,11 @@ import {
 import { getAuthenticatedApiContext } from "@/lib/auth/api";
 import { getAppOrigin } from "@/lib/env";
 import { noStoreJson } from "@/lib/http/json";
-import { parseJobSearch, parseStoredJobAlertSearch } from "@/lib/jobs/search";
+import {
+  jobSearchEligibilitySchema,
+  parseJobSearch,
+  parseStoredJobAlertSearch,
+} from "@/lib/jobs/search";
 import { rejectCrossOriginRequest } from "@/lib/security/origin";
 
 const alertId = z.string().uuid();
@@ -20,7 +24,7 @@ const schema = z.discriminatedUnion("intent", [
     id: alertId,
     keyword: z.string().trim().max(160).default(""),
     location: z.string().trim().max(160).default(""),
-    eligibility: z.enum(["nigeria", "africa", "worldwide", "unclear", "all"]),
+    eligibility: jobSearchEligibilitySchema,
     cadence: z.enum(["daily", "weekly"]),
     search_query: z.string().max(10_000).optional(),
   }),

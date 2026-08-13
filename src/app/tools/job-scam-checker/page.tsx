@@ -5,6 +5,7 @@ import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { JobContextBanner } from "@/components/product/job-context-banner";
 import { ScamChecker } from "@/components/tools/scam-checker";
+import { ToolDecisionPath } from "@/components/tools/tool-decision-path";
 import { readJobContext } from "@/lib/product/job-context";
 
 export const metadata: Metadata = {
@@ -42,6 +43,7 @@ export default async function ScamCheckerPage({
       />
       <BrandArt className="page-art" id="tool-job-scam-checker" />
       <ScamChecker />
+      <ToolDecisionPath current="scam-checker" context={context} />
     </div>
   );
 }

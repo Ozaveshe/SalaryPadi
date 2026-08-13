@@ -1,12 +1,19 @@
 import Link from "next/link";
 
 import type {
+  DashboardApplications,
   DashboardDeadline,
   DashboardPipelineEntry,
   DashboardSummary,
 } from "@/lib/career/dashboard";
+import type { DashboardAction } from "@/lib/career/dashboard-actions";
 import type { DeadlineUrgency } from "@/lib/career/pipeline";
+import type { RepositoryReadState } from "@/lib/data/repository-result";
 import { formatDate, formatEnum } from "@/lib/format";
+import {
+  jobContextFromApplication,
+  withJobContext,
+} from "@/lib/product/job-context";
 
 /**
  * The parts of the overview that read the account owner's own records back to
@@ -106,7 +113,7 @@ export function PipelineSummary({
 export function ApplicationRowNote({
   application,
 }: {
-  application: DashboardSummary["activeApplications"][number];
+  application: DashboardApplications["active"][number];
 }) {
   const notes = [
     `${application.companyName} · updated ${formatDate(application.updatedAt)}`,
@@ -114,6 +121,192 @@ export function ApplicationRowNote({
   if (application.stalled) notes.push("no change in over two weeks");
   if (application.deadline) notes.push(application.deadline.description);
   return <p className="source-note m-0">{notes.join(" · ")}</p>;
+}
+
+const ACTION_POSITION_LABELS = ["Now", "Next", "Also"] as const;
+
+/**
+ * A short work list derived only from the owner's records.
+ *
+ * The order is meaningful, so this stays an ordered list. The labels use
+ * ordinary planning language rather than a score: SalaryPadi can know that a
+ * user-set date passed, but it cannot know which career decision matters most
+ * to the person beyond those recorded facts.
+ */
+export function DashboardActionList({
+  actions,
+  incomplete = false,
+}: {
+  actions: DashboardAction[];
+  incomplete?: boolean;
+}) {
+  if (actions.length === 0) return null;
+
+  return (
+    <section className="dashboard-actions stack" aria-labelledby="next-move">
+      <div className="stack">
+        <h2 className="section-title" id="next-move">
+          Move one decision forward
+        </h2>
+        <p className="text-muted m-0">
+          {incomplete
+            ? "This list uses only the private sections that loaded. Missing sections do not count as zero and do not influence the order."
+            : "This order comes only from the dates, statuses and profile details in your private workspace. SalaryPadi does not predict hiring outcomes."}
+        </p>
+      </div>
+      <ol className="dashboard-action-list">
+        {actions.map((action, index) => (
+          <li
+            className="dashboard-action"
+            data-tone={action.tone}
+            key={action.id}
+          >
+            <div className="stack">
+              <p className="dashboard-action-position m-0">
+                {ACTION_POSITION_LABELS[index] ?? "Also"}
+              </p>
+              <h3 className="m-0 text-lg font-bold">{action.title}</h3>
+              <p className="source-note m-0">{action.detail}</p>
+            </div>
+            <Link className="button button-secondary" href={action.href}>
+              {action.linkLabel}
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/**
+ * A section-level failure shown where an empty state would otherwise appear.
+ * The wording is deliberately explicit that no total or absence claim can be
+ * made from a failed read.
+ */
+export function DashboardSectionStatus({
+  state,
+  title,
+}: {
+  state: Exclude<RepositoryReadState, "ready">;
+  title: string;
+}) {
+  return (
+    <div className="notice notice-warning" role="status">
+      <strong>{title} not shown.</strong>{" "}
+      {state === "degraded"
+        ? "Some records could not be verified, so this overview is not showing a total or an empty state."
+        : state === "unconfigured"
+          ? "The private account backend is not configured in this environment. No total or empty state is being inferred."
+          : "The private records could not be read. No total or empty state is being inferred; reload and try again."}
+    </div>
+  );
+}
+
+/**
+ * The four local decision tools as one honest workflow. Every tool remains
+ * public; a signed-in workspace adds only the role/application context the
+ * owner has already recorded.
+ */
+export function DashboardDecisionTools({
+  summary,
+}: {
+  summary: DashboardSummary;
+}) {
+  const contextSource =
+    summary.applications.data?.active.find(
+      (application) => application.status === "offer",
+    ) ??
+    summary.applications.data?.active[0] ??
+    summary.savedJobs.data?.recent[0] ??
+    null;
+  const context = contextSource
+    ? {
+        slug: contextSource.jobSlug,
+        title: contextSource.title,
+        companyName: contextSource.companyName,
+        companySlug: null,
+      }
+    : null;
+  const offerHref = context
+    ? withJobContext("/tools/offer-compare", jobContextFromApplication(context))
+    : "/tools/offer-compare";
+  const scamHref = context
+    ? withJobContext(
+        "/tools/job-scam-checker",
+        jobContextFromApplication(context),
+      )
+    : "/tools/job-scam-checker";
+  const tools = [
+    {
+      stage: "1 · Check",
+      title: "Screen a vacancy or recruiter message",
+      detail:
+        "See which warning signs are present before you share money, credentials or documents.",
+      href: scamHref,
+      label: "Check vacancy",
+    },
+    {
+      stage: "2 · Translate",
+      title: "Convert a stated salary",
+      detail:
+        "Use a source-labelled unit rate while keeping the salary amount out of the provider request.",
+      href: "/tools/salary-converter",
+      label: "Convert pay",
+    },
+    {
+      stage: "3 · Calculate",
+      title: "Estimate Nigeria take-home pay",
+      detail:
+        "Run gross-to-net or net-to-gross against versioned PAYE rules and visible assumptions.",
+      href: "/tools/take-home-pay",
+      label: "Estimate net",
+    },
+    {
+      stage: "4 · Compare",
+      title: "Put two written offers side by side",
+      detail:
+        "Compare pay, benefits, work costs and contract terms without declaring a winner for you.",
+      href: offerHref,
+      label: "Compare offers",
+    },
+  ];
+
+  return (
+    <section
+      className="decision-workflow stack"
+      aria-labelledby="decision-tools-heading"
+    >
+      <div className="split">
+        <div className="stack">
+          <h2 className="section-title" id="decision-tools-heading">
+            Decision tools
+          </h2>
+          <p className="text-muted m-0">
+            Use only the steps this decision needs. The tools work without an
+            account; your workspace carries a recorded role into the relevant
+            checks and comparisons.
+          </p>
+        </div>
+        <Link className="text-link" href="/tools">
+          See every career tool
+        </Link>
+      </div>
+      <ol className="decision-workflow-list">
+        {tools.map((tool) => (
+          <li className="decision-workflow-step" key={tool.stage}>
+            <div className="stack">
+              <p className="decision-workflow-stage m-0">{tool.stage}</p>
+              <h3 className="m-0 text-lg font-bold">{tool.title}</h3>
+              <p className="source-note m-0">{tool.detail}</p>
+            </div>
+            <Link className="button button-secondary" href={tool.href}>
+              {tool.label}
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
 }
 
 /**

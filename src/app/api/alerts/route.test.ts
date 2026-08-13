@@ -19,14 +19,14 @@ vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 
 import { POST } from "./route";
 
-function alertRequest(searchQuery?: string) {
+function alertRequest(searchQuery?: string, eligibility = "nigeria") {
   return new Request("https://salarypadi.com/api/alerts", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       keyword: "platform engineer",
       location: "Nigeria",
-      eligibility: "nigeria",
+      eligibility,
       cadence: "daily",
       ...(searchQuery === undefined ? {} : { search_query: searchQuery }),
     }),
@@ -64,6 +64,31 @@ describe("alert creation route", () => {
         }),
       }),
     );
+  });
+
+  it("accepts the Nigeria-open eligibility option exposed by the alert form", async () => {
+    const response = await POST(alertRequest(undefined, "nigeria_open"));
+
+    expect(response.status).toBe(303);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "create_job_alert",
+      expect.objectContaining({
+        alert_query: expect.objectContaining({
+          eligibility: "nigeria_open",
+        }),
+      }),
+    );
+  });
+
+  it("still rejects unsupported eligibility values before authentication", async () => {
+    const response = await POST(alertRequest(undefined, "remote"));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid alert.",
+    });
+    expect(mocks.getAuthenticatedApiContext).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("rejects malformed hidden search state before authentication", async () => {

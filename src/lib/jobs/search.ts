@@ -19,6 +19,15 @@ const booleanValue = z.preprocess((value) => {
   return scalar === "true" || scalar === "1" || scalar === 1 || scalar === "on";
 }, z.boolean());
 
+export const jobSearchEligibilitySchema = z.enum([
+  "nigeria",
+  "nigeria_open",
+  "africa",
+  "worldwide",
+  "unclear",
+  "all",
+]);
+
 export const jobSearchSchema = z.object({
   q: stringValue.default(""),
   company: stringValue.default(""),
@@ -29,16 +38,7 @@ export const jobSearchSchema = z.object({
   ),
   eligibility: z.preprocess(
     (value) => (Array.isArray(value) ? value[0] : value),
-    z
-      .enum([
-        "nigeria",
-        "nigeria_open",
-        "africa",
-        "worldwide",
-        "unclear",
-        "all",
-      ])
-      .default("all"),
+    jobSearchEligibilitySchema.default("all"),
   ),
   path: z.preprocess(
     (value) => (Array.isArray(value) ? value[0] : value),

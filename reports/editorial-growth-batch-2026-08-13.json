@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "preparedAt": "2026-08-13T00:00:00.000Z",
+  "status": "local_only",
+  "deploymentPerformed": false,
+  "submissionPerformed": false,
+  "guideCount": 10,
+  "minimumWordsPerGuide": 619,
+  "maximumWordsPerGuide": 732,
+  "sourcesPerGuide": 3,
+  "minimumExternalSourcesPerGuide": 2,
+  "internalLinksPerGuide": 4,
+  "sourceRetrievedAt": "2026-08-13T00:00:00.000Z",
+  "slugs": [
+    "how-to-write-cv-for-jobs-nigeria",
+    "how-to-tailor-cv-to-job-description",
+    "how-to-write-cover-letter-nigeria",
+    "how-to-track-job-applications",
+    "how-to-follow-up-after-job-application",
+    "how-to-answer-tell-me-about-yourself-interview",
+    "star-method-interview-answers",
+    "questions-to-ask-at-end-of-job-interview",
+    "what-to-check-before-accepting-job-offer-nigeria",
+    "how-to-change-careers-in-nigeria"
+  ],
+  "validation": {
+    "contentInvariants": "pass",
+    "format": "pass",
+    "isolatedTypecheck": "pass",
+    "focusedVitest": {
+      "result": "pass",
+      "testFilesPassed": 8,
+      "testsPassed": 39
+    },
+    "browserE2E": {
+      "result": "pass",
+      "projects": ["mobile-360", "tablet-768", "desktop-chromium"],
+      "testsPassed": 9
+    },
+    "productionDeploy": "not_performed",
+    "liveIndexation": "not_checked"
+  }
+}

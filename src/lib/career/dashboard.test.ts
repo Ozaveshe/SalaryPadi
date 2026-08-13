@@ -22,6 +22,7 @@ import {
 } from "@/lib/career/repository";
 import { STALE_APPLICATION_MS } from "@/lib/career/pipeline";
 import {
+  repositoryDegraded,
   repositoryFailure,
   repositoryIssue,
   repositoryReady,
@@ -126,6 +127,7 @@ describe("dashboard read state", () => {
     const summary = await getDashboardSummary(NOW);
 
     expect(summary.state).toBe("unavailable");
+    expect(summary.alerts).toEqual({ state: "unavailable", data: null });
   });
 
   it("never greets a failed read as a fresh account", async () => {
@@ -151,14 +153,52 @@ describe("dashboard read state", () => {
       const summary = await getDashboardSummary(NOW);
 
       expect(summary.state).toBe(state);
+      expect(summary.savedJobs).toEqual({ state, data: null });
       expect(summary.isFirstRun).toBe(false);
     }
   });
 
-  it("reports a first run only when every read succeeded and found nothing", async () => {
+  it("drops repository fallback data from every non-ready section", async () => {
+    vi.mocked(getApplications).mockResolvedValue(
+      repositoryFailure(
+        "unavailable",
+        [application()],
+        repositoryIssue(
+          "get_my_applications",
+          "query_failed",
+          "career_rpc_error",
+        ),
+      ) as never,
+    );
+    vi.mocked(getCandidateProfile).mockResolvedValue(
+      repositoryDegraded(profileRow(), [
+        repositoryIssue(
+          "get_my_candidate_profile",
+          "invalid_rows",
+          "career_invalid_rows",
+        ),
+      ]),
+    );
+
+    const summary = await getDashboardSummary(NOW);
+
+    // Even a provider fallback containing rows is not safe to count or render
+    // after its read says it was incomplete.
+    expect(summary.applications).toEqual({
+      state: "unavailable",
+      data: null,
+    });
+    expect(summary.profile).toEqual({ state: "degraded", data: null });
+    expect(summary.isFirstRun).toBe(false);
+  });
+
+  it("reports a first run only when every read succeeded and found no career setup", async () => {
     expect((await getDashboardSummary(NOW)).isFirstRun).toBe(true);
 
     stubReads({ applications: [application({ status: "withdrawn" })] });
+    expect((await getDashboardSummary(NOW)).isFirstRun).toBe(false);
+
+    stubReads({ profile: profileRow() });
     expect((await getDashboardSummary(NOW)).isFirstRun).toBe(false);
   });
 });
@@ -187,16 +227,16 @@ describe("scheduled actions", () => {
 
     const summary = await getDashboardSummary(NOW);
 
-    expect(summary.upcomingActions.map((action) => action.jobSlug)).toEqual([
-      "overdue",
-      "today",
-      "later",
-    ]);
-    expect(summary.upcomingActions.map((action) => action.urgency)).toEqual([
-      "overdue",
-      "today",
-      "upcoming",
-    ]);
+    expect(
+      summary.applications.data?.upcomingActions.map(
+        (action) => action.jobSlug,
+      ),
+    ).toEqual(["overdue", "today", "later"]);
+    expect(
+      summary.applications.data?.upcomingActions.map(
+        (action) => action.urgency,
+      ),
+    ).toEqual(["overdue", "today", "upcoming"]);
   });
 
   it("orders correctly across differing UTC offsets", async () => {
@@ -218,10 +258,11 @@ describe("scheduled actions", () => {
 
     const summary = await getDashboardSummary(NOW);
 
-    expect(summary.upcomingActions.map((action) => action.jobSlug)).toEqual([
-      "first",
-      "second",
-    ]);
+    expect(
+      summary.applications.data?.upcomingActions.map(
+        (action) => action.jobSlug,
+      ),
+    ).toEqual(["first", "second"]);
   });
 
   it("ignores dates on processes that have ended", async () => {
@@ -241,8 +282,8 @@ describe("scheduled actions", () => {
 
     const summary = await getDashboardSummary(NOW);
 
-    expect(summary.upcomingActions).toEqual([]);
-    expect(summary.overdueActionCount).toBe(0);
+    expect(summary.applications.data?.upcomingActions).toEqual([]);
+    expect(summary.applications.data?.overdueActionCount).toBe(0);
   });
 
   it("counts every overdue action, including ones past the listed few", async () => {
@@ -259,8 +300,8 @@ describe("scheduled actions", () => {
     const summary = await getDashboardSummary(NOW);
 
     // Six dates, 20th-25th July, all before the 28th; only four are listed.
-    expect(summary.upcomingActions).toHaveLength(4);
-    expect(summary.overdueActionCount).toBe(6);
+    expect(summary.applications.data?.upcomingActions).toHaveLength(4);
+    expect(summary.applications.data?.overdueActionCount).toBe(6);
   });
 });
 
@@ -278,8 +319,8 @@ describe("live application stages", () => {
 
     const summary = await getDashboardSummary(NOW);
 
-    expect(summary.activeApplicationCount).toBe(4);
-    expect(summary.pipeline).toEqual([
+    expect(summary.applications.data?.activeCount).toBe(4);
+    expect(summary.applications.data?.pipeline).toEqual([
       { status: "applied", count: 2 },
       { status: "interview", count: 1 },
       { status: "offer", count: 1 },
@@ -299,9 +340,12 @@ describe("live application stages", () => {
 
     const summary = await getDashboardSummary(NOW);
 
-    expect(summary.stalledApplicationCount).toBe(1);
+    expect(summary.applications.data?.stalledApplicationCount).toBe(1);
     expect(
-      summary.activeApplications.map((row) => [row.jobSlug, row.stalled]),
+      summary.applications.data?.active.map((row) => [
+        row.jobSlug,
+        row.stalled,
+      ]),
     ).toEqual([
       ["stalled", true],
       ["fresh", false],
@@ -329,9 +373,11 @@ describe("profile strength", () => {
   it("treats an account with no profile as having stated nothing", async () => {
     const summary = await getDashboardSummary(NOW);
 
-    expect(summary.profile.exists).toBe(false);
-    expect(summary.profile.completeness).toBe(0);
-    expect(summary.profile.missingFields).toHaveLength(MATCHING_FIELD_COUNT);
+    expect(summary.profile.data?.exists).toBe(false);
+    expect(summary.profile.data?.completeness).toBe(0);
+    expect(summary.profile.data?.missingFields).toHaveLength(
+      MATCHING_FIELD_COUNT,
+    );
   });
 
   it("reports a fully stated profile as complete with nothing outstanding", async () => {
@@ -339,8 +385,8 @@ describe("profile strength", () => {
 
     const summary = await getDashboardSummary(NOW);
 
-    expect(summary.profile.completeness).toBe(1);
-    expect(summary.profile.missingFields).toEqual([]);
+    expect(summary.profile.data?.completeness).toBe(1);
+    expect(summary.profile.data?.missingFields).toEqual([]);
   });
 
   it("counts a declined answer as unstated, since it leaves nothing to match on", async () => {
@@ -348,8 +394,8 @@ describe("profile strength", () => {
 
     const summary = await getDashboardSummary(NOW);
 
-    expect(summary.profile.missingFields).toEqual(["Experience level"]);
-    expect(summary.profile.completeness).toBeCloseTo(
+    expect(summary.profile.data?.missingFields).toEqual(["Experience level"]);
+    expect(summary.profile.data?.completeness).toBeCloseTo(
       (MATCHING_FIELD_COUNT - 1) / MATCHING_FIELD_COUNT,
     );
   });
@@ -361,7 +407,7 @@ describe("summary counts", () => {
       alerts: [{ active: true }, { active: false }, { active: true }],
     });
 
-    expect((await getDashboardSummary(NOW)).activeAlertCount).toBe(2);
+    expect((await getDashboardSummary(NOW)).alerts.data?.activeCount).toBe(2);
   });
 
   it("caps each column at five records while keeping the full count", async () => {
@@ -373,7 +419,7 @@ describe("summary counts", () => {
 
     const summary = await getDashboardSummary(NOW);
 
-    expect(summary.savedJobCount).toBe(7);
-    expect(summary.recentSaved).toHaveLength(5);
+    expect(summary.savedJobs.data?.count).toBe(7);
+    expect(summary.savedJobs.data?.recent).toHaveLength(5);
   });
 });

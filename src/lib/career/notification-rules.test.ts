@@ -1,27 +1,48 @@
 import { describe, expect, it } from "vitest";
 
-import type { DashboardSummary } from "./dashboard";
+import type { DashboardApplications, DashboardSummary } from "./dashboard";
 import { deriveNotifications } from "./notification-rules";
+
+function applications(
+  overrides: Partial<DashboardApplications> = {},
+): DashboardSummary["applications"] {
+  return {
+    state: "ready",
+    data: {
+      totalCount: 0,
+      activeCount: 0,
+      upcomingActions: [],
+      overdueActionCount: 0,
+      stalledApplicationCount: 0,
+      pipeline: [],
+      active: [],
+      ...overrides,
+    },
+  };
+}
 
 function summary(overrides: Partial<DashboardSummary> = {}): DashboardSummary {
   return {
     state: "ready",
-    savedJobCount: 0,
-    activeApplicationCount: 0,
-    activeAlertCount: 0,
-    upcomingActions: [],
-    overdueActionCount: 0,
-    stalledApplicationCount: 0,
-    pipeline: [],
+    savedJobs: {
+      state: "ready",
+      data: { count: 0, recent: [] },
+    },
+    applications: applications(),
+    alerts: {
+      state: "ready",
+      data: { totalCount: 0, activeCount: 0 },
+    },
     isFirstRun: false,
-    recentSaved: [],
-    activeApplications: [],
     profile: {
-      exists: false,
-      headline: null,
-      attestedAt: null,
-      completeness: 0,
-      missingFields: [],
+      state: "ready",
+      data: {
+        exists: false,
+        headline: null,
+        attestedAt: null,
+        completeness: 0,
+        missingFields: [],
+      },
     },
     ...overrides,
   };
@@ -35,15 +56,7 @@ describe("deriving notifications from a viewer's own records", () => {
       deriveNotifications(
         summary({
           state: "degraded",
-          upcomingActions: [
-            {
-              urgency: "overdue",
-              jobSlug: "backend-engineer",
-              title: "Backend Engineer",
-              companyName: "Acme",
-              dueAt: "2026-07-20T00:00:00.000Z",
-            } as DashboardSummary["upcomingActions"][number],
-          ],
+          applications: { state: "degraded", data: null },
         }),
       ),
     ).toEqual([]);
@@ -52,15 +65,19 @@ describe("deriving notifications from a viewer's own records", () => {
   it("names an overdue action and points at the record that carries it", () => {
     const derived = deriveNotifications(
       summary({
-        upcomingActions: [
-          {
-            urgency: "overdue",
-            jobSlug: "backend-engineer",
-            title: "Backend Engineer",
-            companyName: "Acme",
-            dueAt: "2026-07-20T00:00:00.000Z",
-          } as DashboardSummary["upcomingActions"][number],
-        ],
+        applications: applications({
+          upcomingActions: [
+            {
+              urgency: "overdue",
+              jobSlug: "backend-engineer",
+              title: "Backend Engineer",
+              companyName: "Acme",
+              dueAt: "2026-07-20T00:00:00.000Z",
+              dayOffset: -8,
+              description: "Overdue by 8 days",
+            },
+          ],
+        }),
       }),
     );
 
@@ -88,7 +105,7 @@ describe("deriving notifications from a viewer's own records", () => {
     const moving = { ...stalled, jobSlug: "other", stalled: false };
 
     const derived = deriveNotifications(
-      summary({ activeApplications: [stalled, moving] }),
+      summary({ applications: applications({ active: [stalled, moving] }) }),
     );
 
     expect(derived).toHaveLength(1);
@@ -99,17 +116,19 @@ describe("deriving notifications from a viewer's own records", () => {
   it("keeps every link inside the site", () => {
     const derived = deriveNotifications(
       summary({
-        activeApplications: [
-          {
-            jobSlug: "data-analyst",
-            title: "Data Analyst",
-            companyName: "Kuda",
-            status: "applied",
-            updatedAt: "2026-07-01T00:00:00.000Z",
-            stalled: true,
-            deadline: null,
-          },
-        ],
+        applications: applications({
+          active: [
+            {
+              jobSlug: "data-analyst",
+              title: "Data Analyst",
+              companyName: "Kuda",
+              status: "applied",
+              updatedAt: "2026-07-01T00:00:00.000Z",
+              stalled: true,
+              deadline: null,
+            },
+          ],
+        }),
       }),
     );
 

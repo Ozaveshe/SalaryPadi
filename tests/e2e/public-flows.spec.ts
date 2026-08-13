@@ -174,6 +174,11 @@ test.describe("public MVP journeys", () => {
         .fill(
           "Urgent: pay a training fee in cryptocurrency today and send your banking password to receive an instant offer.",
         );
+      await page
+        .getByText("Add details for a stronger check (optional)", {
+          exact: true,
+        })
+        .click();
       await page.getByLabel("A payment or fee was requested").check();
       await page
         .getByRole("checkbox", {

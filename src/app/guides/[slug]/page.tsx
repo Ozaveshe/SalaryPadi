@@ -15,6 +15,10 @@ import {
   getPublishedArticleResult,
   type EditorialArticle,
 } from "@/lib/editorial/repository";
+import {
+  getEditorialScheduleState,
+  isEditorialReviewOverdue,
+} from "@/lib/editorial/review";
 import { getAppOrigin } from "@/lib/env";
 import { formatDate } from "@/lib/format";
 import { buildEditorialGuideMetadata } from "@/lib/seo/editorial-metadata";
@@ -64,6 +68,12 @@ export default async function EditorialGuidePage({
   const path = editorialPath(article);
   const url = new URL(path, origin).toString();
   const sources = article.sources ?? [];
+  const now = new Date();
+  const reviewOverdue = isEditorialReviewOverdue(article, now);
+  const { publicationPending, updatePending } = getEditorialScheduleState(
+    article,
+    now,
+  );
 
   return (
     <article className={`reading-shell ${styles.article}`}>
@@ -92,7 +102,7 @@ export default async function EditorialGuidePage({
             <dd>{article.author_name}</dd>
           </div>
           <div>
-            <dt>Published</dt>
+            <dt>{publicationPending ? "Publishes" : "Published"}</dt>
             <dd>
               <time dateTime={article.published_at}>
                 {formatDate(article.published_at)}
@@ -100,7 +110,7 @@ export default async function EditorialGuidePage({
             </dd>
           </div>
           <div>
-            <dt>Last reviewed</dt>
+            <dt>{updatePending ? "Review scheduled" : "Last reviewed"}</dt>
             <dd>
               <time dateTime={article.updated_at}>
                 {formatDate(article.updated_at)}
@@ -113,6 +123,46 @@ export default async function EditorialGuidePage({
       {result.state === "ready" ? null : (
         <RepositoryNotice result={result} resource="Editorial backend" />
       )}
+
+      {reviewOverdue ? (
+        <aside
+          className="surface surface-pad stack"
+          aria-label="Guide review status"
+        >
+          <p className="status status-warning">Review overdue</p>
+          <p>
+            This guide is still available for reference, but it has been removed
+            from search discovery while SalaryPadi rechecks its cited evidence.
+            Verify the dated sources below before acting on it.
+          </p>
+        </aside>
+      ) : null}
+
+      {publicationPending || updatePending ? (
+        <aside
+          className="surface surface-pad stack"
+          aria-label="Guide schedule status"
+        >
+          <p className="status status-neutral">
+            {publicationPending
+              ? "Scheduled publication preview"
+              : "Scheduled update preview"}
+          </p>
+          {publicationPending ? (
+            <p>
+              This guide is available by direct link before its publication
+              date. It is excluded from search, the blog, RSS and sitemaps until
+              that date arrives.
+            </p>
+          ) : (
+            <p>
+              This direct-link preview includes an editorial update scheduled
+              for the date shown above. It remains excluded from search, the
+              blog, RSS and sitemaps until that date arrives.
+            </p>
+          )}
+        </aside>
+      ) : null}
 
       <EditorialMarkdown markdown={article.body_markdown} />
 
@@ -132,7 +182,11 @@ export default async function EditorialGuidePage({
               {source.url.startsWith("/") ? (
                 <Link href={source.url}>{source.name}</Link>
               ) : (
-                <a href={source.url} rel="noopener noreferrer">
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                >
                   {source.name}
                 </a>
               )}{" "}
@@ -168,9 +222,17 @@ function buildArticleSchema(
     description: article.description,
     url,
     mainEntityOfPage: url,
+    image: `${url}/opengraph-image`,
+    inLanguage: "en-NG",
+    isAccessibleForFree: true,
+    articleSection: "Career guides",
     datePublished: article.published_at,
     dateModified: article.updated_at,
-    author: { "@type": "Organization", name: article.author_name },
+    author: {
+      "@type": "Organization",
+      name: article.author_name,
+      url: new URL("/about", origin).toString(),
+    },
     publisher: {
       "@type": "Organization",
       name: "SalaryPadi",

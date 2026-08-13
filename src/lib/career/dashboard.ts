@@ -82,15 +82,35 @@ export type DashboardPipelineEntry = {
   count: number;
 };
 
-export type DashboardSummary = {
-  /**
-   * The weakest state across the four reads. One degraded section degrades the
-   * dashboard, so a partial view is never presented as complete.
-   */
-  state: RepositoryReadState;
-  savedJobCount: number;
-  activeApplicationCount: number;
-  activeAlertCount: number;
+/**
+ * A dashboard section is either complete or intentionally carries no data.
+ *
+ * Repository failures use empty arrays and nulls as safe transport fallbacks.
+ * Keeping those fallbacks in a summary would make it too easy for a renderer
+ * to turn "could not read" into "you have none". This discriminated shape
+ * makes a successful read a prerequisite for every count and empty state.
+ */
+export type DashboardSection<T> =
+  | { state: "ready"; data: T }
+  | {
+      state: Exclude<RepositoryReadState, "ready">;
+      data: null;
+    };
+
+export type DashboardSavedJobs = {
+  count: number;
+  recent: {
+    jobSlug: string;
+    title: string;
+    companyName: string;
+    savedAt: string;
+  }[];
+};
+
+export type DashboardApplications = {
+  /** Includes completed processes; used only to distinguish first run. */
+  totalCount: number;
+  activeCount: number;
   /** Scheduled actions on live applications, soonest first. */
   upcomingActions: DashboardDeadline[];
   /** Scheduled actions already past their date, including any beyond the list. */
@@ -99,19 +119,7 @@ export type DashboardSummary = {
   stalledApplicationCount: number;
   /** Live counts by stage, in funnel order. Stages at zero are omitted. */
   pipeline: DashboardPipelineEntry[];
-  /**
-   * True only when the reads succeeded and found no records at all. A failed
-   * read also reports zero of everything, and greeting that as a fresh start
-   * would present missing data as an empty account.
-   */
-  isFirstRun: boolean;
-  recentSaved: {
-    jobSlug: string;
-    title: string;
-    companyName: string;
-    savedAt: string;
-  }[];
-  activeApplications: {
+  active: {
     jobSlug: string;
     title: string;
     companyName: string;
@@ -121,15 +129,40 @@ export type DashboardSummary = {
     stalled: boolean;
     deadline: Deadline | null;
   }[];
-  profile: {
-    exists: boolean;
-    headline: string | null;
-    attestedAt: string | null;
-    /** Completed share of the fields that drive job matching, 0-1. */
-    completeness: number;
-    /** Which of those fields are still unstated. */
-    missingFields: string[];
-  };
+};
+
+export type DashboardAlerts = {
+  /** Includes paused alerts; used only to distinguish first run. */
+  totalCount: number;
+  activeCount: number;
+};
+
+export type DashboardProfile = {
+  exists: boolean;
+  headline: string | null;
+  attestedAt: string | null;
+  /** Completed share of the fields that drive job matching, 0-1. */
+  completeness: number;
+  /** Which of those fields are still unstated. */
+  missingFields: string[];
+};
+
+export type DashboardSummary = {
+  /**
+   * The weakest state across the four reads. One degraded section degrades the
+   * dashboard, so a partial view is never presented as complete.
+   */
+  state: RepositoryReadState;
+  savedJobs: DashboardSection<DashboardSavedJobs>;
+  applications: DashboardSection<DashboardApplications>;
+  alerts: DashboardSection<DashboardAlerts>;
+  profile: DashboardSection<DashboardProfile>;
+  /**
+   * True only when the reads succeeded and found no career records or profile.
+   * A failed read also reports zero of everything, and greeting that as a
+   * fresh start would present missing data as an empty account.
+   */
+  isFirstRun: boolean;
 };
 
 /**
@@ -152,6 +185,12 @@ function weakestState(states: RepositoryReadState[]): RepositoryReadState {
   );
 }
 
+function sectionUnavailable<T>(
+  state: Exclude<RepositoryReadState, "ready">,
+): DashboardSection<T> {
+  return { state, data: null };
+}
+
 /**
  * Reads every private career surface the dashboard summarises.
  *
@@ -171,9 +210,12 @@ export async function getDashboardSummary(
     getCandidateProfile(),
   ]);
 
-  const activeApplications = applications.data.filter((application) =>
-    isActiveApplicationStatus(application.status),
-  );
+  const activeApplications =
+    applications.state === "ready"
+      ? applications.data.filter((application) =>
+          isActiveApplicationStatus(application.status),
+        )
+      : [];
 
   // Ordered on parsed instants rather than on the raw strings: stored
   // timestamps may carry different UTC offsets, and a lexical compare would
@@ -201,58 +243,101 @@ export async function getDashboardSummary(
     alerts.state,
     profile.state,
   ]);
-  const profileRow = profile.data;
-  const missingFields = missingMatchingFields(profileRow);
+  const profileRow = profile.state === "ready" ? profile.data : null;
+  const missingFields =
+    profile.state === "ready" ? missingMatchingFields(profileRow) : [];
+
+  const savedJobsSection: DashboardSection<DashboardSavedJobs> =
+    saved.state === "ready"
+      ? {
+          state: "ready",
+          data: {
+            count: saved.data.length,
+            recent: saved.data.slice(0, MAX_LISTED_RECORDS).map((job) => ({
+              jobSlug: job.job_slug,
+              title: job.title,
+              companyName: job.company_name,
+              savedAt: job.saved_at,
+            })),
+          },
+        }
+      : sectionUnavailable(saved.state);
+
+  const applicationsSection: DashboardSection<DashboardApplications> =
+    applications.state === "ready"
+      ? {
+          state: "ready",
+          data: {
+            totalCount: applications.data.length,
+            activeCount: activeApplications.length,
+            upcomingActions: scheduled.slice(0, MAX_LISTED_ACTIONS),
+            overdueActionCount: scheduled.filter(
+              (action) => action.urgency === "overdue",
+            ).length,
+            stalledApplicationCount: activeApplications.filter((application) =>
+              isStaleApplication(application.updated_at, now),
+            ).length,
+            pipeline: ACTIVE_APPLICATION_STATUSES.map((status) => ({
+              status,
+              count: activeApplications.filter(
+                (application) => application.status === status,
+              ).length,
+            })).filter((entry) => entry.count > 0),
+            active: activeApplications
+              .slice(0, MAX_LISTED_RECORDS)
+              .map((application) => ({
+                jobSlug: application.job_slug,
+                title: application.title,
+                companyName: application.company_name,
+                status: application.status,
+                updatedAt: application.updated_at,
+                stalled: isStaleApplication(application.updated_at, now),
+                deadline: application.next_action_at
+                  ? readDeadline(application.next_action_at, now)
+                  : null,
+              })),
+          },
+        }
+      : sectionUnavailable(applications.state);
+
+  const alertsSection: DashboardSection<DashboardAlerts> =
+    alerts.state === "ready"
+      ? {
+          state: "ready",
+          data: {
+            totalCount: alerts.data.length,
+            activeCount: alerts.data.filter((alert) => alert.active).length,
+          },
+        }
+      : sectionUnavailable(alerts.state);
+
+  const profileSection: DashboardSection<DashboardProfile> =
+    profile.state === "ready"
+      ? {
+          state: "ready",
+          data: {
+            exists: profileRow !== null,
+            headline: profileRow?.headline ?? null,
+            attestedAt: profileRow?.attested_at ?? null,
+            completeness:
+              (MATCHING_FIELD_COUNT - missingFields.length) /
+              MATCHING_FIELD_COUNT,
+            missingFields,
+          },
+        }
+      : sectionUnavailable(profile.state);
 
   return {
     state,
-    savedJobCount: saved.data.length,
-    activeApplicationCount: activeApplications.length,
-    activeAlertCount: alerts.data.filter((alert) => alert.active).length,
-    upcomingActions: scheduled.slice(0, MAX_LISTED_ACTIONS),
-    overdueActionCount: scheduled.filter(
-      (action) => action.urgency === "overdue",
-    ).length,
-    stalledApplicationCount: activeApplications.filter((application) =>
-      isStaleApplication(application.updated_at, now),
-    ).length,
-    pipeline: ACTIVE_APPLICATION_STATUSES.map((status) => ({
-      status,
-      count: activeApplications.filter(
-        (application) => application.status === status,
-      ).length,
-    })).filter((entry) => entry.count > 0),
+    savedJobs: savedJobsSection,
+    applications: applicationsSection,
+    alerts: alertsSection,
+    profile: profileSection,
     isFirstRun:
       state === "ready" &&
       saved.data.length === 0 &&
       applications.data.length === 0 &&
-      alerts.data.length === 0,
-    recentSaved: saved.data.slice(0, MAX_LISTED_RECORDS).map((job) => ({
-      jobSlug: job.job_slug,
-      title: job.title,
-      companyName: job.company_name,
-      savedAt: job.saved_at,
-    })),
-    activeApplications: activeApplications
-      .slice(0, MAX_LISTED_RECORDS)
-      .map((application) => ({
-        jobSlug: application.job_slug,
-        title: application.title,
-        companyName: application.company_name,
-        status: application.status,
-        updatedAt: application.updated_at,
-        stalled: isStaleApplication(application.updated_at, now),
-        deadline: application.next_action_at
-          ? readDeadline(application.next_action_at, now)
-          : null,
-      })),
-    profile: {
-      exists: profileRow !== null,
-      headline: profileRow?.headline ?? null,
-      attestedAt: profileRow?.attested_at ?? null,
-      completeness:
-        (MATCHING_FIELD_COUNT - missingFields.length) / MATCHING_FIELD_COUNT,
-      missingFields,
-    },
+      alerts.data.length === 0 &&
+      profileRow === null,
   };
 }

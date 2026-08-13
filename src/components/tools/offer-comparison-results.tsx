@@ -5,6 +5,15 @@ import {
   formatSalaryAmount,
 } from "@/lib/format";
 import type { NormalizedAmount, OfferComparisonResult } from "@/lib/offers";
+import {
+  calculated,
+  collectAssumptions,
+  displaySuffix,
+  estimated,
+  ORIGIN_LABELS,
+  unknown,
+  type ProvenancedValue,
+} from "@/lib/workspace/value-provenance";
 
 import { ToolResultRegion } from "./tool-result-region";
 
@@ -19,14 +28,85 @@ export type FxEvidence = {
 
 type ComparisonRow = {
   label: string;
-  offerA: NormalizedAmount | null;
-  offerB: NormalizedAmount | null;
+  offerA: ProvenancedValue<NormalizedAmount>;
+  offerB: ProvenancedValue<NormalizedAmount>;
 };
 
 function resultMoney(value: number | null, currency: string) {
   // "Unknown" is a prohibited public label: it reads as missing knowledge when
   // the real meaning is that this offer simply had no such component entered.
   return value === null ? "Not entered" : formatSalaryAmount(value, currency);
+}
+
+function calculatedAmount(value: NormalizedAmount, note: string) {
+  return calculated(value, note);
+}
+
+function takeHomeAmount(
+  value: NormalizedAmount | null,
+  payBasis: "gross" | "net",
+) {
+  if (value === null) {
+    return unknown<NormalizedAmount>(
+      "Not calculated because no monthly deduction estimate was entered.",
+    );
+  }
+
+  if (payBasis === "net") {
+    return calculated(
+      value,
+      "Calculated from the net pay values entered; SalaryPadi did not estimate tax or statutory deductions.",
+    );
+  }
+
+  return estimated(
+    value,
+    "Calculated only from the monthly deduction estimate entered; SalaryPadi did not estimate tax or statutory deductions.",
+  );
+}
+
+function ComparisonAmount({
+  amount,
+  currency,
+}: {
+  amount: ProvenancedValue<NormalizedAmount>;
+  currency: string;
+}) {
+  if (amount.value === null) {
+    return (
+      <>
+        Not calculated
+        <br />
+        <span className="source-note">{ORIGIN_LABELS[amount.origin]}</span>
+      </>
+    );
+  }
+
+  const suffix = displaySuffix(amount);
+
+  return (
+    <>
+      {resultMoney(amount.value.monthly, currency)}
+      {suffix} / month
+      <br />
+      <small>
+        {resultMoney(amount.value.annual, currency)}
+        {suffix} / year
+      </small>
+      <br />
+      <span className="source-note">{ORIGIN_LABELS[amount.origin]}</span>
+    </>
+  );
+}
+
+function uniqueRecords<T extends { label: string; detail: string }>(
+  records: readonly T[],
+) {
+  return Array.from(
+    new Map(
+      records.map((record) => [`${record.label}:${record.detail}`, record]),
+    ).values(),
+  );
 }
 
 function FxEvidenceNotice({ evidence }: { evidence: readonly FxEvidence[] }) {
@@ -63,45 +143,96 @@ export function OfferComparisonResults({
   result: OfferComparisonResult | null;
   fxEvidence: readonly FxEvidence[];
 }) {
+  const baseNote =
+    "Normalized from the pay amount, currency and period entered, using supplied FX evidence when conversion is needed.";
+  const cashNote =
+    "Calculated from the base and variable pay values entered for this offer.";
+  const benefitNote =
+    "Calculated from the monthly benefit values entered. Omitted benefit fields contribute zero to this comparison.";
+  const costNote =
+    "Calculated from the monthly personal work costs entered. Omitted cost fields contribute zero to this comparison.";
+  const effectiveValueNote =
+    "Calculated as total cash plus entered benefit values, minus entered personal work costs.";
   const rows: ComparisonRow[] = result
     ? [
         {
           label: "Base pay",
-          offerA: result.offerA.basePay,
-          offerB: result.offerB.basePay,
+          offerA: calculatedAmount(result.offerA.basePay, baseNote),
+          offerB: calculatedAmount(result.offerB.basePay, baseNote),
         },
         {
           label: "Guaranteed cash",
-          offerA: result.offerA.guaranteedCashCompensation,
-          offerB: result.offerB.guaranteedCashCompensation,
+          offerA: calculatedAmount(
+            result.offerA.guaranteedCashCompensation,
+            cashNote,
+          ),
+          offerB: calculatedAmount(
+            result.offerB.guaranteedCashCompensation,
+            cashNote,
+          ),
         },
         {
           label: "Total cash",
-          offerA: result.offerA.totalCashCompensation,
-          offerB: result.offerB.totalCashCompensation,
+          offerA: calculatedAmount(
+            result.offerA.totalCashCompensation,
+            cashNote,
+          ),
+          offerB: calculatedAmount(
+            result.offerB.totalCashCompensation,
+            cashNote,
+          ),
         },
         {
           label: "Benefit value",
-          offerA: result.offerA.estimatedBenefitValue,
-          offerB: result.offerB.estimatedBenefitValue,
+          offerA: calculatedAmount(
+            result.offerA.estimatedBenefitValue,
+            benefitNote,
+          ),
+          offerB: calculatedAmount(
+            result.offerB.estimatedBenefitValue,
+            benefitNote,
+          ),
         },
         {
           label: "Personal work costs",
-          offerA: result.offerA.personalWorkCosts,
-          offerB: result.offerB.personalWorkCosts,
+          offerA: calculatedAmount(result.offerA.personalWorkCosts, costNote),
+          offerB: calculatedAmount(result.offerB.personalWorkCosts, costNote),
         },
         {
           label: "Estimated cash take-home",
-          offerA: result.offerA.estimatedCashTakeHome,
-          offerB: result.offerB.estimatedCashTakeHome,
+          offerA: takeHomeAmount(
+            result.offerA.estimatedCashTakeHome,
+            result.offerA.payBasis,
+          ),
+          offerB: takeHomeAmount(
+            result.offerB.estimatedCashTakeHome,
+            result.offerB.payBasis,
+          ),
         },
         {
           label: "Effective value",
-          offerA: result.offerA.effectiveValue,
-          offerB: result.offerB.effectiveValue,
+          offerA: calculatedAmount(
+            result.offerA.effectiveValue,
+            effectiveValueNote,
+          ),
+          offerB: calculatedAmount(
+            result.offerB.effectiveValue,
+            effectiveValueNote,
+          ),
         },
       ]
     : [];
+  const rowValues = rows.flatMap((row) => [row.offerA, row.offerB]);
+  const assumptions = uniqueRecords(collectAssumptions(rowValues));
+  const calculationExplanations = uniqueRecords(
+    rowValues.flatMap((value) =>
+      value.note &&
+      value.origin !== "estimated" &&
+      value.origin !== "assumption"
+        ? [{ label: ORIGIN_LABELS[value.origin], detail: value.note }]
+        : [],
+    ),
+  );
 
   return (
     <>
@@ -129,34 +260,16 @@ export function OfferComparisonResults({
                     <tr key={row.label}>
                       <th scope="row">{row.label}</th>
                       <td data-label={result.offerA.label}>
-                        {resultMoney(
-                          row.offerA?.monthly ?? null,
-                          result.comparisonCurrency,
-                        )}{" "}
-                        / month
-                        <br />
-                        <small>
-                          {resultMoney(
-                            row.offerA?.annual ?? null,
-                            result.comparisonCurrency,
-                          )}{" "}
-                          / year
-                        </small>
+                        <ComparisonAmount
+                          amount={row.offerA}
+                          currency={result.comparisonCurrency}
+                        />
                       </td>
                       <td data-label={result.offerB.label}>
-                        {resultMoney(
-                          row.offerB?.monthly ?? null,
-                          result.comparisonCurrency,
-                        )}{" "}
-                        / month
-                        <br />
-                        <small>
-                          {resultMoney(
-                            row.offerB?.annual ?? null,
-                            result.comparisonCurrency,
-                          )}{" "}
-                          / year
-                        </small>
+                        <ComparisonAmount
+                          amount={row.offerB}
+                          currency={result.comparisonCurrency}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -189,7 +302,34 @@ export function OfferComparisonResults({
               </div>
             </div>
             <details>
-              <summary>Normalization notes and warnings</summary>
+              <summary>How these figures were calculated</summary>
+              <p>
+                <strong>Value origins</strong>
+              </p>
+              <ul>
+                {calculationExplanations.map((record) => (
+                  <li key={`${record.label}-${record.detail}`}>
+                    <strong>{record.label}:</strong> {record.detail}
+                  </li>
+                ))}
+              </ul>
+              {assumptions.length > 0 ? (
+                <>
+                  <p>
+                    <strong>Estimates and assumptions</strong>
+                  </p>
+                  <ul>
+                    {assumptions.map((record) => (
+                      <li key={`${record.label}-${record.detail}`}>
+                        <strong>{record.label}:</strong> {record.detail}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+              <p>
+                <strong>Normalization rules and warnings</strong>
+              </p>
               <ul>
                 {[
                   ...result.normalizationNotes,

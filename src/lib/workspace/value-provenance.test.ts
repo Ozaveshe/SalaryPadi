@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   assumed,
+  calculated,
   collectAssumptions,
   combineOrigins,
   computeValue,
   disclosed,
   displaySuffix,
   entered,
+  estimated,
   isEmployerFact,
   summariseComparison,
   unknown,
@@ -44,6 +46,19 @@ describe("value provenance", () => {
     );
     expect(result.origin).toBe("calculated");
     expect(result.value).toBe(650_000);
+  });
+
+  it("constructs explicitly calculated and estimated display values", () => {
+    expect(calculated(650_000, "Sum of entered pay")).toEqual({
+      value: 650_000,
+      origin: "calculated",
+      note: "Sum of entered pay",
+    });
+    expect(estimated(500_000, "Uses entered deductions")).toEqual({
+      value: 500_000,
+      origin: "estimated",
+      note: "Uses entered deductions",
+    });
   });
 
   it("takes the weakest input's strength, not the strongest", () => {

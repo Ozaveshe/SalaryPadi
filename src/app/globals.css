@@ -1,5 +1,5 @@
-/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 */
-/* Hallmark · macrostructure: compact-record-index · theme: modern-minimal · contrast: pass (40–41) · slop: pass (emitted job-index scope) · honest: pass (46) · chrome: inherited · tokens: pass (48) · responsive: pass (34, 49, 50–57) · icons: pass (30) */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 */
+/* Hallmark · macrostructure: narrative-workflow for dashboard/tools + compact-record-index for jobs · theme: modern-minimal · contrast: pass · slop: pass · honest: pass · chrome: inherited · tokens: pass · responsive: pass · icons: pass */
 
 @import "tailwindcss";
 @import "../../tokens.css";
@@ -60,8 +60,10 @@
   --forest-400: var(--violet-300);
   --forest-300: var(--violet-200);
   --forest-200: var(--violet-100);
-  --forest-100: var(--gold-100);
-  --forest-50: var(--gold-50);
+  /* Legacy "forest" surfaces must not resolve to the gold money accent. That
+   * alias produced large yellow washes in selection and older components. */
+  --forest-100: var(--violet-100);
+  --forest-50: var(--ink-50);
   --coral-700: var(--gold-700);
   --coral-600: var(--gold-600);
   --coral-100: var(--gold-100);
@@ -207,8 +209,8 @@ a:hover {
 }
 
 ::selection {
-  background: var(--forest-100);
-  color: var(--forest-950);
+  background: var(--violet-100);
+  color: var(--ink-950);
 }
 
 .skip-link {
@@ -340,7 +342,7 @@ a:hover {
 }
 
 .mobile-employer-cta:hover {
-  border-color: var(--interactive-primary);
+  border-color: var(--border-strong);
   background: var(--surface-brand-soft);
 }
 
@@ -625,9 +627,9 @@ a:hover {
   text-decoration: none;
   box-shadow: none;
   transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    transform 120ms ease;
+    background-color 120ms var(--ease-workbench-out),
+    border-color 120ms var(--ease-workbench-out),
+    transform 120ms var(--ease-workbench-out);
 }
 
 .button:hover {
@@ -652,7 +654,7 @@ a:hover {
 }
 
 .button-secondary:hover {
-  border-color: var(--interactive-primary);
+  border-color: var(--border-strong);
   background: var(--surface-brand-soft);
   color: var(--forest-950);
 }
@@ -706,7 +708,7 @@ a:hover {
 .input:hover,
 .select:hover,
 .textarea:hover {
-  border-color: var(--interactive-primary);
+  border-color: var(--ink-700);
 }
 
 .input[aria-invalid="true"],
@@ -716,7 +718,7 @@ a:hover {
 }
 
 .notice {
-  border: 1px solid #bad7cb;
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-small);
   background: var(--surface-brand-soft);
   padding: 0.9rem 1rem;
@@ -724,12 +726,10 @@ a:hover {
 }
 
 .notice-warning {
-  border-color: #dec77d;
   background: #fff8dc;
 }
 
 .notice-danger {
-  border-color: #e2aab1;
   background: var(--status-danger-bg);
 }
 
@@ -1339,7 +1339,7 @@ a:hover {
 
 .provider-consent {
   align-items: flex-start;
-  border: 1px solid #bad7cb;
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-small);
   background: var(--surface-brand-soft);
   padding: 0.8rem 1rem;
@@ -1436,7 +1436,7 @@ a:hover {
 }
 
 .evidence-tag-list li {
-  border-color: #bad7cb;
+  border-color: var(--border-default);
   background: var(--surface-brand-soft);
 }
 
@@ -2714,12 +2714,48 @@ a:hover {
   gap: 1rem;
 }
 
+/* The tool directory is a working index, not a gallery of interchangeable
+ * cards. A single neutral rule gives each tool a clear scan boundary without
+ * surrounding every item with a rounded accented box. */
+.tool-handoffs {
+  padding-block: clamp(1rem, 3vw, 1.5rem);
+  border-block: 1px solid var(--border-default);
+}
+
+.tool-index-grid > article {
+  border: 0;
+  border-top: 1px solid var(--border-default);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding-inline: 0;
+}
+
+.tool-index-grid > article:hover {
+  border-color: var(--border-default);
+}
+
+/* Optional offer sections used to render as four nested cards inside each
+ * already-grouped offer. Keep the disclosure affordance, but express the
+ * hierarchy with spacing and a neutral rule. */
+.offer-grid > fieldset > .contribution-details {
+  border: 0;
+  border-top: 1px solid var(--border-default);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.9rem 0;
+}
+
+.offer-grid > fieldset > .contribution-details:last-child {
+  padding-bottom: 0;
+}
+
 .tool-result-region {
   scroll-margin-top: 6rem;
 }
 
 .tool-result-region[data-has-result="true"] > * {
-  animation: tool-result-in 240ms ease-out both;
+  animation: tool-result-in var(--motion-short) var(--ease-workbench-out) both;
 }
 
 @keyframes tool-result-in {
@@ -2860,7 +2896,7 @@ a:hover {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 0.85rem;
-  border: 1px solid #dec77d;
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-small);
   background: var(--status-warning-bg);
   padding: 1rem;
@@ -2868,13 +2904,11 @@ a:hover {
 }
 
 .risk-lower_indication {
-  border-color: #bad7cb;
   background: var(--status-success-bg);
   color: var(--status-success-text);
 }
 
 .risk-high_caution {
-  border-color: #e2aab1;
   background: var(--status-danger-bg);
   color: var(--status-danger-text);
 }
@@ -3234,6 +3268,25 @@ a:hover {
   color: var(--text-secondary);
 }
 
+.workspace-nav-groups {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.workspace-nav-group {
+  min-width: 0;
+}
+
+.workspace-nav-group-label {
+  margin: 0 0 0.25rem;
+  padding-inline: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .workspace-nav-list {
   display: flex;
   flex-direction: column;
@@ -3298,24 +3351,33 @@ a:hover {
     gap: 0.4rem;
   }
 
-  .workspace-nav-list {
-    flex-direction: row;
-    gap: 0.4rem;
+  .workspace-nav-groups {
+    display: flex;
+    gap: 0.75rem;
     overflow-x: auto;
+    padding-bottom: 0.5rem;
     scrollbar-width: thin;
-    padding-bottom: 0.35rem;
-    /* The strip scrolls; a link inside it must not be squeezed to fit. */
     scroll-snap-type: x proximity;
   }
 
-  .workspace-nav-list > li {
-    flex: 0 0 auto;
+  .workspace-nav-group {
+    flex: 0 0 min(18rem, calc(100vw - 2rem));
     scroll-snap-align: start;
   }
 
+  .workspace-nav-group-label {
+    padding-inline: 0;
+  }
+
+  .workspace-nav-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
   .workspace-nav-link {
+    height: 100%;
     border: 1px solid var(--border-default);
-    white-space: nowrap;
   }
 
   /* The descriptions are for scanning a column, not a strip. */
@@ -3394,6 +3456,99 @@ a:hover {
   align-items: start;
 }
 
+/* The dashboard and calculators share one narrative workflow: act on an
+ * account fact, run only the calculation needed, then continue to evidence or
+ * tracking. Rules provide rhythm without turning every step into a card. */
+.dashboard-actions,
+.decision-workflow,
+.tool-next-steps {
+  padding-block: var(--workbench-section-gap);
+  border-block: var(--workbench-rule-width) solid var(--workbench-rule);
+}
+
+.dashboard-action-list,
+.decision-workflow-list,
+.tool-next-step-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-action,
+.decision-workflow-step {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--workbench-step-gap);
+  padding-block: var(--workbench-step-gap);
+  border-top: var(--workbench-rule-width) solid var(--workbench-rule);
+}
+
+.dashboard-action:first-child,
+.decision-workflow-step:first-child {
+  border-top: 0;
+}
+
+.dashboard-action-position,
+.decision-workflow-stage {
+  color: var(--workbench-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-action[data-tone="attention"] .dashboard-action-position {
+  color: var(--workbench-attention);
+}
+
+.dashboard-action .button,
+.decision-workflow-step .button {
+  width: fit-content;
+  white-space: nowrap;
+}
+
+.tool-next-step-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: var(--workbench-rule-width) solid var(--workbench-rule);
+}
+
+.tool-next-step-list > li + li {
+  border-inline-start: var(--workbench-rule-width) solid var(--workbench-rule);
+}
+
+.tool-next-step-link {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  height: 100%;
+  padding: var(--workbench-step-gap);
+  color: var(--workbench-ink);
+  text-decoration: none;
+}
+
+.tool-next-step-link:hover {
+  background: var(--workbench-paper-quiet);
+}
+
+@media (max-width: 39.9rem) {
+  .dashboard-action,
+  .decision-workflow-step {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tool-next-step-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tool-next-step-list > li + li {
+    border-top: var(--workbench-rule-width) solid var(--workbench-rule);
+    border-inline-start: 0;
+  }
+}
+
 /**
  * Stage counts for the live applications. A wrapping row of status pills rather
  * than a bar chart: the counts are small integers, and a proportional bar drawn
@@ -3430,31 +3585,6 @@ a:hover {
 .first-run-steps > li::marker {
   color: var(--text-secondary);
   font-weight: 700;
-}
-
-@media (max-width: 60rem) {
-  .workspace {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .workspace-nav {
-    position: static;
-  }
-
-  .workspace-nav-list {
-    flex-direction: row;
-    overflow-x: auto;
-    gap: 0.5rem;
-    padding-bottom: 0.25rem;
-  }
-
-  .workspace-nav-link {
-    white-space: nowrap;
-  }
-
-  .workspace-nav-link-description {
-    display: none;
-  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -3857,8 +3987,8 @@ a:hover {
 
 .workspace-stat {
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+    border-color var(--motion-micro) var(--ease-workbench-out),
+    box-shadow var(--motion-micro) var(--ease-workbench-out);
 }
 
 @media (hover: hover) {
@@ -3948,8 +4078,8 @@ a:hover {
 /* Polish pass: micro-motion, pill chips, focus color, brand glyph ink. */
 .surface {
   transition:
-    box-shadow 150ms ease,
-    border-color 150ms ease;
+    box-shadow 150ms var(--ease-workbench-out),
+    border-color 150ms var(--ease-workbench-out);
 }
 
 .surface:hover {
@@ -3967,9 +4097,9 @@ a:hover {
 .select,
 .textarea {
   transition:
-    background 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease;
+    background 150ms var(--ease-workbench-out),
+    border-color 150ms var(--ease-workbench-out),
+    color 150ms var(--ease-workbench-out);
 }
 
 .button:active {
@@ -4122,8 +4252,8 @@ a:hover {
   padding: 0.75rem 0.9rem;
   text-decoration: none;
   transition:
-    border-color 150ms ease,
-    background 150ms ease;
+    border-color 150ms var(--ease-workbench-out),
+    background 150ms var(--ease-workbench-out);
 }
 
 .surface-link:hover {

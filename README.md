@@ -104,6 +104,8 @@ netlify/functions/       Scheduled production workers and their shared adapters
 ## Operational documentation
 
 - [Product plan](docs/PRODUCT_PLAN.md)
+- [90-day product direction](docs/PRODUCT_DIRECTION_2026-08-13.md)
+- [90-day growth and marketing plan](docs/GROWTH_MARKETING_PLAN_2026-08-13.md)
 - [Brand assets and usage](docs/BRAND.md)
 - [Data sources and provenance](docs/DATA_SOURCES.md)
 - [Job ingestion architecture](docs/JOB_INGESTION_ARCHITECTURE.md)

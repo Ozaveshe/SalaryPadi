@@ -227,7 +227,7 @@ The SalaryPadi take-home-pay tool is designed as a scenario. It should help you 
       "/tools/offer-compare",
       "/tools/take-home-pay",
       "/companies",
-      "/salaries",
+      "/guides/what-to-check-before-accepting-job-offer-nigeria",
     ],
     sources: [
       {
@@ -376,7 +376,7 @@ Evidence makes a request more credible, but it does not guarantee an outcome. Yo
     internal_link_targets: [
       "/jobs/graduate",
       "/jobs/nigeria",
-      "/methodology",
+      "/guides/how-to-change-careers-in-nigeria",
       "/tools/job-scam-checker",
     ],
     sources: [

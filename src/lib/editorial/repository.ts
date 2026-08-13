@@ -16,6 +16,8 @@ import { readBoundedJson } from "@/lib/http/json";
 import { safeRelativePath } from "@/lib/security/urls";
 
 import { SEO_STARTER_ARTICLES } from "./seo-starter-articles";
+import { SEO_GROWTH_ARTICLES } from "./seo-growth-articles";
+import { isEditorialDiscoverable } from "./review";
 
 const editorialTimestamp = z.string().datetime({ offset: true });
 const internalEditorialLinkSchema = z
@@ -108,18 +110,29 @@ export const SEO_STARTER_GUIDES = editorialArticleSchema
   .length(10)
   .parse(SEO_STARTER_ARTICLES);
 
+export const SEO_GROWTH_GUIDES = editorialArticleSchema
+  .array()
+  .length(10)
+  .parse(SEO_GROWTH_ARTICLES);
+
+const BUILT_IN_EDITORIAL_GUIDES = [
+  REMOTE_JOBS_GUIDE,
+  ...SEO_STARTER_GUIDES,
+  ...SEO_GROWTH_GUIDES,
+];
+
 const EDITORIAL_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function mergeBuiltInGuide(articles: EditorialArticle[]) {
   const bySlug = new Map(
-    [REMOTE_JOBS_GUIDE, ...SEO_STARTER_GUIDES, ...articles].map((article) => [
+    [...articles, ...BUILT_IN_EDITORIAL_GUIDES].map((article) => [
       article.slug,
       article,
     ]),
   );
-  return [...bySlug.values()].sort(
-    (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
-  );
+  return [...bySlug.values()]
+    .filter((article) => isEditorialDiscoverable(article))
+    .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at));
 }
 
 async function readPublishedEditorialRowsResult(slug?: string) {
@@ -246,7 +259,7 @@ export async function getPublishedEditorial(): Promise<EditorialArticle[]> {
 }
 
 export async function getPublishedArticleResult(slug: string) {
-  const builtInArticle = [REMOTE_JOBS_GUIDE, ...SEO_STARTER_GUIDES].find(
+  const builtInArticle = BUILT_IN_EDITORIAL_GUIDES.find(
     (article) => article.slug === slug,
   );
   if (builtInArticle) {

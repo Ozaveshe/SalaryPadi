@@ -1,4 +1,21 @@
 :root {
+  /* Shared product-workbench tokens. Keep dashboard and tool journeys on the
+     same semantic system instead of giving each page its own palette. */
+  --workbench-paper: var(--surface-default);
+  --workbench-paper-quiet: var(--surface-subtle);
+  --workbench-ink: var(--text-primary);
+  --workbench-muted: var(--text-secondary);
+  --workbench-rule: var(--border-default);
+  --workbench-action: var(--interactive-primary);
+  --workbench-attention: var(--status-warning-text);
+  --workbench-radius: var(--radius-small);
+  --workbench-rule-width: 1px;
+  --workbench-step-gap: clamp(1rem, 2vw, 1.25rem);
+  --workbench-section-gap: clamp(1.5rem, 3vw, 2rem);
+  --motion-micro: 160ms;
+  --motion-short: 240ms;
+  --ease-workbench-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
   --blog-paper: oklch(97% 0.008 96);
   --blog-paper-deep: oklch(95% 0.008 255);
   --blog-ink: oklch(20% 0.025 255);

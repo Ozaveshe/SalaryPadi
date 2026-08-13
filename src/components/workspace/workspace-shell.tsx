@@ -16,45 +16,81 @@ type WorkspaceNavItem = {
   description: string;
 };
 
-const WORKSPACE_NAV: WorkspaceNavItem[] = [
+type WorkspaceNavGroup = {
+  label: string;
+  items: WorkspaceNavItem[];
+};
+
+const WORKSPACE_NAV_GROUPS: WorkspaceNavGroup[] = [
   {
-    href: "/dashboard",
-    label: "Overview",
-    description: "Your saved jobs, applications and next actions",
+    label: "Start",
+    items: [
+      {
+        href: "/dashboard",
+        label: "Overview",
+        description: "Your saved jobs, applications and next actions",
+      },
+      {
+        href: "/jobs",
+        label: "Find jobs",
+        description: "Browse roles open to Nigeria first",
+      },
+      {
+        href: "/matches",
+        label: "CV matches",
+        description: "Roles that name what your CV names",
+      },
+    ],
   },
   {
-    href: "/jobs",
-    label: "Find jobs",
-    description: "Browse roles open to Nigeria first",
+    label: "Decide",
+    items: [
+      {
+        href: "/tools",
+        label: "Decision tools",
+        description: "Check, convert, calculate and compare",
+      },
+    ],
   },
   {
-    href: "/matches",
-    label: "Matched to your CV",
-    description: "Roles that name what your CV names",
+    label: "Track",
+    items: [
+      { href: "/saved", label: "Saved jobs", description: "Roles you kept" },
+      {
+        href: "/applications",
+        label: "Applications",
+        description: "Track every process you are in",
+      },
+      {
+        href: "/alerts",
+        label: "Job alerts",
+        description: "Email alerts you own",
+      },
+      {
+        href: "/notifications",
+        label: "Notifications",
+        description: "What changed in your own records",
+      },
+    ],
   },
-  { href: "/saved", label: "Saved jobs", description: "Roles you kept" },
   {
-    href: "/applications",
-    label: "Applications",
-    description: "Track every process you are in",
-  },
-  { href: "/alerts", label: "Job alerts", description: "Email alerts you own" },
-  {
-    href: "/notifications",
-    label: "Notifications",
-    description: "What changed in your own records",
-  },
-  {
-    href: "/account/candidate-profile",
-    label: "Career profile",
-    description: "What you tell employers about yourself",
-  },
-  {
-    href: "/account",
-    label: "Account & security",
-    description: "Identity, sign-in and privacy controls",
+    label: "Account",
+    items: [
+      {
+        href: "/account/candidate-profile",
+        label: "Career profile",
+        description: "What you tell employers about yourself",
+      },
+      {
+        href: "/account",
+        label: "Security & privacy",
+        description: "Identity, sign-in and privacy controls",
+      },
+    ],
   },
 ];
+
+const WORKSPACE_NAV = WORKSPACE_NAV_GROUPS.flatMap((group) => group.items);
 
 /**
  * The navigation entry a route belongs to.
@@ -101,39 +137,46 @@ export function WorkspaceShell({
     <div className="workspace">
       <nav className="workspace-nav" aria-label="Your workspace">
         <p className="workspace-nav-label">Your workspace</p>
-        <ul className="workspace-nav-list">
-          {WORKSPACE_NAV.map((item) => {
-            const isCurrent = item.href === currentSection;
-            return (
-              <li key={item.href}>
-                <Link
-                  className={
-                    isCurrent
-                      ? "workspace-nav-link workspace-nav-link-current"
-                      : "workspace-nav-link"
-                  }
-                  href={item.href}
-                  aria-current={isCurrent ? "page" : undefined}
-                >
-                  <span className="workspace-nav-link-label">
-                    {item.label}
-                    {item.href === "/notifications" &&
-                    notifications !== null &&
-                    notifications > 0 ? (
-                      <span className="workspace-nav-count">
-                        {notifications}
-                        <span className="visually-hidden"> unread</span>
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="workspace-nav-link-description">
-                    {item.description}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="workspace-nav-groups">
+          {WORKSPACE_NAV_GROUPS.map((group) => (
+            <div className="workspace-nav-group" key={group.label}>
+              <p className="workspace-nav-group-label">{group.label}</p>
+              <ul className="workspace-nav-list">
+                {group.items.map((item) => {
+                  const isCurrent = item.href === currentSection;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        className={
+                          isCurrent
+                            ? "workspace-nav-link workspace-nav-link-current"
+                            : "workspace-nav-link"
+                        }
+                        href={item.href}
+                        aria-current={isCurrent ? "page" : undefined}
+                      >
+                        <span className="workspace-nav-link-label">
+                          {item.label}
+                          {item.href === "/notifications" &&
+                          notifications !== null &&
+                          notifications > 0 ? (
+                            <span className="workspace-nav-count">
+                              {notifications}
+                              <span className="visually-hidden"> unread</span>
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="workspace-nav-link-description">
+                          {item.description}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
       </nav>
       <div className="workspace-main stack-lg">
         <header className="workspace-header">

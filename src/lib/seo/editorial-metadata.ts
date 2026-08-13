@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 
 import type { RepositoryResult } from "@/lib/data/repository-result";
 import type { EditorialArticle } from "@/lib/editorial/repository";
+import {
+  isEditorialPublished,
+  isEditorialReviewOverdue,
+} from "@/lib/editorial/review";
 
 import { buildSocialImageMetadata } from "./open-graph";
 
@@ -65,12 +69,19 @@ export function buildEditorialGuideMetadata(
   return {
     title: article.title,
     description: article.description,
+    authors: [{ name: article.author_name }],
+    creator: article.author_name,
+    publisher: "SalaryPadi",
     alternates: { canonical: path },
-    robots: { index: true, follow: true },
+    robots:
+      !isEditorialPublished(article) || isEditorialReviewOverdue(article)
+        ? { index: false, follow: true }
+        : { index: true, follow: true },
     openGraph: {
       title: article.title,
       description: article.description,
       type: "article",
+      url: path,
       publishedTime: article.published_at,
       modifiedTime: article.updated_at,
       authors: [article.author_name],

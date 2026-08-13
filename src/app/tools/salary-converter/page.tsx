@@ -5,6 +5,7 @@ import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { JobContextBanner } from "@/components/product/job-context-banner";
 import { SalaryConverter } from "@/components/tools/salary-converter";
+import { ToolDecisionPath } from "@/components/tools/tool-decision-path";
 import {
   contextPeriodFitsCalculator,
   readJobContext,
@@ -62,6 +63,7 @@ export default async function SalaryConverterPage({
             : undefined
         }
       />
+      <ToolDecisionPath current="salary-converter" context={context} />
     </div>
   );
 }

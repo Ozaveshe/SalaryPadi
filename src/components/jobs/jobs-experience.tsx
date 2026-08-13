@@ -203,7 +203,7 @@ async function JobResultsSection({
                 id="result-sort"
                 name="sort"
                 defaultValue={search.sort}
-                pendingLabel="Sortingâ€¦"
+                pendingLabel="Sorting…"
               >
                 <option value="relevance">Most relevant</option>
                 <option value="newest">Newest posted</option>

@@ -54,9 +54,9 @@ const jobicyPolicy = {
   status: "active",
   homepage_url: "https://jobicy.com/",
   terms_url: "https://jobicy.com/jobs-rss-feed",
-  terms_reviewed_at: "2026-07-14T00:00:00+00:00",
+  terms_reviewed_at: "2026-08-13T00:00:00+00:00",
   terms_reviewed_by: null,
-  terms_version: "jobicy-public-feed-reviewed-2026-07-14",
+  terms_version: "jobicy-public-api-reviewed-2026-08-13",
   review_requested_at: null,
   attribution_required: true,
   attribution_text:
@@ -76,8 +76,8 @@ const himalayasPolicy = {
   source_name: "Himalayas public API",
   homepage_url: "https://himalayas.app/",
   terms_url: "https://himalayas.app/api",
-  terms_reviewed_at: "2026-07-15T00:00:00+00:00",
-  terms_version: "himalayas-public-api-reviewed-2026-07-15",
+  terms_reviewed_at: "2026-08-13T00:00:00+00:00",
+  terms_version: "himalayas-public-api-reviewed-2026-08-13",
   attribution_text:
     "Source: Himalayas; preserve a clickable link to the returned Himalayas URL",
   refresh_interval_seconds: 86_400,

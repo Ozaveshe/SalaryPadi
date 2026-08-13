@@ -113,6 +113,51 @@ describe("alert update route", () => {
     );
   });
 
+  it("accepts the Nigeria-open eligibility option exposed by alert editing", async () => {
+    const response = await POST(
+      alertRequest({
+        intent: "edit",
+        id: alertId,
+        keyword: "platform engineer",
+        location: "Nigeria",
+        eligibility: "nigeria_open",
+        cadence: "daily",
+        search_query: JSON.stringify({}),
+      }),
+    );
+
+    expect(response.status).toBe(303);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "update_job_alert",
+      expect.objectContaining({
+        alert_query: expect.objectContaining({
+          eligibility: "nigeria_open",
+        }),
+      }),
+    );
+  });
+
+  it("still rejects unsupported eligibility values before authentication", async () => {
+    const response = await POST(
+      alertRequest({
+        intent: "edit",
+        id: alertId,
+        keyword: "platform engineer",
+        location: "Nigeria",
+        eligibility: "remote",
+        cadence: "daily",
+        search_query: JSON.stringify({}),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid alert update.",
+    });
+    expect(mocks.getAuthenticatedApiContext).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("rejects a hidden query that would silently broaden the alert", async () => {
     const response = await POST(
       alertRequest({

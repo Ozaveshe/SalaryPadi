@@ -4,13 +4,17 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   ApplicationRowNote,
+  DashboardActionList,
+  DashboardDecisionTools,
+  DashboardSectionStatus,
   DeadlineList,
   FirstRunGuide,
   PipelineSummary,
 } from "./dashboard-signals";
+import type { DashboardAction } from "@/lib/career/dashboard-actions";
 import type {
   DashboardDeadline,
-  DashboardSummary,
+  DashboardApplications,
 } from "@/lib/career/dashboard";
 
 function deadline(
@@ -29,8 +33,8 @@ function deadline(
 }
 
 function activeApplication(
-  overrides: Partial<DashboardSummary["activeApplications"][number]> = {},
-): DashboardSummary["activeApplications"][number] {
+  overrides: Partial<DashboardApplications["active"][number]> = {},
+): DashboardApplications["active"][number] {
   return {
     jobSlug: "senior-engineer",
     title: "Senior Engineer",
@@ -160,5 +164,134 @@ describe("first-run guide", () => {
     );
 
     expect(markup).toContain("Finish your career profile");
+  });
+});
+
+describe("dashboard action list", () => {
+  it("keeps the ranked action, reason and destination together", () => {
+    const actions: DashboardAction[] = [
+      {
+        id: "overdue:senior-engineer",
+        title: "Update Senior Engineer",
+        detail: "Overdue by 3 days. Record where the process stands.",
+        href: "/applications",
+        linkLabel: "Review tracker",
+        tone: "attention",
+      },
+    ];
+    const markup = renderToStaticMarkup(
+      createElement(DashboardActionList, { actions }),
+    );
+
+    expect(markup).toContain('<ol class="dashboard-action-list">');
+    expect(markup).toContain("Now");
+    expect(markup).toContain("Overdue by 3 days");
+    expect(markup).toContain('href="/applications"');
+  });
+
+  it("renders nothing when partial records cannot support a plan", () => {
+    expect(
+      renderToStaticMarkup(createElement(DashboardActionList, { actions: [] })),
+    ).toBe("");
+  });
+
+  it("says when ranked actions use only successfully loaded sections", () => {
+    const markup = renderToStaticMarkup(
+      createElement(DashboardActionList, {
+        incomplete: true,
+        actions: [
+          {
+            id: "overdue:senior-engineer",
+            title: "Update Senior Engineer",
+            detail: "Overdue by 3 days.",
+            href: "/applications",
+            linkLabel: "Review tracker",
+            tone: "attention",
+          },
+        ],
+      }),
+    );
+
+    expect(markup).toContain("only the private sections that loaded");
+    expect(markup).toContain("do not count as zero");
+  });
+});
+
+describe("dashboard section status", () => {
+  it("does not turn a failed read into a total or empty state", () => {
+    const markup = renderToStaticMarkup(
+      createElement(DashboardSectionStatus, {
+        state: "unavailable",
+        title: "Saved jobs",
+      }),
+    );
+
+    expect(markup).toContain("Saved jobs not shown.");
+    expect(markup).toContain("No total or empty state is being inferred");
+  });
+
+  it("names partial validation separately from an unavailable backend", () => {
+    const markup = renderToStaticMarkup(
+      createElement(DashboardSectionStatus, {
+        state: "degraded",
+        title: "Applications",
+      }),
+    );
+
+    expect(markup).toContain("Some records could not be verified");
+  });
+});
+
+describe("dashboard decision tools", () => {
+  it("keeps all four local tools in one workflow", () => {
+    const markup = renderToStaticMarkup(
+      createElement(DashboardDecisionTools, {
+        summary: {
+          state: "ready",
+          savedJobs: {
+            state: "ready",
+            data: { count: 1, recent: [] },
+          },
+          applications: {
+            state: "ready",
+            data: {
+              totalCount: 1,
+              activeCount: 1,
+              upcomingActions: [],
+              overdueActionCount: 0,
+              stalledApplicationCount: 0,
+              pipeline: [{ status: "offer", count: 1 }],
+              active: [activeApplication({ status: "offer" })],
+            },
+          },
+          alerts: {
+            state: "ready",
+            data: { totalCount: 1, activeCount: 1 },
+          },
+          isFirstRun: false,
+          profile: {
+            state: "ready",
+            data: {
+              exists: true,
+              headline: "Backend engineer",
+              attestedAt: "2026-08-01T00:00:00.000Z",
+              completeness: 1,
+              missingFields: [],
+            },
+          },
+        },
+      }),
+    );
+
+    for (const path of [
+      "/tools/job-scam-checker",
+      "/tools/salary-converter",
+      "/tools/take-home-pay",
+      "/tools/offer-compare",
+    ]) {
+      expect(markup).toContain(path);
+    }
+    expect(markup).toContain("from=senior-engineer");
+    expect(markup).not.toContain("amount=");
   });
 });

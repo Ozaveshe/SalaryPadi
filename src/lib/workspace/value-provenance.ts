@@ -51,8 +51,16 @@ export function entered<T>(value: T): ProvenancedValue<T> {
   return { value, origin: "user_entered" };
 }
 
+export function calculated<T>(value: T, note?: string): ProvenancedValue<T> {
+  return { value, origin: "calculated", note };
+}
+
 export function assumed<T>(value: T, note: string): ProvenancedValue<T> {
   return { value, origin: "assumption", note };
+}
+
+export function estimated<T>(value: T, note: string): ProvenancedValue<T> {
+  return { value, origin: "estimated", note };
 }
 
 export function unknown<T>(note?: string): ProvenancedValue<T> {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { SEO_GROWTH_ARTICLES } from "@/lib/editorial/seo-growth-articles";
 import { SEO_STARTER_ARTICLES } from "@/lib/editorial/seo-starter-articles";
 
 describe("SEO starter articles", () => {
@@ -23,5 +24,27 @@ describe("SEO starter articles", () => {
       );
       expect(article.description.length, article.slug).toBeLessThanOrEqual(160);
     }
+  });
+
+  it("links priority starter guides into the new application cluster", () => {
+    const bySlug = new Map(
+      SEO_STARTER_ARTICLES.map((article) => [article.slug, article]),
+    );
+    const growthPaths = new Set(
+      SEO_GROWTH_ARTICLES.map(({ slug }) => `/guides/${slug}`),
+    );
+
+    expect(
+      bySlug.get("compare-two-job-offers")?.internal_link_targets,
+    ).toContain("/guides/what-to-check-before-accepting-job-offer-nigeria");
+    expect(
+      bySlug.get("graduate-trainee-internship-and-nysc-jobs")
+        ?.internal_link_targets,
+    ).toContain("/guides/how-to-change-careers-in-nigeria");
+    expect(
+      SEO_STARTER_ARTICLES.flatMap(
+        ({ internal_link_targets }) => internal_link_targets,
+      ).filter((target) => growthPaths.has(target)),
+    ).toHaveLength(2);
   });
 });

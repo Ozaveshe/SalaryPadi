@@ -5,6 +5,7 @@ import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
 import { JobContextBanner } from "@/components/product/job-context-banner";
 import { OfferCompare } from "@/components/tools/offer-compare";
+import { ToolDecisionPath } from "@/components/tools/tool-decision-path";
 import { readJobContext } from "@/lib/product/job-context";
 
 export const metadata: Metadata = {
@@ -51,6 +52,7 @@ export default async function OfferComparePage({
             : undefined
         }
       />
+      <ToolDecisionPath current="offer-compare" context={context} />
     </div>
   );
 }

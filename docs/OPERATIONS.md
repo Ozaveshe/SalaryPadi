@@ -106,12 +106,28 @@ Admin source pause/disable is an acquisition boundary. The worker and public rep
 
 ### Employer ATS activation and runbook
 
-The Greenhouse, Lever, and Ashby adapter, worker, and lifecycle code is implemented infrastructure. The `ats_source_sync` operational registration expects a two-hour run and becomes stale after five hours, but provider acquisition must remain disabled with `ATS_SOURCE_SYNC_ENABLED=false` until the source owner has written permission. No employer source or private ATS configuration is seeded. The first recommended outreach candidates are Moniepoint Greenhouse and M-KOPA Ashby; neither has granted permission. Use the checklist and templates in [Source permission outreach](SOURCE_PERMISSION_OUTREACH.md), sending from `sources@salarypadi.com`, not a personal mailbox.
+The ATS worker and lifecycle are active production infrastructure. As of the
+2026-08-13 audit, the reviewed registry contained 71 authorized exact-tenant
+configurations across Greenhouse, Lever, Ashby, Workable and SmartRecruiters;
+that count is configuration evidence, not proof that every board fetched or
+published a job. A source is live only when its current policy, due/claim
+record, worker receipt and public projection all agree. Keep
+`ATS_SOURCE_SYNC_ENABLED=false` during an ATS-wide incident, and use the
+database source/configuration switches for a single-board incident. Use the
+checklist and templates in [Source permission outreach](SOURCE_PERMISSION_OUTREACH.md)
+for any employer-specific permission path, sending from
+`sources@salarypadi.com`, not a personal mailbox.
 
 Activation is an explicit change with separate evidence:
 
 1. Verify the official employer contact, ATS tenant, employer careers page, terms, and application destinations without running a production import.
-2. Obtain written permission that answers every acquisition, storage, public display, indexing, structured-data, attribution, email, cadence, retention, and takedown question. Record the named employer grantor, archive the response outside the repository, and put only a non-secret evidence reference in the source policy.
+2. Establish the authorization basis. An employer pilot needs written
+   permission that answers every acquisition, storage, public display,
+   indexing, structured-data, attribution, email, cadence, retention and
+   takedown question. A documented-public-board path needs a current official
+   API/careers policy that expressly covers SalaryPadi's exact use; endpoint
+   reachability alone is not permission. Archive private evidence outside the
+   repository and put only a non-secret reference in the source policy.
 3. Create the employer/company record and an `employer_ats` source in `draft`. Start with `allow_public_listing=false`, every optional use permission false, and the private ATS configuration `enabled=false`.
 4. While `ATS_SOURCE_SYNC_ENABLED=false`, set the complete intended source policy and private configuration: exact provider/region/tenant, destination host and path pairs, cadence, spacing, daily budget, `publication_mode=review`, and only the uses expressly granted. Enable the final private configuration while the source is still draft. Any later policy/configuration change invalidates the review in step 6.
 5. Run recorded fixtures and database tests against that final contract. Do not make a provider request yet.

@@ -20,6 +20,9 @@ const eslintConfig = defineConfig([
     // Transient cache directories Next.js leaves behind mid-build; they can
     // disappear while ESLint is walking them and crash the run with ENOENT.
     "**/.next-cache*/**",
+    // Named Next output directories use `.next-*` (for example the editorial
+    // audit build). They contain compiled CommonJS, not source to lint.
+    "**/.next-*/**",
     // Local git worktrees are separate checkouts with their own lint runs.
     ".claude/worktrees/**",
   ]),
