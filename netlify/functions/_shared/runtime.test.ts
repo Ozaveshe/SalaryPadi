@@ -52,6 +52,41 @@ describe("scheduled worker runtime", () => {
     expect(WORKER_FINISH_RESERVE_MS).toBeGreaterThanOrEqual(RPC_TIMEOUT_MS);
   });
 
+  it("reports the operation budget that its abort signal actually enforces", async () => {
+    let clock = 1_000;
+    let observedRemaining = -1;
+    const fakeRpc = async <T>(
+      functionName: string,
+      resultSchema: z.ZodType<T>,
+    ): Promise<T> => {
+      void resultSchema;
+      if (functionName === "worker_start") {
+        clock += 2_500;
+        return [
+          {
+            run_id: "00000000-0000-4000-8000-000000000005",
+            should_run: true,
+          },
+        ] as T;
+      }
+      if (functionName === "worker_finish") return true as T;
+      throw new Error(`unexpected RPC ${functionName}`);
+    };
+
+    await runTrackedWorker(
+      "test_worker",
+      scheduledRequest(),
+      {} as Context,
+      async ({ remainingMs }) => {
+        observedRemaining = remainingMs();
+        return workerSucceeded({});
+      },
+      { rpc: fakeRpc, now: () => clock },
+    );
+
+    expect(observedRemaining).toBe(WORKER_OPERATION_BUDGET_MS - 2_500);
+  });
+
   it("surfaces a secondary failure without replacing the primary path", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
 

@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, security;
-select plan(49);
+select plan(50);
 
 select has_column(
   'app', 'job_sources', 'authorization_basis',
@@ -73,6 +73,9 @@ select ok(
 select ok(
   to_regprocedure('api.worker_list_authorized_ats_sources()') is not null
   and to_regprocedure(
+    'api.worker_list_due_authorized_ats_sources()'
+  ) is not null
+  and to_regprocedure(
     'api.worker_get_authorized_ats_source(text)'
   ) is not null
   and to_regprocedure(
@@ -84,14 +87,44 @@ select ok(
   'service worker list, get, and fetch-claim RPCs exist'
 );
 select ok(
+  (
+    select pg_get_functiondef(p.oid)
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'api'
+      and p.proname = 'worker_list_due_authorized_ats_sources'
+  ) like '%claims_last_24_hours%'
+  and (
+    select pg_get_functiondef(p.oid)
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'api'
+      and p.proname = 'worker_list_due_authorized_ats_sources'
+  ) like '%minimum_request_spacing_seconds%',
+  'the due-source registry prefilters cadence and rolling request budgets'
+);
+select ok(
   has_function_privilege(
     'service_role', 'api.worker_list_authorized_ats_sources()', 'EXECUTE'
+  )
+  and has_function_privilege(
+    'service_role',
+    'api.worker_list_due_authorized_ats_sources()',
+    'EXECUTE'
   )
   and not has_function_privilege(
     'anon', 'api.worker_list_authorized_ats_sources()', 'EXECUTE'
   )
   and not has_function_privilege(
     'authenticated', 'api.worker_list_authorized_ats_sources()', 'EXECUTE'
+  )
+  and not has_function_privilege(
+    'anon', 'api.worker_list_due_authorized_ats_sources()', 'EXECUTE'
+  )
+  and not has_function_privilege(
+    'authenticated',
+    'api.worker_list_due_authorized_ats_sources()',
+    'EXECUTE'
   ),
   'only service role can list authorized ATS sources'
 );

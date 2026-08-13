@@ -192,9 +192,27 @@ in `src` that is not one of those stated exceptions.
 
 Every function first creates an idempotent `private.worker_runs` row. Scheduled invocation keys prevent a duplicate Netlify delivery from running the same interval twice. Normal logs contain task keys, counts, provider-safe IDs, and error codes only—never recipient addresses, alert queries, contribution text, salary amounts, or secrets.
 
-Each ATS invocation claims at most four due authorized sources, and starts one only while at least `SOURCE_TIME_RESERVE_MS` of the operation budget remains. Do not increase that cap or the per-source deadline without load evidence and a reviewed Netlify runtime budget. A recent disabled skip proves the kill switch and schedule are alive; it does not prove employer authorization or provider availability.
+Each ATS invocation asks the database for sources that are currently inside
+their reviewed cadence and rolling request budget, then atomically rechecks and
+claims at most four of them. It starts one only while at least
+`SOURCE_TIME_RESERVE_MS` of the actual operation budget remains. The due-source
+query is an optimization, never the authority: the claim RPC retains the locks,
+authorization checks and request limits. Do not increase the claim cap or the
+per-source deadline without load evidence and a reviewed Netlify runtime
+budget. A recent disabled skip proves the kill switch and schedule are alive;
+it does not prove employer authorization or provider availability.
 
-**Reading an ATS run summary.** `inspection_stopped: "time_budget"` is a normal outcome, not a fault: the run walked as far as its budget allowed. `interrupted_sources` counts sources the worker's own deadline cut short, which is also not a source fault — those are reported separately from `failed_sources` precisely so a run that imported records across several boards is not filed as a failure for being stopped partway through another. A run fails only when a source genuinely failed, when every offered record was rejected, or when the budget bought nothing at all (`ats_source_sync_interrupted`, `ats_source_sync_time_budget_exhausted`).
+**Reading an ATS run summary.** `due_sources` is the bounded database-filtered
+set available to this invocation; it is not the total authorized registry.
+`inspection_stopped: "time_budget"` is a normal outcome after productive work,
+not a fault: the run walked as far as its budget allowed.
+`interrupted_sources` counts sources the worker's own deadline cut short, which
+is also not a source fault — those are reported separately from
+`failed_sources` precisely so a run that imported records across several boards
+is not filed as a failure for being stopped partway through another. A run
+fails only when a source genuinely failed, when every offered record was
+rejected, or when the budget bought nothing at all
+(`ats_source_sync_interrupted`, `ats_source_sync_time_budget_exhausted`).
 
 A source killed mid-import still spends its claim: `api.worker_claim_authorized_ats_source` writes the claim row before the fetch, and that blocks the board for its whole fetch interval. Rising `interrupted_sources` therefore means lost imports as well as noise, and is the signal to raise the reserve.
 

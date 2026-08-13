@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import Form from "next/form";
 
+import styles from "./jobs-experience.module.css";
+
 import { AutoSubmitSelect } from "@/components/auto-submit-select";
 import { JobCard } from "@/components/jobs/job-card";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
@@ -11,6 +13,7 @@ import { JobsSplit } from "@/components/jobs/jobs-split";
 import { Pagination } from "@/components/jobs/pagination";
 import { BrandArt } from "@/components/media/brand-art";
 import { PageHeading } from "@/components/page-heading";
+import { CombinedRepositoryNotice } from "@/components/repository-notice";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
 import { getAppOrigin, getFeatureFlags } from "@/lib/env";
 import { getViewer } from "@/lib/auth/dal";
@@ -146,7 +149,9 @@ async function JobResultsSection({
           quickViewable
           signedIn={signedIn}
           saved={savedSlugs.has(job.slug)}
+          savedState={savedResult?.state}
           applicationStatus={applicationBySlug.get(job.slug)}
+          applicationState={applicationsResult?.state}
           returnTo={returnTo}
         />
       ),
@@ -165,6 +170,12 @@ async function JobResultsSection({
       {searchEvent ? <TrackView event={searchEvent} /> : null}
       <JobSearchForm search={search} categories={categories} />
       <JobFeedNotice feed={feed} />
+      {signedIn && savedResult && applicationsResult ? (
+        <CombinedRepositoryNotice
+          results={[savedResult, applicationsResult]}
+          resource="Private job records"
+        />
+      ) : null}
       <section
         className="stack"
         aria-labelledby="job-results-heading"
@@ -298,7 +309,10 @@ export function JobsExperience({
 
   const body = (
     <>
-      <nav className="job-paths" aria-label="Job location paths">
+      <nav
+        className={`job-paths ${styles.locationPaths}`}
+        aria-label="Job location paths"
+      >
         {[
           ["All jobs", "/jobs", search.path === "all"],
           ["Nigeria local", "/jobs/nigeria", search.path === "local_nigeria"],
@@ -319,7 +333,9 @@ export function JobsExperience({
           ],
         ].map(([label, href, active]) => (
           <Link
-            className={active ? "job-path is-active" : "job-path"}
+            className={`job-path ${styles.locationPath}${
+              active ? ` ${styles.locationPathActive}` : ""
+            }`}
             href={String(href)}
             key={String(href)}
             aria-current={active ? "page" : undefined}

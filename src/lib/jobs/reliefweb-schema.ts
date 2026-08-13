@@ -46,7 +46,10 @@ export const reliefWebResponseSchema = z
   .object({
     totalCount: z.number().int().nonnegative().optional(),
     count: z.number().int().nonnegative().optional(),
-    data: z.array(reliefWebJobSchema).max(200),
+    // ReliefWeb's documented per-call ceiling. Keeping the limit at the schema
+    // boundary rejects an unexpectedly unbounded provider response while
+    // allowing the reviewed Africa query to cover more than its first page.
+    data: z.array(reliefWebJobSchema).max(1_000),
   })
   .passthrough();
 

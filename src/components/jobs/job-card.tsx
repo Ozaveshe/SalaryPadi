@@ -19,6 +19,7 @@ import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
 import type { Job } from "@/lib/jobs/types";
+import type { RepositoryReadState } from "@/lib/data/repository-result";
 import type { MatchResult } from "@/lib/match/types";
 import {
   eligibilityStatementTone,
@@ -50,7 +51,9 @@ export function JobCard({
   quickViewable = false,
   signedIn = false,
   saved = false,
+  savedState = "ready",
   applicationStatus,
+  applicationState = "ready",
   returnTo = "/jobs",
 }: {
   job: Job;
@@ -69,6 +72,8 @@ export function JobCard({
   signedIn?: boolean;
   /** Whether this role is already in the viewer's private shortlist. */
   saved?: boolean;
+  /** Whether absence from the private shortlist is a conclusive result. */
+  savedState?: RepositoryReadState;
   /** The viewer's latest tracked application stage for this role. */
   applicationStatus?:
     | "saved"
@@ -78,6 +83,8 @@ export function JobCard({
     | "offer"
     | "rejected"
     | "withdrawn";
+  /** Whether absence from the application tracker is a conclusive result. */
+  applicationState?: RepositoryReadState;
   /** Safe local route returned to after saving from a result list. */
   returnTo?: string;
 }) {
@@ -91,6 +98,10 @@ export function JobCard({
   const postingAge = jobPostingAge(job);
   const decisionPlan = buildJobDecisionPlan(job);
   const description = jobDescriptionExcerpt(publicJobDescriptionView(job).text);
+  const privateStateUnavailable =
+    signedIn &&
+    ((!saved && savedState !== "ready") ||
+      (!applicationStatus && applicationState !== "ready"));
 
   return (
     <article
@@ -233,7 +244,7 @@ export function JobCard({
                 <Heart aria-hidden="true" size={15} />
                 Saved
               </Link>
-            ) : quickViewable && signedIn ? (
+            ) : quickViewable && signedIn && savedState === "ready" ? (
               <form action="/api/saved" method="post">
                 <input type="hidden" name="job_slug" value={job.slug} />
                 <input type="hidden" name="return_to" value={returnTo} />
@@ -261,6 +272,11 @@ export function JobCard({
                   ? "Applied"
                   : `Application: ${applicationStatus}`}
               </Link>
+            ) : null}
+            {quickViewable && privateStateUnavailable ? (
+              <span className="status status-neutral">
+                Private job state unavailable
+              </span>
             ) : null}
             {quickViewable ? (
               <button

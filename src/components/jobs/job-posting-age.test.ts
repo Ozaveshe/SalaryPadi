@@ -101,6 +101,23 @@ describe("job card posting-age decay", () => {
     expect(unsignedHtml).toContain("Sign in to save");
   });
 
+  it("does not turn a failed private read into an unsaved or untracked claim", () => {
+    const html = renderToStaticMarkup(
+      createElement(JobCard, {
+        job: jobPostedDaysAgo(10),
+        quickViewable: true,
+        signedIn: true,
+        savedState: "unavailable",
+        applicationState: "invalid",
+      }),
+    );
+
+    expect(html).toContain("Private job state unavailable");
+    expect(html).not.toContain('action="/api/saved"');
+    expect(html).not.toContain(">Save<");
+    expect(html).not.toContain(">Applied<");
+  });
+
   it("shows the evidence behind eligibility and identifies the source relationship", () => {
     const html = cardMarkup(10);
     expect(html).toContain("Why this eligibility label:");

@@ -490,7 +490,12 @@ export async function runTrackedWorker(
     outcome = await operation({
       signal: operationSignal,
       remainingMs: () =>
-        Math.max(0, SCHEDULED_WORKER_BUDGET_MS - (now() - startedAt)),
+        // This clock must describe the same budget as `signal`. Returning the
+        // wider worker budget made callers believe four extra seconds were
+        // available after the operation signal was guaranteed to abort. The
+        // ATS worker used that false reserve to claim a source it could not
+        // finish, spending the source's polling slot without importing it.
+        Math.max(0, WORKER_OPERATION_BUDGET_MS - (now() - startedAt)),
     });
   } catch (reason) {
     const code = errorCode(reason);

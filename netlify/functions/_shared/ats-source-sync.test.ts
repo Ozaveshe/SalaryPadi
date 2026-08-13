@@ -254,6 +254,32 @@ describe("ATS source sync worker", () => {
     expect(fetchSource).not.toHaveBeenCalled();
   });
 
+  it("skips without claim fan-out when authorized sources are not due", async () => {
+    setEnvironment("true");
+    const callRpc = vi.fn(async (name: string) => {
+      if (name === "worker_list_due_authorized_ats_sources") return [];
+      if (name === "worker_list_authorized_ats_sources") return [policyRow()];
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+    const fetchSource = vi.fn();
+
+    await expect(
+      runAtsSourceSync(execution(), {
+        rpc: callRpc,
+        fetchSource,
+        now: () => now,
+      }),
+    ).resolves.toMatchObject({
+      status: "skipped",
+      summary: { reason: "ats_sources_not_due" },
+    });
+    expect(callRpc.mock.calls.map(([name]) => name)).toEqual([
+      "worker_list_due_authorized_ats_sources",
+      "worker_list_authorized_ats_sources",
+    ]);
+    expect(fetchSource).not.toHaveBeenCalled();
+  });
+
   it("reports exhausted run time instead of claiming that sources were not due", async () => {
     setEnvironment("true");
     const callRpc = vi.fn().mockResolvedValue([policyRow()]);
@@ -270,7 +296,7 @@ describe("ATS source sync worker", () => {
     ).rejects.toMatchObject({
       code: "ats_source_sync_time_budget_exhausted",
       summary: {
-        configured_sources: 1,
+        due_sources: 1,
         inspected_sources: 0,
         deferred_sources: 1,
         inspection_stopped: "time_budget",
@@ -290,7 +316,7 @@ describe("ATS source sync worker", () => {
     setEnvironment("true");
     let remaining = 20_000;
     const callRpc = vi.fn(async (name: string) => {
-      if (name === "worker_list_authorized_ats_sources") {
+      if (name === "worker_list_due_authorized_ats_sources") {
         return [policyRow(), policyRow({ adapter_key: "second_workable" })];
       }
       if (name === "worker_claim_authorized_ats_source") {
@@ -346,7 +372,8 @@ describe("ATS source sync worker", () => {
         options?: { signal?: AbortSignal; timeoutMs?: number },
       ) => {
         events.push(name);
-        if (name === "worker_list_authorized_ats_sources") return [policyRow()];
+        if (name === "worker_list_due_authorized_ats_sources")
+          return [policyRow()];
         if (name === "worker_claim_authorized_ats_source") {
           return claimedPolicy();
         }
@@ -403,7 +430,7 @@ describe("ATS source sync worker", () => {
       },
     });
     expect(events).toEqual([
-      "worker_list_authorized_ats_sources",
+      "worker_list_due_authorized_ats_sources",
       "worker_claim_authorized_ats_source",
       "worker_begin_ats_snapshot",
       "worker_store_ats_snapshot_batch",
@@ -414,7 +441,7 @@ describe("ATS source sync worker", () => {
   it("fetches with the exact fresh policy returned by the atomic claim", async () => {
     setEnvironment("true");
     const callRpc = vi.fn(async (name: string) => {
-      if (name === "worker_list_authorized_ats_sources") {
+      if (name === "worker_list_due_authorized_ats_sources") {
         return [
           policyRow({
             employer_name: "Stale employer name",
@@ -476,7 +503,8 @@ describe("ATS source sync worker", () => {
     setEnvironment("true");
     const callRpc = vi.fn(
       async (name: string, parameters?: Record<string, unknown>) => {
-        if (name === "worker_list_authorized_ats_sources") return [policyRow()];
+        if (name === "worker_list_due_authorized_ats_sources")
+          return [policyRow()];
         if (name === "worker_claim_authorized_ats_source") {
           return claimedPolicy();
         }
@@ -534,7 +562,8 @@ describe("ATS source sync worker", () => {
     setEnvironment("true");
     const callRpc = vi.fn(
       async (name: string, parameters?: Record<string, unknown>) => {
-        if (name === "worker_list_authorized_ats_sources") return [policyRow()];
+        if (name === "worker_list_due_authorized_ats_sources")
+          return [policyRow()];
         if (name === "worker_claim_authorized_ats_source") {
           return claimedPolicy();
         }
@@ -594,7 +623,8 @@ describe("ATS source sync worker", () => {
   it("treats a previously finalized snapshot as an idempotent no-op", async () => {
     setEnvironment("true");
     const callRpc = vi.fn(async (name: string) => {
-      if (name === "worker_list_authorized_ats_sources") return [policyRow()];
+      if (name === "worker_list_due_authorized_ats_sources")
+        return [policyRow()];
       if (name === "worker_claim_authorized_ats_source") {
         return claimedPolicy();
       }
@@ -642,7 +672,8 @@ describe("ATS source sync worker", () => {
     // partial-import case below, which does not.
     setEnvironment("true");
     const callRpc = vi.fn(async (name: string) => {
-      if (name === "worker_list_authorized_ats_sources") return [policyRow()];
+      if (name === "worker_list_due_authorized_ats_sources")
+        return [policyRow()];
       if (name === "worker_claim_authorized_ats_source") return claimedPolicy();
       if (name === "worker_begin_ats_snapshot")
         return [
@@ -704,7 +735,8 @@ describe("ATS source sync worker", () => {
     setEnvironment("true");
     const callRpc = vi.fn(
       async (name: string, parameters?: Record<string, unknown>) => {
-        if (name === "worker_list_authorized_ats_sources") return [policyRow()];
+        if (name === "worker_list_due_authorized_ats_sources")
+          return [policyRow()];
         if (name === "worker_claim_authorized_ats_source") {
           return claimedPolicy();
         }
@@ -768,11 +800,73 @@ describe("ATS source sync worker", () => {
     });
   });
 
-  it("rejects an oversized provider snapshot before opening an import", async () => {
+  it("filters a large provider snapshot before enforcing the import ceiling", async () => {
     setEnvironment("true");
     const callRpc = vi.fn(
       async (name: string, parameters?: Record<string, unknown>) => {
-        if (name === "worker_list_authorized_ats_sources") {
+        if (name === "worker_list_due_authorized_ats_sources") {
+          return [policyRow()];
+        }
+        if (name === "worker_claim_authorized_ats_source") {
+          return claimedPolicy();
+        }
+        if (name === "worker_begin_ats_snapshot") {
+          expect(parameters).toMatchObject({
+            p_provider_count: 1_310,
+            p_expected_record_count: 1,
+          });
+          return [
+            {
+              import_run_id: "30000000-0000-4000-8000-000000000001",
+              should_run: true,
+            },
+          ];
+        }
+        if (name === "worker_store_ats_snapshot_batch") return storeAck();
+        if (name === "worker_finalize_ats_snapshot") {
+          return finalizeAck({
+            fetched_count: 1_310,
+            filtered_count: 1_309,
+          });
+        }
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+    );
+    const largeBoard = fetched({
+      snapshot: {
+        status: "complete",
+        providerRecordCount: 1_310,
+        providerReportedTotal: 1_310,
+        acceptedRecordCount: 1,
+        consolidatedRecordCount: 0,
+        filteredRecordCount: 1_309,
+        invalidRecordCount: 0,
+        isEmpty: false,
+      },
+    });
+
+    await expect(
+      runAtsSourceSync(execution(), {
+        rpc: callRpc,
+        fetchSource: vi.fn().mockResolvedValue(largeBoard),
+        now: () => now,
+        randomUuid: () => "40000000-0000-4000-8000-000000000001",
+      }),
+    ).resolves.toMatchObject({
+      status: "succeeded",
+      summary: {
+        provider_records: 1_310,
+        filtered_records: 1_309,
+        stored_records: 1,
+      },
+    });
+  });
+
+  it("rejects a provider snapshot above the schema ceiling", async () => {
+    setEnvironment("true");
+    const callRpc = vi.fn(
+      async (name: string, parameters?: Record<string, unknown>) => {
+        if (name === "worker_list_due_authorized_ats_sources") {
           return [policyRow()];
         }
         if (name === "worker_claim_authorized_ats_source") {
@@ -781,7 +875,7 @@ describe("ATS source sync worker", () => {
         if (name === "worker_record_source_import") {
           expect(parameters).toMatchObject({
             p_adapter_key: "employer_ats_example",
-            p_fetched_count: 401,
+            p_fetched_count: 2_001,
             p_status: "failed",
             p_error_code: "ats_source_record_limit_exceeded",
           });
@@ -793,11 +887,11 @@ describe("ATS source sync worker", () => {
     const oversized = fetched({
       snapshot: {
         status: "complete",
-        providerRecordCount: 401,
-        providerReportedTotal: 401,
+        providerRecordCount: 2_001,
+        providerReportedTotal: 2_001,
         acceptedRecordCount: 1,
         consolidatedRecordCount: 0,
-        filteredRecordCount: 400,
+        filteredRecordCount: 2_000,
         invalidRecordCount: 0,
         isEmpty: false,
       },
@@ -814,8 +908,71 @@ describe("ATS source sync worker", () => {
       code: "ats_source_sync_incomplete",
       summary: {
         failed_sources: 1,
-        provider_records: 401,
+        provider_records: 2_001,
         failure_codes: ["ats_source_record_limit_exceeded"],
+      },
+    });
+    expect(callRpc).not.toHaveBeenCalledWith(
+      "worker_begin_ats_snapshot",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("rejects more than four hundred publishable records", async () => {
+    setEnvironment("true");
+    const callRpc = vi.fn(
+      async (name: string, parameters?: Record<string, unknown>) => {
+        if (name === "worker_list_due_authorized_ats_sources") {
+          return [policyRow()];
+        }
+        if (name === "worker_claim_authorized_ats_source") {
+          return claimedPolicy();
+        }
+        if (name === "worker_record_source_import") {
+          expect(parameters).toMatchObject({
+            p_fetched_count: 401,
+            p_status: "failed",
+            p_error_code: "ats_source_import_limit_exceeded",
+          });
+          return true;
+        }
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+    );
+    const baseRecord = fetched().records[0]!;
+    const publishableRecords = Array.from({ length: 401 }, (_, index) => ({
+      ...baseRecord,
+      externalId: String(index + 1),
+      sourceUrl: `https://boards.greenhouse.io/example/jobs/${index + 1}`,
+      applicationUrl: `https://boards.greenhouse.io/example/jobs/${index + 1}`,
+    }));
+    const oversizedImport = fetched({
+      records: publishableRecords,
+      snapshot: {
+        status: "complete",
+        providerRecordCount: 401,
+        providerReportedTotal: 401,
+        acceptedRecordCount: 401,
+        consolidatedRecordCount: 0,
+        filteredRecordCount: 0,
+        invalidRecordCount: 0,
+        isEmpty: false,
+      },
+    });
+
+    await expect(
+      runAtsSourceSync(execution(), {
+        rpc: callRpc,
+        fetchSource: vi.fn().mockResolvedValue(oversizedImport),
+        now: () => now,
+        randomUuid: () => "40000000-0000-4000-8000-000000000001",
+      }),
+    ).rejects.toMatchObject({
+      code: "ats_source_sync_incomplete",
+      summary: {
+        failed_sources: 1,
+        failure_codes: ["ats_source_import_limit_exceeded"],
       },
     });
     expect(callRpc).not.toHaveBeenCalledWith(
@@ -835,7 +992,7 @@ describe("ATS source sync worker", () => {
         _parameters?: Record<string, unknown>,
         options?: { signal?: AbortSignal },
       ) => {
-        if (name === "worker_list_authorized_ats_sources") {
+        if (name === "worker_list_due_authorized_ats_sources") {
           return [policyRow()];
         }
         if (name === "worker_claim_authorized_ats_source") {
@@ -904,7 +1061,7 @@ describe("ATS source sync worker", () => {
         name: string,
         parameters?: Record<string, unknown>,
       ): Promise<unknown> => {
-        if (name === "worker_list_authorized_ats_sources") {
+        if (name === "worker_list_due_authorized_ats_sources") {
           return [
             policyRow(),
             policyRow({ adapter_key: "employer_ats_second" }),
@@ -960,7 +1117,8 @@ describe("ATS source sync worker", () => {
     // its own fetch timeout is slow, and that is the board's problem to report.
     setEnvironment("true");
     const callRpc = vi.fn(async (name: string): Promise<unknown> => {
-      if (name === "worker_list_authorized_ats_sources") return [policyRow()];
+      if (name === "worker_list_due_authorized_ats_sources")
+        return [policyRow()];
       if (name === "worker_claim_authorized_ats_source") return claimedPolicy();
       if (name === "worker_record_source_import") return null;
       throw new Error(`Unexpected RPC ${name}`);
@@ -996,7 +1154,7 @@ describe("ATS source sync worker", () => {
         name: string,
         parameters?: Record<string, unknown>,
       ): Promise<unknown> => {
-        if (name === "worker_list_authorized_ats_sources") {
+        if (name === "worker_list_due_authorized_ats_sources") {
           return [policyRow(), policyRow({ adapter_key: "second_workable" })];
         }
         if (name === "worker_claim_authorized_ats_source") {
@@ -1055,7 +1213,7 @@ describe("ATS source sync worker", () => {
     setEnvironment("true");
     let remaining = 20_000;
     const callRpc = vi.fn(async (name: string): Promise<unknown> => {
-      if (name === "worker_list_authorized_ats_sources") {
+      if (name === "worker_list_due_authorized_ats_sources") {
         return [policyRow(), policyRow({ adapter_key: "second_workable" })];
       }
       if (name === "worker_claim_authorized_ats_source") return claimedPolicy();
@@ -1103,7 +1261,7 @@ describe("ATS source sync worker", () => {
     setEnvironment("true");
     const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
     const callRpc = vi.fn(async (name: string): Promise<unknown> => {
-      if (name === "worker_list_authorized_ats_sources") {
+      if (name === "worker_list_due_authorized_ats_sources") {
         return [policyRow()];
       }
       if (name === "worker_claim_authorized_ats_source") {

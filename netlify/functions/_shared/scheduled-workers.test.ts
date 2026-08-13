@@ -453,7 +453,7 @@ describe("scheduled worker successful runs", () => {
     const policy = atsPolicy();
     const fetchMock = installWorkerFetch({
       rpc: {
-        worker_list_authorized_ats_sources: [policy],
+        worker_list_due_authorized_ats_sources: [policy],
         worker_claim_authorized_ats_source: { claimed: true, policy },
         worker_begin_ats_snapshot: [
           {
@@ -486,7 +486,7 @@ describe("scheduled worker successful runs", () => {
     expect(finishBody(fetchMock)).toMatchObject({
       p_status: "succeeded",
       p_summary: {
-        configured_sources: 1,
+        due_sources: 1,
         claimed_sources: 1,
         completed_sources: 1,
         duplicate_sources: 0,
@@ -878,7 +878,9 @@ describe("scheduled worker failures", () => {
     stubWorkerEnvironment({ ATS_SOURCE_SYNC_ENABLED: "true" });
     const fetchMock = installWorkerFetch({
       rpc: {
-        worker_list_authorized_ats_sources: new Response(null, { status: 503 }),
+        worker_list_due_authorized_ats_sources: new Response(null, {
+          status: 503,
+        }),
       },
     });
 

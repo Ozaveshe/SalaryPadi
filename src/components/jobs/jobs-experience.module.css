@@ -1,0 +1,36 @@
+.locationPaths {
+  flex-wrap: nowrap;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding-block-end: 0.35rem;
+  scroll-padding-inline: 0.25rem;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+.locationPath {
+  flex: 0 0 auto;
+  border: 0;
+  background: var(--surface-subtle);
+  scroll-snap-align: start;
+  white-space: nowrap;
+}
+
+.locationPath:hover,
+.locationPathActive {
+  border-color: transparent;
+  background: var(--surface-brand-soft);
+  color: var(--forest-950);
+}
+
+@media (max-width: 47.9rem) {
+  .locationPaths {
+    margin-inline: -0.25rem;
+    padding-inline: 0.25rem;
+  }
+
+  .locationPath {
+    min-height: 2.5rem;
+  }
+}

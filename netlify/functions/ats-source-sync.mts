@@ -53,7 +53,13 @@ import {
  * may visit, which is what determines how quickly the registry is walked.
  */
 const MAX_SOURCES_PER_RUN = 4;
-const MAX_PROVIDER_RECORDS = 400;
+// Provider payload schemas already reject snapshots above 2,000 rows. Keep
+// that defensive ceiling here, but apply the tighter write ceiling only after
+// the adapter and publication policy have removed irrelevant records. A large
+// employer board can contain hundreds of non-African roles and only a small,
+// publishable Africa subset; rejecting it before filtering loses that subset.
+const MAX_PROVIDER_SNAPSHOT_RECORDS = 2_000;
+const MAX_IMPORT_RECORDS = 400;
 const MAX_BATCH_RECORDS = 200;
 const MAX_BATCH_BYTES = 1024 * 1024;
 const SOURCE_FETCH_TIMEOUT_MS = 8_000;
@@ -187,6 +193,7 @@ const authorizedPoliciesEnvelopeSchema = z
 const claimedPolicyEnvelopeSchema = z.record(z.string(), z.unknown());
 const rpcShapeErrorCodes: Record<string, string> = {
   worker_list_authorized_ats_sources: "ats_source_registry_invalid",
+  worker_list_due_authorized_ats_sources: "ats_due_source_registry_invalid",
   worker_claim_authorized_ats_source: "ats_source_claim_invalid",
   worker_begin_ats_snapshot: "ats_import_begin_invalid",
   worker_store_ats_snapshot_batch: "ats_import_batch_invalid",
@@ -368,7 +375,7 @@ export async function runAtsSourceSync(
   const createRequestKey = dependencies.randomUuid ?? randomUUID;
   const listedPolicies = parseAuthorizedAtsRuntimePolicies(
     await callRpc(
-      "worker_list_authorized_ats_sources",
+      "worker_list_due_authorized_ats_sources",
       authorizedPoliciesEnvelopeSchema,
       {},
       { signal: execution.signal },
@@ -376,7 +383,27 @@ export async function runAtsSourceSync(
     now(),
   );
   if (listedPolicies.length === 0) {
-    return workerSkipped("no_authorized_ats_sources");
+    /*
+     * An empty due list normally means the cadence guards are doing their job.
+     * Distinguish that from a completely empty authorized registry with one
+     * bounded fallback read; the common productive path still uses one list
+     * RPC, while an idle run no longer spends its budget on one claim RPC per
+     * non-due board.
+     */
+    const authorizedPolicies = parseAuthorizedAtsRuntimePolicies(
+      await callRpc(
+        "worker_list_authorized_ats_sources",
+        authorizedPoliciesEnvelopeSchema,
+        {},
+        { signal: execution.signal },
+      ),
+      now(),
+    );
+    return workerSkipped(
+      authorizedPolicies.length === 0
+        ? "no_authorized_ats_sources"
+        : "ats_sources_not_due",
+    );
   }
 
   let claimedSources = 0;
@@ -467,11 +494,11 @@ export async function runAtsSourceSync(
       fetchedCount = result.snapshot.providerRecordCount;
       providerRecords += fetchedCount;
       if (
-        fetchedCount > MAX_PROVIDER_RECORDS ||
-        result.records.length > MAX_PROVIDER_RECORDS
+        fetchedCount > MAX_PROVIDER_SNAPSHOT_RECORDS ||
+        result.records.length > MAX_PROVIDER_SNAPSHOT_RECORDS
       ) {
         throw new OperationalError("ats_source_record_limit_exceeded", {
-          limit: MAX_PROVIDER_RECORDS,
+          limit: MAX_PROVIDER_SNAPSHOT_RECORDS,
           provider_records: fetchedCount,
         });
       }
@@ -481,6 +508,13 @@ export async function runAtsSourceSync(
         employerName: policy.source.employerName,
         mayStoreFullDescription: policy.mayStoreFullDescription,
       });
+      if (normalized.jobs.length > MAX_IMPORT_RECORDS) {
+        throw new OperationalError("ats_source_import_limit_exceeded", {
+          limit: MAX_IMPORT_RECORDS,
+          import_records: normalized.jobs.length,
+          provider_records: fetchedCount,
+        });
+      }
       const adapterQuarantines = result.invalidRecords.length;
       const totalQuarantines = adapterQuarantines + normalized.quarantinedCount;
       filteredRecords +=
@@ -623,7 +657,7 @@ export async function runAtsSourceSync(
   }
 
   const summary = {
-    configured_sources: listedPolicies.length,
+    due_sources: listedPolicies.length,
     inspected_sources: inspectedSources,
     deferred_sources: listedPolicies.length - inspectedSources,
     inspection_stopped: inspectionStopped,

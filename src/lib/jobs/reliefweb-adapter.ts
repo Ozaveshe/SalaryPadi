@@ -19,7 +19,10 @@ export function reliefWebEndpoint(appName: string): string {
   // shape is unchanged for the fields this adapter requests.
   const url = new URL("https://api.reliefweb.int/v2/jobs");
   url.searchParams.set("appname", appName);
-  url.searchParams.set("limit", "200");
+  // ReliefWeb documents 1,000 as the per-call maximum. This remains one
+  // reviewed metadata-only request: no descriptions are requested or stored,
+  // and every row still passes the country and publication gates below.
+  url.searchParams.set("limit", "1000");
   url.searchParams.append("fields[include][]", "title");
   url.searchParams.append("fields[include][]", "url");
   url.searchParams.append("fields[include][]", "date");

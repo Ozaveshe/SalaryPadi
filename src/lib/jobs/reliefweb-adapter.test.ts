@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { fetchReliefWebJobs, reliefWebEndpoint } from "./reliefweb-adapter";
+import { reliefWebResponseSchema } from "./reliefweb-schema";
 
 const checkedAt = "2026-07-24T09:00:00.000Z";
 
@@ -81,12 +82,31 @@ describe("ReliefWeb adapter", () => {
     const requestedUrl = new URL(String(fetch.mock.calls[0]?.[0]));
     expect(requestedUrl.origin).toBe("https://api.reliefweb.int");
     expect(requestedUrl.searchParams.get("appname")).toBe("salarypadi");
+    expect(requestedUrl.searchParams.get("limit")).toBe("1000");
     // Pin the API version. ReliefWeb decommissioned v1, which answers every
     // request with HTTP 410, and nothing in the suite caught it because no
     // test asserted the version. A live probe found it instead.
     expect(requestedUrl.pathname).toBe("/v2/jobs");
     expect(requestedUrl.origin).toBe("https://api.reliefweb.int");
     expect(reliefWebEndpoint("salarypadi")).toContain("appname=salarypadi");
+  });
+
+  it("accepts the documented 1,000-row ceiling and rejects anything larger", () => {
+    const record = payload().data[0]!;
+    expect(
+      reliefWebResponseSchema.safeParse({
+        totalCount: 1_000,
+        count: 1_000,
+        data: Array.from({ length: 1_000 }, () => record),
+      }).success,
+    ).toBe(true);
+    expect(
+      reliefWebResponseSchema.safeParse({
+        totalCount: 1_001,
+        count: 1_001,
+        data: Array.from({ length: 1_001 }, () => record),
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects a destination outside ReliefWeb", async () => {
