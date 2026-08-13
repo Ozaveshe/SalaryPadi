@@ -29,7 +29,11 @@ begin
       authorization_evidence_ref = case adapter_key
         when 'jobicy' then 'https://jobicy.com/jobs-rss-feed'
         when 'himalayas' then 'https://himalayas.app/api'
-      end
+      end,
+      -- The authorization trigger clears review timestamps when reviewed
+      -- policy fields change. Temporarily withdraw public listing in the
+      -- same row transition so the public-review constraint stays true.
+      allow_public_listing = false
   where adapter_key in ('jobicy', 'himalayas')
     and source_type = 'permitted_api';
 
@@ -47,6 +51,7 @@ declare
 begin
   update app.job_sources
   set status = 'active',
+      allow_public_listing = true,
       terms_reviewed_at = timestamptz '2026-08-13 00:00:00+00',
       terms_reviewed_by = null,
       authorization_reviewed_at = timestamptz '2026-08-13 00:00:00+00',
@@ -62,7 +67,7 @@ begin
       'jobicy-public-api-reviewed-2026-08-13',
       'himalayas-public-api-reviewed-2026-08-13'
     )
-    and allow_public_listing
+    and not allow_public_listing
     and not may_store_full_description
     and not may_index_jobs
     and not may_emit_jobposting_schema
