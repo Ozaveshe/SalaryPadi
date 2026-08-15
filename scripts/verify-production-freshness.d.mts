@@ -1,6 +1,6 @@
 export type FreshnessCheck = {
   id: string;
-  status: "pass" | "fail" | "skip";
+  status: "pass" | "warn" | "fail" | "skip";
   summary: string;
   exit_code: number;
 };
@@ -26,6 +26,11 @@ export function parseCliArgs(argv: string[]): {
   deployStartedAt: string | null;
   help: boolean;
 };
+
+export function checkSupplyCapacity(
+  payload: unknown,
+  options?: { fatal?: boolean },
+): FreshnessCheck;
 
 export function verifyProductionFreshness(options?: {
   origin?: string;

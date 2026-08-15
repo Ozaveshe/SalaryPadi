@@ -32,11 +32,10 @@ function workerRows(): WorkerRow[] {
 }
 
 /**
- * A healthy payload now also carries proven supply capacity, because
- * `supply:capacity` is asserted as its own check rather than through the health
- * status. /api/health reports worker/service health in its HTTP code and
- * reports supply capacity as data, so this workflow is what keeps an
- * unauthorised supply base a visible failure.
+ * A healthy payload also carries proven supply capacity. `supply:capacity` is
+ * asserted separately from the health status: scheduled monitoring warns on
+ * the business deficit, while explicit post-deploy verification keeps the hard
+ * release gate.
  */
 function healthPayload(overrides: Record<string, unknown> = {}) {
   const { checks, ...rest } = overrides as {
@@ -257,11 +256,10 @@ describe("production freshness verification", () => {
     });
   });
 
-  it("fails supply capacity separately from worker health", async () => {
+  it("warns on scheduled supply capacity separately from worker health", async () => {
     // /api/health reports worker health in its HTTP code and supply capacity as
-    // data. This check is the compensating control: an unauthorised supply base
-    // must still fail the workflow even when every worker is healthy and the
-    // endpoint correctly returns 200.
+    // data. Scheduled monitoring must keep an unauthorised supply base visible
+    // without making an otherwise healthy job permanently red.
     const result = await verify(
       fetchFor({
         health: healthPayload({
@@ -278,17 +276,47 @@ describe("production freshness verification", () => {
       }),
     );
 
-    expect(result.exit_code).toBe(EXIT_CODES.supply_capacity);
+    expect(result).toMatchObject({ status: "fresh", exit_code: EXIT_CODES.ok });
     expect(result.checks).toContainEqual(
       expect.objectContaining({
         id: "supply:capacity",
-        status: "fail",
+        status: "warn",
         summary:
           "job supply is not ready state=capacity_unproven authorized_daily_capacity=0 target=500",
       }),
     );
     // Worker health is unaffected and still reported as passing.
     expect(result.checks[0]).toMatchObject({ id: "health", status: "pass" });
+  });
+
+  it("keeps supply capacity fatal for explicit post-deploy verification", async () => {
+    const result = await verify(
+      fetchFor({
+        health: healthPayload({
+          checks: {
+            workers: workerRows(),
+            job_supply_ready: false,
+            job_supply: {
+              state: "capacity_unproven",
+              authorized_daily_capacity: 35,
+              target_daily_new_canonical: 50,
+            },
+          },
+        }),
+      }),
+      "2026-07-13T14:00:00.000Z",
+    );
+
+    expect(result).toMatchObject({
+      status: "failed",
+      exit_code: EXIT_CODES.supply_capacity,
+    });
+    expect(result.checks).toContainEqual(
+      expect.objectContaining({
+        id: "supply:capacity",
+        status: "fail",
+      }),
+    );
   });
 
   it("passes supply capacity when authorized capacity meets the target", async () => {

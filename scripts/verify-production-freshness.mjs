@@ -157,6 +157,10 @@ function skippedCheck(id, summary) {
   return { id, status: "skip", summary, exit_code: EXIT_CODES.ok };
 }
 
+function warningCheck(id, summary) {
+  return { id, status: "warn", summary, exit_code: EXIT_CODES.ok };
+}
+
 function passedCheck(id, summary) {
   return { id, status: "pass", summary, exit_code: EXIT_CODES.ok };
 }
@@ -327,12 +331,13 @@ function workerMap(payload) {
 }
 
 /**
- * Asserts authorized source-supply capacity as its own check, independent of
- * worker health. Fails when SalaryPadi does not hold proven capacity for the
- * daily canonical target, and names the reported state so the reason is legible
- * without opening the payload.
+ * Reports authorized source-supply capacity independently of worker health.
+ * Scheduled monitoring warns while the evidence-backed business target is not
+ * met, because correct worker execution cannot raise a rights/capacity state.
+ * Post-deploy verification keeps the existing hard gate for callers that
+ * explicitly request complete release freshness.
  */
-export function checkSupplyCapacity(payload) {
+export function checkSupplyCapacity(payload, { fatal = true } = {}) {
   const id = "supply:capacity";
   if (!isRecord(payload) || !isRecord(payload.checks)) {
     return skippedCheck(id, "health payload unavailable");
@@ -354,11 +359,10 @@ export function checkSupplyCapacity(payload) {
     Number.isInteger(supply.target_daily_new_canonical)
       ? ` authorized_daily_capacity=${supply.authorized_daily_capacity} target=${supply.target_daily_new_canonical}`
       : "";
-  return failedCheck(
-    id,
-    `job supply is not ready state=${state}${detail}`,
-    EXIT_CODES.supply_capacity,
-  );
+  const summary = `job supply is not ready state=${state}${detail}`;
+  return fatal
+    ? failedCheck(id, summary, EXIT_CODES.supply_capacity)
+    : warningCheck(id, summary);
 }
 
 function checkWorker(taskKey, worker, deployStartedAt, checkedAt) {
@@ -553,10 +557,16 @@ export async function verifyProductionFreshness({
   // Source-supply capacity is asserted HERE rather than through the health
   // status. /api/health deliberately reports worker/service health in its HTTP
   // code and reports supply capacity as data, because capacity is a rights
-  // state that correct worker execution cannot raise. Keeping this check
-  // explicit means an unauthorised supply base still fails the freshness
-  // workflow loudly instead of disappearing when health returns 200.
-  addCheck(checks, checkSupplyCapacity(healthPayload));
+  // state that correct worker execution cannot raise. Scheduled monitoring
+  // keeps that business deficit visible without turning a healthy production
+  // system into a permanently failing operational alarm. Explicit post-deploy
+  // verification retains the hard capacity gate.
+  addCheck(
+    checks,
+    checkSupplyCapacity(healthPayload, {
+      fatal: normalizedDeployStartedAt !== null,
+    }),
+  );
 
   for (const pathname of VERIFIED_ROUTES) {
     const expectsFeed = pathname.endsWith(".xml");
@@ -650,11 +660,12 @@ export function formatHumanResult(result) {
   );
   const counts = {
     pass: result.checks.filter((check) => check.status === "pass").length,
+    warn: result.checks.filter((check) => check.status === "warn").length,
     fail: result.checks.filter((check) => check.status === "fail").length,
     skip: result.checks.filter((check) => check.status === "skip").length,
   };
   lines.push(
-    `RESULT status=${result.status} exit_code=${result.exit_code} pass=${counts.pass} fail=${counts.fail} skip=${counts.skip}`,
+    `RESULT status=${result.status} exit_code=${result.exit_code} pass=${counts.pass} warn=${counts.warn} fail=${counts.fail} skip=${counts.skip}`,
   );
   return lines.join("\n");
 }
