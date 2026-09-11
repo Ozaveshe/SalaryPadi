@@ -224,11 +224,11 @@ export default async function SalariesPage({
           Local salary evidence
         </h2>
         <p className="text-muted m-0 max-w-2xl text-sm">
-          What people doing this work in {countryPack?.name ?? "this market"}{" "}
-          report earning. Published only when enough similar approved
-          contributions from different people at different employers form a
-          cohort — narrower slices need more contributors before anything is
-          shown, and individual figures never are.
+          Reviewed benchmarks and approved community contributions for{" "}
+          {countryPack?.name ?? "this market"}, with the evidence type labelled
+          on each card. Community aggregates appear only when enough similar
+          approved contributions from different people at different employers
+          meet the privacy threshold. Individual contributions are never shown.
         </p>
         {results.length > 0 ? (
           <div className="aggregate-grid">
