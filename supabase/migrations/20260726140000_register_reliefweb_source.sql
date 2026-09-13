@@ -27,6 +27,13 @@
 
 begin;
 
+-- Preserve the historical approval on replay without renewing an expired
+-- review or allowing its listings back onto public surfaces.
+do $$
+declare
+  v_review_due_at constant timestamptz := timestamptz '2026-08-26 00:00:00+00';
+  v_review_current constant boolean := v_review_due_at > statement_timestamp();
+begin
 insert into app.job_sources (
   adapter_key, name, authority, source_type, status, policy_state,
   homepage_url, terms_url, terms_version, terms_reviewed_at,
@@ -43,8 +50,8 @@ insert into app.job_sources (
   'ReliefWeb jobs API',
   'secondary_feed',
   'permitted_api',
-  'active',
-  'enabled',
+  case when v_review_current then 'active'::app.source_status else 'paused'::app.source_status end,
+  case when v_review_current then 'enabled'::app.source_policy_state else 'expired'::app.source_policy_state end,
   'https://reliefweb.int/',
   'https://apidoc.reliefweb.int/',
   'reliefweb-jobs-api-reviewed-2026-07-14',
@@ -55,7 +62,7 @@ insert into app.job_sources (
   ],
   true,
   'Source: ReliefWeb and the named information partner',
-  true,
+  v_review_current,
   true,   -- indexing accepted by the operator
   false,  -- JobPosting markup impossible without a description
   false,  -- no body text is ever requested or stored
@@ -69,7 +76,7 @@ insert into app.job_sources (
   'ReliefWeb API appname approval 2026-07-26 (salarypadi-jobs-7k3q9x); https://reliefweb.int/help/api',
   'ReliefWeb (UN OCHA) API team',
   '2026-07-26T00:00:00+00:00',
-  '2026-08-26T00:00:00+00:00',
+  v_review_due_at,
   array[
     'preapproved_reliefweb_app_name',
     'original_content_field_review'
@@ -79,6 +86,7 @@ insert into app.job_sources (
 on conflict (adapter_key) do update
 set status = excluded.status,
     policy_state = excluded.policy_state,
+    allow_public_listing = excluded.allow_public_listing,
     may_index_jobs = excluded.may_index_jobs,
     may_emit_jobposting_schema = excluded.may_emit_jobposting_schema,
     allowed_fields = excluded.allowed_fields,
@@ -87,5 +95,7 @@ set status = excluded.status,
     policy_review_due_at = excluded.policy_review_due_at,
     missing_dependencies = excluded.missing_dependencies,
     updated_at = now();
+end
+$$;
 
 commit;
