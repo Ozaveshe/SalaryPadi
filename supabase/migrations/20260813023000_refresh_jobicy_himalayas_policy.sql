@@ -12,8 +12,9 @@
 --
 -- Changing a reviewed terms version deliberately pauses and revokes the old
 -- authorization through security.enforce_job_source_authorization(). The
--- second update records the new review and re-activates only these two exact
--- secondary sources with no expansion of fields or distribution rights.
+-- second update records the historical review and activates these exact
+-- sources only while that review is current. Later replays retain paused,
+-- expired sources without extending dates or distribution rights.
 
 begin;
 
@@ -47,11 +48,13 @@ $$;
 
 do $$
 declare
-  v_reactivated integer;
+  v_reviewed integer;
+  v_review_due_at constant timestamptz := timestamptz '2026-09-13 00:00:00+00';
+  v_review_current constant boolean := v_review_due_at > statement_timestamp();
 begin
   update app.job_sources
-  set status = 'active',
-      allow_public_listing = true,
+  set status = case when v_review_current then 'active'::app.source_status else 'paused'::app.source_status end,
+      allow_public_listing = v_review_current,
       terms_reviewed_at = timestamptz '2026-08-13 00:00:00+00',
       terms_reviewed_by = null,
       authorization_reviewed_at = timestamptz '2026-08-13 00:00:00+00',
@@ -59,8 +62,8 @@ begin
       authorization_revoked_at = null,
       authorization_revoked_by = null,
       authorization_revocation_reason = null,
-      policy_state = 'enabled',
-      policy_review_due_at = timestamptz '2026-09-13 00:00:00+00'
+      policy_state = case when v_review_current then 'enabled'::app.source_policy_state else 'expired'::app.source_policy_state end,
+      policy_review_due_at = v_review_due_at
   where adapter_key in ('jobicy', 'himalayas')
     and source_type = 'permitted_api'
     and terms_version in (
@@ -73,8 +76,8 @@ begin
     and not may_emit_jobposting_schema
     and not may_email_jobs;
 
-  get diagnostics v_reactivated = row_count;
-  if v_reactivated <> 2 then
+  get diagnostics v_reviewed = row_count;
+  if v_reviewed <> 2 then
     raise exception using errcode = '23514',
       message = 'secondary source re-review did not preserve the reviewed rights boundary';
   end if;
