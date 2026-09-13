@@ -33,14 +33,17 @@ update app.job_sources
 set may_index_jobs = false
 where adapter_key = 'reliefweb';
 
+-- Retain the historical review without reactivating it after expiry.
 update app.job_sources
 set terms_reviewed_at = timestamptz '2026-07-14T00:00:00+00:00',
     authorization_reviewed_at = timestamptz '2026-07-26T00:00:00+00:00',
     authorization_revoked_at = null,
     authorization_revocation_reason = null,
-    allow_public_listing = true,
-    status = 'active',
-    policy_state = 'enabled'
+    allow_public_listing = coalesce(policy_review_due_at > statement_timestamp(), false),
+    status = case when policy_review_due_at > statement_timestamp()
+      then 'active'::app.source_status else 'paused'::app.source_status end,
+    policy_state = case when policy_review_due_at > statement_timestamp()
+      then 'enabled'::app.source_policy_state else 'expired'::app.source_policy_state end
 where adapter_key = 'reliefweb';
 
 commit;
