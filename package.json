@@ -36,7 +36,7 @@
     "@supabase/supabase-js": "^2.110.2",
     "he": "^1.2.0",
     "lucide-react": "^1.24.0",
-    "next": "^16.2.11",
+    "next": "^16.3.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "sanitize-html": "^2.17.5",
@@ -62,7 +62,7 @@
     "pg": "^8.22.0",
     "prettier": "^3.9.5",
     "prettier-plugin-tailwindcss": "^0.8.0",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10"
@@ -74,6 +74,6 @@
     "@opentelemetry/sdk-trace-node": "2.9.0",
     "nanoid": "3.3.18",
     "postcss": "8.5.23",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.4"
   }
 }
