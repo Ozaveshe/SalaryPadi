@@ -33,15 +33,18 @@ set terms_version = 'reliefweb-api-terms-reviewed-2026-07-14'
 where adapter_key = 'reliefweb';
 
 -- 3. Re-record the review and bring it back up. ReliefWeb's terms were
---    reviewed on 2026-07-14 and the appname approved on 2026-07-26.
+--    reviewed on 2026-07-14 and the appname approved on 2026-07-26. A replay
+--    after the existing review deadline must keep the corrected row paused.
 update app.job_sources
 set terms_reviewed_at = timestamptz '2026-07-14T00:00:00+00:00',
     authorization_reviewed_at = timestamptz '2026-07-26T00:00:00+00:00',
     authorization_revoked_at = null,
     authorization_revocation_reason = null,
-    allow_public_listing = true,
-    status = 'active',
-    policy_state = 'enabled'
+    allow_public_listing = coalesce(policy_review_due_at > statement_timestamp(), false),
+    status = case when policy_review_due_at > statement_timestamp()
+      then 'active'::app.source_status else 'paused'::app.source_status end,
+    policy_state = case when policy_review_due_at > statement_timestamp()
+      then 'enabled'::app.source_policy_state else 'expired'::app.source_policy_state end
 where adapter_key = 'reliefweb';
 
 commit;

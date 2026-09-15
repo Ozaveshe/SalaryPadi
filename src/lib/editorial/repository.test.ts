@@ -37,12 +37,19 @@ const validBrief = {
 describe("editorial repository", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    // The built-in catalogue below was published and reviewed on this date.
+    // Wall-clock expiry is exercised separately, not hidden by count changes.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-13T12:00:00.000Z"));
     mockedConfig.mockReturnValue({
       url: "https://bxelrhklsznmpksgrqep.supabase.co",
       publishableKey: "test-key",
     });
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 
   it("keeps built-in guides available when the editorial backend is unconfigured", async () => {
     mockedConfig.mockReturnValue(null);
@@ -292,6 +299,33 @@ describe("editorial repository", () => {
       ),
     ).toBe(false);
   });
+
+  it.each(["2026-09-13T00:00:00.000Z", "2026-09-14T00:00:00.000Z"])(
+    "withdraws the four expired built-in guides at %s",
+    async (now) => {
+      mockedConfig.mockReturnValue(null);
+      vi.setSystemTime(new Date(now));
+      const expiredGuides = [
+        ...SEO_STARTER_GUIDES,
+        ...SEO_GROWTH_GUIDES,
+      ].filter(
+        ({ review_due_at }) => review_due_at === "2026-09-13T00:00:00.000Z",
+      );
+      expect(expiredGuides).toHaveLength(4);
+
+      const result = await getPublishedEditorialResult();
+
+      expect(result.state).toBe("unconfigured");
+      expect(result.data).toHaveLength(17);
+      expect(result.data).toContainEqual(REMOTE_JOBS_GUIDE);
+      for (const expired of expiredGuides) {
+        expect(result.data.map(({ slug }) => slug)).not.toContain(expired.slug);
+      }
+      expect(
+        result.data.every((article) => isEditorialDiscoverable(article)),
+      ).toBe(true);
+    },
+  );
 
   it("holds future editorial dates out of search discovery", () => {
     const futureArticle = {

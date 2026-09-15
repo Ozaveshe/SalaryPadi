@@ -5,6 +5,13 @@ begin;
 -- Jobicy URL, avoids search/Google JobPosting publication, and polls at the
 -- documented six-hour cadence. This authorization is intentionally separate
 -- from the still-paused Remotive source.
+-- A replay after this historical review expired must retain the evidence
+-- without activating the source or extending its authorization window.
+do $$
+declare
+  v_review_due_at constant timestamptz := timestamptz '2026-08-14 00:00:00+00';
+  v_review_current constant boolean := v_review_due_at > statement_timestamp();
+begin
 insert into app.job_sources (
   adapter_key,
   name,
@@ -40,7 +47,7 @@ insert into app.job_sources (
   'jobicy',
   'Jobicy public API',
   'permitted_api',
-  'active',
+  case when v_review_current then 'active'::app.source_status else 'paused'::app.source_status end,
   'https://jobicy.com/',
   'https://jobicy.com/jobs-rss-feed',
   true,
@@ -48,7 +55,7 @@ insert into app.job_sources (
   false,
   false,
   false,
-  true,
+  v_review_current,
   'source_url',
   interval '6 hours',
   timestamptz '2026-07-14 00:00:00+00',
@@ -58,14 +65,14 @@ insert into app.job_sources (
   'Jobicy public API and feed documentation',
   timestamptz '2026-07-14 00:00:00+00',
   false,
-  'enabled',
+  case when v_review_current then 'enabled'::app.source_policy_state else 'expired'::app.source_policy_state end,
   'secondary_feed',
   array[
     'id', 'url', 'jobTitle', 'companyName', 'jobIndustry', 'jobType',
     'jobGeo', 'jobLevel', 'jobExcerpt', 'pubDate', 'salaryMin',
     'salaryMax', 'salaryCurrency', 'salaryPeriod'
   ],
-  timestamptz '2026-08-14 00:00:00+00',
+  v_review_due_at,
   interval '1 day',
   interval '6 hours',
   4,
@@ -76,6 +83,8 @@ insert into app.job_sources (
   ],
   '{}'::text[]
 );
+end
+$$;
 
 insert into private.job_source_dependencies (
   source_id,

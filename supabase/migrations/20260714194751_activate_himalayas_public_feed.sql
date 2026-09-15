@@ -4,6 +4,13 @@ begin;
 -- SalaryPadi keeps only bounded metadata and excerpts, links every role to the
 -- Himalayas URL, polls three reviewed pages once daily, and excludes these
 -- records from search indexing, Google JobPosting, email, and redistribution.
+-- Preserve the dated review on replay; an expired review never authorizes
+-- an active source or public listing merely because migrations run again.
+do $$
+declare
+  v_review_due_at constant timestamptz := timestamptz '2026-08-14 19:40:00+00';
+  v_review_current constant boolean := v_review_due_at > statement_timestamp();
+begin
 insert into app.job_sources (
   adapter_key,
   name,
@@ -39,7 +46,7 @@ insert into app.job_sources (
   'himalayas',
   'Himalayas public jobs API',
   'permitted_api',
-  'active',
+  case when v_review_current then 'active'::app.source_status else 'paused'::app.source_status end,
   'https://himalayas.app/',
   'https://himalayas.app/api',
   true,
@@ -47,7 +54,7 @@ insert into app.job_sources (
   false,
   false,
   false,
-  true,
+  v_review_current,
   'source_url',
   interval '1 day',
   timestamptz '2026-07-14 19:40:00+00',
@@ -57,7 +64,7 @@ insert into app.job_sources (
   'Himalayas Remote Jobs API documentation',
   timestamptz '2026-07-14 19:40:00+00',
   false,
-  'enabled',
+  case when v_review_current then 'enabled'::app.source_policy_state else 'expired'::app.source_policy_state end,
   'secondary_feed',
   array[
     'guid', 'applicationLink', 'title', 'excerpt', 'companyName',
@@ -66,7 +73,7 @@ insert into app.job_sources (
     'timezoneRestrictions', 'categories', 'parentCategories', 'pubDate',
     'expiryDate'
   ],
-  timestamptz '2026-08-14 19:40:00+00',
+  v_review_due_at,
   interval '1 day',
   interval '1 day',
   3,
@@ -77,6 +84,8 @@ insert into app.job_sources (
   ],
   '{}'::text[]
 );
+end
+$$;
 
 insert into private.job_source_dependencies (
   source_id,

@@ -79,6 +79,24 @@ Before applying the ATS migrations:
 
 After applying them, and before allowing any ATS provider acquisition, verify an empty authorized-source list, a false claim for an unconfigured candidate, no public access to private ATS tables/evidence, and unchanged Remotive public/noindex/email-suppression behavior. Moniepoint and M-KOPA must remain absent or disabled until written permission is recorded.
 
+### Approved bootstrap-only exception: PR 138 (2026-09-13)
+
+On 2026-09-13, the repository owner explicitly approved: "Approve the bootstrap-only exception" for [PR 138](https://github.com/Ozaveshe/SalaryPadi/pull/138), with no changes applied to the production database. This is a one-time exception to the applied-migration edit rule above, limited to clean, disposable database bootstrap/test replay of these historical files under `supabase/migrations/`:
+
+- `20260714190848_activate_jobicy_public_feed.sql`
+- `20260714194751_activate_himalayas_public_feed.sql`
+- `20260726140000_register_reliefweb_source.sql`
+- `20260726160000_reliefweb_terms_version_rereview.sql`
+- `20260726170000_reliefweb_indexing_claim_correction.sql`
+- `20260812002751_operator_job_intake.sql`
+- `20260813023000_refresh_jobicy_himalayas_policy.sql`
+
+These bootstrap statements previously tried to activate sources after their fixed review deadlines, so the existing runtime guard correctly aborted clean replay with SQLSTATE `23514` before any later forward migration could run. The repair preserves the original evidence, review timestamps and expiry dates, and leaves expired sources paused, non-runnable and non-public with public listing disabled. The runtime authorization guard is unchanged; this exception grants no source-rights renewal, provider entitlement or activation. Original SQL remains preserved in Git history.
+
+**Production boundary:** do not apply or replay these repaired historical SQL bodies against production, run a production `supabase db push`/reset for this repair, or edit/reconcile the live migration ledger. The observed pre-release mismatch (123 repository files versus 124 live ledger entries; 16 repository-only and 17 live-only versions) remains a separate unresolved reconciliation task requiring its own review and authorization. Passing clean replay/pgTAP is not proof of live migration parity.
+
+This release is web-code-only: the verified Netlify `main` build runs `npm run build:netlify`, which verifies configuration and builds Next.js without applying SQL. CI replays SQL only in its disposable local stack. Do not use scheduled-function "Run now" actions as part of this read-only production verification; record web artifact/runtime proof separately from existing worker-health debt and any unproven post-deploy scheduled execution. All other migration changes remain subject to the normal forward-only rule.
+
 ## Web build and deployment
 
 Use Node.js 22 LTS. The provider must support a Next.js Node server, dynamic request headers/cookies, proxy execution, and per-request CSP nonces.

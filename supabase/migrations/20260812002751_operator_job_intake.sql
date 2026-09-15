@@ -332,16 +332,24 @@ where eligibility.job_id = job.id
 -- operator submissions retain an authorization attestation, enter moderation,
 -- and remain unpublished until approval. A reachable public URL alone is not
 -- an authorization basis.
+-- Replay preserves the recorded review deadline rather than granting a new
+-- review period. Once expired, the source and its public country policy pause.
+do $$
+declare
+  v_review_due_at constant timestamptz := timestamptz '2027-08-11 00:00:00+00';
+  v_review_current constant boolean := v_review_due_at > statement_timestamp();
+begin
 update app.job_sources
 set status = 'paused',
-    policy_state = 'enabled',
+    policy_state = case when v_review_current then 'enabled'::app.source_policy_state else 'expired'::app.source_policy_state end,
+    allow_public_listing = v_review_current,
     authority = 'direct_employer',
     allowed_fields = array[
       'title', 'company', 'description', 'application_url', 'location',
       'source_url', 'work_arrangement', 'eligibility', 'salary', 'deadline',
       'valid_through', 'employment_type', 'engagement_type'
     ],
-    policy_review_due_at = timestamptz '2027-08-11 00:00:00+00',
+    policy_review_due_at = v_review_due_at,
     terms_reviewed_at = timestamptz '2026-08-11 00:00:00+00',
     authorization_reviewed_at = null,
     authorization_reviewed_by = null,
@@ -367,7 +375,7 @@ set authorization_basis = 'first_party',
 where adapter_key = 'salarypadi_employer_submissions';
 
 update app.job_sources
-set status = 'active'
+set status = case when v_review_current then 'active'::app.source_status else 'paused'::app.source_status end
 where adapter_key = 'salarypadi_employer_submissions';
 
 -- The submission channel is currently launched for Nigeria. Refresh that
@@ -380,7 +388,7 @@ insert into app.source_country_rights (
   minimum_poll_interval, retention_period, allow_public_display,
   allow_search_index, allow_google_jobposting, missing_dependencies, revoked_at
 )
-select source.id, 'NG', 'enabled'::app.source_policy_state,
+select source.id, 'NG', source.policy_state,
   source.authorization_basis, source.authorization_evidence_ref,
   source.terms_url, source.authorization_reviewed_at,
   source.policy_review_due_at, source.allowed_fields,
@@ -409,6 +417,8 @@ set policy_state = excluded.policy_state,
     allow_google_jobposting = excluded.allow_google_jobposting,
     missing_dependencies = excluded.missing_dependencies,
     revoked_at = null;
+end
+$$;
 
 -- The direct-salary trigger records the disclosed numbers. Attach the retained
 -- source reference after that trigger runs so the row is evidence-bearing,
