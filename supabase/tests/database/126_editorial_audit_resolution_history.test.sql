@@ -18,7 +18,7 @@ insert into editorial.articles (
   id, slug, title, description, article_kind, body_markdown,
   status, deterministic, next_review_at
 ) values (
-  '00000000-0000-4000-8000-000000000127', 'editorial-audit-history-test',
+  '00000000-0000-4000-8000-000000000127', 'active-job-deadline-snapshot',
   'Synthetic audit history fixture', 'Local regression fixture', 'data_brief',
   'Previous snapshot', 'update_required', true, clock_timestamp() - interval '1 day'
 );
