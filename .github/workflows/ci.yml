@@ -16,6 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  NODE_OPTIONS: "--experimental-require-module"
   NEXT_PUBLIC_APP_URL: https://salarypadi.test
   REMOTIVE_SOURCE_ENABLED: "false"
   ALLOW_DEMO_DATA: "false"
@@ -54,6 +55,9 @@ jobs:
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+
+      - name: Verify native worker dependencies
+        run: npm run verify:worker-dependencies
 
       - name: Build production application
         run: npm run build
