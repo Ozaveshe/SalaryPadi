@@ -16,7 +16,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_OPTIONS: "--experimental-require-module"
   NEXT_PUBLIC_APP_URL: https://salarypadi.test
   REMOTIVE_SOURCE_ENABLED: "false"
   ALLOW_DEMO_DATA: "false"

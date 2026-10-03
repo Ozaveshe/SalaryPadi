@@ -16,6 +16,7 @@ const eslintConfig = defineConfig([
     "**/coverage/**",
     "**/out/**",
     "**/build/**",
+    "src/lib/jobs/generated/sanitize-html.cjs",
     "**/next-env.d.ts",
     // Transient cache directories Next.js leaves behind mid-build; they can
     // disappear while ESLint is walking them and crash the run with ENOENT.

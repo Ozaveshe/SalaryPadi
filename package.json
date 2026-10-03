@@ -6,6 +6,8 @@
     "node": "22.x"
   },
   "scripts": {
+    "postinstall": "node scripts/build-sanitizer.mjs",
+    "build:sanitizer": "node scripts/build-sanitizer.mjs",
     "dev": "next dev",
     "build": "next build --webpack",
     "build:netlify": "npm run deploy:verify && npm run verify:worker-dependencies && npm run build",
@@ -58,6 +60,7 @@
     "@types/react-dom": "^19",
     "@types/sanitize-html": "^2.16.1",
     "@vitest/coverage-v8": "^4.1.10",
+    "esbuild": "0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "pg": "^8.22.0",
