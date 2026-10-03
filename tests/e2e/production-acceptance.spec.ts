@@ -238,13 +238,14 @@ test("a real job detail is live and customer-ready", async ({ page }) => {
     page.getByRole("link", { name: /Open original source/i }).first(),
   ).toBeVisible();
 
-  // Absent sections are omitted, never rendered as empty scaffolding.
-  for (const heading of ["Requirements", "Benefits"]) {
-    const section = page.getByRole("heading", { name: heading, exact: true });
+  // Only dedicated sections are optional; source descriptions may contain
+  // headings with the same names. Populated lists are valid content too.
+  for (const headingId of ["requirements-heading", "benefits-heading"]) {
+    const section = page.locator(`section[aria-labelledby="${headingId}"]`);
     if ((await section.count()) > 0) {
       await expect(
-        page.locator(`section:has(h2:text-is("${heading}")) p`).first(),
-      ).not.toBeEmpty();
+        section.locator(".job-description p, .job-description li").first(),
+      ).toContainText(/\S/);
     }
   }
   // No zero-value company-intelligence rows.
