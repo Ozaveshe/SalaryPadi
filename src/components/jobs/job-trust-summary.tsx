@@ -217,8 +217,8 @@ export function JobTrustSummary({
       {remoteEligibilityUncertain ? (
         <p className="truth-caution">
           <CircleAlert aria-hidden="true" size={17} />
-          Generic remote wording is not proof that applicants in Nigeria can
-          apply. Check the original posting before investing time.
+          Generic remote wording does not confirm which countries applicants can
+          work from. Check the original posting before investing time.
         </p>
       ) : null}
       <details className="trust-drawer">

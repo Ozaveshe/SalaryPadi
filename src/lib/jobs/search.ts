@@ -450,7 +450,9 @@ export function filterAndSortJobs(
     );
   }
 
-  if (options?.evidenceRanking) {
+  // The current evidence ranker scores Nigeria eligibility; it must not
+  // penalize other African countries on the continent-wide path.
+  if (options?.evidenceRanking && search.path !== "remote_africa") {
     return rankByEvidence(filtered, search, now);
   }
 
@@ -459,7 +461,9 @@ export function filterAndSortJobs(
       relevanceScore(b, search) - relevanceScore(a, search);
     return (
       scoreDifference ||
-      nigeriaValueTier(b) - nigeriaValueTier(a) ||
+      (search.path === "remote_africa"
+        ? 0
+        : nigeriaValueTier(b) - nigeriaValueTier(a)) ||
       Date.parse(b.postedAt) - Date.parse(a.postedAt)
     );
   });

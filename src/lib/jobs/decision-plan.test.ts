@@ -201,3 +201,23 @@ describe("job decision plan", () => {
     expect(html).toContain("1 check before applying");
   });
 });
+
+it("asks African applicants to confirm their own country instead of treating Nigeria exclusion as personal ineligibility", () => {
+  const source = job();
+  const plan = buildJobDecisionPlan(
+    job({
+      eligibility: {
+        ...source.eligibility,
+        scope: "named_countries",
+        nigeria: "not_eligible",
+        includedCountries: ["Kenya"],
+        evidenceText: "Applicants in Kenya can apply.",
+      },
+    }),
+    NOW,
+    "africa",
+  );
+  expect(plan.checks[0].label).toBe("Confirm eligibility for your country");
+  expect(plan.checks[0].detail).toContain("Kenya");
+  expect(plan.checks[0].detail).not.toContain("Nigeria");
+});

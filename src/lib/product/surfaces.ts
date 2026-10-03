@@ -38,6 +38,12 @@ export const PRODUCT_SURFACES: readonly ProductSurface[] = [
     href: "/jobs",
     summary: "Roles you can actually apply for, with the evidence shown.",
     links: [
+      {
+        href: "/jobs?path=remote_africa",
+        label: "Remote jobs open in Africa",
+        description:
+          "Country restrictions and source evidence shown for each role.",
+      },
       { href: "/jobs", label: "Search all jobs" },
       {
         href: "/jobs/nigeria",

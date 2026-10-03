@@ -213,7 +213,7 @@ describe("prohibited public labels regression", () => {
     );
 
     expect(html).toContain(
-      "Generic remote wording is not proof that applicants in Nigeria can apply",
+      "Generic remote wording does not confirm which countries applicants can work from",
     );
     for (const label of PROHIBITED_PUBLIC_LABELS) {
       expect(html).not.toContain(label);

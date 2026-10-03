@@ -46,6 +46,7 @@ function eligibilityBasis(job: Job): string | null {
 
 export function JobCard({
   job,
+  eligibilityAudience = "nigeria",
   match,
   nairaEstimate,
   quickViewable = false,
@@ -57,6 +58,7 @@ export function JobCard({
   returnTo = "/jobs",
 }: {
   job: Job;
+  eligibilityAudience?: "nigeria" | "africa";
   /** Present only for a signed-in viewer who has saved a match profile. */
   match?: MatchResult;
   /** Estimated monthly naira take-home for the disclosed salary, if computable. */
@@ -89,14 +91,21 @@ export function JobCard({
   returnTo?: string;
 }) {
   const evidence = getJobEvidenceLabels(job).slice(0, quickViewable ? 2 : 5);
-  const eligibilityStatement = publicEligibilityStatement(job);
+  const eligibilityStatement = publicEligibilityStatement(
+    job,
+    eligibilityAudience,
+  );
   const eligibilityEvidence = eligibilityBasis(job);
   const location = publicLocation(job);
   const workMode = publicEnum(job.workMode);
   const employmentType = publicEnum(job.employmentType);
   const seniority = publicEnum(job.experienceLevel);
   const postingAge = jobPostingAge(job);
-  const decisionPlan = buildJobDecisionPlan(job);
+  const decisionPlan = buildJobDecisionPlan(
+    job,
+    new Date(),
+    eligibilityAudience,
+  );
   const description = jobDescriptionExcerpt(publicJobDescriptionView(job).text);
   const privateStateUnavailable =
     signedIn &&

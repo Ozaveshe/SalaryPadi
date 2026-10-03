@@ -22,7 +22,21 @@ export interface JobDecisionPlan {
   primary: JobDecisionCheck | null;
 }
 
-function eligibilityCheck(job: Job): JobDecisionCheck {
+function eligibilityCheck(
+  job: Job,
+  audience: "nigeria" | "africa",
+): JobDecisionCheck {
+  if (audience === "africa") {
+    return {
+      id: "eligibility",
+      state: "check",
+      label: "Confirm eligibility for your country",
+      detail: job.eligibility.evidenceText.trim()
+        ? `${job.eligibility.evidenceText.trim()} Check that your country of residence is included and review any exclusions or work-authorization requirements.`
+        : "Remote wording alone does not confirm where you can work from. Check your country against the original posting.",
+      action: "source",
+    };
+  }
   if (job.eligibility.nigeria === "not_eligible") {
     return {
       id: "eligibility",
@@ -179,9 +193,10 @@ function payCheck(job: Job): JobDecisionCheck {
 export function buildJobDecisionPlan(
   job: Job,
   now = new Date(),
+  audience: "nigeria" | "africa" = "nigeria",
 ): JobDecisionPlan {
   const checks = [
-    eligibilityCheck(job),
+    eligibilityCheck(job, audience),
     safetyCheck(job),
     freshnessCheck(job, now),
     descriptionCheck(job),

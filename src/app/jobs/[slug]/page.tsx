@@ -230,7 +230,7 @@ export default async function JobDetailPage({
           </div>
         </div>
         {(() => {
-          const statement = publicEligibilityStatement(job);
+          const statement = publicEligibilityStatement(job, "africa");
           return statement ? (
             <p className="m-0">
               <span
@@ -350,7 +350,7 @@ export default async function JobDetailPage({
       <TrackView event="job_view" />
       {reported === "true" ? <TrackView event="content_reported" /> : null}
       <JobTrustSummary job={job} nairaEstimate={nairaEstimate} />
-      <JobDecisionReadiness job={job} />
+      <JobDecisionReadiness job={job} eligibilityAudience="africa" />
       <nav className="decision-path" aria-label="Continue this job decision">
         <div>
           <p className="eyebrow">Continue your decision</p>

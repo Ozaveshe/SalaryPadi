@@ -134,7 +134,10 @@ async function JobResultsSection({
    * component, which reassembles the live feed from every reviewed source.
    */
   const splitEntries = result.items.map((job) => {
-    const nairaEstimate = estimateNairaTakeHome(job.salary, currencyRates);
+    const nairaEstimate =
+      search.path === "remote_africa"
+        ? null
+        : estimateNairaTakeHome(job.salary, currencyRates);
     return {
       slug: job.slug,
       card: (
@@ -144,6 +147,9 @@ async function JobResultsSection({
             matchProfile
               ? scoreJobMatch(matchProfile, toJobFacts(job))
               : undefined
+          }
+          eligibilityAudience={
+            search.path === "remote_africa" ? "africa" : "nigeria"
           }
           nairaEstimate={nairaEstimate}
           quickViewable
@@ -155,7 +161,15 @@ async function JobResultsSection({
           returnTo={returnTo}
         />
       ),
-      preview: <JobPreviewPanel job={job} nairaEstimate={nairaEstimate} />,
+      preview: (
+        <JobPreviewPanel
+          job={job}
+          nairaEstimate={nairaEstimate}
+          eligibilityAudience={
+            search.path === "remote_africa" ? "africa" : "nigeria"
+          }
+        />
+      ),
     };
   });
   const feedIsConclusive = feed.state === "live";
@@ -245,7 +259,7 @@ async function JobResultsSection({
                 ? "One or more reviewed sources are unavailable or disabled. This is not evidence that no suitable jobs exist."
                 : feed.jobs.length === 0
                   ? "The source status above is the current state of the feed, not confirmation that suitable jobs do not exist elsewhere. SalaryPadi will not publish placeholder vacancies."
-                  : "Try fewer filters or include unclear eligibility. SalaryPadi will not relabel a generic remote vacancy as Nigeria-eligible just to fill this list."}
+                  : "Try fewer filters or include unclear eligibility. Generic remote wording alone does not confirm country eligibility."}
             </p>
             <div className="cluster mt-4">
               <Link
@@ -322,7 +336,7 @@ export function JobsExperience({
             search.path === "remote_nigeria",
           ],
           [
-            "Remote: Africa eligible",
+            "Remote: open in Africa",
             "/jobs?path=remote_africa",
             search.path === "remote_africa",
           ],

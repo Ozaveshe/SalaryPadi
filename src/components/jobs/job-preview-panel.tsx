@@ -32,12 +32,14 @@ import {
  */
 export function JobPreviewPanel({
   job,
+  eligibilityAudience = "nigeria",
   nairaEstimate = null,
 }: {
   job: Job;
+  eligibilityAudience?: "nigeria" | "africa";
   nairaEstimate?: NairaTakeHomeEstimate | null;
 }) {
-  const statement = publicEligibilityStatement(job);
+  const statement = publicEligibilityStatement(job, eligibilityAudience);
   const postingAge = jobPostingAge(job);
   const evidence = getJobEvidenceLabels(job).slice(0, 6);
   const description = publicJobDescriptionView(job);
@@ -99,8 +101,8 @@ export function JobPreviewPanel({
         {remoteEligibilityUnconfirmed(job) ? (
           <p className="truth-caution m-0">
             <CircleAlert aria-hidden="true" size={17} />
-            Generic remote wording is not proof that applicants in Nigeria can
-            apply. Check the original posting before investing time.
+            Generic remote wording does not confirm which countries applicants
+            can work from. Check the original posting before investing time.
           </p>
         ) : null}
         <JobQuickFacts job={job} nairaEstimate={nairaEstimate} />
@@ -114,7 +116,11 @@ export function JobPreviewPanel({
             ))}
           </ul>
         ) : null}
-        <JobDecisionReadiness job={job} variant="compact" />
+        <JobDecisionReadiness
+          job={job}
+          variant="compact"
+          eligibilityAudience={eligibilityAudience}
+        />
         {excerpt ? <p className="job-preview-excerpt">{excerpt}</p> : null}
       </div>
 
