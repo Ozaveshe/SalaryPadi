@@ -26,14 +26,11 @@ The ten named-country remote roles collectively name African countries including
 
 The earlier health endpoint labels its 265-row catalogue count `visible_remote_jobs`; it must not be treated as an audited remote-only figure. Homepage coverage in this change uses the actual work mode, eligibility and publication predicates.
 
-## Next delivery priorities
+## Next implementation
 
-1. Audit live remote supply by named country, region, worldwide scope, evidence age and employer concentration. A continent total is not country-level coverage proof.
-2. Add applicant-country filtering consistently across search, saved searches and alert delivery. Include exclusions and uncertain regional evidence; do not use workplace text as applicant eligibility.
-3. Make recommendations and all eligibility checks respect that applicant-country context throughout the journey.
-4. Expand licensed or employer-authorized sources where the coverage audit shows gaps. Track first-party employer confirmations separately from source wording.
-5. Verify live save, application, alert delivery and provider-dependent tools. Diagnose the editorial worker failure separately from remote-job availability.
-6. Validate with applicants in several African countries. Measure useful applications and self-reported interviews, plus freshness, destination failures and country-filter empty results.
+The next release adds applicant-country selection and carries the same eligibility decision through discovery, recommendations and alerts. The ordered work, source rules, acceptance criteria and release checks are in [Africa remote implementation and next steps](AFRICA_REMOTE_IMPLEMENTATION_PLAN.md).
+
+Start with AR-01 (shared country eligibility), AR-02 (country-aware discovery) and AR-03 (country-aware alerts). Refresh country coverage before selecting source expansions. All existing product surfaces remain part of the journey.
 
 ## Release evidence
 
