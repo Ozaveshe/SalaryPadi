@@ -41,19 +41,30 @@ function SalaryRangeBar({
       role="img"
       aria-label={`25th percentile ${approximateAmount(percentile25, currency)}, median ${approximateAmount(median, currency)}, 75th percentile ${approximateAmount(percentile75, currency)}, annualised`}
     >
-      <div className="salary-range-track">
-        <div
+      <svg
+        className="salary-range-track"
+        viewBox="0 0 100 10"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <rect
           className="salary-range-fill"
-          style={{
-            left: toPercent(percentile25),
-            width: toPercent(percentile75 - percentile25),
-          }}
+          x={toPercent(percentile25)}
+          y="0"
+          width={toPercent(percentile75 - percentile25)}
+          height="10"
+          rx="5"
         />
-        <div
+        <line
           className="salary-range-median"
-          style={{ left: toPercent(median) }}
+          x1={toPercent(median)}
+          x2={toPercent(median)}
+          y1="-3.6"
+          y2="13.6"
+          vectorEffect="non-scaling-stroke"
         />
-      </div>
+      </svg>
       <div className="salary-range-labels" aria-hidden="true">
         <span>p25 {approximateAmount(percentile25, currency)}</span>
         <span>p75 {approximateAmount(percentile75, currency)}</span>
