@@ -2992,7 +2992,9 @@ a:hover {
   }
 
   .home-search {
-    grid-template-columns: minmax(13rem, 1.45fr) minmax(14rem, 1fr) auto;
+    grid-template-columns:
+      minmax(12rem, 1.45fr) minmax(10rem, 1fr) minmax(13rem, 1fr)
+      auto;
     align-items: end;
     padding: 1.25rem;
   }

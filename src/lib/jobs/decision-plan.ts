@@ -2,6 +2,7 @@ import { classifyDestination } from "@/lib/canonical/application-destination";
 import { publicJobDescriptionView } from "@/lib/jobs/description-excerpt";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
 import type { Job } from "@/lib/jobs/types";
+import { countryEligibility } from "@/lib/jobs/country-eligibility";
 import { publicLocation } from "@/lib/presentation/public-field";
 
 export type JobDecisionState = "ready" | "check" | "optional";
@@ -22,7 +23,37 @@ export interface JobDecisionPlan {
   primary: JobDecisionCheck | null;
 }
 
-function eligibilityCheck(job: Job): JobDecisionCheck {
+function eligibilityCheck(
+  job: Job,
+  audience: "nigeria" | "africa",
+  applicantCountry?: string,
+): JobDecisionCheck {
+  if (applicantCountry) {
+    const result = countryEligibility(job.eligibility, applicantCountry);
+    return {
+      id: "eligibility",
+      state: result.state === "eligible" ? "ready" : "check",
+      label:
+        result.state === "eligible"
+          ? "Your country is supported by the source"
+          : result.state === "not_eligible"
+            ? "Your country is outside the stated hiring locations"
+            : "Your country needs confirmation",
+      detail: `${result.explanation} Work authorization and required working hours are separate checks.`,
+      action: "source",
+    };
+  }
+  if (audience === "africa") {
+    return {
+      id: "eligibility",
+      state: "check",
+      label: "Confirm eligibility for your country",
+      detail: job.eligibility.evidenceText.trim()
+        ? `${job.eligibility.evidenceText.trim()} Check that your country of residence is included and review any exclusions or work-authorization requirements.`
+        : "Remote wording alone does not confirm where you can work from. Check your country against the original posting.",
+      action: "source",
+    };
+  }
   if (job.eligibility.nigeria === "not_eligible") {
     return {
       id: "eligibility",
@@ -179,9 +210,11 @@ function payCheck(job: Job): JobDecisionCheck {
 export function buildJobDecisionPlan(
   job: Job,
   now = new Date(),
+  audience: "nigeria" | "africa" = "nigeria",
+  applicantCountry?: string,
 ): JobDecisionPlan {
   const checks = [
-    eligibilityCheck(job),
+    eligibilityCheck(job, audience, applicantCountry),
     safetyCheck(job),
     freshnessCheck(job, now),
     descriptionCheck(job),

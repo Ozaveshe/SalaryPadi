@@ -227,3 +227,33 @@ describe("alert update route", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });
+
+describe("country alert editing", () => {
+  it("changes the country without dropping the stored search path", async () => {
+    const response = await POST(
+      alertRequest({
+        intent: "edit",
+        id: alertId,
+        keyword: "engineer",
+        location: "",
+        eligibility: "all",
+        applicantCountry: "GH",
+        cadence: "daily",
+        search_query: JSON.stringify({
+          applicantCountry: "KE",
+          path: "remote_africa",
+        }),
+      }),
+    );
+    expect(response.status).toBe(303);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "update_job_alert",
+      expect.objectContaining({
+        alert_query: expect.objectContaining({
+          applicantCountry: "GH",
+          path: "remote_africa",
+        }),
+      }),
+    );
+  });
+});

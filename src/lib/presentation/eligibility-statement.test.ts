@@ -148,3 +148,51 @@ describe("statement and ranking agree", () => {
     }
   });
 });
+
+describe("Africa search eligibility statements", () => {
+  it("names eligible countries without centring Nigeria or claiming continent-wide access", () => {
+    expect(
+      publicEligibilityStatement(
+        remoteJob({
+          scope: "named_countries",
+          africa: "eligible",
+          nigeria: "not_eligible",
+          includedCountries: ["Kenya", "Ghana"],
+        }),
+        "africa",
+      ),
+    ).toBe("Open to applicants in Kenya, Ghana");
+  });
+  it("preserves exclusions for worldwide and Africa-wide roles", () => {
+    for (const scope of ["africa", "worldwide"] as const) {
+      const statement = publicEligibilityStatement(
+        remoteJob({
+          scope,
+          africa: "eligible",
+          excludedCountries: ["South Africa"],
+        }),
+        "africa",
+      )!;
+      expect(statement).toContain("; excludes South Africa");
+      expect(eligibilityStatementTone(statement)).toBe("neutral");
+    }
+  });
+  it("does not turn regional or generic remote wording into country confirmation", () => {
+    expect(
+      publicEligibilityStatement(remoteJob({ scope: "emea" }), "africa"),
+    ).toContain("check country requirements");
+    expect(publicEligibilityStatement(remoteJob({}), "africa")).toBeNull();
+  });
+  it("removes excluded countries from a named-country statement", () => {
+    expect(
+      publicEligibilityStatement(
+        remoteJob({
+          scope: "named_countries",
+          includedCountries: ["Kenya", "Ghana"],
+          excludedCountries: ["Ghana"],
+        }),
+        "africa",
+      ),
+    ).toBe("Open to applicants in Kenya; excludes Ghana");
+  });
+});

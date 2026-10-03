@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import { annualizedSalaryMinimum } from "./normalize";
+import { countryEligibility } from "./country-eligibility";
+import { isAfricanCountryCode } from "./eligibility";
 import { nigeriaEligibilityBasis } from "./eligibility";
 import { hasJobEvidence, type AfricaEvidenceKey } from "./evidence";
 import { isJobCurrentlyPublishable } from "./publication";
@@ -28,7 +30,22 @@ export const jobSearchEligibilitySchema = z.enum([
   "all",
 ]);
 
+export const applicantCountrySchema = z.preprocess(
+  (value) => {
+    const scalar = Array.isArray(value) ? value[0] : value;
+    return typeof scalar === "string" ? scalar.trim().toUpperCase() : scalar;
+  },
+  z
+    .string()
+    .refine(
+      (value) => value === "" || isAfricanCountryCode(value),
+      "Choose an African country",
+    )
+    .default(""),
+);
+
 export const jobSearchSchema = z.object({
+  applicantCountry: applicantCountrySchema,
   q: stringValue.default(""),
   company: stringValue.default(""),
   location: stringValue.default(""),
@@ -311,6 +328,17 @@ export function filterAndSortJobs(
   const nowValue = now.valueOf();
   const filtered = jobs.filter((job) => {
     if (!isJobCurrentlyPublishable(job, now)) return false;
+    if (search.applicantCountry) {
+      const decision = countryEligibility(
+        job.eligibility,
+        search.applicantCountry,
+      );
+      if (
+        decision.state !==
+        (search.eligibility === "unclear" ? "unclear" : "eligible")
+      )
+        return false;
+    }
     if (search.q && relevanceScore(job, search) === 0) return false;
     if (search.company && !includesValue(job.company.name, search.company))
       return false;
@@ -331,7 +359,8 @@ export function filterAndSortJobs(
       return false;
     if (
       search.path === "remote_africa" &&
-      (job.workMode !== "remote" || job.eligibility.africa !== "eligible")
+      (job.workMode !== "remote" ||
+        (!search.applicantCountry && job.eligibility.africa !== "eligible"))
     )
       return false;
     // "Nigeria explicitly eligible" means the source named Nigeria (or a
@@ -367,6 +396,7 @@ export function filterAndSortJobs(
       return false;
     if (
       search.eligibility === "unclear" &&
+      !search.applicantCountry &&
       job.eligibility.nigeria !== "unclear"
     )
       return false;
@@ -450,7 +480,13 @@ export function filterAndSortJobs(
     );
   }
 
-  if (options?.evidenceRanking) {
+  // The current evidence ranker scores Nigeria eligibility; it must not
+  // penalize other African countries on the continent-wide path.
+  if (
+    options?.evidenceRanking &&
+    search.path !== "remote_africa" &&
+    !search.applicantCountry
+  ) {
     return rankByEvidence(filtered, search, now);
   }
 
@@ -459,7 +495,9 @@ export function filterAndSortJobs(
       relevanceScore(b, search) - relevanceScore(a, search);
     return (
       scoreDifference ||
-      nigeriaValueTier(b) - nigeriaValueTier(a) ||
+      (search.path === "remote_africa" || search.applicantCountry
+        ? 0
+        : nigeriaValueTier(b) - nigeriaValueTier(a)) ||
       Date.parse(b.postedAt) - Date.parse(a.postedAt)
     );
   });
@@ -576,6 +614,7 @@ export function paginateJobs(jobs: Job[], page: number, pageSize = 10) {
 export function serializeJobSearch(search: JobSearch) {
   const parameters = new URLSearchParams();
   const values: Record<string, string | number | boolean | undefined> = {
+    applicantCountry: search.applicantCountry || undefined,
     q: search.q || undefined,
     company: search.company || undefined,
     location: search.location || undefined,

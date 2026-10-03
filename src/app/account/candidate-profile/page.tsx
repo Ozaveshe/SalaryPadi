@@ -1,3 +1,7 @@
+import {
+  AFRICAN_APPLICANT_COUNTRIES,
+  countryNameFromCode,
+} from "@/lib/jobs/eligibility";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -256,18 +260,31 @@ export default async function CandidateProfilePage({
                     <label htmlFor="location_country">
                       Country you live in
                     </label>
-                    <input
-                      className="input"
+                    <select
+                      className="select"
                       defaultValue={proposed.locationCountry}
                       id="location_country"
-                      maxLength={2}
                       name="location_country"
-                      placeholder="NG"
-                      type="text"
-                    />
+                    >
+                      <option value="">Choose your country</option>
+                      {proposed.locationCountry &&
+                      !AFRICAN_APPLICANT_COUNTRIES.some(
+                        (country) => country.code === proposed.locationCountry,
+                      ) ? (
+                        <option value={proposed.locationCountry}>
+                          {countryNameFromCode(proposed.locationCountry)}
+                        </option>
+                      ) : null}
+                      {AFRICAN_APPLICANT_COUNTRIES.map((country) => (
+                        <option key={country.code} value={country.code}>
+                          {country.name}
+                        </option>
+                      ))}
+                    </select>
                     <p className="field-help">
-                      Optional. A two-letter country code, for example NG.
-                      Compared against who each posting says it can hire.
+                      Optional. Choose the country you work from. Remote
+                      recommendations use the source’s hiring locations for this
+                      country. Work authorization is checked separately.
                     </p>
                   </div>
                 </div>

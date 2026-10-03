@@ -3,6 +3,11 @@ import {
   jobAlertSearchSpecSchema,
   parseJobSearch,
 } from "../../../src/lib/jobs/search";
+import {
+  countryEligibility,
+  jobCountryUrl,
+} from "../../../src/lib/jobs/country-eligibility";
+import { countryNameFromCode } from "../../../src/lib/jobs/eligibility";
 import type { Job } from "../../../src/lib/jobs/types";
 import { z } from "zod";
 
@@ -44,6 +49,9 @@ export function matchAlertJobs(
   now = new Date(),
 ): Job[] {
   const search = parseJobSearch(claim.search_spec);
+  // Confirmation-only searches remain browseable, but never become country alert matches.
+  if (search.applicantCountry && search.eligibility === "unclear")
+    search.eligibility = "all";
   const cadenceWindow = claim.cadence === "weekly" ? 7 : 1;
   const nowValue = now.valueOf();
   const lastSent = claim.last_sent_at ? Date.parse(claim.last_sent_at) : 0;
@@ -74,17 +82,20 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
-export function renderAlertEmail(jobs: Job[]) {
+export function renderAlertEmail(jobs: Job[], applicantCountry?: string) {
   const origin = getRuntimeAppOrigin();
-  const subject = `${jobs.length} new SalaryPadi job ${jobs.length === 1 ? "match" : "matches"}`;
+  const subject = `${jobs.length} new SalaryPadi job ${jobs.length === 1 ? "match" : "matches"}${applicantCountry ? ` for ${countryNameFromCode(applicantCountry)}` : ""}`;
   const rows = jobs.map((job) => {
     const detailUrl = new URL(
-      `/jobs/${encodeURIComponent(job.id)}`,
+      jobCountryUrl(encodeURIComponent(job.id), applicantCountry),
       origin,
     ).toString();
+    const eligibility = applicantCountry
+      ? countryEligibility(job.eligibility, applicantCountry).explanation
+      : "Check country eligibility on the source.";
     return {
-      text: `${job.title} at ${job.company.name} - ${job.locationDisplay}\n${detailUrl}`,
-      html: `<li style="margin:0 0 16px"><strong>${escapeHtml(job.title)}</strong><br>${escapeHtml(job.company.name)} - ${escapeHtml(job.locationDisplay)}<br><a href="${escapeHtml(detailUrl)}">Check eligibility and source evidence</a></li>`,
+      text: `${job.title} at ${job.company.name} - ${job.locationDisplay}\n${eligibility}\n${detailUrl}`,
+      html: `<li style="margin:0 0 16px"><strong>${escapeHtml(job.title)}</strong><br>${escapeHtml(job.company.name)} - ${escapeHtml(job.locationDisplay)}<br>${escapeHtml(eligibility)}<br><a href="${escapeHtml(detailUrl)}">Check eligibility and source evidence</a></li>`,
     };
   });
   const alertsUrl = new URL("/alerts", origin).toString();

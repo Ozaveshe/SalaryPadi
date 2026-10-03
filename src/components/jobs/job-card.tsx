@@ -19,6 +19,7 @@ import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
 import type { Job } from "@/lib/jobs/types";
+import { jobCountryUrl } from "@/lib/jobs/country-eligibility";
 import type { RepositoryReadState } from "@/lib/data/repository-result";
 import type { MatchResult } from "@/lib/match/types";
 import {
@@ -46,6 +47,8 @@ function eligibilityBasis(job: Job): string | null {
 
 export function JobCard({
   job,
+  eligibilityAudience = "nigeria",
+  applicantCountry,
   match,
   nairaEstimate,
   quickViewable = false,
@@ -57,6 +60,8 @@ export function JobCard({
   returnTo = "/jobs",
 }: {
   job: Job;
+  eligibilityAudience?: "nigeria" | "africa";
+  applicantCountry?: string;
   /** Present only for a signed-in viewer who has saved a match profile. */
   match?: MatchResult;
   /** Estimated monthly naira take-home for the disclosed salary, if computable. */
@@ -89,14 +94,23 @@ export function JobCard({
   returnTo?: string;
 }) {
   const evidence = getJobEvidenceLabels(job).slice(0, quickViewable ? 2 : 5);
-  const eligibilityStatement = publicEligibilityStatement(job);
+  const eligibilityStatement = publicEligibilityStatement(
+    job,
+    eligibilityAudience,
+    applicantCountry,
+  );
   const eligibilityEvidence = eligibilityBasis(job);
   const location = publicLocation(job);
   const workMode = publicEnum(job.workMode);
   const employmentType = publicEnum(job.employmentType);
   const seniority = publicEnum(job.experienceLevel);
   const postingAge = jobPostingAge(job);
-  const decisionPlan = buildJobDecisionPlan(job);
+  const decisionPlan = buildJobDecisionPlan(
+    job,
+    new Date(),
+    eligibilityAudience,
+    applicantCountry,
+  );
   const description = jobDescriptionExcerpt(publicJobDescriptionView(job).text);
   const privateStateUnavailable =
     signedIn &&
@@ -124,7 +138,9 @@ export function JobCard({
               </Link>
             </p>
             <h2 className="job-title">
-              <Link href={`/jobs/${job.slug}`}>{job.title}</Link>
+              <Link href={jobCountryUrl(job.slug, applicantCountry)}>
+                {job.title}
+              </Link>
             </h2>
           </div>
         </div>
@@ -288,7 +304,10 @@ export function JobCard({
                 Quick view
               </button>
             ) : null}
-            <Link className="text-link" href={`/jobs/${job.slug}`}>
+            <Link
+              className="text-link"
+              href={jobCountryUrl(job.slug, applicantCountry)}
+            >
               View role and apply
             </Link>
           </div>

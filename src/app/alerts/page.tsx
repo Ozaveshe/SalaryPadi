@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { ApplicantCountrySelect } from "@/components/jobs/applicant-country-select";
+import { countryNameFromCode } from "@/lib/jobs/eligibility";
 import { BrandArt } from "@/components/media/brand-art";
 import { CompanyEvidenceInvitation } from "@/components/companies/company-evidence-invitation";
 import { PrivateDataStatus } from "@/components/private-data-status";
@@ -72,7 +74,10 @@ export default async function AlertsPage({
   };
   const prefill = parseJobSearch({
     ...input,
-    eligibility: input.eligibility ?? "nigeria_open",
+    eligibility:
+      input.applicantCountry && input.eligibility === "unclear"
+        ? "all"
+        : (input.eligibility ?? "all"),
   });
   const returnParameters = serializeJobSearch(prefill);
   await requireViewer(`/alerts?${returnParameters.toString()}`);
@@ -101,6 +106,10 @@ export default async function AlertsPage({
             type="hidden"
             name="search_query"
             value={JSON.stringify(prefill)}
+          />
+          <ApplicantCountrySelect
+            id="alert-country"
+            defaultValue={prefill.applicantCountry}
           />
           <div className="field">
             <label htmlFor="keyword">Role or skill</label>
@@ -156,7 +165,9 @@ export default async function AlertsPage({
           </button>
           <p className="field-help m-0">
             All filters from the jobs URL are retained. The primary role,
-            location and eligibility fields can be adjusted here.
+            location and eligibility fields can be adjusted here. When you
+            choose a country, emails include only roles supported for that
+            country; roles needing country confirmation are excluded.
           </p>
         </form>
 
@@ -181,8 +192,10 @@ export default async function AlertsPage({
                           {search.q || "Any role"}
                         </h3>
                         <p className="text-muted m-0 text-sm">
-                          {search.location || "Any location"} ·{" "}
-                          {formatEnum(search.eligibility)} · {alert.cadence} ·
+                          {search.applicantCountry
+                            ? `Working from ${countryNameFromCode(search.applicantCountry)}`
+                            : search.location || "Any location"}{" "}
+                          · {formatEnum(search.eligibility)} · {alert.cadence} ·
                           created {formatDate(alert.created_at)}
                         </p>
                       </div>
@@ -228,6 +241,10 @@ export default async function AlertsPage({
                         type="hidden"
                         name="search_query"
                         value={JSON.stringify(search)}
+                      />
+                      <ApplicantCountrySelect
+                        id={`country-${alert.id}`}
+                        defaultValue={search.applicantCountry}
                       />
                       <div className="field">
                         <label htmlFor={`keyword-${alert.id}`}>

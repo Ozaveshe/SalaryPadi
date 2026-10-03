@@ -405,3 +405,70 @@ describe("nigeriaValueTier", () => {
     expect(nigeriaValueTier(emeaRemote)).toBe(1);
   });
 });
+
+describe("Africa remote discovery", () => {
+  const now = new Date("2026-07-10T12:00:00.000Z");
+  const makeJob = (
+    location: string,
+    id: number,
+    posted = base.publication_date,
+  ) =>
+    normalizeRemotiveJob(
+      {
+        ...base,
+        id,
+        candidate_required_location: location,
+        publication_date: posted,
+      },
+      now.toISOString(),
+    );
+  it("includes named African countries, Africa and worldwide but excludes generic remote, foreign-only and onsite work", () => {
+    const kenya = makeJob("Kenya", 101);
+    const ghana = makeJob("Ghana", 102);
+    const africa = makeJob("Africa", 103);
+    const worldwide = makeJob("Worldwide", 104);
+    const results = filterAndSortJobs(
+      [
+        kenya,
+        ghana,
+        africa,
+        worldwide,
+        makeJob("Remote", 105),
+        makeJob("United States", 106),
+        { ...kenya, id: "onsite", workMode: "onsite" as const },
+      ],
+      parseJobSearch({ path: "remote_africa" }),
+      now,
+    );
+    expect(results.map((job) => job.id).sort()).toEqual(
+      [kenya, ghana, africa, worldwide].map((job) => job.id).sort(),
+    );
+  });
+  it("does not demote a newer Kenya role below Nigeria, including with evidence ranking enabled", () => {
+    const nigeria = makeJob("Nigeria", 107, "2026-07-08T12:00:00Z");
+    const kenya = makeJob("Kenya", 108);
+    for (const evidenceRanking of [false, true]) {
+      expect(
+        filterAndSortJobs(
+          [nigeria, kenya],
+          parseJobSearch({ path: "remote_africa" }),
+          now,
+          { evidenceRanking },
+        ).map((job) => job.id),
+      ).toEqual([kenya.id, nigeria.id]);
+    }
+    expect(
+      filterAndSortJobs(
+        [nigeria, kenya],
+        parseJobSearch({ path: "remote_nigeria" }),
+        now,
+      ).map((job) => job.id),
+    ).toEqual([nigeria.id]);
+  });
+  it("keeps the Africa path when a search is saved for an alert", () => {
+    const search = parseJobSearch({ path: "remote_africa", q: "support" });
+    expect(
+      jobAlertSearchSpecSchema.parse({ ...search, schema_version: 1 }).path,
+    ).toBe("remote_africa");
+  });
+});

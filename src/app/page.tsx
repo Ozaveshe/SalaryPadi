@@ -13,12 +13,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { ApplicantCountrySelect } from "@/components/jobs/applicant-country-select";
 import { JobCard } from "@/components/jobs/job-card";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
-import { getReferenceCurrencyRates } from "@/lib/currency/repository";
-import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
-import { nigeriaValueTier } from "@/lib/jobs/search";
+import { filterAndSortJobs, parseJobSearch } from "@/lib/jobs/search";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
@@ -44,35 +43,28 @@ const toolLinks = [
 ] as const;
 
 export default async function HomePage() {
-  const [feed, currencyRates] = await Promise.all([
-    getLiveJobFeed(),
-    getReferenceCurrencyRates(),
-  ]);
-  const explicitlyOpenJobs = feed.jobs.filter(
-    (job) =>
-      job.eligibility.nigeria === "eligible" ||
-      job.eligibility.africa === "eligible",
+  const feed = await getLiveJobFeed();
+  const remoteJobs = filterAndSortJobs(
+    feed.jobs,
+    parseJobSearch({ path: "remote_africa", sort: "newest" }),
   );
-  const recentJobs = feed.jobs
-    .toSorted(
-      (a, b) =>
-        nigeriaValueTier(b) - nigeriaValueTier(a) ||
-        Date.parse(b.postedAt) - Date.parse(a.postedAt),
-    )
+  const recentJobs = remoteJobs
     .filter(
       (job, index, sorted) =>
         sorted.findIndex((other) => other.company.slug === job.company.slug) ===
         index,
     )
     .slice(0, 4);
-  const localNigeriaJobs = feed.jobs.filter(
-    (job) => nigeriaValueTier(job) === 3,
+  const countrySpecificJobs = remoteJobs.filter(
+    (job) =>
+      job.eligibility.scope === "named_countries" ||
+      job.eligibility.scope === "nigeria",
   );
   const employerCounts = new Map<
     string,
     { slug: string; name: string; roles: number }
   >();
-  for (const job of feed.jobs) {
+  for (const job of remoteJobs) {
     if (job.source.type !== "employer") continue;
     const existing = employerCounts.get(job.company.slug);
     if (existing) existing.roles += 1;
@@ -118,9 +110,9 @@ export default async function HomePage() {
     feed.state === "unavailable"
       ? null
       : {
-          openToRegion: explicitlyOpenJobs.length,
+          openToRegion: remoteJobs.length,
           checked: feed.jobs.length,
-          inNigeria: localNigeriaJobs.length,
+          countrySpecific: countrySpecificJobs.length,
         };
 
   return (
@@ -143,11 +135,12 @@ export default async function HomePage() {
           </p>
           <p className="eyebrow">Career decisions built for Africans</p>
           <h1 className="page-title" id="home-heading">
-            Fresh jobs Africans can actually apply for.
+            Find remote jobs open to applicants in Africa.
           </h1>
           <p className="lede">
-            Find the role, check the pay and eligibility evidence, inspect the
-            company, then use practical decision tools in one continuous path.
+            Find work-from-home opportunities with country eligibility shown.
+            Check where you can apply from, research the employer, and track
+            your next step.
           </p>
         </div>
 
@@ -169,22 +162,20 @@ export default async function HomePage() {
               spellCheck={false}
             />
           </div>
+          <ApplicantCountrySelect id="home-country" />
           <div className="field">
-            <label htmlFor="home-eligibility">Open to</label>
+            <label htmlFor="home-eligibility">Browse opportunities</label>
             <select
               className="select"
               id="home-eligibility"
-              name="eligibility"
-              defaultValue="nigeria_open"
+              name="path"
+              defaultValue="remote_africa"
             >
-              <option value="nigeria_open">
-                Open to Nigeria (any evidence)
+              <option value="remote_africa">Remote jobs open in Africa</option>
+              <option value="remote_nigeria">
+                Remote jobs open in Nigeria
               </option>
-              <option value="nigeria">Nigeria named by the source</option>
-              <option value="africa">Africa explicitly eligible</option>
-              <option value="worldwide">Worldwide</option>
-              <option value="unclear">Include unclear evidence</option>
-              <option value="all">Any evidence</option>
+              <option value="all">All jobs, including local and hybrid</option>
             </select>
           </div>
           <button className="button" type="submit">
@@ -192,8 +183,9 @@ export default async function HomePage() {
           </button>
           <p className="home-search-trust">
             <ShieldCheck aria-hidden="true" size={16} />
-            Generic “remote” stays unclear. Every visible role must retain its
-            source and last-check date.
+            Africa eligibility may cover specific countries. Check each role’s
+            locations and restrictions; “remote” alone does not confirm
+            eligibility.
           </p>
         </form>
 
@@ -203,7 +195,7 @@ export default async function HomePage() {
           <div className="home-proof-heading">
             <div>
               <p className="eyebrow">What is available now</p>
-              <h2>Current job coverage</h2>
+              <h2>Current remote opportunities</h2>
             </div>
             <DatabaseZap aria-hidden="true" size={25} />
           </div>
@@ -220,17 +212,17 @@ export default async function HomePage() {
                   {coverage.openToRegion.toLocaleString("en-NG")}
                 </span>
                 <span className="home-proof-lead-label">
-                  roles state they are open to Nigeria or Africa
+                  remote roles open in at least one African country
                 </span>
               </p>
               <dl className="home-proof-facts">
                 <div>
-                  <dt>Roles checked</dt>
+                  <dt>Jobs in the full catalogue</dt>
                   <dd>{coverage.checked.toLocaleString("en-NG")}</dd>
                 </div>
                 <div>
-                  <dt>Based in Nigeria</dt>
-                  <dd>{coverage.inNigeria.toLocaleString("en-NG")}</dd>
+                  <dt>Remote roles naming specific countries</dt>
+                  <dd>{coverage.countrySpecific.toLocaleString("en-NG")}</dd>
                 </div>
               </dl>
             </>
@@ -279,14 +271,16 @@ export default async function HomePage() {
         </aside>
 
         <div className="home-entry-grid home-job-paths">
-          <Link href="/jobs?path=remote_nigeria">
-            <strong>Remote jobs open to Nigerians</strong>
-            <span>Requires explicit applicant-location evidence.</span>
+          <Link href="/jobs?path=remote_africa">
+            <strong>Remote jobs open in Africa</strong>
+            <span>
+              See country-specific, regional and worldwide opportunities.
+            </span>
             <ArrowRight aria-hidden="true" size={18} />
           </Link>
-          <Link href="/jobs/nigeria">
-            <strong>Local jobs in Nigeria</strong>
-            <span>Onsite and hybrid roles physically based in Nigeria.</span>
+          <Link href="/jobs">
+            <strong>Explore all jobs</strong>
+            <span>Browse local, hybrid and remote opportunities.</span>
             <ArrowRight aria-hidden="true" size={18} />
           </Link>
         </div>
@@ -370,27 +364,24 @@ export default async function HomePage() {
           <div>
             <p className="eyebrow">Recently source-checked</p>
             <h2 className="section-title" id="recent-heading">
-              Current vacancies
+              Remote opportunities
             </h2>
           </div>
-          <Link className="text-link" href="/jobs">
-            Browse all jobs
+          <Link className="text-link" href="/jobs?path=remote_africa">
+            Browse remote jobs
           </Link>
         </div>
         {recentJobs.length > 0 ? (
           <div className="job-list">
             {recentJobs.map((job) => (
-              <JobCard
-                job={job}
-                key={job.id}
-                nairaEstimate={estimateNairaTakeHome(job.salary, currencyRates)}
-              />
+              <JobCard job={job} eligibilityAudience="africa" key={job.id} />
             ))}
           </div>
         ) : feedIsConclusive ? (
           <div className="notice notice-warning" role="status">
             <strong>
-              No current vacancy has passed the publication checks.
+              No remote opportunity currently meets the Africa eligibility
+              checks.
             </strong>{" "}
             Source status and freshness remain visible while the feed is empty.
             Company research, salary evidence and decision tools are still
@@ -398,7 +389,7 @@ export default async function HomePage() {
           </div>
         ) : (
           <div className="empty-state">
-            <h3>Current vacancies could not be confirmed</h3>
+            <h3>Remote opportunities could not be confirmed</h3>
             <p>See the source-status notice above for the active limitation.</p>
           </div>
         )}

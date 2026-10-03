@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, api, app, private, ingest, security, audit;
-select plan(9);
+select plan(10);
 
 select ok(
   to_regprocedure('security.is_african_country_code(text)') is not null,
@@ -57,6 +57,12 @@ select ok(
     'EXECUTE'
   ),
   'the RLS publication predicate is executable by public reads'
+);
+
+select is(
+  (api.get_job_supply_canary()->>'visible_remote_jobs')::integer,
+  (select count(*)::integer from api.jobs where work_arrangement = 'remote'),
+  'supply count agrees with the public remote catalogue rather than all jobs'
 );
 
 select * from finish();

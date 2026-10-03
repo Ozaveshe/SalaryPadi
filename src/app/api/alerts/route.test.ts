@@ -104,3 +104,50 @@ describe("alert creation route", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
+
+describe("country alert creation", () => {
+  it("retains selected country, canonicalizes confirmation-only alerts, and preserves other filters", async () => {
+    const response = await POST(
+      new Request("https://salarypadi.com/api/alerts", {
+        method: "POST",
+        body: new URLSearchParams({
+          keyword: "engineer",
+          location: "",
+          eligibility: "unclear",
+          applicantCountry: "KE",
+          cadence: "weekly",
+          search_query: JSON.stringify({
+            path: "remote_africa",
+            category: "Software Development",
+          }),
+        }),
+      }),
+    );
+    expect(response.status).toBe(303);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "create_job_alert",
+      expect.objectContaining({
+        alert_query: expect.objectContaining({
+          applicantCountry: "KE",
+          eligibility: "all",
+          path: "remote_africa",
+          category: "Software Development",
+        }),
+      }),
+    );
+  });
+  it("rejects a non-African country instead of broadening the alert", async () => {
+    const response = await POST(
+      new Request("https://salarypadi.com/api/alerts", {
+        method: "POST",
+        body: new URLSearchParams({
+          eligibility: "all",
+          applicantCountry: "US",
+          cadence: "daily",
+        }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});

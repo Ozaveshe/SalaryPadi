@@ -83,11 +83,20 @@ function StateIcon({ state }: { state: JobDecisionCheck["state"] }) {
 export function JobDecisionReadiness({
   job,
   variant = "full",
+  eligibilityAudience = "nigeria",
+  applicantCountry,
 }: {
   job: Job;
+  eligibilityAudience?: "nigeria" | "africa";
+  applicantCountry?: string;
   variant?: "full" | "compact";
 }) {
-  const plan = buildJobDecisionPlan(job);
+  const plan = buildJobDecisionPlan(
+    job,
+    new Date(),
+    eligibilityAudience,
+    applicantCountry,
+  );
   if (variant === "compact") {
     const primary = plan.primary;
     return (

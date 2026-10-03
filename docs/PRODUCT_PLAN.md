@@ -2,6 +2,8 @@
 
 Last updated: 2026-07-10
 
+Current delivery priority (2026-10-03): [Africa remote implementation and next steps](AFRICA_REMOTE_IMPLEMENTATION_PLAN.md) supersedes the Nigeria-first acquisition priority below. Existing product capabilities and country-specific coverage gates continue to apply.
+
 ## Product outcome
 
 SalaryPadi is the career truth layer for Africans: a mobile-first place to find jobs a candidate can actually apply for, understand the real value of compensation, assess the employer and vacancy, and decide what to do next. The launch market is Nigeria, with explicit modelling for later country expansion.

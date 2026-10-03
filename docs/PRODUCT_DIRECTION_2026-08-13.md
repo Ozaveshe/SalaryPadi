@@ -3,6 +3,8 @@
 Status: operating direction for the next 90 days
 Reviewed: 2026-08-13
 
+Current delivery priority (2026-10-03): [Africa remote implementation and next steps](AFRICA_REMOTE_IMPLEMENTATION_PLAN.md) supersedes the Nigeria-first acquisition priority below. Existing product capabilities and country-specific coverage gates continue to apply.
+
 ## The product in one sentence
 
 SalaryPadi is the daily career workbench for African professionals: find a

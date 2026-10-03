@@ -411,3 +411,18 @@ export function classifyEligibility(
 ): JobEligibility {
   return classifyEligibilityEvidence(evidence, verifiedAt).eligibility;
 }
+
+/** Canonical applicant/source references; display names never enter code comparisons. */
+export function countryCodeFromReference(value: string): string | null {
+  const code = value.trim().toUpperCase();
+  if (countryByCode.has(code)) return code;
+  const name = normalizedWords(value);
+  return (
+    countryAliases.find((entry) => entry.alias === name)?.country.code ?? null
+  );
+}
+
+export const AFRICAN_APPLICANT_COUNTRIES = countries
+  .filter((country) => country.african)
+  .map(({ code, name }) => ({ code, name }))
+  .toSorted((a, b) => a.name.localeCompare(b.name, "en"));

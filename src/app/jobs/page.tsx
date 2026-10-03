@@ -30,6 +30,16 @@ export default async function JobsPage({
   return (
     <JobsExperience
       input={input}
+      title={
+        input.path === "remote_africa"
+          ? "Remote jobs open to applicants in Africa"
+          : undefined
+      }
+      description={
+        input.path === "remote_africa"
+          ? "Explore country-specific, regional and worldwide remote roles. Check the listed countries, exclusions and work requirements before applying; Africa eligibility does not mean every African country is accepted."
+          : undefined
+      }
       chrome={signedIn ? "workspace" : "public"}
       signedIn={signedIn}
       unreadNotifications={

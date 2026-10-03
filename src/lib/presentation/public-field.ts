@@ -1,5 +1,6 @@
 import { formatEnum } from "@/lib/format";
 import { nigeriaEligibilityBasis } from "@/lib/jobs/eligibility";
+import { countryEligibility } from "@/lib/jobs/country-eligibility";
 import type { Job } from "@/lib/jobs/types";
 
 /**
@@ -97,7 +98,39 @@ export function remoteEligibilityUnconfirmed(job: Job): boolean {
  * then simply says nothing, and the detail page's verification drawer
  * carries the underlying evidence).
  */
-export function publicEligibilityStatement(job: Job): string | null {
+export function publicEligibilityStatement(
+  job: Job,
+  audience: "nigeria" | "africa" = "nigeria",
+  applicantCountry?: string,
+): string | null {
+  if (applicantCountry) {
+    return countryEligibility(job.eligibility, applicantCountry).explanation;
+  }
+  if (audience === "africa" && job.workMode === "remote") {
+    const { scope, includedCountries, excludedCountries } = job.eligibility;
+    const countries = includedCountries.filter(
+      (country) => !excludedCountries.includes(country),
+    );
+    const exclusions = excludedCountries.length
+      ? `; excludes ${excludedCountries.join(", ")}`
+      : "";
+    switch (scope) {
+      case "nigeria":
+        return `Applicants in Nigeria can apply${exclusions}`;
+      case "named_countries":
+        return countries.length
+          ? `Open to applicants in ${countries.join(", ")}${exclusions}`
+          : "Country eligibility needs confirmation";
+      case "africa":
+        return `Open to applicants across Africa${exclusions}`;
+      case "worldwide":
+        return `Open to applicants worldwide${exclusions}`;
+      case "emea":
+        return `Europe, Middle East and Africa region; check country requirements${exclusions}`;
+      default:
+        return null;
+    }
+  }
   const location = publicLocation(job);
   const isRemote = job.workMode === "remote";
 
@@ -157,6 +190,7 @@ export function eligibilityStatementTone(
   statement: string,
 ): "success" | "neutral" | "danger" {
   if (/^not open/i.test(statement)) return "danger";
+  if (/; excludes /i.test(statement)) return "neutral";
   // Open-elsewhere-but-not-Nigeria must never read as a green light on a
   // Nigeria-first surface.
   if (/not including nigeria/i.test(statement)) return "neutral";

@@ -1,3 +1,5 @@
+import type { RemoteEligibilityScope } from "@/lib/jobs/types";
+
 export type MatchDimensionCode =
   | "experience_level"
   | "skills"
@@ -49,6 +51,7 @@ export type EligibilityDecision = "eligible" | "not_eligible" | "unclear";
  * everyone", "open to these countries", and "the source did not say".
  */
 export interface JobEligibilityFacts {
+  scope?: RemoteEligibilityScope;
   worldwide: boolean;
   /** The launch market is published as its own decision, not as a list entry. */
   nigeria: EligibilityDecision;

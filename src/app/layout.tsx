@@ -38,11 +38,11 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   metadataBase: new URL(getAppOrigin()),
   title: {
-    default: "SalaryPadi — Jobs and salary truth for Africans",
+    default: "SalaryPadi — Remote jobs open in Africa",
     template: "%s | SalaryPadi",
   },
   description:
-    "Find source-attributed jobs open to Nigerians, understand real compensation, and inspect employer evidence before you apply.",
+    "Find remote jobs open to applicants in Africa, check country restrictions, research employers, and track applications with SalaryPadi.",
   applicationName: "SalaryPadi",
   category: "careers",
   alternates: {
@@ -52,13 +52,13 @@ export const metadata: Metadata = {
     type: "website",
     locale: defaultCountryPack.defaultLocale.replace("-", "_"),
     siteName: "SalaryPadi",
-    title: "SalaryPadi — Jobs and salary truth for Africans",
+    title: "SalaryPadi — Remote jobs open in Africa",
     description:
       "Check eligibility, compensation and employer evidence before you apply.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SalaryPadi — Jobs and salary truth for Africans",
+    title: "SalaryPadi — Remote jobs open in Africa",
     description:
       "Check eligibility, compensation and employer evidence before you apply.",
   },

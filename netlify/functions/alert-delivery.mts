@@ -144,7 +144,7 @@ export async function runAlertDelivery({ signal }: WorkerExecution) {
       providerId = await sendAlertEmail(
         claim.delivery_id,
         claim.recipient_email,
-        renderAlertEmail(matches),
+        renderAlertEmail(matches, claim.search_spec.applicantCountry),
         signal,
       );
     } catch (reason) {

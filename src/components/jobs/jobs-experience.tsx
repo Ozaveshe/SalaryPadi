@@ -5,6 +5,7 @@ import Form from "next/form";
 import styles from "./jobs-experience.module.css";
 
 import { AutoSubmitSelect } from "@/components/auto-submit-select";
+import { countryNameFromCode } from "@/lib/jobs/eligibility";
 import { JobCard } from "@/components/jobs/job-card";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { JobPreviewPanel } from "@/components/jobs/job-preview-panel";
@@ -46,7 +47,9 @@ import { buildWhatsAppShareUrl } from "@/lib/share/whatsapp";
  * not saved one, or whose private read failed. A match is an enhancement — the
  * job list must render identically without it.
  */
-async function readMatchProfile(): Promise<CandidateProfile | null> {
+async function readMatchProfile(
+  applicantCountry?: string,
+): Promise<CandidateProfile | null> {
   const viewer = await getViewer();
   if (viewer.state !== "authenticated") return null;
 
@@ -62,7 +65,10 @@ async function readMatchProfile(): Promise<CandidateProfile | null> {
     cv.data?.parse_state === "parsed" && cv.data.extracted_text
       ? readCvSkills(cv.data.extracted_text)
       : [];
-  return toCandidateProfile(result.data, cvSkills);
+  const profile = toCandidateProfile(result.data, cvSkills);
+  return applicantCountry
+    ? { ...profile, locationCountry: applicantCountry }
+    : profile;
 }
 
 /**
@@ -85,7 +91,7 @@ async function JobResultsSection({
   const [feed, matchProfile, currencyRates, savedResult, applicationsResult] =
     await Promise.all([
       getLiveJobFeed(),
-      readMatchProfile(),
+      readMatchProfile(search.applicantCountry),
       getReferenceCurrencyRates(),
       signedIn ? getSavedJobs() : null,
       signedIn ? getApplications() : null,
@@ -134,7 +140,13 @@ async function JobResultsSection({
    * component, which reassembles the live feed from every reviewed source.
    */
   const splitEntries = result.items.map((job) => {
-    const nairaEstimate = estimateNairaTakeHome(job.salary, currencyRates);
+    const nairaEstimate = (
+      search.applicantCountry
+        ? search.applicantCountry !== "NG"
+        : search.path === "remote_africa"
+    )
+      ? null
+      : estimateNairaTakeHome(job.salary, currencyRates);
     return {
       slug: job.slug,
       card: (
@@ -145,6 +157,12 @@ async function JobResultsSection({
               ? scoreJobMatch(matchProfile, toJobFacts(job))
               : undefined
           }
+          eligibilityAudience={
+            search.path === "remote_africa" || search.applicantCountry
+              ? "africa"
+              : "nigeria"
+          }
+          applicantCountry={search.applicantCountry}
           nairaEstimate={nairaEstimate}
           quickViewable
           signedIn={signedIn}
@@ -155,7 +173,18 @@ async function JobResultsSection({
           returnTo={returnTo}
         />
       ),
-      preview: <JobPreviewPanel job={job} nairaEstimate={nairaEstimate} />,
+      preview: (
+        <JobPreviewPanel
+          job={job}
+          applicantCountry={search.applicantCountry}
+          nairaEstimate={nairaEstimate}
+          eligibilityAudience={
+            search.path === "remote_africa" || search.applicantCountry
+              ? "africa"
+              : "nigeria"
+          }
+        />
+      ),
     };
   });
   const feedIsConclusive = feed.state === "live";
@@ -170,6 +199,22 @@ async function JobResultsSection({
       {searchEvent ? <TrackView event={searchEvent} /> : null}
       <JobSearchForm search={search} categories={categories} />
       <JobFeedNotice feed={feed} />
+      {search.applicantCountry ? (
+        <p className="notice">
+          {search.eligibility === "unclear"
+            ? `Country eligibility needs confirmation for ${countryNameFromCode(search.applicantCountry)}.`
+            : `These roles have source location evidence for ${countryNameFromCode(search.applicantCountry)}.`}{" "}
+          Work authorization, skills and working hours still need checking.{" "}
+          <Link
+            className="text-link"
+            href={`/jobs?${serializeJobSearch({ ...search, eligibility: search.eligibility === "unclear" ? "all" : "unclear", page: 1 })}`}
+          >
+            {search.eligibility === "unclear"
+              ? "Show supported locations"
+              : "See roles needing country confirmation"}
+          </Link>
+        </p>
+      ) : null}
       {signedIn && savedResult && applicationsResult ? (
         <CombinedRepositoryNotice
           results={[savedResult, applicationsResult]}
@@ -245,7 +290,7 @@ async function JobResultsSection({
                 ? "One or more reviewed sources are unavailable or disabled. This is not evidence that no suitable jobs exist."
                 : feed.jobs.length === 0
                   ? "The source status above is the current state of the feed, not confirmation that suitable jobs do not exist elsewhere. SalaryPadi will not publish placeholder vacancies."
-                  : "Try fewer filters or include unclear eligibility. SalaryPadi will not relabel a generic remote vacancy as Nigeria-eligible just to fill this list."}
+                  : "Try fewer filters or include unclear eligibility. Generic remote wording alone does not confirm country eligibility."}
             </p>
             <div className="cluster mt-4">
               <Link
@@ -322,13 +367,17 @@ export function JobsExperience({
             search.path === "remote_nigeria",
           ],
           [
-            "Remote: Africa eligible",
-            "/jobs?path=remote_africa",
+            "Remote: open in Africa",
+            search.applicantCountry
+              ? `/jobs?path=remote_africa&applicantCountry=${search.applicantCountry}`
+              : "/jobs?path=remote_africa",
             search.path === "remote_africa",
           ],
           [
             "Needs eligibility check",
-            "/jobs?eligibility=unclear",
+            search.applicantCountry
+              ? `/jobs?${serializeJobSearch({ ...search, eligibility: "unclear", page: 1 })}`
+              : "/jobs?eligibility=unclear",
             search.eligibility === "unclear",
           ],
         ].map(([label, href, active]) => (
