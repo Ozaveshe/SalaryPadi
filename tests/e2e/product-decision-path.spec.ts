@@ -15,18 +15,19 @@ test.beforeEach(async ({ context, baseURL }) => {
 });
 
 test.describe("continuous job decision path", () => {
-  test("starts with one dominant eligibility-aware search", async ({
+  test("starts with one dominant country-aware remote search", async ({
     page,
   }) => {
     await page.goto("/");
     const search = page.getByRole("search", { name: "Search jobs" });
     await search.getByLabel("Role, skill or company").fill("data analyst");
-    await search.getByLabel("Open to").selectOption("africa");
+    await search.getByLabel("I work from").selectOption("KE");
     await search.getByRole("button", { name: /Search jobs/ }).click();
 
     await expect(page).toHaveURL(/q=data\+analyst/);
-    await expect(page).toHaveURL(/eligibility=africa/);
-    await expect(page.getByLabel("Can apply from")).toHaveValue("africa", {
+    await expect(page).toHaveURL(/path=remote_africa/);
+    await expect(page).toHaveURL(/applicantCountry=KE/);
+    await expect(page.getByLabel("I work from")).toHaveValue("KE", {
       timeout: 15_000,
     });
   });
