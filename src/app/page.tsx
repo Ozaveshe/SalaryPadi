@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { ApplicantCountrySelect } from "@/components/jobs/applicant-country-select";
 import { JobCard } from "@/components/jobs/job-card";
 import { JobFeedNotice } from "@/components/jobs/job-feed-notice";
 import { getLiveJobFeed } from "@/lib/jobs/repository";
@@ -161,6 +162,7 @@ export default async function HomePage() {
               spellCheck={false}
             />
           </div>
+          <ApplicantCountrySelect id="home-country" />
           <div className="field">
             <label htmlFor="home-eligibility">Browse opportunities</label>
             <select

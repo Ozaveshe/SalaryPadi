@@ -49,6 +49,12 @@ import {
 import { getAppOrigin } from "@/lib/env";
 import { getReferenceCurrencyRates } from "@/lib/currency/repository";
 import { estimateNairaTakeHome } from "@/lib/jobs/naira-take-home";
+import { ApplicantCountrySelect } from "@/components/jobs/applicant-country-select";
+import {
+  countryEligibility,
+  jobCountryUrl,
+} from "@/lib/jobs/country-eligibility";
+import { parseJobSearch } from "@/lib/jobs/search";
 import { jobDeadlineNotice } from "@/lib/jobs/deadline";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
 import {
@@ -123,10 +129,12 @@ export default async function JobDetailPage({
   searchParams: Promise<{
     saved?: string | string[];
     reported?: string | string[];
+    applicantCountry?: string | string[];
   }>;
 }) {
   const { slug } = await params;
   const input = await searchParams;
+  const applicantCountry = parseJobSearch(input).applicantCountry;
   const savedInput = input.saved;
   const saved = Array.isArray(savedInput) ? savedInput[0] : savedInput;
   const reportedInput = input.reported;
@@ -167,7 +175,10 @@ export default async function JobDetailPage({
       ? getDatabaseRelatedJobsResult(job.category)
       : Promise.resolve(null),
   ]);
-  const nairaEstimate = estimateNairaTakeHome(job.salary, currencyRates);
+  const nairaEstimate =
+    applicantCountry && applicantCountry !== "NG"
+      ? null
+      : estimateNairaTakeHome(job.salary, currencyRates);
   const postingAge = jobPostingAge(job);
   const deadline = jobDeadlineNotice(job.validThrough, new Date());
   const description = publicJobDescriptionView(job);
@@ -179,7 +190,7 @@ export default async function JobDetailPage({
   const canonicalUrl = new URL(`/jobs/${job.slug}`, getAppOrigin()).toString();
   const jobPosting = buildJobPostingStructuredData(job, canonicalUrl);
   const whatsappUrl = buildWhatsAppShareUrl(
-    `${job.title} at ${job.company.name} — check eligibility and source on SalaryPadi: ${canonicalUrl}`,
+    `${job.title} at ${job.company.name} — check eligibility and source on SalaryPadi: ${new URL(jobCountryUrl(job.slug, applicantCountry), getAppOrigin()).toString()}`,
   );
   const similar = [...feed.jobs, ...(relatedDatabaseResult?.data ?? [])]
     .filter(
@@ -189,6 +200,12 @@ export default async function JobDetailPage({
     .filter(
       (candidate, index, candidates) =>
         candidates.findIndex((item) => item.id === candidate.id) === index,
+    )
+    .filter(
+      (candidate) =>
+        !applicantCountry ||
+        countryEligibility(candidate.eligibility, applicantCountry).state ===
+          "eligible",
     )
     .slice(0, 3);
 
@@ -214,6 +231,15 @@ export default async function JobDetailPage({
         ]}
       />
       <header className="stack">
+        <form className="cluster" action={jobCountryUrl(job.slug)} method="get">
+          <ApplicantCountrySelect
+            id="detail-country"
+            defaultValue={applicantCountry}
+          />
+          <button className="button button-secondary" type="submit">
+            Check my country
+          </button>
+        </form>
         <div className="job-card-title">
           <CompanyLogo
             name={job.company.name}
@@ -230,7 +256,11 @@ export default async function JobDetailPage({
           </div>
         </div>
         {(() => {
-          const statement = publicEligibilityStatement(job, "africa");
+          const statement = publicEligibilityStatement(
+            job,
+            "africa",
+            applicantCountry,
+          );
           return statement ? (
             <p className="m-0">
               <span
@@ -285,7 +315,7 @@ export default async function JobDetailPage({
               <input
                 type="hidden"
                 name="return_to"
-                value={`/jobs/${job.slug}`}
+                value={jobCountryUrl(job.slug, applicantCountry)}
               />
               <button
                 className="button button-secondary"
@@ -299,7 +329,7 @@ export default async function JobDetailPage({
           ) : (
             <Link
               className="button button-secondary"
-              href={`/auth/sign-in?next=${encodeURIComponent(`/jobs/${job.slug}`)}`}
+              href={`/auth/sign-in?next=${encodeURIComponent(jobCountryUrl(job.slug, applicantCountry))}`}
             >
               <Heart aria-hidden="true" size={17} />
               Sign in to save
@@ -350,7 +380,11 @@ export default async function JobDetailPage({
       <TrackView event="job_view" />
       {reported === "true" ? <TrackView event="content_reported" /> : null}
       <JobTrustSummary job={job} nairaEstimate={nairaEstimate} />
-      <JobDecisionReadiness job={job} eligibilityAudience="africa" />
+      <JobDecisionReadiness
+        job={job}
+        eligibilityAudience="africa"
+        applicantCountry={applicantCountry}
+      />
       <nav className="decision-path" aria-label="Continue this job decision">
         <div>
           <p className="eyebrow">Continue your decision</p>
@@ -622,7 +656,7 @@ export default async function JobDetailPage({
               <input
                 type="hidden"
                 name="return_to"
-                value={`/jobs/${job.slug}`}
+                value={jobCountryUrl(job.slug, applicantCountry)}
               />
               <label className="field-label" htmlFor="report-category">
                 Report this job
@@ -660,7 +694,7 @@ export default async function JobDetailPage({
               </p>
               <Link
                 className="button button-secondary w-fit"
-                href={`/auth/sign-in?next=${encodeURIComponent(`/jobs/${job.slug}#report-job`)}`}
+                href={`/auth/sign-in?next=${encodeURIComponent(`${jobCountryUrl(job.slug, applicantCountry)}#report-job`)}`}
               >
                 <Flag aria-hidden="true" size={17} />
                 Sign in to report
@@ -679,7 +713,12 @@ export default async function JobDetailPage({
           </h2>
           <div className="job-list">
             {similar.map((item) => (
-              <JobCard job={item} key={item.id} />
+              <JobCard
+                job={item}
+                key={item.id}
+                eligibilityAudience="africa"
+                applicantCountry={applicantCountry}
+              />
             ))}
           </div>
         </section>

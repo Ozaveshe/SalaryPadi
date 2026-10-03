@@ -217,7 +217,7 @@ it("asks African applicants to confirm their own country instead of treating Nig
     NOW,
     "africa",
   );
-  expect(plan.checks[0].label).toBe("Confirm eligibility for your country");
-  expect(plan.checks[0].detail).toContain("Kenya");
-  expect(plan.checks[0].detail).not.toContain("Nigeria");
+  expect(plan.checks[0]!.label).toBe("Confirm eligibility for your country");
+  expect(plan.checks[0]!.detail).toContain("Kenya");
+  expect(plan.checks[0]!.detail).not.toContain("Nigeria");
 });

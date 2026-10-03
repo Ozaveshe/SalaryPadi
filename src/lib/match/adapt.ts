@@ -128,6 +128,7 @@ export function toJobFacts(job: Job): JobFacts {
     payPeriod: comparablePay ? payPeriod : undefined,
     namedSkills,
     eligibility: {
+      scope: job.eligibility.scope,
       worldwide: job.eligibility.scope === "worldwide",
       nigeria: job.eligibility.nigeria,
       includedCountries: job.eligibility.includedCountries,

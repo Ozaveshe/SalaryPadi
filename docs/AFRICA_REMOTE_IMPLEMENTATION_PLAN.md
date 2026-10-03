@@ -1,7 +1,7 @@
 # Africa remote implementation and next steps
 
 Set: 2026-10-03
-Status: agreed direction; next implementation planned, not started
+Status: AR-01 through AR-04 implemented; release verification and deployment in progress
 Working branch: `codex/africa-remote-focus`
 Previous implementation: `f3bbcf2` (local; not deployed)
 
@@ -19,7 +19,7 @@ A visitor chooses “I live in Kenya” on the homepage. Search returns current 
 
 The visitor sees the same country decision on the card, preview and detail page. They can save the search as an alert, and the delivery worker uses the same rule. A signed-in candidate can choose to save this country to their profile; a public search never silently overwrites a private profile.
 
-This is the next implementation. Supply expansion follows a country coverage audit and does not hold up implementation of the selector.
+Country selection, shared evidence rules, profile recommendations and compatible alerts are implemented on this branch. Supply expansion follows the dated [country coverage audit](AFRICA_REMOTE_COUNTRY_COVERAGE_2026-10-03.md).
 
 ## Delivery order
 
@@ -151,3 +151,11 @@ Next investment is selected from evidence: expand sources for countries with ins
 ## Immediate handoff
 
 Start AR-01, then AR-02 and AR-03 as one country-discovery release. Review candidate-profile normalization while implementing AR-01 so AR-04 reuses the same decision. Produce the AR-05 coverage table before selecting any new source registrations.
+
+## Implementation update: 2026-10-03
+
+- AR-01 through AR-04 implemented with the same country rule across search, cards, preview, detail, CV recommendations and country alerts. The selector offers all 54 African countries. Public searches never update the saved private profile.
+- Existing schema-v1 alerts without a country remain valid. Country alerts exclude roles needing confirmation; the email keeps the country in its stable job-ID link.
+- AR-05 coverage snapshot recorded. A forward migration corrects the remote count without changing the health response shape. A second forward migration preserves recurring resolved editorial findings and fixes the observed draft-refresh SQLSTATE 23505 collision; duplicate open findings remain prohibited.
+- Next.js updated to 16.3.8 and the production dependency audit is clean. Local Node 22 production build passes. Final CI, migration application and exact-commit production verification remain release gates.
+- AR-06 source activation and AR-07 real applicant pilot have not started. No new source rights, market readiness or recruitment outcomes are claimed.

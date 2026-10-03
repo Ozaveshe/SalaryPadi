@@ -13,6 +13,7 @@ import { getJobEvidenceLabels } from "@/lib/jobs/evidence";
 import type { NairaTakeHomeEstimate } from "@/lib/jobs/naira-take-home";
 import { jobPostingAge } from "@/lib/jobs/posting-age";
 import type { Job } from "@/lib/jobs/types";
+import { jobCountryUrl } from "@/lib/jobs/country-eligibility";
 import {
   eligibilityStatementTone,
   publicEligibilityStatement,
@@ -33,13 +34,19 @@ import {
 export function JobPreviewPanel({
   job,
   eligibilityAudience = "nigeria",
+  applicantCountry,
   nairaEstimate = null,
 }: {
   job: Job;
   eligibilityAudience?: "nigeria" | "africa";
+  applicantCountry?: string;
   nairaEstimate?: NairaTakeHomeEstimate | null;
 }) {
-  const statement = publicEligibilityStatement(job, eligibilityAudience);
+  const statement = publicEligibilityStatement(
+    job,
+    eligibilityAudience,
+    applicantCountry,
+  );
   const postingAge = jobPostingAge(job);
   const evidence = getJobEvidenceLabels(job).slice(0, 6);
   const description = publicJobDescriptionView(job);
@@ -65,7 +72,9 @@ export function JobPreviewPanel({
               </Link>
             </p>
             <h2 className="job-title">
-              <Link href={`/jobs/${job.slug}`}>{job.title}</Link>
+              <Link href={jobCountryUrl(job.slug, applicantCountry)}>
+                {job.title}
+              </Link>
             </h2>
           </div>
         </div>
@@ -120,6 +129,7 @@ export function JobPreviewPanel({
           job={job}
           variant="compact"
           eligibilityAudience={eligibilityAudience}
+          applicantCountry={applicantCountry}
         />
         {excerpt ? <p className="job-preview-excerpt">{excerpt}</p> : null}
       </div>
@@ -136,7 +146,10 @@ export function JobPreviewPanel({
             Apply on {job.source.name}
             <ExternalLink aria-hidden="true" size={17} />
           </a>
-          <Link className="button button-secondary" href={`/jobs/${job.slug}`}>
+          <Link
+            className="button button-secondary"
+            href={jobCountryUrl(job.slug, applicantCountry)}
+          >
             Full details
           </Link>
         </div>

@@ -1,5 +1,6 @@
 import { formatEnum } from "@/lib/format";
 import { nigeriaEligibilityBasis } from "@/lib/jobs/eligibility";
+import { countryEligibility } from "@/lib/jobs/country-eligibility";
 import type { Job } from "@/lib/jobs/types";
 
 /**
@@ -100,7 +101,11 @@ export function remoteEligibilityUnconfirmed(job: Job): boolean {
 export function publicEligibilityStatement(
   job: Job,
   audience: "nigeria" | "africa" = "nigeria",
+  applicantCountry?: string,
 ): string | null {
+  if (applicantCountry) {
+    return countryEligibility(job.eligibility, applicantCountry).explanation;
+  }
   if (audience === "africa" && job.workMode === "remote") {
     const { scope, includedCountries, excludedCountries } = job.eligibility;
     const countries = includedCountries.filter(

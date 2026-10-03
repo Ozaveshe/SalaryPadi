@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ApplicantCountrySelect } from "./applicant-country-select";
 
 import { ResponsiveAdvancedFilters } from "@/components/jobs/responsive-advanced-filters";
 import { hasAdvancedJobFilters, type JobSearch } from "@/lib/jobs/search";
@@ -33,17 +34,10 @@ export function JobSearchForm({
             spellCheck={false}
           />
         </div>
-        <div className="field">
-          <label htmlFor="job-location">Location or region</label>
-          <input
-            className="input"
-            id="job-location"
-            name="location"
-            defaultValue={search.location}
-            autoComplete="off"
-            placeholder="e.g. Kenya, Ghana or Worldwide…"
-          />
-        </div>
+        <ApplicantCountrySelect
+          id="job-country"
+          defaultValue={search.applicantCountry}
+        />
         <div className="field">
           <label htmlFor="job-eligibility">Can apply from</label>
           <select
@@ -66,6 +60,18 @@ export function JobSearchForm({
       </div>
       <ResponsiveAdvancedFilters active={hasAdvancedJobFilters(search)}>
         <div className="filter-grid">
+          <div className="field">
+            <label htmlFor="job-location">Location or region</label>
+            <input
+              className="input"
+              id="job-location"
+              name="location"
+              defaultValue={search.location}
+              autoComplete="off"
+              placeholder="e.g. Kenya, Ghana or Worldwide…"
+            />
+          </div>
+
           <div className="field">
             <label htmlFor="company">Company</label>
             <input

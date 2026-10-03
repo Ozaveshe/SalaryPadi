@@ -1,3 +1,5 @@
+import { countryEligibility } from "@/lib/jobs/country-eligibility";
+import { countryCodeFromReference } from "@/lib/jobs/eligibility";
 import {
   DIMENSION_DEFINITIONS,
   EXPERIENCE_LADDER,
@@ -154,13 +156,27 @@ function scoreLocation(
   candidate: CandidateProfile,
   job: JobFacts,
 ): MatchDimension {
-  const country = candidate.locationCountry;
+  const country = countryCodeFromReference(candidate.locationCountry ?? "");
   if (!country) {
     return unknown("location", "You have not set a location on your profile.");
   }
 
   const { worldwide, nigeria, includedCountries, excludedCountries } =
     job.eligibility;
+
+  if (job.eligibility.scope) {
+    const result = countryEligibility(
+      { ...job.eligibility, scope: job.eligibility.scope },
+      country,
+    );
+    if (result.state === "unclear")
+      return unknown("location", result.explanation);
+    return scored(
+      "location",
+      result.state === "eligible" ? 1 : 0,
+      result.explanation,
+    );
+  }
 
   // An explicit exclusion is the strongest published statement there is, so it
   // outranks every broader permission below it.

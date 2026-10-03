@@ -11,6 +11,7 @@ import { getAuthenticatedApiContext } from "@/lib/auth/api";
 import { getAppOrigin } from "@/lib/env";
 import { noStoreJson } from "@/lib/http/json";
 import {
+  applicantCountrySchema,
   jobSearchEligibilitySchema,
   parseJobSearch,
   parseStoredJobAlertSearch,
@@ -25,6 +26,7 @@ const schema = z.discriminatedUnion("intent", [
     keyword: z.string().trim().max(160).default(""),
     location: z.string().trim().max(160).default(""),
     eligibility: jobSearchEligibilitySchema,
+    applicantCountry: applicantCountrySchema.optional(),
     cadence: z.enum(["daily", "weekly"]),
     search_query: z.string().max(10_000).optional(),
   }),
@@ -71,7 +73,14 @@ export async function POST(request: Request) {
             ...storedSearch,
             q: parsed.data.keyword,
             location: parsed.data.location,
-            eligibility: parsed.data.eligibility,
+            eligibility:
+              (parsed.data.applicantCountry ??
+                storedSearch?.applicantCountry) &&
+              parsed.data.eligibility === "unclear"
+                ? "all"
+                : parsed.data.eligibility,
+            applicantCountry:
+              parsed.data.applicantCountry ?? storedSearch?.applicantCountry,
           }),
           alert_cadence: parsed.data.cadence,
         }
