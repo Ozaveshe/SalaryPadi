@@ -5,6 +5,7 @@ output
 package-lock.json
 playwright-report
 test-results
+src/lib/jobs/generated/sanitize-html.cjs
 
 # Agent skills: third-party and generated content keeps upstream formatting
 .agents/

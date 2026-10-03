@@ -1,5 +1,5 @@
 import he from "he";
-import sanitizeHtml from "sanitize-html";
+import sanitizeHtml from "./generated/sanitize-html.cjs";
 
 import { classifyEligibility } from "./eligibility";
 import { buildJobFingerprint } from "./fingerprint";

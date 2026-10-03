@@ -55,6 +55,9 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
+      - name: Verify native worker dependencies
+        run: npm run verify:worker-dependencies
+
       - name: Build production application
         run: npm run build
 
