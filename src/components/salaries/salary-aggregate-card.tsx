@@ -117,7 +117,7 @@ export function SalaryAggregateCard({
             currency={aggregate.currency}
           />
           <p className="text-muted m-0 text-sm">
-            Most people earn between{" "}
+            25th–75th percentile range:{" "}
             {approximateAmount(
               aggregate.percentile25Annual,
               aggregate.currency,
@@ -209,7 +209,7 @@ export function SalaryAggregateCard({
             <dt>Based on</dt>
             <dd>
               {isOnline
-                ? "Reviewed official statistics"
+                ? "Reviewed source benchmark"
                 : "Contributions from people doing this job"}
             </dd>
           </div>
