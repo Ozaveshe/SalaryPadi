@@ -1,6 +1,13 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+if (process.versions.node.split(".")[0] !== "22") {
+  console.error(
+    "Verify native worker dependencies with SalaryPadi's Node 22 runtime.",
+  );
+  process.exit(1);
+}
+
 // Lambda disables require(ESM), unlike ordinary Node 22 and the Next.js build.
 // https://docs.aws.amazon.com/lambda/latest/dg/lambda-nodejs.html
 const runtimeOptions = (process.env.NODE_OPTIONS ?? "").split(/\s+/);
@@ -36,5 +43,7 @@ if (probe.error || probe.status !== 0) {
   console.error(probe.error?.message ?? probe.stderr.trim());
   process.exitCode = 1;
 } else {
-  console.log("Native worker dependencies load under Lambda's module policy.");
+  console.log(
+    `Native worker dependencies load under Node ${process.versions.node} with Lambda's required module setting.`,
+  );
 }
