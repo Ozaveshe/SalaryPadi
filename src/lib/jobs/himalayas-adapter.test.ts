@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { fetchHimalayasJobs, HIMALAYAS_ENDPOINTS } from "./himalayas-adapter";
+import { alertCatalogSchema, createAlertCatalog } from "./alert-catalog";
 
 const checkedAt = "2026-07-15T01:00:00.000Z";
 
@@ -47,6 +48,23 @@ function response(body: unknown, init: ResponseInit = {}) {
 }
 
 describe("Himalayas adapter", () => {
+  it("persists jobs when the retained URL suffix starts with a hyphen", async () => {
+    const result = await fetchHimalayasJobs({
+      pageDelayMs: 0,
+      requestedAt: new Date(checkedAt),
+      fetch: async () =>
+        response(
+          payload({
+            guid: "https://himalayas.app/companies/example-africa/jobs/12345678901234567890123",
+          }),
+        ),
+    });
+    expect(result.jobs[0]?.slug).not.toContain("--");
+    expect(
+      alertCatalogSchema.safeParse(createAlertCatalog(result.jobs, checkedAt))
+        .success,
+    ).toBe(true);
+  });
   it("normalizes bounded Nigeria pages with attribution-only destinations", async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
