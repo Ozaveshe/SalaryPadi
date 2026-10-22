@@ -76,10 +76,11 @@ select lives_ok(
   'ReliefWeb can be reactivated despite an overdue internal review'
 );
 
-select lives_ok(
+select throws_ok(
   $$update app.job_sources set status = 'active', policy_state = 'enabled'
     where adapter_key = 'salarypadi_employer_submissions'$$,
-  'first-party intake can be reactivated despite an overdue internal review'
+  '23514', 'active source requires reviewed authorization evidence',
+  'changing publication permissions still requires renewed authorization evidence'
 );
 
 select * from finish();
