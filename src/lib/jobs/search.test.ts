@@ -32,6 +32,26 @@ const base = {
 describe("job search", () => {
   const jobs = [normalizeRemotiveJob(base, "2026-07-10T00:00:00.000Z")];
 
+  it.each(["", "   ", null, [""]])(
+    "does not turn a blank salary into a salary-only search: %s",
+    (minSalary) => {
+      const search = parseJobSearch({
+        minSalary,
+        applicantCountry: "KE",
+        path: "remote_africa",
+      } as never);
+      expect(search.minSalary).toBeUndefined();
+      expect(serializeJobSearch(search).has("minSalary")).toBe(false);
+      const withoutSalary = { ...jobs[0]!, salary: null };
+      expect(
+        filterAndSortJobs([withoutSalary], search, new Date("2026-07-11")),
+      ).toHaveLength(1);
+      expect(
+        parseStoredJobAlertSearch(JSON.stringify(search))?.applicantCountry,
+      ).toBe("KE");
+    },
+  );
+
   it("parses bounded URL filters", () => {
     const result = parseJobSearch({
       q: "engineer",
@@ -366,7 +386,7 @@ describe("advanced filter disclosure", () => {
         parseJobSearch({
           q: "engineer",
           location: "Lagos",
-          eligibility: "nigeria",
+          applicantCountry: "NG",
           page: "3",
         }),
       ),

@@ -2,6 +2,7 @@ import { getStore } from "@netlify/blobs";
 
 import {
   alertCatalogSchema,
+  alertCatalogJobSchema,
   createAlertCatalog,
   type AlertCatalog,
 } from "@/lib/jobs/alert-catalog";
@@ -47,7 +48,17 @@ export async function storeSecondaryFeedSnapshot(
   jobs: Job[],
   checkedAt: string,
 ): Promise<number> {
-  const catalog = createAlertCatalog(jobs, checkedAt);
+  const projection = createAlertCatalog(jobs, checkedAt);
+  projection.jobs = projection.jobs.filter((job) => {
+    const parsed = alertCatalogJobSchema.safeParse(job);
+    if (!parsed.success)
+      console.warn("secondary_feed_row_quarantined", {
+        source,
+        paths: parsed.error.issues.map((issue) => issue.path.join(".")),
+      });
+    return parsed.success;
+  });
+  const catalog = alertCatalogSchema.parse(projection);
   await feedStore().setJSON(source, catalog);
   return catalog.jobs.length;
 }

@@ -38,28 +38,31 @@ export function JobSearchForm({
           id="job-country"
           defaultValue={search.applicantCountry}
         />
-        <div className="field">
-          <label htmlFor="job-eligibility">Can apply from</label>
-          <select
-            className="select"
-            id="job-eligibility"
-            name="eligibility"
-            defaultValue={search.eligibility}
-          >
-            <option value="all">Any evidence</option>
-            <option value="nigeria_open">Open to Nigeria (any evidence)</option>
-            <option value="nigeria">Nigeria named by the source</option>
-            <option value="africa">Africa or named African countries</option>
-            <option value="worldwide">Worldwide</option>
-            <option value="unclear">Needs eligibility check</option>
-          </select>
-        </div>
         <button className="button" type="submit">
           Search jobs
         </button>
       </div>
       <ResponsiveAdvancedFilters active={hasAdvancedJobFilters(search)}>
         <div className="filter-grid">
+          <div className="field">
+            <label htmlFor="job-eligibility">Eligibility evidence</label>
+            <select
+              className="select"
+              id="job-eligibility"
+              name="eligibility"
+              defaultValue={search.eligibility}
+            >
+              <option value="all">Any evidence</option>
+              <option value="nigeria_open">
+                Open to Nigeria (any evidence)
+              </option>
+              <option value="nigeria">Nigeria named by the source</option>
+              <option value="africa">Africa or named African countries</option>
+              <option value="worldwide">Worldwide</option>
+              <option value="unclear">Needs eligibility check</option>
+            </select>
+          </div>
+
           <div className="field">
             <label htmlFor="job-location">Location or region</label>
             <input
@@ -307,7 +310,10 @@ export function JobSearchForm({
           <button className="button" type="submit">
             Apply filters
           </button>
-          <Link className="button button-quiet" href="/jobs">
+          <Link
+            className="button button-quiet"
+            href={`/jobs?${new URLSearchParams({ applicantCountry: search.applicantCountry, path: search.path })}`}
+          >
             Clear all
           </Link>
         </div>

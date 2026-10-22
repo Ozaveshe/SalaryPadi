@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-26T12:00:00.000Z",
+  "generatedAt": "2026-10-22T00:00:00.000Z",
   "reviewIntervalDays": 31,
   "sources": [
     {
@@ -231,8 +231,8 @@
       "permissionBasis": "documented_public_feed_with_attribution",
       "evidenceReference": "https://jobicy.com/jobs-rss-feed",
       "termsUrl": "https://jobicy.com/jobs-rss-feed",
-      "reviewedAt": "2026-07-14T00:00:00.000Z",
-      "reviewDueAt": "2026-08-14T00:00:00.000Z",
+      "reviewedAt": "2026-10-22T00:00:00.000Z",
+      "reviewDueAt": "2026-11-22T00:00:00.000Z",
       "allowedFields": [
         "id",
         "url",
@@ -251,15 +251,14 @@
       ],
       "fullDescriptionPermission": false,
       "attribution": "Source: Jobicy; preserve the Jobicy job URL",
-      "minimumPollingSeconds": 21600,
-      "maximumRequestsPerDay": 4,
+      "minimumPollingSeconds": 900,
+      "maximumRequestsPerDay": 384,
       "rawRetentionDays": 1,
       "publicDisplayPermission": true,
       "searchIndexPermission": false,
       "googleJobPostingPermission": false,
       "requiredDependencies": [
         "clickable_source_attribution",
-        "six_hour_polling_limit",
         "no_external_redistribution"
       ],
       "missingDependencies": []
@@ -272,8 +271,8 @@
       "permissionBasis": "documented_public_api_for_job_board_backfill",
       "evidenceReference": "https://himalayas.app/api",
       "termsUrl": "https://himalayas.app/api",
-      "reviewedAt": "2026-07-14T19:40:00.000Z",
-      "reviewDueAt": "2026-08-14T19:40:00.000Z",
+      "reviewedAt": "2026-10-22T00:00:00.000Z",
+      "reviewDueAt": "2026-11-22T00:00:00.000Z",
       "allowedFields": [
         "guid",
         "applicationLink",
@@ -296,15 +295,14 @@
       ],
       "fullDescriptionPermission": false,
       "attribution": "Source: Himalayas; preserve a clickable Himalayas job URL",
-      "minimumPollingSeconds": 86400,
-      "maximumRequestsPerDay": 3,
+      "minimumPollingSeconds": 900,
+      "maximumRequestsPerDay": 576,
       "rawRetentionDays": 1,
       "publicDisplayPermission": true,
       "searchIndexPermission": false,
       "googleJobPostingPermission": false,
       "requiredDependencies": [
         "clickable_source_attribution",
-        "daily_polling_limit",
         "no_third_party_redistribution"
       ],
       "missingDependencies": []

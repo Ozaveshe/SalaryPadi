@@ -2962,9 +2962,7 @@ a:hover {
   }
 
   .job-search-primary {
-    grid-template-columns:
-      minmax(12rem, 1.5fr) minmax(10rem, 1fr) minmax(11rem, 1fr)
-      auto;
+    grid-template-columns: minmax(12rem, 1.5fr) minmax(10rem, 1fr) auto;
     align-items: end;
   }
 

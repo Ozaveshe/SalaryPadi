@@ -259,7 +259,7 @@ async function JobResultsSection({
               className="button button-secondary"
               href={`/alerts?${serializedSearch.toString()}`}
             >
-              Save this search
+              Get job alerts
             </Link>
             <a
               className="button button-quiet"
@@ -290,19 +290,26 @@ async function JobResultsSection({
                 ? "One or more reviewed sources are unavailable or disabled. This is not evidence that no suitable jobs exist."
                 : feed.jobs.length === 0
                   ? "The source status above is the current state of the feed, not confirmation that suitable jobs do not exist elsewhere. SalaryPadi will not publish placeholder vacancies."
-                  : "Try fewer filters or include unclear eligibility. Generic remote wording alone does not confirm country eligibility."}
+                  : "Try a broader role or fewer filters. Keep your country selected so the results stay relevant."}
             </p>
             <div className="cluster mt-4">
               <Link
                 className="button button-secondary"
-                href={feed.jobs.length === 0 ? "/methodology" : "/jobs"}
+                href={
+                  feed.jobs.length === 0
+                    ? "/methodology"
+                    : `/jobs?${new URLSearchParams({ applicantCountry: search.applicantCountry, path: search.path })}`
+                }
               >
                 {feed.jobs.length === 0
                   ? "How jobs are verified"
-                  : "Clear all filters"}
+                  : "Broaden this search"}
               </Link>
-              <Link className="button button-quiet" href="/post-a-job">
-                Post a verified job
+              <Link
+                className="button button-quiet"
+                href={`/alerts?${serializedSearch.toString()}`}
+              >
+                Alert me to new matches
               </Link>
             </div>
           </div>

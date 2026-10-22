@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { ApplicantCountrySelect } from "@/components/jobs/applicant-country-select";
@@ -97,6 +98,19 @@ export default async function AlertsPage({
           <CompanyEvidenceInvitation kind="alert" />
         ) : null}
 
+        <div className="notice">
+          <p className="m-0">
+            Your country and search filters travel with this alert. Emails
+            arrive only when new eligible matches are available from sources
+            that support email alerts.
+          </p>
+          <Link
+            className="text-link"
+            href={`/jobs?${returnParameters.toString()}`}
+          >
+            Preview matching jobs before saving
+          </Link>
+        </div>
         <form
           className="surface surface-pad form-grid"
           action="/api/alerts"
@@ -204,6 +218,12 @@ export default async function AlertsPage({
                       </span>
                     </div>
                     <div className="cluster">
+                      <Link
+                        className="button button-secondary"
+                        href={`/jobs?${serializeJobSearch(search).toString()}`}
+                      >
+                        View matching jobs
+                      </Link>
                       <form action="/api/alerts/update" method="post">
                         <input type="hidden" name="intent" value="set-active" />
                         <input type="hidden" name="id" value={alert.id} />
@@ -322,8 +342,8 @@ export default async function AlertsPage({
             <BrandArt id="empty-alerts" />
             <h2 className="section-title">No alerts yet</h2>
             <p>
-              Create one focused alert above. SalaryPadi will not match vague
-              “remote” wording as Nigeria eligibility.
+              Choose your country and create one focused alert above. Only jobs
+              with evidence supporting your selected country will match.
             </p>
           </div>
         )}

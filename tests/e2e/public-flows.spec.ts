@@ -52,12 +52,15 @@ test.describe("public MVP journeys", () => {
 
     await expect(page.getByRole("search")).toBeVisible();
     await page.getByLabel("Role, skill or keyword").fill("engineer");
-    await page.getByLabel("Can apply from").selectOption("nigeria");
-    await page.getByRole("button", { name: "Search jobs" }).click();
+    await page.locator(".advanced-filters > summary").click();
+    await page.getByLabel("Eligibility evidence").selectOption("nigeria");
+    await page.getByRole("button", { name: "Apply filters" }).click();
 
     await expect(page).toHaveURL(/q=engineer/);
     await expect(page).toHaveURL(/eligibility=nigeria/);
-    await expect(page.getByLabel("Can apply from")).toHaveValue("nigeria");
+    await expect(page.getByLabel("Eligibility evidence")).toHaveValue(
+      "nigeria",
+    );
   });
 
   test("opens a real job, exposes its trust evidence and starts external apply", async ({
