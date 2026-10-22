@@ -160,7 +160,7 @@ export function buildEditorialSnapshot(jobs: Job[], now = new Date()) {
 }
 
 async function captureSnapshot(signal: AbortSignal): Promise<CapturedSnapshot> {
-  const catalog = await fetchAlertJobCatalog(signal);
+  const catalog = await fetchAlertJobCatalog(signal, false);
   const snapshot = buildEditorialSnapshot(catalog.jobs);
   const id = await rpc(
     "editorial_capture_job_snapshot",

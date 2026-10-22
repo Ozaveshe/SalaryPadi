@@ -304,6 +304,7 @@ insert into auth.users (
   'ad000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated',
   'alert-owner@example.test', '{}'::jsonb, '{}'::jsonb, now(), now()
 ) on conflict (id) do nothing;
+update auth.users set email_confirmed_at=now() where id='ad000000-0000-0000-0000-000000000001';
 insert into private.job_alerts (id, user_id, name, search_spec, cadence)
 values (
   'ae000000-0000-0000-0000-000000000001',

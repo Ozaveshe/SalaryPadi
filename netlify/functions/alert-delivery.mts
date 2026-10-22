@@ -1,8 +1,14 @@
 import type { Config } from "@netlify/functions";
 import { z } from "zod";
+import {
+  prepareAlert,
+  readAlertState,
+  type PreparedAlert,
+} from "./_shared/alert-state";
 
 import {
   alertClaimSchema,
+  alertJobKey,
   assertAlertJobsPublishable,
   type AlertClaim,
   fetchAlertJobCatalog,
@@ -33,7 +39,7 @@ async function complete(
   signal: AbortSignal,
 ) {
   const completed = await rpc(
-    "worker_complete_alert_delivery",
+    "worker_complete_alert_with_jobs",
     rpcBooleanResultSchema,
     {
       p_delivery_id: claim.delivery_id,
@@ -116,8 +122,31 @@ export async function runAlertDelivery({ signal }: WorkerExecution) {
   let failed = 0;
   for (const claim of claims) {
     let matches;
+    let prepared: PreparedAlert | null;
     try {
-      matches = matchAlertJobs(claim, catalog.jobs);
+      const state = await readAlertState(claim, signal);
+      prepared = state.prepared;
+      matches = matchAlertJobs(
+        claim,
+        catalog.jobs,
+        new Date(),
+        new Set(state.sent_job_keys),
+      );
+      if (prepared) {
+        const keys = new Set(prepared.job_keys);
+        matches = matchAlertJobs(
+          claim,
+          catalog.jobs,
+          new Date(),
+          new Set(
+            catalog.jobs
+              .filter((job) => !keys.has(alertJobKey(job)))
+              .map(alertJobKey),
+          ),
+        );
+        if (matches.length !== keys.size)
+          throw new OperationalError("prepared_alert_jobs_unavailable");
+      }
     } catch (reason) {
       const code =
         reason instanceof OperationalError
@@ -141,10 +170,18 @@ export async function runAlertDelivery({ signal }: WorkerExecution) {
     let providerId: string;
     try {
       await assertAlertJobsPublishable(matches, signal);
+      prepared = await prepareAlert(
+        claim,
+        prepared ?? {
+          job_keys: matches.map(alertJobKey),
+          email: renderAlertEmail(matches, claim.search_spec.applicantCountry),
+        },
+        signal,
+      );
       providerId = await sendAlertEmail(
         claim.delivery_id,
         claim.recipient_email,
-        renderAlertEmail(matches, claim.search_spec.applicantCountry),
+        prepared.email,
         signal,
       );
     } catch (reason) {

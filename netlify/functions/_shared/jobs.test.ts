@@ -479,6 +479,7 @@ describe("alert source publication gate", () => {
             NEXT_PUBLIC_SUPABASE_URL:
               "https://bxelrhklsznmpksgrqep.supabase.co",
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+            SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
             REMOTIVE_SOURCE_ENABLED: "true",
           })[name],
       },
@@ -489,7 +490,11 @@ describe("alert source publication gate", () => {
         .fn<typeof fetch>()
         .mockImplementation(async (input) =>
           Response.json(
-            String(input).includes("/rest/v1/jobs?") ? [] : [activePolicy],
+            String(input).includes("/rpc/")
+              ? false
+              : String(input).includes("/rest/v1/jobs?")
+                ? []
+                : [activePolicy],
           ),
         ),
     );
@@ -524,6 +529,7 @@ describe("alert source publication gate", () => {
             NEXT_PUBLIC_SUPABASE_URL:
               "https://bxelrhklsznmpksgrqep.supabase.co",
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+            SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
             REMOTIVE_SOURCE_ENABLED: "true",
           })[name],
       },
@@ -534,7 +540,11 @@ describe("alert source publication gate", () => {
         .fn<typeof fetch>()
         .mockImplementation(async (input) =>
           Response.json(
-            String(input).includes("/rest/v1/jobs?") ? [] : [activePolicy],
+            String(input).includes("/rpc/")
+              ? false
+              : String(input).includes("/rest/v1/jobs?")
+                ? []
+                : [activePolicy],
           ),
         ),
     );
@@ -553,22 +563,25 @@ describe("alert source publication gate", () => {
             NEXT_PUBLIC_SUPABASE_URL:
               "https://bxelrhklsznmpksgrqep.supabase.co",
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+            SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
             REMOTIVE_SOURCE_ENABLED: "true",
           })[name],
       },
     });
     const fetchSpy = vi
       .fn<typeof fetch>()
-      .mockImplementation(async () => Response.json([]));
+      .mockImplementation(async (input) =>
+        Response.json(String(input).includes("/rpc/") ? false : []),
+      );
     vi.stubGlobal("fetch", fetchSpy);
 
     await expect(
       fetchAlertJobCatalog(new AbortController().signal),
     ).resolves.toEqual({ state: "ready", jobs: [], issues: [] });
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
     for (const [url, init] of fetchSpy.mock.calls) {
       expect(String(url)).toMatch(
-        /^https:\/\/bxelrhklsznmpksgrqep\.supabase\.co\/rest\/v1\/(jobs|job_sources)/,
+        /^https:\/\/bxelrhklsznmpksgrqep\.supabase\.co\/rest\/v1\/(jobs|job_sources|rpc)/,
       );
       expect(init).toMatchObject({
         cache: "no-store",
@@ -576,7 +589,9 @@ describe("alert source publication gate", () => {
         redirect: "error",
       });
       expect(new Headers(init?.headers).get("apikey")).toBe(
-        "test-publishable-key",
+        String(url).includes("/rpc/")
+          ? "test-service-role-key"
+          : "test-publishable-key",
       );
     }
   });
@@ -589,13 +604,20 @@ describe("alert source publication gate", () => {
             NEXT_PUBLIC_SUPABASE_URL:
               "https://bxelrhklsznmpksgrqep.supabase.co",
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+            SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
             REMOTIVE_SOURCE_ENABLED: "false",
           })[name],
       },
     });
     vi.stubGlobal(
       "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(Response.json([{ title: 42 }])),
+      vi
+        .fn<typeof fetch>()
+        .mockImplementation(async (input) =>
+          Response.json(
+            String(input).includes("/rpc/") ? false : [{ title: 42 }],
+          ),
+        ),
     );
     const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -613,7 +635,7 @@ describe("alert source publication gate", () => {
     expect(warning.mock.calls[0]?.[0]).not.toContain('"title":42');
   });
 
-  it("exposes alert-catalog capacity saturation instead of reporting ready", async () => {
+  it("reads beyond 500 jobs instead of silently truncating the catalogue", async () => {
     vi.stubGlobal("Netlify", {
       env: {
         get: (name: string) =>
@@ -621,15 +643,24 @@ describe("alert source publication gate", () => {
             NEXT_PUBLIC_SUPABASE_URL:
               "https://bxelrhklsznmpksgrqep.supabase.co",
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+            SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
             REMOTIVE_SOURCE_ENABLED: "false",
           })[name],
       },
     });
-    const fetchSpy = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        Response.json(Array.from({ length: 501 }, () => ({ title: 42 }))),
+    const fetchSpy = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      return Response.json(
+        url.pathname.includes("/rpc/")
+          ? false
+          : Array.from(
+              {
+                length: Number(url.searchParams.get("offset")) < 500 ? 100 : 1,
+              },
+              () => ({ title: 42 }),
+            ),
       );
+    });
     vi.stubGlobal("fetch", fetchSpy);
     vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -638,11 +669,8 @@ describe("alert source publication gate", () => {
     ).resolves.toEqual({
       state: "degraded",
       jobs: [],
-      issues: [
-        { code: "database_jobs_capacity_exceeded" },
-        { code: "database_jobs_invalid_rows", count: 500 },
-      ],
+      issues: [{ code: "database_jobs_invalid_rows", count: 501 }],
     });
-    expect(String(fetchSpy.mock.calls[0]?.[0])).toContain("limit=501");
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toContain("limit=100");
   });
 });

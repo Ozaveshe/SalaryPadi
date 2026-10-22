@@ -45,7 +45,7 @@ export const JOBICY_SOURCE_POLICY: JobSourcePolicy = {
   canStoreFullDescription: false,
   canIndex: false,
   canUseJobPostingStructuredData: false,
-  canEmail: false,
+  canEmail: true,
   destinationRequirement: "Use the Jobicy URL returned by the API.",
   refreshIntervalSeconds: 21_600,
 };
