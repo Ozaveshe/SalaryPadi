@@ -98,6 +98,17 @@ describe("eligibility classification", () => {
     },
   );
 
+  it.each([
+    "South Africa. Full-time remote work from anywhere in South Africa",
+    "Cape Town, South Africa. Work from anywhere in the world, up to 15 days a year.",
+    "Remote. Candidates must be based in one of our talent hub countries (UK, Spain, Kenya and Ghana) or our operating markets in Africa including Senegal.",
+  ])("does not broaden restricted source evidence: %s", (value) => {
+    expect(classifyEligibility(value, checkedAt)).toMatchObject({
+      scope: "named_countries",
+      nigeria: "not_eligible",
+    });
+  });
+
   it("keeps worldwide eligibility when the named country agrees (Nigeria/African)", () => {
     // A worldwide role that also names Nigeria is not a conflict — the broad
     // signal and the country point the same way.

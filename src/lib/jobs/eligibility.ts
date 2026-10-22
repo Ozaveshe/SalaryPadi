@@ -262,6 +262,7 @@ export function eligibilityDecisionForNigeria(
 ): EligibilityDecision {
   if (excludedCodes.has("NG")) return "not_eligible";
   if (scope === "worldwide" || scope === "africa" || scope === "nigeria") {
+    if (includedCodes.size > 0 && !includedCodes.has("NG")) return "unclear";
     return "eligible";
   }
   if (scope === "named_countries") {
@@ -344,13 +345,23 @@ export function classifyEligibilityEvidence(
   // common ATS location format "Home based - Worldwide" / "Remote - Worldwide".
   // Bare "anywhere" is excluded on purpose: mission wording such as
   // "essential goods anytime, anywhere" must not widen a role's scope.
-  const worldwide =
-    /^(?:(?:home[ -]?based|remote)[ -]+)?(?:world|worldwide|world wide)(?: only)?$/.test(
-      normalized,
-    ) ||
-    /\b(?:work from anywhere|anywhere in the world|global remote|remote global)\b/.test(
+  const temporaryWorldwideBenefit =
+    /\b(?:up to|for) \d+ (?:days?|weeks?) (?:a|per|each) year\b/.test(
       normalized,
     );
+  const countryBoundRequirement =
+    includedCodes.size > 0 &&
+    /\b(?:must|need to|required to|have to) (?:be )?(?:based|located|reside|live)\b/.test(
+      normalized,
+    );
+  const worldwide =
+    !temporaryWorldwideBenefit &&
+    (/^(?:(?:home[ -]?based|remote)[ -]+)?(?:world|worldwide|world wide)(?: only)?$/.test(
+      normalized,
+    ) ||
+      /\b(?:work from anywhere(?! in (?!the world\b))|anywhere in the world|global remote|remote global)\b/.test(
+        normalized,
+      ));
 
   // A named-country list that omits both Nigeria and every African country is
   // a binding restriction that *conflicts* with loose "worldwide" / "Africa" /
@@ -369,7 +380,8 @@ export function classifyEligibilityEvidence(
   const broadRegionSignal = worldwide || hasAfricaRegion || hasEmea;
 
   let scope: RemoteEligibilityScope;
-  if (broadRegionSignal && namedForeignOnly) scope = "unclear";
+  if (countryBoundRequirement) scope = "named_countries";
+  else if (broadRegionSignal && namedForeignOnly) scope = "unclear";
   else if (hasAfricaRegion) scope = "africa";
   else if (hasEmea) scope = "emea";
   else if (worldwide && hasRestrictedRegion) scope = "restricted_region";

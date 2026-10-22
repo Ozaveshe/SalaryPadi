@@ -80,6 +80,14 @@ export function countryEligibility(
       `The source's accepted applicant locations do not include ${name}.`,
     );
   }
+  // Specific applicant countries must not be widened by a conflicting broad
+  // scope from an older import (for example "anywhere in South Africa").
+  if (included.length > 0)
+    return result(
+      "unclear",
+      "unclear",
+      `The source names specific applicant countries but does not confirm wider eligibility for ${name}.`,
+    );
   if (evidence.scope === "worldwide")
     return result(
       "eligible",

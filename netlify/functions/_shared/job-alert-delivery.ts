@@ -81,6 +81,7 @@ export function matchAlertJobs(
         (job) =>
           search.applicantCountry ||
           (job.eligibility.scope === "worldwide" &&
+            job.eligibility.includedCountries.length === 0 &&
             job.eligibility.excludedCountries.length === 0),
       )
       .filter((job) => {
