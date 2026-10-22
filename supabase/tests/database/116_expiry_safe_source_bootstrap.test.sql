@@ -70,16 +70,16 @@ select is(
   'expired bootstrap sources cannot run'
 );
 
-select throws_ok(
+select lives_ok(
   $$update app.job_sources set status = 'active', policy_state = 'enabled'
     where adapter_key = 'reliefweb'$$,
-  '23514', null, 'expired ReliefWeb activation remains rejected'
+  'ReliefWeb can be reactivated despite an overdue internal review'
 );
 
-select throws_ok(
+select lives_ok(
   $$update app.job_sources set status = 'active', policy_state = 'enabled'
     where adapter_key = 'salarypadi_employer_submissions'$$,
-  '23514', null, 'expired first-party intake activation remains rejected'
+  'first-party intake can be reactivated despite an overdue internal review'
 );
 
 select * from finish();

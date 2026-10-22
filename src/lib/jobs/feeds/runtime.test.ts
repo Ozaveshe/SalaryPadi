@@ -255,6 +255,18 @@ describe("global source-policy gate", () => {
 });
 
 describe("per-feed authorization gates run before any network call", () => {
+  it("keeps an authorized feed runnable after an internal review deadline", () => {
+    expect(
+      feedRunEligibility(
+        feed({
+          reviewedAt: "2026-01-01T00:00:00.000Z",
+          reviewDueAt: "2026-07-01T00:00:00.000Z",
+        }),
+        now,
+        allowPolicy,
+      ),
+    ).toEqual({ runnable: true });
+  });
   const blockedCases: Array<[string, Partial<EmployerFeedConfig>, string]> = [
     ["disabled", { enabled: false }, "disabled"],
     [
@@ -263,14 +275,6 @@ describe("per-feed authorization gates run before any network call", () => {
       "expired authorization",
       { authorizationExpiresAt: "2026-07-10T00:00:00.000Z" },
       "authorization_expired",
-    ],
-    [
-      "overdue review",
-      {
-        reviewedAt: "2026-01-01T00:00:00.000Z",
-        reviewDueAt: "2026-07-01T00:00:00.000Z",
-      },
-      "review_overdue",
     ],
     [
       "future-dated authorization",

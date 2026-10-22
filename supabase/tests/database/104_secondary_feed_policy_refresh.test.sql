@@ -91,12 +91,10 @@ select is(
   'expired reviewed sources cannot be fetched by runtime workers'
 );
 
-select throws_ok(
+select lives_ok(
   $$update app.job_sources set status = 'active', policy_state = 'enabled'
     where adapter_key = 'jobicy'$$,
-  '23514',
-  null,
-  'the existing authorization and supply guards reject expired-source activation'
+  'an internal review deadline does not prevent explicitly reactivating a source'
 );
 
 select * from finish();

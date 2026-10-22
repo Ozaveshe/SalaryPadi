@@ -81,7 +81,7 @@ const defaultPolicyGate: SourcePolicyGate = (adapterKey, now) => {
  * Whether the feed may run at `now`.
  *
  * Both gates must pass. A per-feed `enabled: true` record can never override a
- * globally disabled, expired, review-overdue, dependency-missing or
+ * globally disabled, expired, dependency-missing or
  * field-restricted source policy — the global policy is evaluated first and
  * short-circuits before any network request or payload processing.
  */
@@ -129,9 +129,7 @@ export function feedRunEligibility(
   ) {
     return { runnable: false, reason: "authorization_expired" };
   }
-  if (Date.parse(config.reviewDueAt) <= nowValue) {
-    return { runnable: false, reason: "review_overdue" };
-  }
+  // An internal review reminder is not the employer's authorization expiry.
   return { runnable: true };
 }
 

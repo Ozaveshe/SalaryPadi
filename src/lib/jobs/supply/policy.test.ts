@@ -35,7 +35,7 @@ describe("job source policy registry", () => {
     ).toBe(false);
   });
 
-  it("fails closed for missing, disabled, and overdue policies", () => {
+  it("blocks missing and disabled sources without expiring review reminders", () => {
     expect(() =>
       assertRunnableSourcePolicy("not_registered", [], new Date("2026-07-14")),
     ).toThrow(
@@ -54,11 +54,18 @@ describe("job source policy registry", () => {
         "salarypadi_employer_submissions",
         new Date("2026-08-10T00:00:00.000Z"),
       ),
-    ).toThrow(
-      expect.objectContaining<Partial<AdapterPolicyError>>({
-        code: "policy_review_overdue",
-      }),
-    );
+    ).not.toThrow();
+  });
+
+  it("keeps permitted feeds runnable after their internal review deadline", () => {
+    for (const key of ["jobicy", "himalayas", "reliefweb"] as const) {
+      expect(() =>
+        openSupplyAdapter(key, new Date("2030-01-01")),
+      ).not.toThrow();
+    }
+    const overdue = structuredClone(jobSourcePolicyRegistry);
+    overdue.generatedAt = "2030-01-01T00:00:00.000Z";
+    expect(() => parseJobSourcePolicyRegistry(overdue)).not.toThrow();
   });
 
   it("opens the existing consented direct-submission lane only within policy", () => {

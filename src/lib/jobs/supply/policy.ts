@@ -151,17 +151,6 @@ const registrySchema = z
           message: "source reviews cannot postdate the generated registry",
         });
       }
-      if (
-        source.state === "enabled" &&
-        source.reviewDueAt &&
-        source.reviewDueAt <= registry.generatedAt
-      ) {
-        context.addIssue({
-          code: "custom",
-          path: ["sources", index, "reviewDueAt"],
-          message: "enabled sources require a current review window",
-        });
-      }
     }
   });
 
@@ -212,11 +201,9 @@ export function assertRunnableSourcePolicy(
   if (policy.state !== "enabled") {
     throw new AdapterPolicyError("policy_disabled", adapterKey);
   }
-  if (
-    !Number.isFinite(now.valueOf()) ||
-    !policy.reviewDueAt ||
-    Date.parse(policy.reviewDueAt) <= now.valueOf()
-  ) {
+  // Review dates are operational reminders. Only an explicit source state,
+  // missing dependency or field restriction blocks this registry gate.
+  if (!Number.isFinite(now.valueOf())) {
     throw new AdapterPolicyError("policy_review_overdue", adapterKey);
   }
   if (policy.missingDependencies.length > 0) {
