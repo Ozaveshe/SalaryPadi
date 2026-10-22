@@ -133,6 +133,24 @@ describe("applicant country evidence", () => {
       "unclear",
       "unclear",
     ],
+    [
+      evidence({ scope: "worldwide", includedCountries: ["ZA"] }),
+      "NG",
+      "unclear",
+      "unclear",
+    ],
+    [
+      evidence({ scope: "africa", includedCountries: ["KE", "GH"] }),
+      "NG",
+      "unclear",
+      "unclear",
+    ],
+    [
+      evidence({ scope: "africa", includedCountries: ["KE", "GH"] }),
+      "KE",
+      "eligible",
+      "named",
+    ],
     [evidence(), "invalid", "unclear", "unclear"],
   ] as const)("resolves %j for %s as %s", (facts, country, state, basis) => {
     expect(countryEligibility(facts, country)).toMatchObject({ state, basis });

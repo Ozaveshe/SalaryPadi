@@ -85,6 +85,14 @@ describe("country alert delivery", () => {
       ),
     ).toEqual([kenya]);
   });
+  it("rejects old worldwide or Africa labels that conflict with named countries", () => {
+    const southAfrica = job(1);
+    southAfrica.eligibility.includedCountries = ["ZA"];
+    const hubs = job(2);
+    hubs.eligibility.scope = "africa";
+    hubs.eligibility.includedCountries = ["GH", "SN"];
+    expect(matchAlertJobs(claim, [southAfrica, hubs], now)).toEqual([]);
+  });
   it("uses only unrestricted worldwide roles when no country was selected", () => {
     const global = job(1);
     expect(
