@@ -55,7 +55,7 @@ test.describe("production job source canary", () => {
       .first();
     if (sourceWorker?.last_status === "skipped") {
       await expect(remotiveCard).toHaveCount(0);
-      await expect(page.getByLabel("Can apply from")).toBeVisible();
+      await expect(page.getByLabel("I work from")).toBeVisible();
       return;
     }
 
@@ -88,7 +88,9 @@ test.describe("production job source canary", () => {
     await expect(sourceLink).toHaveAttribute("rel", /nofollow/);
 
     await page.goto("/jobs?eligibility=nigeria");
-    await expect(page.getByLabel("Can apply from")).toHaveValue("nigeria");
+    await expect(page.getByLabel("Eligibility evidence")).toHaveValue(
+      "nigeria",
+    );
     await expect(
       page.getByRole("heading", { name: "Current results" }),
     ).toBeVisible();

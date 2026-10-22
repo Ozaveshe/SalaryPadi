@@ -8,10 +8,10 @@ import type { Job } from "./types";
 
 export const HIMALAYAS_ENDPOINTS = [
   "https://himalayas.app/jobs/api/search?country=NG&exclude_worldwide=true&sort=recent&page=1",
-  "https://himalayas.app/jobs/api/search?country=NG&exclude_worldwide=true&sort=recent&page=2",
-  "https://himalayas.app/jobs/api/search?country=NG&exclude_worldwide=true&sort=recent&page=3",
-  "https://himalayas.app/jobs/api/search?country=NG&exclude_worldwide=true&sort=recent&page=4",
-  "https://himalayas.app/jobs/api/search?country=NG&exclude_worldwide=true&sort=recent&page=5",
+  "https://himalayas.app/jobs/api/search?country=KE&exclude_worldwide=true&sort=recent&page=1",
+  "https://himalayas.app/jobs/api/search?country=GH&exclude_worldwide=true&sort=recent&page=1",
+  "https://himalayas.app/jobs/api/search?country=ZA&exclude_worldwide=true&sort=recent&page=1",
+  "https://himalayas.app/jobs/api/search?country=EG&exclude_worldwide=true&sort=recent&page=1",
   "https://himalayas.app/jobs/api/search?worldwide=true&sort=recent&page=1",
 ] as const;
 export const HIMALAYAS_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -79,7 +79,7 @@ function isJson(response: Response) {
   );
 }
 
-async function readPage(
+export async function readHimalayasPage(
   endpoint: string,
   options: HimalayasAdapterOptions,
   requestedAt: Date,
@@ -141,7 +141,7 @@ async function readPage(
 }
 
 /**
- * Fetches bounded Nigeria-eligible and worldwide pages from Himalayas. Pages
+ * Fetches initial Africa-country and worldwide pages from Himalayas. Pages
  * are isolated: one failed page yields a degraded source instead of hiding
  * valid jobs returned by the other documented queries.
  */
@@ -160,8 +160,9 @@ export async function fetchHimalayasJobs(
 
   // Pages are fetched one at a time with a short gap to respect the
   // documented one-request-per-second pacing.
-  const pages: PromiseSettledResult<Awaited<ReturnType<typeof readPage>>>[] =
-    [];
+  const pages: PromiseSettledResult<
+    Awaited<ReturnType<typeof readHimalayasPage>>
+  >[] = [];
   for (const [index, endpoint] of HIMALAYAS_ENDPOINTS.entries()) {
     if (index > 0) {
       await new Promise((resolve) =>
@@ -171,7 +172,7 @@ export async function fetchHimalayasJobs(
     try {
       pages.push({
         status: "fulfilled",
-        value: await readPage(endpoint, options, requestedAt),
+        value: await readHimalayasPage(endpoint, options, requestedAt),
       });
     } catch (reason) {
       pages.push({ status: "rejected", reason });
@@ -181,8 +182,9 @@ export async function fetchHimalayasJobs(
     .filter(
       (
         page,
-      ): page is PromiseFulfilledResult<Awaited<ReturnType<typeof readPage>>> =>
-        page.status === "fulfilled",
+      ): page is PromiseFulfilledResult<
+        Awaited<ReturnType<typeof readHimalayasPage>>
+      > => page.status === "fulfilled",
     )
     .map((page) => page.value);
   if (successful.length === 0) {

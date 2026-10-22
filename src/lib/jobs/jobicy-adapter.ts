@@ -7,14 +7,13 @@ import { normalizeJobicyJob } from "./normalize";
 import type { Job } from "./types";
 
 /**
- * The EMEA geo filter keeps the single permitted request focused on the
+ * The EMEA geo filter keeps each cursor page focused on the
  * region that can contain Africa-eligible listings. Jobicy's unfiltered feed
  * is dominated by US-only roles that the eligibility gate must discard, while
  * the EMEA slice carries the EMEA-wide and worldwide ("Anywhere") listings
  * Africans can actually apply for.
  */
-export const JOBICY_ENDPOINT =
-  "https://jobicy.com/api/v2/remote-jobs?count=100&geo=emea";
+export const JOBICY_ENDPOINT = "https://jobicy.com/api/jobs?count=200&geo=emea";
 export const JOBICY_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 export const JOBICY_ADAPTER_ERROR_CODES = [
@@ -46,6 +45,7 @@ export type JobicyRequestInit = RequestInit & {
 };
 
 export interface JobicyAdapterOptions {
+  cursor?: string | null;
   fetch?: typeof globalThis.fetch;
   requestedAt?: Date;
   signal?: AbortSignal;
@@ -85,7 +85,7 @@ function isJson(response: Response) {
  */
 export async function fetchJobicyJobs(
   options: JobicyAdapterOptions = {},
-): Promise<{ jobs: Job[]; checkedAt: string }> {
+): Promise<{ jobs: Job[]; checkedAt: string; nextCursor: string | null }> {
   const requestedAt = new Date(options.requestedAt?.valueOf() ?? Date.now());
   if (!Number.isFinite(requestedAt.valueOf())) {
     throw new JobicyAdapterError("jobicy_request_failed");
@@ -93,15 +93,20 @@ export async function fetchJobicyJobs(
 
   let response: Response;
   try {
-    response = await (options.fetch ?? globalThis.fetch)(JOBICY_ENDPOINT, {
-      ...options.requestInit,
-      method: "GET",
-      body: null,
-      credentials: "omit",
-      redirect: "error",
-      headers: safeHeaders(options.requestInit),
-      signal: options.signal ?? options.requestInit?.signal,
-    });
+    response = await (options.fetch ?? globalThis.fetch)(
+      options.cursor
+        ? `${JOBICY_ENDPOINT}&cursor=${encodeURIComponent(options.cursor)}`
+        : JOBICY_ENDPOINT,
+      {
+        ...options.requestInit,
+        method: "GET",
+        body: null,
+        credentials: "omit",
+        redirect: "error",
+        headers: safeHeaders(options.requestInit),
+        signal: options.signal ?? options.requestInit?.signal,
+      },
+    );
   } catch {
     throw new JobicyAdapterError(
       options.signal?.aborted
@@ -139,6 +144,7 @@ export async function fetchJobicyJobs(
     return {
       jobs: parsed.data.jobs.map((job) => normalizeJobicyJob(job, checkedAt)),
       checkedAt,
+      nextCursor: parsed.data.nextCursor ?? null,
     };
   } catch {
     throw new JobicyAdapterError("jobicy_normalization_failed");

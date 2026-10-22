@@ -39,6 +39,21 @@ beforeEach(() => {
 });
 
 describe("secondary feed snapshot store", () => {
+  it("quarantines one malformed job without losing valid source records", async () => {
+    const warning = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+    const job = normalizeRemotiveJob(sourceJob, checkedAt);
+    const count = await storeSecondaryFeedSnapshot(
+      "jobicy",
+      [job, { ...job, id: "bad", slug: "bad--slug" }],
+      checkedAt,
+    );
+    expect(count).toBe(1);
+    expect(mocks.setJSON.mock.calls[0]![1].jobs[0].id).toBe(job.id);
+    expect(warning).toHaveBeenCalled();
+    warning.mockRestore();
+  });
   it("persists the redacted catalog projection under the source key", async () => {
     const job = normalizeRemotiveJob(sourceJob, checkedAt);
 

@@ -46,7 +46,7 @@ test.describe("continuous job decision path", () => {
     await expect(page).toHaveURL(/hndAccepted=on/);
     await expect(page).toHaveURL(/hmo=on/);
     await expect(page).toHaveURL(/fxPolicy=on/);
-    const saveSearch = page.getByRole("link", { name: "Save this search" });
+    const saveSearch = page.getByRole("link", { name: "Get job alerts" });
     await expect(saveSearch).toHaveAttribute(
       "href",
       /\/alerts\?.*hndAccepted=true.*hmo=true.*fxPolicy=true/,

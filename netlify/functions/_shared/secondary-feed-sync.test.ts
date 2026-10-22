@@ -170,7 +170,7 @@ describe("secondary feed sync worker", () => {
 
   it("skips a source whose snapshot is younger than its reviewed poll interval", async () => {
     const now = Date.now();
-    const freshCheckedAt = new Date(now - 60 * 60 * 1_000).toISOString();
+    const freshCheckedAt = new Date(now - 5 * 60 * 1_000).toISOString();
     const fetchJobs = vi.fn(async () => ({
       jobs: [feedJob(freshCheckedAt)],
       checkedAt: freshCheckedAt,
@@ -194,8 +194,7 @@ describe("secondary feed sync worker", () => {
       now: () => now,
     });
 
-    // Jobicy (6h interval) is not due after 1h; Himalayas (24h) is not due
-    // either — nothing is fetched, nothing overwritten.
+    // A batch is not due after five minutes; continuation waits for the next slot.
     expect(result.summary).toMatchObject({
       stored_count: 0,
       skipped_count: 3,

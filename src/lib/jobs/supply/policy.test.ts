@@ -97,7 +97,7 @@ describe("job source policy registry", () => {
     });
   });
 
-  it("opens Himalayas only with daily polling and no syndication rights", () => {
+  it("opens Himalayas with paced resumable batches and no syndication rights", () => {
     expect(
       openSupplyAdapter("himalayas", new Date("2026-07-15T12:00:00.000Z"))
         .policy,
@@ -107,8 +107,8 @@ describe("job source policy registry", () => {
       publicDisplayPermission: true,
       searchIndexPermission: false,
       googleJobPostingPermission: false,
-      minimumPollingSeconds: 86_400,
-      maximumRequestsPerDay: 3,
+      minimumPollingSeconds: 900,
+      maximumRequestsPerDay: 576,
       missingDependencies: [],
     });
   });

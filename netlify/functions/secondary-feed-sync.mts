@@ -27,6 +27,13 @@ import {
 import { openSupplyAdapter } from "../../src/lib/jobs/supply/adapters";
 import { AdapterPolicyError } from "../../src/lib/jobs/supply/policy";
 import type { Job } from "../../src/lib/jobs/types";
+import {
+  discoverSecondaryJobs,
+  mergeDiscoveryJobs,
+  readDiscoveryCheckpoint,
+  writeDiscoveryCheckpoint,
+  type DiscoveryCheckpoint,
+} from "../../src/lib/jobs/secondary-discovery";
 
 import {
   OperationalError,
@@ -88,9 +95,16 @@ const sourcePolicyRowSchema = z
 const sourcePolicySchema = z.array(sourcePolicyRowSchema).max(1);
 
 /** Cron jitter must not push a due fetch past its slot. */
-const POLL_TOLERANCE_MS = 15 * 60 * 1_000;
+const POLL_TOLERANCE_MS = 60 * 1_000;
 
-type FeedFetchResult = { jobs: Job[]; checkedAt: string };
+type FeedFetchResult = {
+  jobs: Job[];
+  checkedAt: string;
+  partial?: boolean;
+  successfulRequests?: number;
+  checkpoint?: DiscoveryCheckpoint;
+  skipped?: boolean;
+};
 
 type SecondarySource = {
   key: SecondaryFeedKey;
@@ -113,7 +127,7 @@ const SECONDARY_SOURCES: SecondarySource[] = [
     reviewedPolicy: JOBICY_SOURCE_POLICY,
     termsVersion: JOBICY_TERMS_VERSION,
     requiredDestinationKind: JOBICY_REQUIRED_DESTINATION_KIND,
-    minimumPollMs: JOBICY_SOURCE_POLICY.refreshIntervalSeconds * 1_000,
+    minimumPollMs: 15 * 60 * 1_000,
     fetchJobs: (signal) =>
       fetchJobicyJobs({ signal: signal ?? AbortSignal.timeout(10_000) }),
   },
@@ -123,7 +137,7 @@ const SECONDARY_SOURCES: SecondarySource[] = [
     reviewedPolicy: HIMALAYAS_SOURCE_POLICY,
     termsVersion: HIMALAYAS_TERMS_VERSION,
     requiredDestinationKind: HIMALAYAS_REQUIRED_DESTINATION_KIND,
-    minimumPollMs: HIMALAYAS_SOURCE_POLICY.refreshIntervalSeconds * 1_000,
+    minimumPollMs: 15 * 60 * 1_000,
     fetchJobs: (signal) =>
       fetchHimalayasJobs({ signal: signal ?? AbortSignal.timeout(12_000) }),
   },
@@ -295,7 +309,13 @@ async function syncSource(
   try {
     result = dependencies.fetchJobs
       ? await dependencies.fetchJobs(source.key, signal)
-      : await source.fetchJobs(signal);
+      : source.key === "reliefweb"
+        ? await source.fetchJobs(signal)
+        : await discoverSecondaryJobs(
+            source.key,
+            await readDiscoveryCheckpoint(source.key),
+            { signal, now: new Date(now()) },
+          );
   } catch (reason) {
     return {
       source: source.key,
@@ -306,7 +326,20 @@ async function syncSource(
           : `${source.key}_fetch_failed`,
     };
   }
-  if (result.jobs.length === 0) {
+  if (result.skipped)
+    return {
+      source: source.key,
+      outcome: "skipped",
+      code: `${source.key}_fetch_not_due`,
+    };
+  if (result.checkpoint) {
+    result.jobs = mergeDiscoveryJobs(
+      existing.state === "ready" ? existing.catalog.jobs : [],
+      result.jobs,
+      new Date(now()),
+    );
+  }
+  if (result.jobs.length === 0 && !result.checkpoint) {
     // An empty result is treated as a provider fault: the previous snapshot
     // keeps serving rather than wiping the public listing.
     return {
@@ -322,9 +355,14 @@ async function syncSource(
       result.jobs,
       result.checkedAt,
     );
+    if (result.checkpoint)
+      await writeDiscoveryCheckpoint(source.key, result.checkpoint);
     return {
       source: source.key,
       outcome: "stored",
+      ...(result.partial
+        ? { code: `${source.key}_partial_retry_pending` }
+        : {}),
       stored_count: storedCount,
       checked_at: result.checkedAt,
     };
@@ -345,10 +383,11 @@ export async function runSecondaryFeedSync(
     return workerSkipped("secondary_feed_production_only");
   }
 
-  const outcomes: SourceOutcome[] = [];
-  for (const source of SECONDARY_SOURCES) {
-    outcomes.push(await syncSource(source, execution, dependencies));
-  }
+  const outcomes = await Promise.all(
+    SECONDARY_SOURCES.map((source) =>
+      syncSource(source, execution, dependencies),
+    ),
+  );
 
   // The operational summary only admits scalar fields, so per-source
   // outcomes are flattened into `<source>_*` keys.
@@ -391,4 +430,4 @@ const handler = async (
 
 export default handler;
 
-export const config: Config = { schedule: "20 0,6,12,18 * * *" };
+export const config: Config = { schedule: "5,20,35,50 * * * *" };

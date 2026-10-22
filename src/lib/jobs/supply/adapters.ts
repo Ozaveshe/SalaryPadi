@@ -43,7 +43,7 @@ export const SUPPLY_ADAPTERS = {
   },
   jobicy: {
     kind: "secondary_feed",
-    endpoint: "https://jobicy.com/api/v2/remote-jobs",
+    endpoint: "https://jobicy.com/api/jobs",
     requiredFields: ["id", "url", "jobTitle", "companyName"] as const,
   },
   himalayas: {

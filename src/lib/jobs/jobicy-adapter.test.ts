@@ -37,6 +37,21 @@ function response(body: unknown, init: ResponseInit = {}) {
 }
 
 describe("Jobicy adapter", () => {
+  it("keeps opaque cursor values on the fixed provider endpoint", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(response({ ...payload(), nextCursor: "next-token" }));
+    const result = await fetchJobicyJobs({
+      fetch,
+      cursor: "opaque&geo=usa",
+      requestedAt: new Date(checkedAt),
+    });
+    const url = new URL(String(fetch.mock.calls[0]![0]));
+    expect(url.origin).toBe("https://jobicy.com");
+    expect(url.searchParams.get("geo")).toBe("emea");
+    expect(url.searchParams.get("cursor")).toBe("opaque&geo=usa");
+    expect(result.nextCursor).toBe("next-token");
+  });
   it("normalizes the documented feed without retaining the full description", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       response({

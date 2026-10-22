@@ -73,10 +73,12 @@ export const jobSearchSchema = z.object({
   ),
   salaryDisclosed: booleanValue.default(false),
   currency: stringValue.default("all"),
-  minSalary: z.preprocess(
-    (value) => (Array.isArray(value) ? value[0] : value),
-    z.coerce.number().nonnegative().max(1_000_000_000).optional(),
-  ),
+  minSalary: z.preprocess((value) => {
+    const scalar = Array.isArray(value) ? value[0] : value;
+    return scalar === null || (typeof scalar === "string" && !scalar.trim())
+      ? undefined
+      : scalar;
+  }, z.coerce.number().nonnegative().max(1_000_000_000).optional()),
   visaSponsorship: booleanValue.default(false),
   relocationSupport: booleanValue.default(false),
   graduateTrainee: booleanValue.default(false),
@@ -283,6 +285,7 @@ export function hasAdvancedJobFilters(search: JobSearch): boolean {
     ADVANCED_TEXT_FILTERS.some((key) => search[key].trim() !== "") ||
     ADVANCED_CHOICE_FILTERS.some((key) => search[key] !== "all") ||
     ADVANCED_FLAG_FILTERS.some((key) => search[key]) ||
+    search.eligibility !== "all" ||
     search.sort !== "relevance" ||
     (search.minSalary !== undefined && search.minSalary > 0)
   );

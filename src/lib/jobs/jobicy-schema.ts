@@ -53,7 +53,8 @@ export const jobicyJobSchema = z
 export const jobicyResponseSchema = z
   .object({
     jobCount: z.number().int().nonnegative().optional(),
-    jobs: z.array(jobicyJobSchema).max(100),
+    jobs: z.array(jobicyJobSchema).max(200),
+    nextCursor: z.string().max(2048).nullable().optional(),
   })
   .passthrough();
 
