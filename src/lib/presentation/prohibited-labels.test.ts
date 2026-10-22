@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -9,6 +9,8 @@ import {
   JobTrustSummary,
 } from "@/components/jobs/job-trust-summary";
 import type { Job } from "@/lib/jobs/types";
+
+afterEach(() => vi.useRealTimers());
 
 import {
   PROHIBITED_PUBLIC_LABELS,
@@ -160,6 +162,9 @@ describe("prohibited public labels regression", () => {
   });
 
   it("shows unresolved readiness checks without exposing internal labels", () => {
+    // Keep this label test independent of the fixture crossing an age boundary.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-07-15T12:00:00Z"));
     // The uncertain fixture now has evidence checks to resolve. The summary
     // row therefore has real user-facing content instead of being an empty
     // labelled container.
