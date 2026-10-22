@@ -68,6 +68,7 @@ export function matchAlertJobs(
   // Public listing permission, provider reachability, or an employer source
   // type never implies permission to place a job in alerts.
   const emailPermittedJobs = jobs.filter((job) => job.source.canEmail === true);
+  const selectedKeys = new Set<string>();
   return (
     filterAndSortJobs(emailPermittedJobs, search, now)
       .filter((job) => !sentJobKeys.has(alertJobKey(job)))
@@ -82,6 +83,12 @@ export function matchAlertJobs(
           (job.eligibility.scope === "worldwide" &&
             job.eligibility.excludedCountries.length === 0),
       )
+      .filter((job) => {
+        const key = alertJobKey(job);
+        if (selectedKeys.has(key)) return false;
+        selectedKeys.add(key);
+        return true;
+      })
       .slice(0, 10)
   );
 }

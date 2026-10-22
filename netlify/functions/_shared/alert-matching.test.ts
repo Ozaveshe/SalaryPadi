@@ -50,6 +50,12 @@ describe("country alert delivery", () => {
       matchAlertJobs(claim, jobs, now, new Set([alertJobKey(first)])),
     ).toEqual([jobs[1]]);
   });
+  it("deduplicates title variants sharing the same application destination", () => {
+    const first = job(1);
+    expect(
+      matchAlertJobs(claim, [first, { ...first, title: "Updated title" }], now),
+    ).toHaveLength(1);
+  });
   it("carries overflow into a later digest instead of losing roles after ten", () => {
     const jobs = Array.from({ length: 13 }, (_, index) => job(index + 1));
     const first = matchAlertJobs(claim, jobs, now);
