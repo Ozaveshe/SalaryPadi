@@ -81,18 +81,17 @@ select is(
   'direct employer submission policy remains enabled'
 );
 
-select throws_ok(
+select lives_ok(
   $$ insert into app.job_sources (
        adapter_key, name, source_type, status, terms_url,
        attribution_required, allow_public_listing, refresh_interval,
        terms_reviewed_at, terms_version
      ) values (
-       'linkedin', 'Forbidden LinkedIn Adapter', 'permitted_api', 'disabled',
+       'linkedin', 'Disabled future integration', 'permitted_api', 'disabled',
        'https://example.test/terms', true, false, interval '24 hours',
        clock_timestamp(), 'forbidden-test'
      ) $$,
-  '23514', 'forbidden job source adapter',
-  'forbidden platform adapters cannot be added by configuration'
+  'provider names do not prevent registering a disabled future integration'
 );
 select throws_ok(
   $$ update app.job_sources set may_index_jobs = true

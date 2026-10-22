@@ -724,7 +724,11 @@ export function normalizeHimalayasJob(
   return {
     id: `himalayas-${externalKey}`,
     databaseId: null,
-    slug: `${titleSlug}-at-${companySlug}-${externalKey.slice(-24)}`,
+    // The retained suffix can begin with a hyphen; joining it verbatim made
+    // valid provider jobs invalidate the entire persisted feed snapshot.
+    slug: `${titleSlug}-at-${companySlug}-${externalKey.slice(-24)}`
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, ""),
     externalId: source.guid,
     source: HIMALAYAS_SOURCE_POLICY,
     sourceUrl: sourceUrl.toString(),
