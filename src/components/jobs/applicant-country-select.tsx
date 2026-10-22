@@ -3,9 +3,11 @@ import { AFRICAN_APPLICANT_COUNTRIES } from "@/lib/jobs/eligibility";
 export function ApplicantCountrySelect({
   id,
   defaultValue = "",
+  required = false,
 }: {
   id: string;
   defaultValue?: string;
+  required?: boolean;
 }) {
   return (
     <div className="field">
@@ -15,8 +17,11 @@ export function ApplicantCountrySelect({
         id={id}
         name="applicantCountry"
         defaultValue={defaultValue}
+        required={required}
       >
-        <option value="">Browse across Africa</option>
+        <option value="">
+          {required ? "Choose your country" : "Browse across Africa"}
+        </option>
         {AFRICAN_APPLICANT_COUNTRIES.map(({ code, name }) => (
           <option key={code} value={code}>
             {name}

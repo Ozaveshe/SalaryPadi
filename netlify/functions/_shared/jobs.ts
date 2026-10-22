@@ -1,5 +1,7 @@
 import { getStore } from "@netlify/blobs";
 import { z } from "zod";
+import { readSecondaryFeedSnapshot } from "../../../src/lib/jobs/secondary-feed-store";
+import { JOBICY_SOURCE_POLICY } from "../../../src/lib/jobs/source-policy";
 
 import { discardResponseBody } from "../../../src/lib/http/body";
 import { readBoundedJson } from "../../../src/lib/http/json";
@@ -29,6 +31,8 @@ import {
   getRuntimeSupabaseOrigin,
   OperationalError,
   raceWithSignal,
+  rpc,
+  rpcBooleanResultSchema,
 } from "./runtime";
 
 const ALERT_CATALOG_STORE = "salarypadi-job-catalog";
@@ -39,7 +43,7 @@ const ALERT_CATALOG_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const JOB_SNAPSHOT_REQUEST_TIMEOUT_MS = 15_000;
 const SOURCE_POLICY_MAX_RESPONSE_BYTES = 32 * 1024;
 const DATABASE_JOBS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
-const MAX_DATABASE_ALERT_JOBS = 500;
+const DATABASE_ALERT_PAGE_SIZE = 100;
 const RECOVERABLE_ALERT_CATALOG_ERRORS = new Set([
   "alert_catalog_missing",
   "alert_catalog_shape",
@@ -234,82 +238,65 @@ async function fetchDatabaseJobs(
   const publishableKey = getRuntimeHeaderCredential(
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   );
-  const response = await fetch(
-    `${url}/rest/v1/jobs?select=*&order=posted_at.desc&limit=${MAX_DATABASE_ALERT_JOBS + 1}`,
-    {
-      headers: {
-        Accept: "application/json",
-        "Accept-Profile": "api",
-        apikey: publishableKey,
-        Authorization: `Bearer ${publishableKey}`,
+  const jobs: Job[] = [];
+  let rejected = 0;
+  let offset = 0;
+  // Read every page, or fail the delivery for retry. Never send from a silently
+  // truncated catalogue and advance the alert's delivery state.
+  while (true) {
+    const response = await fetch(
+      `${url}/rest/v1/jobs?select=*&order=id.asc&limit=${DATABASE_ALERT_PAGE_SIZE}&offset=${offset}`,
+      {
+        headers: {
+          Accept: "application/json",
+          "Accept-Profile": "api",
+          apikey: publishableKey,
+          Authorization: `Bearer ${publishableKey}`,
+        },
+        cache: "no-store",
+        credentials: "omit",
+        redirect: "error",
+        signal: boundedSignal(signal, EXTERNAL_REQUEST_TIMEOUT_MS),
       },
-      cache: "no-store",
-      credentials: "omit",
-      redirect: "error",
-      signal: boundedSignal(signal, EXTERNAL_REQUEST_TIMEOUT_MS),
-    },
-  );
-  if (!response.ok) {
-    await discardResponseBody(response);
-    throw new OperationalError(`database_jobs_${response.status}`);
+    );
+    if (!response.ok) {
+      await discardResponseBody(response);
+      throw new OperationalError(`database_jobs_${response.status}`);
+    }
+    let payload: unknown;
+    try {
+      payload = await readBoundedJson(
+        response,
+        DATABASE_JOBS_MAX_RESPONSE_BYTES,
+      );
+    } catch {
+      throw new OperationalError("database_jobs_invalid_json");
+    }
+    if (!Array.isArray(payload) || payload.length > DATABASE_ALERT_PAGE_SIZE)
+      throw new OperationalError("database_jobs_shape");
+    for (const row of payload) {
+      const decoded = decodeDatabaseJobRow(row);
+      if (decoded.ok) jobs.push(decoded.job);
+      else rejected += 1;
+    }
+    if (payload.length < DATABASE_ALERT_PAGE_SIZE) break;
+    offset += payload.length;
   }
-  let payload: unknown;
-  try {
-    payload = await readBoundedJson(response, DATABASE_JOBS_MAX_RESPONSE_BYTES);
-  } catch {
-    throw new OperationalError("database_jobs_invalid_json");
-  }
-  if (!Array.isArray(payload))
-    throw new OperationalError("database_jobs_shape");
-  const capacityExceeded = payload.length > MAX_DATABASE_ALERT_JOBS;
-  const decoded = payload
-    .slice(0, MAX_DATABASE_ALERT_JOBS)
-    .map((row) => decodeDatabaseJobRow(row));
-  const jobs = decoded.flatMap((result) => (result.ok ? [result.job] : []));
-  const rejectedRows = decoded.filter((result) => !result.ok);
-  if (rejectedRows.length === 0 && !capacityExceeded) {
-    return { state: "ready", jobs, issues: [] };
-  }
-
-  if (rejectedRows.length > 0) {
+  if (rejected)
     console.warn(
       JSON.stringify({
         event: "worker.rows_quarantined",
         operation: "jobs.alert_catalog",
         code: "database_jobs_invalid_rows",
-        rejected: rejectedRows.length,
-        issue_paths: [
-          ...new Set(rejectedRows.flatMap((result) => result.issuePaths)),
-        ].slice(0, 12),
+        rejected,
       }),
     );
-  }
-  if (capacityExceeded) {
-    console.warn(
-      JSON.stringify({
-        event: "worker.capacity_exceeded",
-        operation: "jobs.alert_catalog",
-        code: "database_jobs_capacity_exceeded",
-        maximum: MAX_DATABASE_ALERT_JOBS,
-      }),
-    );
-  }
   return {
-    state: "degraded",
+    state: rejected ? "degraded" : "ready",
     jobs,
-    issues: [
-      ...(capacityExceeded
-        ? [{ code: "database_jobs_capacity_exceeded" }]
-        : []),
-      ...(rejectedRows.length > 0
-        ? [
-            {
-              code: "database_jobs_invalid_rows",
-              count: rejectedRows.length,
-            },
-          ]
-        : []),
-    ],
+    issues: rejected
+      ? [{ code: "database_jobs_invalid_rows", count: rejected }]
+      : [],
   };
 }
 
@@ -372,6 +359,16 @@ export async function assertAlertJobsPublishable(
   const containsRemotive = jobs.some(
     (job) => job.source.id === REMOTIVE_SOURCE_POLICY.id,
   );
+  if (
+    jobs.some((job) => job.source.id === JOBICY_SOURCE_POLICY.id) &&
+    !(await rpc(
+      "worker_alert_source_enabled",
+      rpcBooleanResultSchema,
+      { p_adapter_key: "jobicy" },
+      { signal },
+    ))
+  )
+    throw new OperationalError("jobicy_source_revoked");
   if (!containsRemotive) return;
   if (!(await fetchRemotivePublicationEnabled(signal))) {
     throw new OperationalError("remotive_source_revoked");
@@ -380,11 +377,55 @@ export async function assertAlertJobsPublishable(
 
 export async function fetchAlertJobCatalog(
   signal: AbortSignal,
+  includeSecondary = true,
 ): Promise<AlertJobCatalogResult> {
   const [database, remotiveEnabled] = await Promise.all([
     fetchDatabaseJobs(signal),
     fetchRemotivePublicationEnabled(signal),
   ]);
+  // The optional feed is read only when its current registry permits email.
+  const jobicyEnabled =
+    includeSecondary &&
+    (await rpc(
+      "worker_alert_source_enabled",
+      rpcBooleanResultSchema,
+      { p_adapter_key: "jobicy" },
+      { signal },
+    ));
+  if (jobicyEnabled) {
+    const snapshot = await raceWithSignal(
+      readSecondaryFeedSnapshot("jobicy"),
+      signal,
+    );
+    try {
+      if (snapshot.state === "ready") {
+        const feedJobs = parseAlertCatalog(snapshot.catalog)
+          .filter(
+            (job) =>
+              job.source.id === JOBICY_SOURCE_POLICY.id &&
+              Date.now() - Date.parse(job.lastCheckedAt) <= 24 * 60 * 60 * 1000,
+          )
+          .map((job) => ({
+            ...job,
+            source: { ...job.source, canEmail: true },
+          }));
+        database.jobs = mergeAlertJobCatalogs(database.jobs, feedJobs);
+      } else {
+        database.state = "degraded";
+        database.issues.push({
+          code: `jobicy_alert_catalog_${snapshot.state}`,
+        });
+      }
+    } catch (reason) {
+      if (
+        !(reason instanceof OperationalError) ||
+        !RECOVERABLE_ALERT_CATALOG_ERRORS.has(reason.code)
+      )
+        throw reason;
+      database.state = "degraded";
+      database.issues.push({ code: `jobicy_${reason.code}` });
+    }
+  }
   if (!remotiveEnabled) return database;
   let remotive: Job[];
   try {

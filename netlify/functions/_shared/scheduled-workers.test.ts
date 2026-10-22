@@ -374,7 +374,10 @@ describe("scheduled worker successful runs", () => {
             last_sent_at: "2999-01-01T00:00:00.000Z",
           },
         ],
-        worker_complete_alert_delivery: true,
+        worker_alert_source_enabled: false,
+        worker_read_alert_state: { sent_job_keys: [], prepared: null },
+        worker_prepare_alert: (body: Record<string, unknown>) => body.p_message,
+        worker_complete_alert_with_jobs: true,
       },
       fallback: (url) => {
         if (url.pathname === "/rest/v1/jobs") return Response.json([]);
@@ -387,7 +390,7 @@ describe("scheduled worker successful runs", () => {
     ).rejects.toMatchObject({ code: "alert_delivery_partial_failure" });
 
     expect(
-      rpcCallBodies(fetchMock, "worker_complete_alert_delivery"),
+      rpcCallBodies(fetchMock, "worker_complete_alert_with_jobs"),
     ).toContainEqual(
       expect.objectContaining({
         p_outcome: "failed",
@@ -420,7 +423,10 @@ describe("scheduled worker successful runs", () => {
             last_sent_at: null,
           },
         ],
-        worker_complete_alert_delivery: true,
+        worker_alert_source_enabled: false,
+        worker_read_alert_state: { sent_job_keys: [], prepared: null },
+        worker_prepare_alert: (body: Record<string, unknown>) => body.p_message,
+        worker_complete_alert_with_jobs: true,
       },
       fallback: (url) => {
         if (url.pathname === "/rest/v1/jobs") {
@@ -681,7 +687,10 @@ describe("scheduled worker failures", () => {
             last_sent_at: null,
           },
         ],
-        worker_complete_alert_delivery: new Response(null, { status: 503 }),
+        worker_alert_source_enabled: false,
+        worker_read_alert_state: { sent_job_keys: [], prepared: null },
+        worker_prepare_alert: (body: Record<string, unknown>) => body.p_message,
+        worker_complete_alert_with_jobs: new Response(null, { status: 503 }),
       },
       fallback: (url) => {
         if (url.pathname === "/rest/v1/jobs") {
@@ -746,7 +755,10 @@ describe("scheduled worker failures", () => {
     const fetchMock = installWorkerFetch({
       rpc: {
         worker_claim_alert_deliveries: [claim],
-        worker_complete_alert_delivery: new Response(null, { status: 503 }),
+        worker_alert_source_enabled: false,
+        worker_read_alert_state: { sent_job_keys: [], prepared: null },
+        worker_prepare_alert: (body: Record<string, unknown>) => body.p_message,
+        worker_complete_alert_with_jobs: new Response(null, { status: 503 }),
       },
       fallback: (url) => {
         if (url.pathname === "/rest/v1/jobs") return Response.json([]);
@@ -775,16 +787,18 @@ describe("scheduled worker failures", () => {
         (url) => new URL(url).hostname === "api.resend.com",
       ),
     ).toHaveLength(1);
-    expect(rpcCallBodies(fetchMock, "worker_complete_alert_delivery")).toEqual([
-      {
-        p_delivery_id: claim.delivery_id,
-        p_claim_token: claim.claim_token,
-        p_outcome: "sent",
-        p_matched_job_count: 1,
-        p_provider_message_id: "90000000-0000-4000-8000-000000000001",
-        p_error_code: null,
-      },
-    ]);
+    expect(rpcCallBodies(fetchMock, "worker_complete_alert_with_jobs")).toEqual(
+      [
+        {
+          p_delivery_id: claim.delivery_id,
+          p_claim_token: claim.claim_token,
+          p_outcome: "sent",
+          p_matched_job_count: 1,
+          p_provider_message_id: "90000000-0000-4000-8000-000000000001",
+          p_error_code: null,
+        },
+      ],
+    );
     expect(finishBody(fetchMock)).toMatchObject({
       p_status: "failed",
       p_error_code: "supabase_rpc_503",
@@ -827,7 +841,10 @@ describe("scheduled worker failures", () => {
     const fetchMock = installWorkerFetch({
       rpc: {
         worker_claim_alert_deliveries: [claim],
-        worker_complete_alert_delivery: true,
+        worker_alert_source_enabled: false,
+        worker_read_alert_state: { sent_job_keys: [], prepared: null },
+        worker_prepare_alert: (body: Record<string, unknown>) => body.p_message,
+        worker_complete_alert_with_jobs: true,
       },
       fallback: (url) => {
         if (url.pathname === "/rest/v1/jobs") return Response.json([]);
@@ -862,16 +879,18 @@ describe("scheduled worker failures", () => {
         secondary_failure_codes: [],
       },
     });
-    expect(rpcCallBodies(fetchMock, "worker_complete_alert_delivery")).toEqual([
-      {
-        p_delivery_id: claim.delivery_id,
-        p_claim_token: claim.claim_token,
-        p_outcome: "failed",
-        p_matched_job_count: 1,
-        p_provider_message_id: null,
-        p_error_code: "email_provider_503",
-      },
-    ]);
+    expect(rpcCallBodies(fetchMock, "worker_complete_alert_with_jobs")).toEqual(
+      [
+        {
+          p_delivery_id: claim.delivery_id,
+          p_claim_token: claim.claim_token,
+          p_outcome: "failed",
+          p_matched_job_count: 1,
+          p_provider_message_id: null,
+          p_error_code: "email_provider_503",
+        },
+      ],
+    );
   });
 
   it("records an ATS policy-list RPC failure", async () => {

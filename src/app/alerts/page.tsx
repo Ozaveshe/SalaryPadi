@@ -30,7 +30,8 @@ function AlertStatus({
   if (created === "true") {
     return (
       <div className="notice" role="status">
-        Alert created.
+        Alert created. Your first matching jobs will arrive after the next alert
+        check (usually within 15 minutes).
       </div>
     );
   }
@@ -91,7 +92,7 @@ export default async function AlertsPage({
         unreadNotifications={await readUnreadNotificationCount()}
         current="/alerts"
         title="Job alerts"
-        description="Save a focused query and receive a private daily or weekly email when newly posted jobs match the selected source evidence."
+        description="Save a focused query and receive a private daily or weekly email when open jobs match your country and search. Each role is emailed once per alert."
       >
         <AlertStatus {...status} />
         {status.created === "true" ? (
@@ -122,6 +123,7 @@ export default async function AlertsPage({
             value={JSON.stringify(prefill)}
           />
           <ApplicantCountrySelect
+            required
             id="alert-country"
             defaultValue={prefill.applicantCountry}
           />
@@ -263,6 +265,7 @@ export default async function AlertsPage({
                         value={JSON.stringify(search)}
                       />
                       <ApplicantCountrySelect
+                        required
                         id={`country-${alert.id}`}
                         defaultValue={search.applicantCountry}
                       />

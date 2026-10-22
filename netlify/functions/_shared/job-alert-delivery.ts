@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { canonicalizeJobDestination } from "../../../src/lib/jobs/fingerprint";
 import {
   filterAndSortJobs,
   jobAlertSearchSpecSchema,
@@ -47,12 +49,12 @@ export function matchAlertJobs(
   claim: AlertClaim,
   jobs: Job[],
   now = new Date(),
+  sentJobKeys: ReadonlySet<string> = new Set(),
 ): Job[] {
   const search = parseJobSearch(claim.search_spec);
   // Confirmation-only searches remain browseable, but never become country alert matches.
   if (search.applicantCountry && search.eligibility === "unclear")
     search.eligibility = "all";
-  const cadenceWindow = claim.cadence === "weekly" ? 7 : 1;
   const nowValue = now.valueOf();
   const lastSent = claim.last_sent_at ? Date.parse(claim.last_sent_at) : 0;
   if (
@@ -62,15 +64,32 @@ export function matchAlertJobs(
   ) {
     throw new OperationalError("alert_claim_invalid_last_sent_at");
   }
-  const cadenceCutoff = nowValue - cadenceWindow * 86_400_000;
-  const cutoff = Math.max(cadenceCutoff, lastSent);
   // Every source must opt in independently to private email distribution.
   // Public listing permission, provider reachability, or an employer source
   // type never implies permission to place a job in alerts.
   const emailPermittedJobs = jobs.filter((job) => job.source.canEmail === true);
-  return filterAndSortJobs(emailPermittedJobs, search, now)
-    .filter((job) => Date.parse(job.postedAt) > cutoff)
-    .slice(0, 10);
+  return (
+    filterAndSortJobs(emailPermittedJobs, search, now)
+      .filter((job) => !sentJobKeys.has(alertJobKey(job)))
+      .filter(
+        (job) =>
+          nowValue - Date.parse(job.lastCheckedAt) <= 24 * 60 * 60 * 1000,
+      )
+      // Without a selected country, only explicit worldwide roles are safe.
+      .filter(
+        (job) =>
+          search.applicantCountry ||
+          (job.eligibility.scope === "worldwide" &&
+            job.eligibility.excludedCountries.length === 0),
+      )
+      .slice(0, 10)
+  );
+}
+
+export function alertJobKey(job: Job): string {
+  return createHash("sha256")
+    .update(canonicalizeJobDestination(job.applicationUrl))
+    .digest("hex");
 }
 
 function escapeHtml(value: string): string {
@@ -94,8 +113,8 @@ export function renderAlertEmail(jobs: Job[], applicantCountry?: string) {
       ? countryEligibility(job.eligibility, applicantCountry).explanation
       : "Check country eligibility on the source.";
     return {
-      text: `${job.title} at ${job.company.name} - ${job.locationDisplay}\n${eligibility}\n${detailUrl}`,
-      html: `<li style="margin:0 0 16px"><strong>${escapeHtml(job.title)}</strong><br>${escapeHtml(job.company.name)} - ${escapeHtml(job.locationDisplay)}<br>${escapeHtml(eligibility)}<br><a href="${escapeHtml(detailUrl)}">Check eligibility and source evidence</a></li>`,
+      text: `${job.title} at ${job.company.name} - ${job.locationDisplay}\n${eligibility}\nSource: ${job.source.name} - ${job.sourceUrl}\n${detailUrl}`,
+      html: `<li style="margin:0 0 16px"><strong>${escapeHtml(job.title)}</strong><br>${escapeHtml(job.company.name)} - ${escapeHtml(job.locationDisplay)}<br>${escapeHtml(eligibility)}<br>Source: <a href="${escapeHtml(job.sourceUrl)}">${escapeHtml(job.source.name)}</a><br><a href="${escapeHtml(detailUrl)}">Check eligibility and source evidence</a></li>`,
     };
   });
   const alertsUrl = new URL("/alerts", origin).toString();
