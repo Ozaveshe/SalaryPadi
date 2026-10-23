@@ -107,3 +107,42 @@ describe("country alert delivery", () => {
     ).toEqual([global]);
   });
 });
+
+it.each([
+  ["GH", "Ghana"],
+  ["KE", "Kenya"],
+  ["ZA", "South Africa"],
+])(
+  "matches named and broad alerts against %s rather than Nigeria",
+  (code, name) => {
+    const local = job(20, name);
+    const africa = job(21, "Africa");
+    const nigeria = job(22, "Nigeria");
+    const wrong = job(23, code === "ZA" ? "Kenya" : "South Africa");
+    const excluded = job(24, "Worldwide");
+    excluded.eligibility.excludedCountries = [code];
+    for (const path of ["remote_africa", "remote_nigeria"] as const) {
+      for (const eligibility of ["nigeria", "nigeria_open"] as const) {
+        const countryClaim = {
+          ...claim,
+          search_spec: jobAlertSearchSpecSchema.parse({
+            schema_version: 1,
+            applicantCountry: code,
+            eligibility,
+            path,
+          }),
+        };
+        const matches = matchAlertJobs(
+          countryClaim,
+          [local, africa, nigeria, wrong, excluded],
+          now,
+        );
+        expect(matches).toContain(local);
+        expect(matches).not.toContain(nigeria);
+        expect(matches).not.toContain(wrong);
+        expect(matches).not.toContain(excluded);
+        expect(matches.includes(africa)).toBe(eligibility === "nigeria_open");
+      }
+    }
+  },
+);

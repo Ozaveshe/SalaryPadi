@@ -357,7 +357,8 @@ export function filterAndSortJobs(
       return false;
     if (
       search.path === "remote_nigeria" &&
-      (job.workMode !== "remote" || job.eligibility.nigeria !== "eligible")
+      (job.workMode !== "remote" ||
+        (!search.applicantCountry && job.eligibility.nigeria !== "eligible"))
     )
       return false;
     if (
@@ -366,20 +367,21 @@ export function filterAndSortJobs(
         (!search.applicantCountry && job.eligibility.africa !== "eligible"))
     )
       return false;
-    // "Nigeria explicitly eligible" means the source named Nigeria (or a
-    // country list including it) — not Africa-wide or work-from-anywhere
-    // wording, which have their own filter values. Matching the bare axis
-    // here made the explicit filter return every worldwide-scope job, the
-    // exact inference the label promises not to make.
+    // Keep schema-v1 filter keys compatible, but use the selected country.
+    // Without one, legacy Nigeria searches retain their original meaning.
     if (
       search.eligibility === "nigeria" &&
-      nigeriaEligibilityBasis(job.eligibility) !== "explicit"
+      (search.applicantCountry
+        ? countryEligibility(job.eligibility, search.applicantCountry).basis !==
+          "named"
+        : nigeriaEligibilityBasis(job.eligibility) !== "explicit")
     )
       return false;
     // The broad "open to Nigeria" posture: explicit, Africa-wide or reviewed
     // worldwide wording all qualify, generic "remote" never does.
     if (
       search.eligibility === "nigeria_open" &&
+      !search.applicantCountry &&
       job.eligibility.nigeria !== "eligible"
     )
       return false;
