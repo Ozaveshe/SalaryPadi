@@ -54,7 +54,7 @@ describe("scheduled provider controls", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("caps an enabled alert claim at one and threads an abort signal", async () => {
+  it("bounds an enabled alert batch and threads an abort signal", async () => {
     setEnvironment({
       EMAIL_PROVIDER: "resend",
       NEXT_PUBLIC_SUPABASE_URL: "https://bxelrhklsznmpksgrqep.supabase.co",
@@ -70,7 +70,7 @@ describe("scheduled provider controls", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0] ?? [];
     expect(String(url)).toContain("/rest/v1/rpc/worker_claim_alert_deliveries");
-    expect(JSON.parse(String(init?.body))).toEqual({ p_limit: 1 });
+    expect(JSON.parse(String(init?.body))).toEqual({ p_limit: 3 });
     expect(init?.signal).toBeInstanceOf(AbortSignal);
   });
 });

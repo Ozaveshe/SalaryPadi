@@ -1,4 +1,5 @@
 import type { Config } from "@netlify/functions";
+import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import {
   prepareAlert,
@@ -28,7 +29,8 @@ import {
   workerSucceeded,
 } from "./_shared/runtime";
 
-const alertClaimsResultSchema = z.array(alertClaimSchema).max(1);
+const ALERT_BATCH_SIZE = 3;
+const alertClaimsResultSchema = z.array(alertClaimSchema).max(ALERT_BATCH_SIZE);
 
 async function complete(
   claim: AlertClaim,
@@ -59,7 +61,7 @@ async function claimAlertDeliveries(signal: AbortSignal) {
     return await rpc(
       "worker_claim_alert_deliveries",
       alertClaimsResultSchema,
-      { p_limit: 1 },
+      { p_limit: ALERT_BATCH_SIZE },
       { signal },
     );
   } catch (reason) {
@@ -73,7 +75,10 @@ async function claimAlertDeliveries(signal: AbortSignal) {
   }
 }
 
-export async function runAlertDelivery({ signal }: WorkerExecution) {
+export async function runAlertDelivery({
+  signal,
+  remainingMs,
+}: WorkerExecution) {
   const provider = getRuntimeChoice(
     "EMAIL_PROVIDER",
     ["none", "resend"] as const,
@@ -120,6 +125,7 @@ export async function runAlertDelivery({ signal }: WorkerExecution) {
   let sent = 0;
   let skipped = 0;
   let failed = 0;
+  let providerAttempted = false;
   for (const claim of claims) {
     let matches;
     let prepared: PreparedAlert | null;
@@ -169,6 +175,11 @@ export async function runAlertDelivery({ signal }: WorkerExecution) {
     }
     let providerId: string;
     try {
+      // Leave time to record a retry instead of beginning a send near shutdown.
+      if (remainingMs() < 8_000)
+        throw new OperationalError("alert_delivery_budget_deferred");
+      // Sequential sends stay below the provider's default two-per-second rate.
+      if (providerAttempted) await delay(600, undefined, { signal });
       await assertAlertJobsPublishable(matches, signal);
       prepared = await prepareAlert(
         claim,
@@ -178,6 +189,7 @@ export async function runAlertDelivery({ signal }: WorkerExecution) {
         },
         signal,
       );
+      providerAttempted = true;
       providerId = await sendAlertEmail(
         claim.delivery_id,
         claim.recipient_email,

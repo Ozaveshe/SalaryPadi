@@ -155,10 +155,8 @@ export default async function AlertsPage({
               name="eligibility"
               defaultValue={prefill.eligibility}
             >
-              <option value="nigeria_open">
-                Open to Nigeria (any evidence)
-              </option>
-              <option value="nigeria">Nigeria named by the source</option>
+              <option value="nigeria_open">Open to my selected country</option>
+              <option value="nigeria">My country named by the source</option>
               <option value="africa">Africa explicitly eligible</option>
               <option value="worldwide">Worldwide</option>
               <option value="unclear">Needs eligibility check</option>
@@ -211,8 +209,16 @@ export default async function AlertsPage({
                           {search.applicantCountry
                             ? `Working from ${countryNameFromCode(search.applicantCountry)}`
                             : search.location || "Any location"}{" "}
-                          · {formatEnum(search.eligibility)} · {alert.cadence} ·
-                          created {formatDate(alert.created_at)}
+                          ·{" "}
+                          {search.eligibility === "nigeria" &&
+                          search.applicantCountry
+                            ? "Country named by source"
+                            : search.eligibility === "nigeria_open" &&
+                                search.applicantCountry
+                              ? "Country eligible"
+                              : formatEnum(search.eligibility)}{" "}
+                          · {alert.cadence} · created{" "}
+                          {formatDate(alert.created_at)}
                         </p>
                       </div>
                       <span className="status status-neutral w-fit">
@@ -304,10 +310,10 @@ export default async function AlertsPage({
                           defaultValue={search.eligibility}
                         >
                           <option value="nigeria_open">
-                            Open to Nigeria (any evidence)
+                            Open to my selected country
                           </option>
                           <option value="nigeria">
-                            Nigeria named by the source
+                            My country named by the source
                           </option>
                           <option value="africa">
                             Africa explicitly eligible

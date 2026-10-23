@@ -54,9 +54,11 @@ export function JobSearchForm({
             >
               <option value="all">Any evidence</option>
               <option value="nigeria_open">
-                Open to Nigeria (any evidence)
+                Open to selected country (Nigeria if unset)
               </option>
-              <option value="nigeria">Nigeria named by the source</option>
+              <option value="nigeria">
+                Selected country named (Nigeria if unset)
+              </option>
               <option value="africa">Africa or named African countries</option>
               <option value="worldwide">Worldwide</option>
               <option value="unclear">Needs eligibility check</option>
