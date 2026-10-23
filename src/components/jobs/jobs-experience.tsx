@@ -369,8 +369,10 @@ export function JobsExperience({
           ["All jobs", "/jobs", search.path === "all"],
           ["Nigeria local", "/jobs/nigeria", search.path === "local_nigeria"],
           [
-            "Remote: Nigeria eligible",
-            "/jobs?path=remote_nigeria",
+            `Remote: ${countryNameFromCode(search.applicantCountry || "NG")} eligible`,
+            search.applicantCountry
+              ? `/jobs?path=remote_nigeria&applicantCountry=${search.applicantCountry}`
+              : "/jobs?path=remote_nigeria",
             search.path === "remote_nigeria",
           ],
           [
