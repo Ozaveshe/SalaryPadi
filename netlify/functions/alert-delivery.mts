@@ -178,7 +178,7 @@ export async function runAlertDelivery({
       // Leave time to record a retry instead of beginning a send near shutdown.
       if (remainingMs() < 8_000)
         throw new OperationalError("alert_delivery_budget_deferred");
-      // Sequential sends stay below the provider's default two-per-second rate.
+      // Space successive attempts to avoid bursts on the shared provider quota.
       if (providerAttempted) await delay(600, undefined, { signal });
       await assertAlertJobsPublishable(matches, signal);
       prepared = await prepareAlert(
