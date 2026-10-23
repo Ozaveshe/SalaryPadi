@@ -357,7 +357,8 @@ export function filterAndSortJobs(
       return false;
     if (
       search.path === "remote_nigeria" &&
-      (job.workMode !== "remote" || job.eligibility.nigeria !== "eligible")
+      (job.workMode !== "remote" ||
+        (!search.applicantCountry && job.eligibility.nigeria !== "eligible"))
     )
       return false;
     if (

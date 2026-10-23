@@ -121,26 +121,28 @@ it.each([
     const wrong = job(23, code === "ZA" ? "Kenya" : "South Africa");
     const excluded = job(24, "Worldwide");
     excluded.eligibility.excludedCountries = [code];
-    for (const eligibility of ["nigeria", "nigeria_open"] as const) {
-      const countryClaim = {
-        ...claim,
-        search_spec: jobAlertSearchSpecSchema.parse({
-          schema_version: 1,
-          applicantCountry: code,
-          eligibility,
-          path: "remote_africa",
-        }),
-      };
-      const matches = matchAlertJobs(
-        countryClaim,
-        [local, africa, nigeria, wrong, excluded],
-        now,
-      );
-      expect(matches).toContain(local);
-      expect(matches).not.toContain(nigeria);
-      expect(matches).not.toContain(wrong);
-      expect(matches).not.toContain(excluded);
-      expect(matches.includes(africa)).toBe(eligibility === "nigeria_open");
+    for (const path of ["remote_africa", "remote_nigeria"] as const) {
+      for (const eligibility of ["nigeria", "nigeria_open"] as const) {
+        const countryClaim = {
+          ...claim,
+          search_spec: jobAlertSearchSpecSchema.parse({
+            schema_version: 1,
+            applicantCountry: code,
+            eligibility,
+            path,
+          }),
+        };
+        const matches = matchAlertJobs(
+          countryClaim,
+          [local, africa, nigeria, wrong, excluded],
+          now,
+        );
+        expect(matches).toContain(local);
+        expect(matches).not.toContain(nigeria);
+        expect(matches).not.toContain(wrong);
+        expect(matches).not.toContain(excluded);
+        expect(matches.includes(africa)).toBe(eligibility === "nigeria_open");
+      }
     }
   },
 );
